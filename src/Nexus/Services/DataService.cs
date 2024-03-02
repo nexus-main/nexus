@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
@@ -346,7 +345,7 @@ namespace Nexus.Services
             }
             catch
             {
-                cts.Cancel();
+                await cts.CancelAsync();
                 throw;
             }
         }
