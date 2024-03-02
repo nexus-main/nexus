@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace Nexus.DataModel
@@ -43,16 +44,22 @@ namespace Nexus.DataModel
         /// <summary>
         /// Gets a regular expression to validate a resource identifier.
         /// </summary>
+        [JsonIgnore]
+        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
         public static Regex ValidIdExpression { get; } = new Regex(@"^[a-zA-Z_][a-zA-Z_0-9]*$");
 
         /// <summary>
         /// Gets a regular expression to find invalid characters in a resource identifier.
         /// </summary>
+        [JsonIgnore]
+        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
         public static Regex InvalidIdCharsExpression { get; } = new Regex(@"[^a-zA-Z_0-9]", RegexOptions.Compiled);
 
         /// <summary>
         /// Gets a regular expression to find invalid start characters in a resource identifier.
         /// </summary>
+        [JsonIgnore]
+        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
         public static Regex InvalidIdStartCharsExpression { get; } = new Regex(@"^[^a-zA-Z_]+", RegexOptions.Compiled);
 
         /// <summary>
