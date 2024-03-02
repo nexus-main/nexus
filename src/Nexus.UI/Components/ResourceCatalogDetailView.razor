@@ -1,0 +1,148 @@
+﻿@inject AppState AppState
+@inject ISnackbar Snackbar
+
+<div class="h-full flex flex-col">
+    <h1 class="py-0.5 font-bold text-cyan-700">
+        @Utilities.ToSpaceFilledCatalogId(Catalog.Id)
+        @* Fake icon for correct height *@
+        <span class="text-xl mdi mdi-chevron-down invisible"></span>
+    </h1>
+
+    <div class="flex-1 overflow-auto text-gray-500">
+        @if (_readme is not null)
+        {
+            <MarkdownRenderer MarkdownString="@_readme"></MarkdownRenderer>
+        }
+        else if (Catalog.Info.Title is not null)
+        {
+            <span class="text-sm">@Catalog.Info.Title</span>
+        }
+    </div>
+
+    @if (Catalog is RealResourceCatalogViewModel && Catalog.Info.IsReadable)
+    {
+        <div class="flex justify-between items-center flex-wrap text-gray-400">
+            <div class="text-sm">
+                @if (_timeRange is not null && _timeRange.Begin != DateTime.MinValue && _timeRange.End != DateTime.MaxValue)
+                {
+                    <span class="hidden xl:inline mdi mdi-timer-outline mr-1"></span>
+                    <span class="">@_timeRange.Begin.ToString("yyyy-MM-dd")</span>
+                    <span class="mx-2">-</span>
+                    <span class="hidden xl:inline mdi mdi-timer-off-outline mr-1"></span>
+                    <span class="">@_timeRange.End.ToString("yyyy-MM-dd")</span>
+                }
+            </div>
+            <div class="flex">
+                @if (AppState.SelectedCatalog!.Info.IsWritable)
+                {
+                    <MudTooltip Text="Edit">
+                        <MudIconButton
+                            OnClick="ToggleEditCatalogAsync"
+                            Icon="@Icons.Material.Filled.Edit"
+                            Color="@(AppState.EditModeCatalogMap.ContainsKey(Catalog.Id) ? Color.Secondary : Color.Default)" />
+                    </MudTooltip>
+                }
+
+                <MudTooltip Text="Availability">
+                    <MudIconButton
+                        OnClick="ToggleAvailabilityChart"
+                        Icon="@Icons.Material.Filled.BarChart"
+                        Color="@(AppState.ViewState == ViewState.Normal ? Color.Default : Color.Secondary)" />
+                </MudTooltip>
+
+                @if (_license is not null)
+                {
+                    <LicenseView License="@_license" />
+                }
+
+                @if (Catalog.Catalog is not null)
+                {
+                    <MudTooltip Text="Properties">
+                        <MudIconButton
+                            OnClick="OpenPropertiesModal"
+                            Icon="@Icons.Material.Filled.Code" />
+                    </MudTooltip>
+                    <PropertiesView Properties="Catalog.Catalog!.Properties" @bind-IsOpen="_isPropertiesViewOpen" />
+                }
+
+                @if (!AppState.IsDemo)
+                {
+                    <AttachmentView Catalog="Catalog" />
+                    <CatalogAboutView Catalog="Catalog" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public ResourceCatalogViewModel Catalog { get; set; } = default!;
+
+    private bool _isPropertiesViewOpen;
+    private CatalogTimeRange? _timeRange;
+
+    private string? _readme;
+    private string? _license;
+
+    private void OpenPropertiesModal()
+    {
+        _isPropertiesViewOpen = true;
+    }
+
+    protected override void OnParametersSet()
+    {
+        _readme = Catalog.Info.Readme;
+        _license = Catalog.Info.License;
+
+        if (Catalog.Info.IsReadable)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_readme is null || _license is null)
+                    {
+                        var catalog = await Catalog.CatalogTask.Value;
+                        _readme = _readme ?? catalog.Properties.GetStringValue(CatalogItemViewModel.README_KEY);
+                        _license = _license ?? catalog.Properties.GetStringValue(CatalogItemViewModel.LICENSE_KEY);
+                    }
+
+                    _timeRange = await Catalog.TimeRangeTask.Value;
+
+                    StateHasChanged();
+                }
+                catch (Exception ex)
+                {
+                    AppState.AddError(ex, Snackbar);
+                }               
+            });
+        }
+    }
+
+    private void ToggleAvailabilityChart()
+    {
+        if (AppState.ViewState == ViewState.Normal)
+            AppState.ViewState = ViewState.Availability;
+
+        else
+            AppState.ViewState = ViewState.Normal;
+    }
+
+    private async Task ToggleEditCatalogAsync()
+    {
+        if (AppState.EditModeCatalogMap.ContainsKey(Catalog.Id))
+        {
+            await AppState.SaveAndRemoveEditModeCatalogAsync(Catalog.Id, Snackbar);
+            StateHasChanged();
+        }
+
+        else
+        {
+            AppState.AddEditModeCatalog(Catalog.Id);
+        }
+    }
+}
+
+
+

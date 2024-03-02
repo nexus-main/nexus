@@ -1,0 +1,109 @@
+﻿@implements IDisposable
+@inject AppState AppState
+
+<div class="flex flex-col gap-3">
+
+    <UIAutocomplete
+        T="Period"
+        @bind-Value="AppState.Settings.FilePeriod"
+        Label="File Period"
+        CoerceValue="true"
+        SearchFunc="_ => Task.FromResult(_values.AsEnumerable())"
+        Converter="PeriodHelper.Converter" />
+
+    @if (AppState.Settings.WriterDescriptions is not null)
+    {
+        <UISelect 
+            T="string"
+            @bind-Value="AppState.Settings.FileType"
+            Label="File Type"
+            Items="AppState.Settings.WriterTypeToNameMap.Keys"
+            ToStringFunc="item => AppState.Settings.WriterTypeToNameMap[item]"
+            HelperText="@(AppState.Settings.WriterDescription?.Description is null ? default : AppState.Settings.WriterDescription.Description)" />
+
+        @if (AppState.Settings.WriterDescription is not null && 
+             AppState.Settings.WriterDescription.AdditionalInformation is not null &&
+             AppState.Settings.WriterDescription.AdditionalInformation.TryGetValue("options", out var optionsElement) &&
+             optionsElement.ValueKind == JsonValueKind.Object)
+        {
+            // Synchronize with ResourceView
+            @foreach (var option in optionsElement.EnumerateObject())
+            {
+                @if (option.Value.ValueKind == JsonValueKind.Object &&
+                    option.Value.TryGetStringValue("type", out var type) && type == "input-integer" &&
+                    option.Value.TryGetStringValue("label", out var label) &&
+                    option.Value.TryGetIntegerValue("default", out var defaultValue) &&
+                    option.Value.TryGetIntegerValue("minimum", out var minimum) &&
+                    option.Value.TryGetIntegerValue("maximum", out var maximum))
+                {
+                    <UIOption Key="@option.Name" DefaultValue="defaultValue.Value" Store="AppState.Settings.Configuration">
+                        <ChildContent>
+                            <MudNumericField 
+                                @bind-Value="@context.Value" 
+                                Label="@label"
+                                Min="minimum.Value" 
+                                Max="maximum.Value" />
+                        </ChildContent>
+                    </UIOption>
+                }
+                else if (option.Value.ValueKind == JsonValueKind.Object &&
+                    option.Value.TryGetStringValue("type", out var type2) && type2 == "select" &&
+                    option.Value.TryGetStringValue("label", out var label2) &&
+                    option.Value.TryGetStringValue("default", out var defaultValue2))
+                {
+                    <UIOption Key="@option.Name" DefaultValue="defaultValue2" Store="AppState.Settings.Configuration">
+                        <UISelect 
+                            T="string"
+                            @bind-Value="@context.Value"
+                            Label="@label2"
+                            Items="@((option.Value.GetStringDictionary("items") ?? new Dictionary<string, string>()).Keys)"
+                            ToStringFunc="@(item => option.Value.GetStringDictionary("items")![item])" />
+                    </UIOption>
+                }
+                else
+                {
+                    <span>The option @option.Name could not be rendered.</span>
+                }
+            }
+        }
+    }
+
+</div>
+
+@code {
+
+    private PropertyChangedEventHandler _handler;
+
+    public Rightbar_Settings()
+    {
+        _handler = (sender, e) => 
+        {
+            if (e.PropertyName == nameof(AppState.ExportParameters))
+                StateHasChanged();
+        };
+    }
+
+    private List<Period> _values = new()
+    {
+        new Period(TimeSpan.Zero),
+        new Period(TimeSpan.FromMinutes(1)),
+        new Period(TimeSpan.FromMinutes(10)),
+        new Period(TimeSpan.FromHours(1)),
+        new Period(TimeSpan.FromHours(24))
+    };
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += _handler;
+    }
+
+    protected override Task OnInitializedAsync()
+    {
+        return AppState.Settings.InitializeTask.Value;
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= _handler;
+    }
+}

@@ -1,0 +1,33 @@
+﻿@typeparam T
+@inherits MudSelect<T>
+
+@{
+    base.BuildRenderTree(__builder);
+}
+
+@code {
+
+    [Parameter]
+    public new IEnumerable<T>? Items { get; set; }
+
+    public UISelect()
+    {
+        Variant = Variant.Text;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Items is not null)
+        {
+            ChildContent = __builder =>
+            {
+                @foreach (var item in Items)
+                {
+                    <MudSelectItem Value="@item" />
+                }
+            };
+        }
+
+        base.OnParametersSet();
+    }
+}

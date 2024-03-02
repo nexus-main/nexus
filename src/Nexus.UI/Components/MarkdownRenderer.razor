@@ -1,0 +1,16 @@
+﻿@inject IJSRuntime JSRuntime
+
+<div class="markdown">
+    @((MarkupString)@Render(MarkdownString))
+</div>
+
+@code
+{
+    [Parameter]
+    public string MarkdownString { get; set; } = default!;
+
+    private string Render(string markdownString)
+    {
+        return ((IJSInProcessRuntime)JSRuntime).Invoke<string>("marked.parse", markdownString);
+    }
+}

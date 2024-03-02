@@ -1,0 +1,96 @@
+﻿@implements IDisposable
+@inject ISnackbar Snackbar
+@inject AppState AppState
+@inject INexusClient Client
+
+@if (_availabilityData is null)
+{
+    <div class="h-full flex justify-center items-center mx-auto">
+        <MudProgressCircular 
+            Color="Color.Primary"
+            Indeterminate=true />
+        <span class="ml-3 text-gray-400">Loading availability data ...</span>
+    </div>
+}
+else
+{
+    <div class="h-full p-5">
+        <AvailabilityChart AvailabilityData="_availabilityData"></AvailabilityChart>
+    </div>
+}
+
+@code {
+
+    private PropertyChangedEventHandler _handler;
+
+    private AvailabilityData? _availabilityData;
+
+    public AvailabilityView()
+    {
+        _handler = (sender, e) =>
+        {
+            if (e.PropertyName == nameof(AppState.SelectedCatalog))
+                _ = LoadDataAsync();
+
+            else if (e.PropertyName == nameof(SettingsViewModel.Begin))
+                _ = LoadDataAsync();
+
+            else if (e.PropertyName == nameof(SettingsViewModel.End))
+                _ = LoadDataAsync();
+        };
+    }
+
+    protected override Task OnInitializedAsync()
+    {
+        AppState.PropertyChanged += _handler;
+        AppState.Settings.PropertyChanged += _handler;
+
+        return LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _availabilityData = null;
+        StateHasChanged();
+
+        var begin = AppState.Settings.Begin.Date;
+        var end = AppState.Settings.End.Date;
+        var step = TimeSpan.FromDays(1);
+
+        CatalogAvailability? availability;
+
+        try
+        {
+            if (begin < end)
+            {
+                availability = await Client.Catalogs.GetAvailabilityAsync(
+                    AppState.SelectedCatalog!.Id,
+                    begin,
+                    end,
+                    step,
+                    CancellationToken.None);
+            }
+        
+            else
+            {
+                availability = new CatalogAvailability(Data: new List<double>());
+            }
+
+            _availabilityData = new AvailabilityData(begin, end, step, availability.Data);
+        }
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= _handler;
+        AppState.Settings.PropertyChanged -= _handler;
+    }
+}
+
+

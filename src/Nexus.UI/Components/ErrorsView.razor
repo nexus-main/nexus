@@ -1,0 +1,71 @@
+﻿@implements IDisposable
+@inject AppState AppState
+
+@if (AppState.Errors.Any())
+{
+    <div class="relative mr-2 text-2xl mdi mdi-alert text-red-800 cursor-pointer hover:text-red-600" @onclick="OpenErrorModal">
+        @if (AppState.HasUnreadErrors)
+        {
+            <div class="flex font-bold items-center justify-center absolute w-5 h-5 left-4 top-0 text-xs rounded-full">
+                <span class="absolute left-0 top-0 rounded-full h-3 w-3 bg-red-800 animate-ping opacity-75"></span>
+                <span class="absolute left-0.5 top-0.5 rounded-full h-2 w-2 bg-red-800"></span>
+            </div>
+        }
+    </div>
+}
+
+<UIDialog 
+    @bind-IsVisible="_isErrorDialogOpen" 
+    MaxWidth="MaxWidth.ExtraSmall">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            Errors
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="flex flex-col">
+            @foreach (var error in AppState.Errors.Reverse())
+            {
+                <div class="p-2 m-3 rounded-lg bg-gray-100 overflow-x-auto text-gray-600">
+                    <span class="mdi mdi-alert text-red-800"></span>
+                    <span class="font-bold text-sm">
+                        @error.Item1.ToLocalTime().ToString("HH:mm:ss")
+                    </span>
+                    <span class="block text-sm font-bold py-1">@error.Item2.Message</span>
+                    <span class="block text-sm text-gray-500">@error.Item2.ToString()</span>
+                </div>
+            }
+        </div>
+    </DialogContent>
+</UIDialog>
+
+@code {
+
+    private PropertyChangedEventHandler _handler;
+    private bool _isErrorDialogOpen;
+
+    public ErrorsView()
+    {
+        _handler = (sender, e) =>
+        {
+            if (e.PropertyName == nameof(AppState.Errors))
+                StateHasChanged();
+        };
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += _handler;
+    }
+
+    private void OpenErrorModal()
+    {
+        _isErrorDialogOpen = true;
+        AppState.HasUnreadErrors = false;
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= _handler;
+    }
+}

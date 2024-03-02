@@ -1,0 +1,108 @@
+#!markdown
+
+### TODO
+- test and improve F# plot sample
+
+#!csharp
+
+// https://github.com/dotnet/interactive/issues/698
+#i "nuget: https://www.myget.org/F/apollo3zehn-dev/api/v3/index.json"
+#r "nuget: Nexus.Api"
+
+#!markdown
+
+Create client and authenticate
+
+#!csharp
+
+using Nexus.Api;
+
+// - You get this token in the Nexus GUI's user menu. 
+// - To avoid the token being invalidated by Nexus, do not use it in parallel.
+// - Best practice: Create one token per script or one token per "thread".
+var refreshToken = "<token>";
+var uri = new Uri("http://localhost:5000");
+var client = new NexusClient(uri);
+
+await client.SignInAsync(refreshToken);
+
+#!markdown
+
+Load data from sample catalog `/SAMPLE/LOCAL`
+
+#!csharp
+
+using System.IO;
+
+var begin = new DateTime(2020, 02, 01, 0, 0, 0, DateTimeKind.Utc);
+var end = new DateTime(2020, 02, 01, 0, 2, 0, DateTimeKind.Utc);
+
+const string T1         = "/SAMPLE/LOCAL/T1/1_s";
+const string T1_MEAN    = "/SAMPLE/LOCAL/T1/5_s_mean";
+
+var data = await client.LoadAsync(
+    begin,
+    end,
+    resourcePaths: new string[] { T1, T1_MEAN },
+    onProgress: progress => Console.WriteLine($"{progress * 100,3:##0} %: Loading")
+);
+
+var t1 = data[T1];
+var t1_mean = data[T1_MEAN];
+
+var timestamps = Enumerable
+    .Range(0, t1.Values.Length)
+    .Select(x => begin.Add(t1.SamplePeriod))
+    .ToArray();
+
+var timestamps_mean = Enumerable
+    .Range(0, t1_mean.Values.Length)
+    .Select(x => begin.Add(t1_mean.SamplePeriod))
+    .ToArray();
+
+#!fsharp
+
+#r "nuget: Plotly.NET, 2.0.0-preview.17"
+#r "nuget: Plotly.NET.Interactive, 2.0.0-preview.17"
+
+#!markdown
+
+Plot data
+
+#!fsharp
+
+#!share --from csharp t1
+#!share --from csharp t1_mean
+#!share --from csharp timestamps
+#!share --from csharp timestamps_mean
+
+// wait for https://github.com/dotnet/interactive/issues/1848 to be solved
+
+open Plotly.NET
+
+let t1Chart =
+    Chart.Line(timestamps, t1.Values, Name=t1.Description)
+        |> Chart.withAxisAnchor(Y=2)
+
+let t1_meanChart =
+    Chart.Line(timestamps_mean, t1_mean.Values, Name=t1.Description)
+        |> Chart.withAxisAnchor(Y=2)
+
+let twoXAxes = 
+    [
+        t1Chart
+        t1_meanChart
+    ]
+    |> Chart.combine
+    |> Chart.withYAxisStyle(
+        $"axis 1 / {t1Unit}",
+        Side=StyleParam.Side.Left,
+        Id=StyleParam.SubPlotId.YAxis 1
+    )
+    |> Chart.withYAxisStyle(
+        $"axis 2 / {t1Unit}",
+        Side=StyleParam.Side.Right,
+        Id=StyleParam.SubPlotId.YAxis 2,
+        Overlaying=StyleParam.LinearAxisId.Y 1
+    )
+    |> Chart.show

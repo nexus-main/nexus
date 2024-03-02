@@ -1,0 +1,29 @@
+﻿@typeparam T
+
+@inherits MudAutocomplete<T>
+
+@{
+    base.BuildRenderTree(__builder);
+}
+
+@code {
+
+    public UIAutocomplete()
+    {
+        MaxItems = default;
+    }
+
+    // Required because MudAutocomplete:
+    // 1. does not coerce value if search result is not empty
+    protected override async Task UpdateValuePropertyAsync(bool updateText)
+    {
+        await base.UpdateValuePropertyAsync(updateText);
+        var value = Converter.Get(Text);
+        await SetValueAsync(value, updateText: false);
+    }
+
+    protected override async Task SetValueAsync(T value, bool updateText = true, bool force = false)
+    {
+        await base.SetValueAsync(value, updateText, force);
+    }
+}

@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="34.53199mm"
+   height="8.4074602mm"
+   viewBox="0 0 34.53199 8.4074602"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1.2 (b8e25be833, 2022-02-05)"
+   sodipodi:docname="text.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:pageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="5.6568542"
+     inkscape:cx="73.450718"
+     inkscape:cy="14.230524"
+     inkscape:window-width="1920"
+     inkscape:window-height="996"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g13418"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0" />
+  <defs
+     id="defs2">
+    <inkscape:path-effect
+       effect="powermask"
+       id="path-effect9289"
+       is_visible="true"
+       lpeversion="1"
+       uri="#mask-powermask-path-effect9289"
+       invert="false"
+       hide_mask="false"
+       background="true"
+       background_color="#ffffffff" />
+    <rect
+       x="388.75"
+       y="699.25"
+       width="47"
+       height="72.75"
+       id="rect7245" />
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient14120">
+      <stop
+         style="stop-color:#0e7490;stop-opacity:1"
+         offset="0"
+         id="stop14116" />
+      <stop
+         style="stop-color:#164e63;stop-opacity:1"
+         offset="1"
+         id="stop14118" />
+    </linearGradient>
+    <inkscape:path-effect
+       effect="mirror_symmetry"
+       start_point="415.44612,313.82812"
+       end_point="415.44612,793.99218"
+       center_point="415.44612,553.91015"
+       id="path-effect3767"
+       is_visible="true"
+       lpeversion="1.1"
+       mode="free"
+       discard_orig_path="false"
+       fuse_paths="true"
+       oposite_fuse="false"
+       split_items="false"
+       split_open="false" />
+    <inkscape:path-effect
+       effect="mirror_symmetry"
+       start_point="107.82,77.75"
+       end_point="111.42,215.26286"
+       center_point="115.01889,146.50651"
+       id="path-effect2237"
+       is_visible="true"
+       lpeversion="1.1"
+       mode="X"
+       discard_orig_path="false"
+       fuse_paths="false"
+       oposite_fuse="false"
+       split_items="false"
+       split_open="false" />
+    <inkscape:path-effect
+       effect="mirror_symmetry"
+       start_point="112.02,77.750167"
+       end_point="112.02,215.26286"
+       center_point="115.01889,146.50651"
+       id="path-effect2234"
+       is_visible="true"
+       lpeversion="1.1"
+       mode="free"
+       discard_orig_path="false"
+       fuse_paths="false"
+       oposite_fuse="false"
+       split_items="false"
+       split_open="false" />
+    <inkscape:path-effect
+       effect="mirror_symmetry"
+       start_point="115.01889,77.750167"
+       end_point="115.01889,215.26286"
+       center_point="115.01889,146.50651"
+       id="path-effect2232"
+       is_visible="true"
+       lpeversion="1.1"
+       mode="free"
+       discard_orig_path="false"
+       fuse_paths="false"
+       oposite_fuse="false"
+       split_items="false"
+       split_open="false" />
+    <inkscape:path-effect
+       effect="mirror_symmetry"
+       start_point="45.044871,149.1"
+       end_point="115.02,148.5"
+       center_point="115.01889,146.50651"
+       id="path-effect2230"
+       is_visible="true"
+       lpeversion="1.1"
+       mode="Y"
+       discard_orig_path="false"
+       fuse_paths="false"
+       oposite_fuse="false"
+       split_items="false"
+       split_open="false" />
+    <inkscape:path-effect
+       effect="mirror_symmetry"
+       start_point="45.044871,146.50651"
+       end_point="80.03188,77.750167"
+       center_point="80.03188,146.50651"
+       id="path-effect2228"
+       is_visible="true"
+       lpeversion="1.1"
+       mode="free"
+       discard_orig_path="false"
+       fuse_paths="false"
+       oposite_fuse="false"
+       split_items="false"
+       split_open="false" />
+    <inkscape:path-effect
+       effect="powerclip"
+       id="path-effect2137"
+       is_visible="true"
+       lpeversion="1"
+       inverse="true"
+       flatten="false"
+       hide_clip="false"
+       message="Füllregel Gerade-Ungerade im &lt;b&gt;Füllung und Kontur&lt;/b&gt;-Dialog verwenden, wenn das Anwenden des Ausschnitts mit nachfolgendem Umwandeln in Pfade kein Ergebnis bringt" />
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath40559">
+      <g
+         inkscape:label="Clip"
+         id="use40561"
+         style="display:inline" />
+    </clipPath>
+    <filter
+       id="mask-powermask-path-effect44551_inverse"
+       inkscape:label="filtermask-powermask-path-effect44551"
+       style="color-interpolation-filters:sRGB"
+       height="100"
+       width="100"
+       x="-50"
+       y="-50">
+      <feColorMatrix
+         id="mask-powermask-path-effect44551_primitive1"
+         values="1"
+         type="saturate"
+         result="fbSourceGraphic" />
+      <feColorMatrix
+         id="mask-powermask-path-effect44551_primitive2"
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic" />
+    </filter>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient14120"
+       id="linearGradient919"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.72736381,0,0,0.72736381,45.515429,35.533905)"
+       x1="136.16373"
+       y1="135.48936"
+       x2="92.778351"
+       y2="135.62166" />
+    <mask
+       maskUnits="userSpaceOnUse"
+       id="mask-powermask-path-effect9289">
+      <path
+         id="mask-powermask-path-effect9289_box"
+         style="fill:#ffffff;fill-opacity:1"
+         d="m 125.35091,129.2046 h 10.40773 v 10.40746 h -10.40773 z" />
+      <text
+         xml:space="preserve"
+         id="text9287"
+         style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect7245);fill:#000000;fill-opacity:1;stroke:none"
+         transform="scale(0.26458333)" />
+    </mask>
+    <filter
+       id="mask-powermask-path-effect9289_inverse"
+       inkscape:label="filtermask-powermask-path-effect9289"
+       style="color-interpolation-filters:sRGB"
+       height="100"
+       width="100"
+       x="-50"
+       y="-50">
+      <feColorMatrix
+         id="mask-powermask-path-effect9289_primitive1"
+         values="1"
+         type="saturate"
+         result="fbSourceGraphic" />
+      <feColorMatrix
+         id="mask-powermask-path-effect9289_primitive2"
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic" />
+    </filter>
+    <rect
+       x="388.75"
+       y="699.25"
+       width="47"
+       height="72.75"
+       id="rect7245-8" />
+  </defs>
+  <g
+     inkscape:label="background"
+     inkscape:groupmode="layer"
+     id="layer1"
+     style="display:inline"
+     transform="translate(-113.14477,-130.15869)" />
+  <g
+     inkscape:label="Ebene 1 Kopie"
+     inkscape:groupmode="layer"
+     id="g13418"
+     style="display:inline"
+     transform="translate(-113.14477,-130.15869)">
+    <g
+       aria-label="NE   US"
+       id="text10188-0-6-9"
+       style="font-size:9.34481px;line-height:1.25;letter-spacing:0px;word-spacing:0px;display:inline;fill:url(#linearGradient919);stroke-width:0.233484">
+      <path
+         d="m 118.32822,137.79045 h -1.11791 l -3.2214,-6.07778 v 6.07778 h -0.84414 v -6.79415 h 1.40081 l 2.93851,5.54848 v -5.54848 h 0.84413 z"
+         id="path1468" />
+      <path
+         d="m 124.61133,137.79045 h -4.4762 v -6.79415 h 4.4762 v 0.80307 h -3.57275 v 1.86166 h 3.57275 v 0.80307 h -3.57275 v 2.52328 h 3.57275 z"
+         id="path1470" />
+      <path
+         d="m 141.01494,135.06184 q 0,0.73919 -0.16427,1.2913 -0.1597,0.54755 -0.52929,0.91258 -0.35135,0.34678 -0.82133,0.50648 -0.46997,0.1597 -1.09509,0.1597 -0.63881,0 -1.11335,-0.16883 -0.47454,-0.16882 -0.7985,-0.49735 -0.3696,-0.37416 -0.53386,-0.90346 -0.1597,-0.52929 -0.1597,-1.30042 v -4.06554 h 0.90345 v 4.11117 q 0,0.55211 0.073,0.87151 0.0776,0.3194 0.25552,0.57949 0.20076,0.29659 0.54298,0.44716 0.34678,0.15058 0.83045,0.15058 0.48823,0 0.83045,-0.14601 0.34221,-0.15058 0.54754,-0.45173 0.17796,-0.26009 0.25096,-0.59318 0.0776,-0.33765 0.0776,-0.83501 v -4.13398 h 0.90346 z"
+         id="path1472" />
+      <path
+         d="m 147.67676,135.85122 q 0,0.39697 -0.18708,0.78482 -0.18251,0.38784 -0.5156,0.65706 -0.36503,0.29202 -0.85326,0.45628 -0.48367,0.16427 -1.16811,0.16427 -0.73462,0 -1.32324,-0.13689 -0.58405,-0.13688 -1.19091,-0.4061 v -1.13159 h 0.0639 q 0.51561,0.42891 1.19092,0.66162 0.6753,0.2327 1.26848,0.2327 0.83957,0 1.30499,-0.31484 0.46998,-0.31484 0.46998,-0.83957 0,-0.45173 -0.22359,-0.66618 -0.21901,-0.21446 -0.67074,-0.33309 -0.34222,-0.0913 -0.74375,-0.15058 -0.39697,-0.0593 -0.84414,-0.15057 -0.90345,-0.19165 -1.34149,-0.6525 -0.43347,-0.46541 -0.43347,-1.20916 0,-0.85327 0.72093,-1.39625 0.72094,-0.54755 1.82972,-0.54755 0.71638,0 1.31412,0.13689 0.59774,0.13689 1.05859,0.33765 v 1.06772 h -0.0639 q -0.38785,-0.32853 -1.02209,-0.54298 -0.62968,-0.21902 -1.2913,-0.21902 -0.7255,0 -1.1681,0.30115 -0.43804,0.30115 -0.43804,0.77569 0,0.42435 0.21902,0.66618 0.21902,0.24184 0.77113,0.3696 0.29203,0.0639 0.83045,0.15514 0.53842,0.0913 0.91258,0.18707 0.75744,0.20077 1.14072,0.60687 0.38328,0.4061 0.38328,1.13616 z"
+         id="path1474" />
+    </g>
+    <path
+       id="path1122"
+       style="color:#000000;display:inline;fill:#164e63;stroke:none;stroke-width:0.173;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="m 126.35243,130.15869 -0.60564,0.60564 3.31266,3.31239 h 0.60536 v -0.60565 z m 7.19646,0 -3.31267,3.31267 v 0.60536 h 0.60565 l 3.31265,-3.31239 z m -4.48972,4.48944 -3.31238,3.31238 0.60564,0.60564 3.31238,-3.31238 v -0.60564 z m 1.17705,0 v 0.60536 l 3.31267,3.31266 0.60563,-0.60564 -3.31238,-3.31238 z"
+       mask="none" />
+    <text
+       xml:space="preserve"
+       id="text9287-7"
+       style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect7245-8);fill:#000000;fill-opacity:1;stroke:none"
+       transform="matrix(0.26458333,0,0,0.26458333,-5.9040518,-11.96791)" />
+  </g>
+</svg>

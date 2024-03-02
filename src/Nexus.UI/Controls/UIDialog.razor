@@ -1,0 +1,26 @@
+﻿@inherits MudDialog
+
+@{
+    base.BuildRenderTree(__builder);
+}
+
+@code {
+    private DialogOptions _dialogOptions = new() 
+    { 
+        CloseOnEscapeKey = true, 
+        CloseButton = true, 
+        FullWidth = true
+    };
+
+    [Parameter]
+    public MaxWidth MaxWidth { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        _dialogOptions.MaxWidth = MaxWidth;
+        Options = _dialogOptions;
+
+        base.OnParametersSet();
+    }
+}
+

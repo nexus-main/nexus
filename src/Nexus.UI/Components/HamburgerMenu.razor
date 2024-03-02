@@ -1,0 +1,31 @@
+﻿<div class="top-0 left-0 flex justify-end items-center fixed w-full z-50 h-full @(IsOpen ? "" : "hidden")">
+    
+    <div class="absolute top-0 left-0 w-full h-full bg-black opacity-50" @onclick="CloseAsync"></div>
+
+    <div class="absolute @Width h-full bg-cyan-900 flex flex-col p-3 overflow-y-auto">
+        <Leftbar_Actions />
+        <Leftbar_Settings />
+        <Leftbar_ChartSettings />
+        <Leftbar_CatalogItems />
+
+        <Rightbar_Settings />
+        <Rightbar_Jobs />
+        <Rightbar_Actions />
+    </div>
+</div>
+
+@code {
+    [Parameter] 
+    public bool IsOpen { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> IsOpenChanged { get; set; }
+
+    [Parameter]
+    public string Width { get; set; } = default!;
+
+    private async Task CloseAsync()
+    {
+        await IsOpenChanged.InvokeAsync(false);
+    }
+}

@@ -1,0 +1,104 @@
+﻿@implements IDisposable
+@inject AppState AppState
+
+<div class="group flex items-center">
+    @if (Job.Status is not null && Job.Status.Status >= Api.TaskStatus.RanToCompletion)
+    {
+        if (Job.Status.Status == Api.TaskStatus.RanToCompletion)
+        {
+            <div class="group-hover:hidden">
+                <MudIconButton 
+                    Icon="@Icons.Material.Filled.Check"
+                    Color="Color.Success" />
+            </div>
+            <div class="hidden group-hover:block">
+                <a download="@GetDownloadName()" href="api/v1/artifacts/@Job.Status.Result">
+                    <MudIconButton 
+                        Icon="@Icons.Material.Filled.Download"
+                        Color="Color.Primary" />
+                </a>
+            </div>
+        }
+        else if (Job.Status.Status == Api.TaskStatus.Canceled)
+        {
+            <MudIconButton 
+                Icon="@Icons.Material.Filled.Close" />
+        }
+        else if (Job.Status.Status == Api.TaskStatus.Faulted)
+        {
+            <MudIconButton 
+                OnClick="OpenErrorMessageModal"
+                Icon="@Icons.Material.Filled.FlashOn"
+                Color="Color.Error" />
+
+            <UIDialog 
+                @bind-IsVisible="_isErrorMessageDialogOpen"
+                MaxWidth="MaxWidth.ExtraSmall">
+                 <TitleContent>
+                    <MudText Typo="Typo.h6">
+                        Exception Details
+                    </MudText>
+                </TitleContent>
+                <DialogContent>
+                    <div class="bg-gray-100 rounded-lg p-3 text-gray-500 text-sm">
+                        @Job.Status.ExceptionMessage
+                    </div>
+                </DialogContent>
+            </UIDialog>
+        }
+    }
+    else
+    {
+        <div class="group-hover:hidden">
+            <MudProgressCircular 
+                Color="Color.Primary"
+                Value="Job.Progress"
+                Max="1" />
+        </div>
+        <div class="hidden group-hover:block">
+            <MudIconButton
+                OnClick="() => AppState.CancelJob(Job)"
+                Icon="@Icons.Material.Filled.Close"
+                Color="Color.Primary" />
+        </div>
+    }
+</div>
+
+@code {
+
+    private PropertyChangedEventHandler _handler;
+    private bool _isErrorMessageDialogOpen;
+    
+    public JobView()
+    {
+        _handler = (sender, e) =>
+        {
+            if (e.PropertyName == nameof(Job.Status))
+                StateHasChanged();
+        };
+    }
+
+    [Parameter] 
+    public JobViewModel Job { get; set; } = default!;
+
+
+    protected override void OnInitialized()
+    {
+        Job.PropertyChanged += _handler;
+    }
+
+    private void OpenErrorMessageModal()
+    {
+        _isErrorMessageDialogOpen = true;
+    }
+
+    private string GetDownloadName()
+    {
+        return $"Nexus_{Job.Parameters.Begin.ToString("yyyy-MM-ddTHH-mm-ss")}_{AppState.Settings.SamplePeriod.Value.ToUnitString(withUnderScore: true)}.zip";
+    }
+
+    public void Dispose()
+    {
+        Job.PropertyChanged -= _handler;
+    }
+}

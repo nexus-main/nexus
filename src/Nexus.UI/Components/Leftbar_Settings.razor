@@ -1,0 +1,84 @@
+﻿@implements IDisposable
+@inject AppState AppState
+
+<div>
+    <UIDatePicker 
+        Label="From (UTC)" 
+        @bind-Value="AppState.Settings.Begin" />
+
+    <UIDatePicker 
+        Label="To (UTC)" 
+        @bind-Value="AppState.Settings.End" />
+
+    <UIAutocomplete 
+        T="Period"
+        @bind-Value="SamplePeriod"
+        Label="Period"
+        CoerceValue="true"
+        SearchFunc="_ => Task.FromResult(_values.AsEnumerable())"
+        Converter="PeriodHelper.Converter" />
+</div>
+
+@code {
+
+    private PropertyChangedEventHandler _handler;
+
+    private List<Period> _values = new();
+
+    private Period SamplePeriod
+    {
+        get
+        {
+            return AppState.Settings.SamplePeriod;
+        }
+
+        set
+        {
+            if (value != AppState.Settings.SamplePeriod)
+            {
+                AppState.Settings.SamplePeriod = value;
+                AppState.Settings.CanModifySamplePeriod = false;
+            }
+        }
+    }
+
+    public Leftbar_Settings()
+    {
+        _handler = (sender, e) =>
+        {
+            if (e.PropertyName == nameof(AppState.ExportParameters))
+            {
+                StateHasChanged();
+            }
+
+            else if (e.PropertyName == nameof(AppState.Settings.SamplePeriod))
+            {
+                StateHasChanged();
+            }
+
+            else if (e.PropertyName == nameof(AppState.Settings.SelectedCatalogItems))
+            {
+                _values = AppState.Settings.SelectedCatalogItems
+                    .Select(item => new Period(item.BaseItem.Representation.SamplePeriod))
+                    .OrderBy(item => item.Value)
+                    .DistinctBy(item => item.Value)
+                    .ToList();
+
+                StateHasChanged();
+            }
+        };
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += _handler;
+        AppState.Settings.PropertyChanged += _handler;
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= _handler;
+        AppState.Settings.PropertyChanged -= _handler;
+    }
+}
+

@@ -1,0 +1,101 @@
+﻿@inject AppState AppState
+@inject IJSInProcessRuntime JSRuntime
+
+<div class="group text-gray-200 cursor-pointer hover:bg-cyan-800 p-2 pt-1 rounded select-none">
+    <div>
+        <span class="text-sm">@SelectedItem.AugmentedResourceId</span>
+        <span class="text-xs text-gray-400 ml-2">@Utilities.ToSpaceFilledCatalogId(SelectedItem.BaseItem.Catalog.Id)</span>
+    </div>
+    <div class="flex flex-wrap gap-1">
+
+        @foreach (var kind in SelectedItem.Kinds)
+        {
+            <div class="nexus-pill nexus-hover-parent min-w-[6em] h-6 text-xs text-white rounded @(IsValid(kind) ? "bg-teal-600" : "bg-rose-700") flex flex-col" placeholder="@kind">
+                <div class="nexus-hover-hide py-1 text-center">@kind</div>
+                <div class="hidden flex-1 flex nexus-hover-flex">
+                    <div @onclick="() => CopyToClipboard(kind)" class="flex-1 hover:@(IsValid(kind) ? "bg-teal-500" : "bg-rose-600") rounded-l mdi mdi-content-copy flex justify-center items-center"></div>
+                    <div @onclick="() => RemoveRepresentationKind(kind)" class="flex-1 hover:@(IsValid(kind) ? "bg-teal-500" : "bg-rose-600") rounded-r mdi mdi-close flex justify-center items-center"></div>
+                </div>
+            </div>
+        }
+
+        @if (_kinds.Any())
+        {
+            <div class="invisible group-hover:visible">
+                <UISpecialSelect
+                    Label="+"
+                    Items="_kinds"
+                    OnItemSelected="(RepresentationKind newKind) => AddRepresentationKind(newKind)">
+                </UISpecialSelect>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+
+    private Dictionary<RepresentationKind, string> _kinds = default!;
+
+    [Parameter]
+    public CatalogItemSelectionViewModel SelectedItem { get; set; } = default!;
+
+    protected override void OnParametersSet()
+    {
+        _kinds = GetKinds();
+    }
+  
+    private void CopyToClipboard(RepresentationKind kind)
+    {
+        var resourcePath = SelectedItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value);
+        JSRuntime.InvokeVoid("nexus.util.copyToClipboard", resourcePath);
+    }
+
+    private void AddRepresentationKind(RepresentationKind kind)
+    {
+        SelectedItem.Kinds.Add(kind);
+        _kinds = GetKinds();
+        AppState.Settings.CanExportChanged();
+        AppState.Settings.CanVisualizeChanged();
+    }
+
+    private void RemoveRepresentationKind(RepresentationKind kind)
+    {
+        if (SelectedItem.Kinds.Count == 1)
+        {
+            AppState.Settings.ToggleCatalogItemSelection(SelectedItem);
+        }
+        
+        else
+        {
+            SelectedItem.Kinds.Remove(kind);
+            _kinds = GetKinds();
+            AppState.Settings.CanExportChanged();
+            AppState.Settings.CanVisualizeChanged();
+        }
+    }
+
+    private string GetId()
+    {
+        return $"{@SelectedItem.BaseItem.Catalog.Id}/{@SelectedItem.BaseItem.Resource.Id}";
+    }
+
+    private Dictionary<RepresentationKind, string> GetKinds()
+    {
+        return Enum
+            .GetValues<RepresentationKind>()
+            .Where(kind => 
+                !SelectedItem.Kinds.Contains(kind) && 
+                SelectedItem.IsValid(kind, AppState.Settings.SamplePeriod))
+            .ToDictionary(kind => kind, kind => kind.ToString());
+    }
+
+    private bool IsValid(RepresentationKind kind)
+    {
+        return SelectedItem.IsValid(kind, AppState.Settings.SamplePeriod);
+    }
+}
+
+
+
+
+

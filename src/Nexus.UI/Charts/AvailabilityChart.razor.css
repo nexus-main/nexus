@@ -1,0 +1,8 @@
+﻿.chart-container {
+    height: 100%;
+}
+
+::deep canvas {
+    height: 100%;
+    width: 100%;
+}

@@ -1,0 +1,47 @@
+﻿@using SkiaSharp.Views.Blazor
+
+<div class="chart-container">
+
+    <div id="chart_@(_chartId)" class="chart">
+
+        <SKGLView @ref="_skiaView"
+            OnPaintSurface="PaintSurface">
+        </SKGLView>
+
+        <div id="overlay_@(_chartId)" class="overlay" 
+            @onmousedown="OnMouseDown"
+            @onmousemove="OnMouseMove"
+            @onmouseleave="OnMouseLeave"
+            @ondblclick="OnDoubleClick"
+            @onwheel="OnWheel">
+
+            <div id="crosshairs-x_@(_chartId)" class="crosshairs-x" style="display: none;"></div>
+            <div id="crosshairs-y_@(_chartId)" class="crosshairs-y" style="display: none;"></div>
+            <div id="selection_@(_chartId)" class="selection"></div>
+            
+            @foreach (var series in LineSeriesData.Series)
+            {
+               <div 
+                    id="pointer_@(series.Id)_@(_chartId)"
+                    class="pointer"
+                    style="display: none; background: rgb(@series.Color.Red, @series.Color.Green, @series.Color.Blue)"></div>
+            }
+        </div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item">
+            <div id="name_datetime_@(_chartId)" class="name">Time:</div>
+            <div id="value_datetime_@(_chartId)">--</div>
+        </div>
+
+        @foreach (var series in LineSeriesData.Series)
+        {
+            <div class="legend-item @(series.Show ? "" : "inactive")" @onclick="() => ToggleSeriesEnabled(series)">
+                <div class="color-box" style="border-color: rgb(@series.Color.Red, @series.Color.Green, @series.Color.Blue)"></div>
+                <div id="name_@(series.Id)_@(_chartId)" class="name">@series.Name:</div>
+                <div id="value_@(series.Id)_@(_chartId)">--</div>
+            </div>
+        }
+    </div>
+</div>

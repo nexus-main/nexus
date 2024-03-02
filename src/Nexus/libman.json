@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "defaultProvider": "jsdelivr",
+  "libraries": [
+    {
+      "provider": "cdnjs",
+      "library": "marked@4.0.2",
+      "destination": "wwwroot/lib/marked/"
+    },
+    {
+      "library": "@mdi/font@6.5.95",
+      "destination": "wwwroot/lib/mdi/font/",
+      "files": [
+        "css/materialdesignicons.css",
+        "css/materialdesignicons.css.map",
+        "css/materialdesignicons.min.css",
+        "css/materialdesignicons.min.css.map",
+        "fonts/materialdesignicons-webfont.eot",
+        "fonts/materialdesignicons-webfont.ttf",
+        "fonts/materialdesignicons-webfont.woff",
+        "fonts/materialdesignicons-webfont.woff2"
+      ]
+    },
+    {
+      "library": "@highlightjs/cdn-assets@11.5.1",
+      "destination": "wwwroot/lib/highlightjs/cdn-assets",
+      "files": [
+        "highlight.min.js",
+        "styles/stackoverflow-light.min.css",
+        "styles/vs2015.min.css"
+      ]
+    }
+  ]
+}

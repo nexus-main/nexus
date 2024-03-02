@@ -1,0 +1,31 @@
+<MudTooltip Text="License">
+    <MudIconButton
+        OnClick="OpenLicenseModal"
+        Icon="@Icons.Material.Filled.EditNote" />
+</MudTooltip>
+
+<UIDialog 
+    @bind-IsVisible="_isLicenseDialogOpen" 
+    MaxWidth="MaxWidth.ExtraSmall">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            License
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MarkdownRenderer MarkdownString="@License"></MarkdownRenderer>
+    </DialogContent>
+</UIDialog>
+
+@code {
+
+    private bool _isLicenseDialogOpen;
+
+    [Parameter]
+    public string License { get; set; } = default!;
+
+    private void OpenLicenseModal()
+    {
+        _isLicenseDialogOpen = true;
+    }
+}

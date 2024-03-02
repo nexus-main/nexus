@@ -1,0 +1,85 @@
+﻿@if (Catalog.Id == ResourceCatalogViewModel.ROOT_CATALOG_ID)
+{
+    <div id="@Catalog.Id">
+        @if (Catalog.Children is not null)
+        {
+            @foreach (var child in Catalog.Children)
+            {
+                <ResourceCatalogView Catalog="@child" />
+            }
+        }
+    </div>
+}
+else
+{
+    <div id="@Catalog.Id" class="flex flex-col cursor-pointer select-none">
+
+        <a class="flex p-0.5 items-center group"
+            href="catalogs/@(Catalog.IsSelected ? default! : Utilities.EscapeDataString(Catalog.Id.Replace("/", "__")))"
+            @onclick="Catalog.IsSelected ? () => Catalog.IsOpen = !Catalog.IsOpen : default!">
+            <span class="
+                text-xl 
+                mdi mr-1
+                @(Catalog.IsOpen 
+                    ? "mdi-chevron-down"
+                    : "mdi-chevron-right")
+                @(Catalog.Children is not null && !Catalog.Children.Any()
+                    ? "invisible"
+                    : "")">
+            </span>
+
+            <div class="flex items-center">
+                <span class="font-bold @(Catalog.Info.IsReadable ? "text-cyan-700" : "text-gray-500") @(Catalog.IsSelected ? "text-orange-500" : "group-hover:text-cyan-500")">
+                    @Catalog.DisplayName
+                </span>
+
+                @if (!Catalog.Info.IsReadable)
+                {
+                    <span class="mdi mdi-lock mx-1"></span>
+                }
+
+                @if (!Catalog.Info.IsReleased && Catalog.Info.IsOwner)
+                {
+                    <MudTooltip Text="The catalog is not released.">
+                        <span class="mdi mdi-wrench mx-1"></span>
+                    </MudTooltip>
+                }
+
+                @if (!Catalog.Info.IsVisible && Catalog.Info.IsOwner)
+                {
+                    <MudTooltip Text="The catalog is not visible.">
+                        <span class="mdi mdi-sunglasses mx-1"></span>
+                    </MudTooltip>
+                }
+
+                @if (Catalog.Info.Title is not null)
+                {
+                    <span class="ml-2 text-sm text-gray-500">
+                        @Catalog.Info.Title
+                    </span>
+                }
+            </div>
+        </a>       
+
+        @if (Catalog.IsOpen)
+        {
+            <div class="ml-3 flex flex-col">
+                @if (Catalog.Children is not null)
+                {
+                    @foreach (var child in Catalog.Children)
+                    {
+                        <ResourceCatalogView Catalog="@child" />
+                    }
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public ResourceCatalogViewModel Catalog { get; set; } = default!;
+}
+
+
+

@@ -1,0 +1,67 @@
+﻿@typeparam T
+
+<div class="text-xs font-semibold rounded bg-teal-600 text-gray-300 hover:bg-teal-500">
+
+    <div id="@_id" class="px-2.5 py-1" @onmouseup="ToggleIsOpen">
+        @Label
+    </div>
+
+    @if (_isOpen)
+    {
+        <div class="mt-2 absolute border border-teal-500 bg-cyan-900 z-50 cursor-pointer">
+            @foreach (var entry in Items)
+            {
+                <div class="px-3 py-2 text-gray-200 bg-cyan-900 hover:bg-cyan-800"
+                    @onclick="() => RaiseOnItemSelected(entry.Key)">
+                    @entry.Value
+                </div>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+
+    private Guid _id = Guid.NewGuid();
+    private DotNetObjectReference<UISpecialSelect<T>> _dotNetHelper;
+    private bool _isOpen;
+
+    public UISpecialSelect()
+    {
+        _dotNetHelper = DotNetObjectReference.Create(this);
+    }
+
+    [Inject]
+    public IJSInProcessRuntime JSRuntime { get; set; } = default!;
+
+    [Parameter]
+    public string Label { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<T> OnItemSelected { get; set; }
+
+    [Parameter]
+    public IDictionary<T, string> Items { get; set; } = default!;
+
+    [JSInvokable]
+    public void OnClickExceptSelf()
+    {
+        _isOpen = false;
+        StateHasChanged();
+    }
+
+    private void RaiseOnItemSelected(T item)
+    {
+        if (OnItemSelected.HasDelegate)
+            OnItemSelected.InvokeAsync(item);
+    }
+
+    private void ToggleIsOpen()
+    {
+        _isOpen = !_isOpen;
+
+        if (_isOpen)
+            JSRuntime.InvokeVoid("nexus.util.addClickExceptSelfEvent", _id, _dotNetHelper);
+    }
+}

@@ -1,0 +1,232 @@
+﻿@inject ISnackbar Snackbar
+
+@using System.Net
+
+<MudTooltip Text="Attachments">
+    <MudIconButton
+        OnClick="OpenAttachmentModal"
+        Icon="@Icons.Material.Filled.Attachment" />
+</MudTooltip>
+
+<UIDialog 
+    @bind-IsVisible="_isAttachmentDialogOpen" 
+    Title="Attachments" 
+    MaxWidth="MaxWidth.ExtraSmall">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            Attachments
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_attachments is null)
+        {
+            <div class="h-full flex justify-center items-center mx-auto">
+                <MudProgressCircular 
+                    Color="Color.Primary"
+                    Indeterminate=true />
+                <span class="ml-3 text-gray-400">Loading attachments ...</span>
+            </div>
+        }
+        else
+        {
+            @foreach (var attachment in _attachments)
+            {
+                <a class="group flex text-gray-600 items-center hover:text-cyan-700 hover:bg-gray-100 rounded-lg p-1" href="@GetHref(attachment)">
+                    <span class="text-xl mr-1 mdi mdi-@(GetIcon(attachment))"></span>
+                    <span class="truncate text-sm">@attachment</span>
+                    @if (Catalog.Info.IsWritable)
+                    {
+                        <span class="hidden group-hover:inline text-xl ml-auto mr-1 mdi mdi-close hover:text-orange-500 hover:scale-125"
+                            @ondblclick="() => DeleteAttachmentAsync(attachment)" @onclick:preventDefault="true">
+                        </span>
+                    }
+                </a>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (Catalog.Info.IsWritable)
+        {
+            @if (_isUploading)
+            {
+                <div class="group flex items-center">
+                    <div class="group-hover:hidden">
+                        <MudProgressCircular 
+                            Color="Color.Primary"
+                            Value="_progress"
+                            Max="1" />
+                    </div>
+                    <span class="p-2 hidden group-hover:inline text-xl mr-1 mdi mdi-close hover:text-orange-500 cursor-pointer"
+                        @onclick="() => _cts?.Cancel()">
+                    </span>
+                    <span class="ml-2 text-sm">Uploading ...</span>
+                </div>
+            }
+        
+            <MudFileUpload 
+                T="IReadOnlyList<IBrowserFile>" 
+                FilesChanged="UploadAttachmentsAsync"
+                MaximumFileCount="100">
+                <ButtonTemplate>
+                    <MudButton 
+                        HtmlTag="label"
+                        Variant="Variant.Outlined"
+                        Color="Color.Primary"
+                        StartIcon="@Icons.Material.Filled.Upload"
+                        for="@context">
+                        Upload
+                    </MudButton>
+                </ButtonTemplate>
+            </MudFileUpload>
+        }
+    </DialogActions>
+</UIDialog>
+
+@code {
+    private bool _isAttachmentDialogOpen;
+    private IReadOnlyList<string>? _attachments;
+
+    private bool _isUploading;
+    private double _progress;
+    private CancellationTokenSource? _cts;
+
+    [Inject]
+    public AppState AppState { get; set; } = default!;
+
+    [Inject]
+    public INexusClient Client { get; set; } = default!;
+
+    [Parameter]
+    public ResourceCatalogViewModel Catalog { get; set; } = default!;
+
+    private async Task DeleteAttachmentAsync(string attachment)
+    {
+        _attachments = default;
+        StateHasChanged();
+
+        try
+        {
+            await Client.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
+            await GetAttachmentsAsync();    
+        }
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private async Task UploadAttachmentsAsync(IReadOnlyList<IBrowserFile> files)
+    {
+        var cts = new CancellationTokenSource();
+
+        _cts = cts;
+        _progress = 0;
+        _isUploading = true;
+
+        StateHasChanged();
+
+        var processedFiles = 0;
+        var currentStream = default(Stream);
+
+        _ = Task.Run(async () =>
+        {
+            while (_isUploading)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+
+                if (currentStream is not null)
+                {
+                    var fileProgress = currentStream.Position / (double)currentStream.Length;
+                    _progress = (processedFiles + fileProgress) / (double)files.Count;
+                }
+
+                StateHasChanged();
+            }
+        });
+
+        try
+        {
+            foreach (var file in files)
+            {
+                cts.Token.ThrowIfCancellationRequested();
+
+                if (file.Size == 0)
+                {
+                    processedFiles++;
+                    continue;
+                }
+
+                try
+                {
+                    using var stream = file.OpenReadStream(maxAllowedSize: long.MaxValue);
+                    currentStream = stream;
+                    await Client.Catalogs.UploadAttachmentAsync(Catalog.Id, file.Name, stream, cts.Token);
+                }
+                catch (Exception ex)
+                {
+                    AppState.AddError(ex, Snackbar);
+                }
+
+                processedFiles++;
+            }
+        }
+        catch (Exception ex)
+        {
+            cts.Cancel();
+            AppState.AddError(ex, Snackbar);
+        }
+        finally
+        {
+            _isUploading = false;
+            _attachments = default;
+            StateHasChanged();
+
+            await GetAttachmentsAsync();
+        }
+    }
+
+        private void OpenAttachmentModal()
+    {
+        _attachments = default;
+        _isAttachmentDialogOpen = true;
+
+        _ = GetAttachmentsAsync();
+    }
+
+    private async Task GetAttachmentsAsync()
+    {
+        try
+        {
+            _attachments = await Client.Catalogs.GetAttachmentsAsync(Catalog.Id, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+
+        StateHasChanged();
+    }
+
+    private string GetIcon(string attachmentId)
+    {
+        var extension = Path.GetExtension(attachmentId);
+
+        return extension switch
+        {
+            ".docx" => "file-word",
+            ".xlsx" => "file-excel",
+            ".pptx" => "file-powerpoint",
+            ".pdf" => "file-pdf-box",
+            ".jpg" => "file-image",
+            ".jpeg" => "file-image",
+            ".png" => "file-image",
+            ".tiff" => "file-image",
+            _ => "file"
+        };
+    }
+
+    public string GetHref(string attachmentId)
+    {
+        return $"api/v1/catalogs/{WebUtility.UrlEncode(Catalog.Id)}/attachments/{WebUtility.UrlEncode(Path.GetFileName(attachmentId))}/content";
+    }
+}

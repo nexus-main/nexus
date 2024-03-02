@@ -1,0 +1,60 @@
+﻿@typeparam T
+
+@ChildContent(this)
+
+@code 
+{
+    private T _value = default!;
+
+    [Parameter]
+    public string Key { get; set; } = default!;
+
+    [Parameter]
+
+    public T DefaultValue { get; set; } = default!;
+
+    [Parameter]
+    public IDictionary<string, string> Store { get; set; } = default!;
+
+    [Parameter]
+    public RenderFragment<UIOption<T>> ChildContent { get; set; } = default!;
+
+    public T Value
+    {
+        get
+        {
+            return _value;
+        }
+        set
+        {
+            _value = value;
+            Store[Key] = value.ToString()!;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // ensure there is some value to assign
+        if (!Store.TryGetValue(Key, out var value))
+        {
+            value = DefaultValue.ToString()!;
+            Store[Key] = value;
+        }
+
+        // get new value
+        T newValue;
+
+        if (typeof(T) == typeof(string))
+            newValue = (T)(object)value;
+
+        else if (typeof(T) == typeof(int))
+            newValue = (T)(object)int.Parse(value);
+
+        else
+            throw new ArgumentException("Unsupported type.");
+
+        _value = newValue;
+
+        base.OnInitialized();
+    }
+}

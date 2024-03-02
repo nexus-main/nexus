@@ -1,0 +1,56 @@
+﻿@inherits LayoutComponentBase
+
+<div id="app" class="bg-gradient-to-b from-white to-slate-200">
+
+    <AuthorizeView>
+
+        <Authorized>
+            <div class="flex-1 overflow-auto grid sm:grid-cols-[auto,1fr,1fr,auto] sm:grid-rows-[auto,auto,1fr] bg-white">
+
+                <div class="sm:col-span-4">
+                    <Navbar OpenHamburgerMenu="() => _isHamburgerMenuOpen = true" />
+                </div>
+
+                @if (!_isHamburgerMenuOpen)
+                {
+                    <div class="col-start-1 row-start-2 row-span-2 bg-cyan-900 hidden xl:flex flex-col justify-between p-3 w-72">
+                        <Leftbar_Settings />
+                        <div class="flex-1 overflow-y-auto styled-scrollbars">
+                            <Leftbar_CatalogItems />
+                        </div>
+                        <Leftbar_ChartSettings />
+                        <Leftbar_Actions />
+                    </div>
+                }
+
+                @Body
+
+                @if (!_isHamburgerMenuOpen)
+                {
+                    <div class="col-start-4 row-start-2 row-span-2 bg-cyan-900 hidden xl:flex flex-col p-3 w-72">
+                        <Rightbar_Settings />
+                        <div class="mt-auto my-3">
+                            <Rightbar_Jobs />
+                        </div>
+                        <Rightbar_Actions />
+                    </div>
+                }
+
+            </div>
+            @if (_isHamburgerMenuOpen)
+            {
+                <HamburgerMenu @bind-IsOpen="_isHamburgerMenuOpen" Width="w-72" />
+            }
+        </Authorized>
+
+        <NotAuthorized>
+            <LoginView />
+        </NotAuthorized>
+
+    </AuthorizeView>
+
+</div>
+
+@code {
+    private bool _isHamburgerMenuOpen;
+}

@@ -1,0 +1,36 @@
+﻿@implements IDisposable
+@inject AppState AppState
+
+@if (AppState.ViewState == ViewState.Data)
+{
+    <div class="rounded border border-cyan-700 px-5 py-3 my-3">
+        <MudCheckBox 
+            @bind-Checked="AppState.BeginAtZero"
+            Dense="true"
+            Label="Begin at zero" />
+    </div>
+}
+
+@code {
+
+    private PropertyChangedEventHandler _handler;
+
+    public Leftbar_ChartSettings()
+    {
+        _handler = (sender, e) =>
+        {
+            if (e.PropertyName == nameof(AppState.ViewState))
+                StateHasChanged();
+        };
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += _handler;
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= _handler;
+    }
+}

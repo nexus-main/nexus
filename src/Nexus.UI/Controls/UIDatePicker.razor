@@ -1,0 +1,80 @@
+﻿@using System.Globalization
+<div class="mb-7 pt-3 pb-2 px-3 relative @(_hasFocus ? "border-b-2 border-orange-500" : "border-b border-white") hover:border-orange-500">
+
+    <label class="absolute bottom-8 text-xs @(Value == default ? "text-transparent" : "text-gray-300")">@Label</label>
+
+    @* Why onchange? With @bind-value there was an issue similar to this one https://github.com/dotnet/aspnetcore/issues/38471 *@
+    <input value="@GetDate()" @onchange="StoreDate" @onfocus="OnFocus" @onblur="OnBlur"
+        class="w-full pt-2 focus:outline-none text-gray-200 placeholder-gray-400 bg-transparent" 
+        type="datetime-local"
+        placeholder="@Label"
+        step="1">
+
+    <span class="right-2 top-4 text-2xl font-bold absolute mdi mdi-calendar-month-outline text-gray-200 bg-cyan-900 pointer-events-none"></span>
+
+</div>
+
+@code {
+
+    private bool _hasFocus;
+
+    private DateTime _tmp;
+
+    private DateTime _value;
+
+    [Parameter]
+    public DateTime Value
+    {
+        get => _value;
+        set
+        {
+            if (value != _value) {
+                _value = DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+                if (ValueChanged.HasDelegate)
+                    ValueChanged.InvokeAsync(value);
+            }
+        }
+    }
+
+    [Parameter]
+    public EventCallback<DateTime> ValueChanged { get; set; }
+
+    [Parameter]
+    public string Label { get; set; } = default!;
+
+    private string GetDate()
+    {
+        // To prevent warning: 
+        // > The specified value "2020-01-01T00:00:00" does not conform to the required format. 
+        // > The format is "yyyy-MM-ddThh:mm" followed by optional ":ss" or ":ss.SSS".
+        if (Value.Second != 0)
+            return Value.ToString("yyyy-MM-ddTHH:mm:ss");
+
+        else
+            return Value.ToString("yyyy-MM-ddTHH:mm");
+    }
+
+    private void OnFocus()
+    {
+        _hasFocus = true;
+        _tmp = Value;
+    }
+
+    private void OnBlur()
+    {
+        _hasFocus = false;
+        Value = _tmp;
+    }
+
+    private void StoreDate(ChangeEventArgs e)
+    {
+        var rawValue = (string)e.Value!;
+
+        if (rawValue.Length == 16)
+            _tmp = DateTime.ParseExact(rawValue, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture);
+
+        else if (rawValue.Length == 19)
+            _tmp = DateTime.ParseExact(rawValue, "yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+    }
+}

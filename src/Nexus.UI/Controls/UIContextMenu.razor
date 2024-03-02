@@ -1,0 +1,59 @@
+﻿@if (IsOpen)
+{
+    <div class="absolute rounded border border-gray-100 bg-white" style="top: @(Top)px; left: @(Left)px;">
+        @ChildContent
+    </div>
+}
+
+@code {
+
+    private bool _isOpen;
+    private DotNetObjectReference<UIContextMenu> _dotNetHelper;
+
+    public UIContextMenu()
+    {
+        _dotNetHelper = DotNetObjectReference.Create(this);
+    }
+
+    [Inject]
+    public IJSInProcessRuntime JSRuntime { get; set; } = default!;
+
+    [Parameter] 
+    public bool IsOpen
+    {
+        get 
+        {
+            return _isOpen;
+        }
+        set
+        {
+            _isOpen = value;
+
+            if (_isOpen)
+                JSRuntime.InvokeVoid("nexus.util.addClickEvent", _dotNetHelper);
+        }
+    }
+
+    [Parameter]
+    public EventCallback<bool> IsOpenChanged { get; set; }
+
+    [Parameter]
+    public RenderFragment ChildContent { get; set; } = default!;
+
+    [Parameter]
+    public double Top { get; set; }
+
+    [Parameter]
+    public double Left { get; set; }
+
+    [JSInvokable]
+    public void OnClick()
+    {
+        _ = CloseAsync();
+    }
+
+    private async Task CloseAsync()
+    {
+        await IsOpenChanged.InvokeAsync(false);
+    }
+}

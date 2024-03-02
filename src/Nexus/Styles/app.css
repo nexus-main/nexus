@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+    font-family: Inter var,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,Noto Sans,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;
+}
+
+html {
+    font-size: 15px;
+}
+
+.styled-scrollbars {
+    scrollbar-color: #164e63 #9ca3af;
+    scrollbar-width: thin;
+}
+    .styled-scrollbars::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+    }
+
+    .styled-scrollbars::-webkit-scrollbar-thumb {
+        background: #9ca3af;
+    }
+
+    .styled-scrollbars::-webkit-scrollbar-track {
+        background: #164e63;
+    }
+
+#app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#loading-screen {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+:root {
+    --md-color-text-link: rgb(14, 116, 144);
+    --md-pre-code-foreground: rgb(43, 43, 43);
+    --md-code-foreground: rgb(215, 186, 125);
+    --md-code-background: rgba(153, 153, 153, 0.2);
+    --md-table-header: rgba(0, 0, 0, 0.69);
+    --md-border: rgb(156 163 175);
+}
+
+.nexus-hover-parent:hover > .nexus-hover-hide {
+    display: none;
+}
+ 
+.nexus-hover-parent:hover > .nexus-hover-flex {
+    display: flex;
+}
+
+.nexus-pill::before {
+    display: block;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    content: attr(placeholder);
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+}
+
+.loading-progress {
+    width: var(--blazor-load-percentage, 0%);
+}
+
+/****************
+ MudBlazor fixes
+ ****************/
+
+ /* do not grow vertically */
+ .mud-select {
+    flex: initial;
+}
+
+/* do not grow vertically */
+.mud-input-control {
+    flex: initial;
+}
+
+/* date picker = grow horizontally */
+.mud-picker > .mud-input-control {
+    flex: 1 1 auto;
+}
+
+/* MudAutocomplete width is strange */
+.mud-select.mud-autocomplete {
+    display: flex;
+}
+
+/* dark background causes MudInputs to be unreadable */
+
+.bg-cyan-900 .mud-input.mud-input-underline::before {
+    border-bottom: 1px solid white;
+}
+
+.bg-cyan-900 .mud-input.mud-input-underline:hover:not(.mud-disabled)::before
+{
+    border-bottom: 1px solid #cbd5e1; /* gray-300 */
+}
+
+.mud-input.mud-input-underline::after {
+    border-bottom: 2px solid var(--mud-palette-secondary);
+}
+
+.bg-cyan-900 .mud-input > input {
+    color: #e5e7eb !important; /* gray-200 */
+}
+
+.bg-cyan-900 .mud-checkbox p {
+    color: #e5e7eb !important; /* gray-200 */
+}
+
+.bg-cyan-900 .mud-checkbox svg {
+    color: var(--mud-palette-secondary);
+}
+
+.bg-cyan-900 .mud-input .mud-icon-root {
+    color: #e5e7eb !important; /* gray-200 */
+}
+
+.bg-cyan-900 .mud-input-label {
+    color: #cbd5e1 !important; /* gray-300 */
+}
+
+.bg-cyan-900 .mud-input-helper-text {
+    color: #cbd5e1 !important; /* gray-300 */
+}
+
+/* Tailwind causes button's background to be transparent (https://github.com/tailwindlabs/tailwindcss/issues/6602) */
+.mud-fab-primary {
+	background-color: var(--mud-palette-primary) !important;
+}
+
+.mud-fab-secondary {
+	background-color: var(--mud-palette-secondary) !important;
+}
+
+.mud-fab-success {
+	background-color: var(--mud-palette-success) !important;
+}

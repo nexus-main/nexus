@@ -1,0 +1,35 @@
+﻿@using System.Collections.Specialized
+@implements IDisposable
+
+@inject AppState AppState
+@inject INexusClient Client
+
+<div class="flex flex-wrap">
+    @foreach (var job in AppState.Jobs)
+    {
+        <JobView Job="job" />
+    }
+</div>
+
+@code
+{
+    private NotifyCollectionChangedEventHandler _handler;
+
+    public Rightbar_Jobs()
+    {
+        _handler = (sender, e) => 
+        {
+            StateHasChanged();
+        };
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.Jobs.CollectionChanged += _handler;
+    }
+
+    public void Dispose()
+    {
+        AppState.Jobs.CollectionChanged -= _handler;
+    }
+}

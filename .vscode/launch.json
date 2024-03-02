@@ -1,0 +1,79 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Launch Nexus",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/artifacts/bin/Nexus/debug/Nexus.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            }
+        },
+        {
+            /* How to debug into remote Nexus Docker container via SSH
+             * 1. Install SSH on container (docker exec -it <container name> bash)
+             * - apt update; apt install openssh-server nano curl -y
+             * - sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+             * - service ssh start
+             * - password=eJW2PJvrngD6gNv3 # for testing purpose only
+             * - echo -e "$password\n$password" | passwd
+             * - curl -sSL https://aka.ms/getvsdbgsh | /bin/sh /dev/stdin -v latest -l ~/vsdbg # https://github.com/OmniSharp/omnisharp-vscode/wiki/Attaching-to-remote-processes#installing-vsdbg-on-the-server
+             * - exit
+             * 
+             * 2. Configure docker so that port 22 is exposed (e.g. to port 2222), then test the connection:
+             * - ssh root@<docker-host> -p 2222
+             *
+             * 3. Replace <docker-host> below with the actual host
+             */
+            "name": "Attach to Nexus (Docker)",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickRemoteProcess}",
+            "pipeTransport": {
+                "pipeProgram": "ssh",
+                "pipeArgs": [
+                    "-T",
+                    "root@ensyno.iwes.fraunhofer.de",
+                    "-p",
+                    "2222"
+                ], // replace <docker host>
+                "debuggerPath": "~/vsdbg/vsdbg",
+                "pipeCwd": "${workspaceRoot}",
+                "quoteArgs": true
+            },
+            "justMyCode": false,
+            "sourceFileMap": {
+                /* Note: The absolute path comes from GitHub Actions.
+                 * Change it if Nexus has been built somewhere else.
+                 */
+                "/home/runner/work/nexus/nexus": "${workspaceRoot}"
+            }
+        },
+        {
+            "name": "OpenAPI client generator",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-generator",
+            "program": "${workspaceFolder}/artifacts/bin/Nexus.ClientGenerator/debug/Nexus.ClientGenerator.dll",
+            "args": [
+                "./"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        }
+    ],
+}

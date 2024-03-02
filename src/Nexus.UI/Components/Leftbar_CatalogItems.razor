@@ -1,0 +1,37 @@
+﻿@implements IDisposable
+@inject AppState AppState
+
+<div>
+    @foreach (var selectedItem in AppState.Settings.SelectedCatalogItems)
+    {
+        <CatalogItemSelectionView SelectedItem="selectedItem" />
+    }
+</div>
+
+@code {
+
+    private PropertyChangedEventHandler _handler;
+
+    public Leftbar_CatalogItems()
+    {
+        _handler = (sender, e) =>
+        {
+            if (e.PropertyName == nameof(AppState.Settings.SelectedCatalogItems))
+                StateHasChanged();
+
+            else if (e.PropertyName == nameof(AppState.Settings.SamplePeriod))
+                StateHasChanged();
+        };
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.Settings.PropertyChanged += _handler;
+    }
+
+    public void Dispose()
+    {
+        AppState.Settings.PropertyChanged -= _handler;
+    }
+}
+

@@ -1,0 +1,166 @@
+﻿.markdown {
+    font-size: 0.8em;
+    line-height: 1.2em;
+    word-wrap: break-word;
+    height: 100%;
+}
+
+    /* css below taken from https://github.com/microsoft/vscode/blob/main/extensions/markdown-language-features/media/markdown.css
+ * em values modified, mostly by factor 2
+ */
+
+    .markdown ::deep h1 {
+        font-size: 1.1em;
+    }
+
+    .markdown ::deep h2 {
+        font-size: 1.0em;
+    }
+
+    .markdown ::deep h3 {
+        font-size: 0.9em;
+    }
+
+    /* Reset margin top for elements */
+    .markdown ::deep h1 {
+        margin-top: 1em;
+        margin-bottom: 0.5em;
+    }
+
+    .markdown ::deep h2, .markdown ::deep h3, .markdown ::deep h4, .markdown ::deep h5, .markdown ::deep h6,
+    .markdown ::deep p, .markdown ::deep ol, .markdown ::deep ul, .markdown ::deep pre {
+        margin-top: 0;
+    }
+
+    .markdown ::deep h2, .markdown ::deep h3, .markdown ::deep h4, .markdown ::deep h5, .markdown ::deep h6 {
+        margin-bottom: 0.6em;
+    }
+
+    .markdown ::deep ul {
+        list-style-type: disc;
+        margin-left: 2em;
+    }
+
+        .markdown ::deep ul ul,
+        .markdown ::deep ul ol,
+        .markdown ::deep ol ul,
+        .markdown ::deep ol ol {
+            margin-bottom: 0;
+        }
+
+    .markdown ::deep img {
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    .markdown ::deep a {
+        color: var(--md-color-text-link);
+        text-decoration: none;
+    }
+
+        .markdown ::deep a:hover {
+            text-decoration: underline;
+        }
+
+        .markdown ::deep a:focus,
+        .markdown ::deep input:focus,
+        .markdown ::deep select:focus,
+        .markdown ::deep textarea:focus {
+            outline: 1px solid -webkit-focus-ring-color;
+            outline-offset: -1px;
+        }
+
+    .markdown ::deep p {
+        margin-bottom: 1.4em;
+    }
+
+    .markdown ::deep ul,
+    .markdown ::deep ol {
+        margin-bottom: 1.4em;
+    }
+
+    .markdown ::deep li {
+        margin-bottom: 0.4em;
+    }
+
+
+    .markdown ::deep hr {
+        border: 0;
+        height: 2px;
+        border-bottom: 2px solid;
+    }
+
+    .markdown ::deep h1 {
+        padding-bottom: 0.3em;
+        line-height: 1.2;
+        border-bottom-width: 1px;
+        border-bottom-style: solid;
+    }
+
+    .markdown ::deep table {
+        border-collapse: collapse;
+        margin-bottom: 1.4em;
+    }
+
+    .markdown ::deep th {
+        text-align: left;
+        border-bottom: 1px solid;
+    }
+
+    .markdown ::deep th,
+    .markdown ::deep td {
+        padding: 5px 10px;
+    }
+
+    .markdown ::deep table > tbody > tr + tr > td {
+        border-top: 1px solid;
+    }
+
+    .markdown ::deep blockquote {
+        margin: 0 7px 0 5px;
+        padding: 0 16px 0 10px;
+        border-left-width: 5px;
+        border-left-style: solid;
+    }
+
+    .markdown ::deep code {
+        font-family: var(--md-vscode-editor-font-family, "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace);
+        font-size: 1em;
+        line-height: 1.357em;
+    }
+
+    .markdown ::deep code {
+        color: var(--md-code-foreground);
+    }
+
+    .markdown ::deep body.wordWrap pre {
+        white-space: pre-wrap;
+    }
+
+    .markdown ::deep pre:not(.hljs),
+    .markdown ::deep pre.hljs code > div {
+        padding: 16px;
+        border-radius: 3px;
+        overflow: auto;
+    }
+
+    .markdown ::deep pre code {
+        color: var(--md-pre-code-foreground);
+        tab-size: 4;
+    }
+
+    /* Theming */
+
+    .markdown ::deep pre {
+        background-color: var(--md-code-background);
+    }
+
+    .markdown ::deep th {
+        border-color: var(--md-table-header);
+    }
+
+    .markdown ::deep h1,
+    .markdown ::deep hr,
+    .markdown ::deep td {
+        border-color: var(--md-border);
+    }

@@ -1,0 +1,368 @@
+﻿@implements IDisposable
+@inject AppState AppState
+
+<div class="flex w-full h-full">
+
+    <div class="flex flex-col p-2 select-none w-36 sm:w-72 gap-2">
+
+        <MudTextField
+            @bind-Value="AppState.SearchString" 
+            Label="Search"
+            Adornment="Adornment.End"
+            AdornmentColor="Color.Primary"
+            AdornmentIcon="@_searchIcon"
+            OnAdornmentClick="() => AppState.SearchString = default"
+            Immediate="true"
+            Margin="Margin.Dense" />
+
+        <div class="overflow-y-auto">
+            @if (AppState.CatalogItemsMap is not null)
+            {
+                @foreach (var entry in AppState.CatalogItemsMap)
+                {
+                    @if (entry.Value == AppState.CatalogItemsGroup)
+                    {
+                        <div class="flex justify-between items-end py-0.5 cursor-pointer">
+                            <span class="font-bold text-orange-500">@entry.Key</span>
+                            <span class="text-sm text-gray-500">@entry.Value.Count</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="group flex justify-between items-end py-0.5 cursor-pointer"
+                            @onclick="() => SelectCatalogItemsGroupAsync(entry.Value)">
+                            <span class="group-hover:text-cyan-500 font-bold text-cyan-700">@entry.Key</span>
+                            <span class="text-sm text-gray-500">@entry.Value.Count</span>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    </div>
+
+    <div class="flex-1 p-2 h-full">
+        <div class="overflow-y-auto select-none h-full">
+            @if (AppState.CatalogItemsGroup is not null)
+            {
+                @if (AppState.EditModeCatalogMap.ContainsKey(AppState.SelectedCatalog!.Id))
+                {
+                    <Virtualize Context="catalogItemPair" ItemsProvider="LoadItems" @ref="_virtualizeComponent">
+                        <div class="flex flex-col">
+
+                            @foreach (var catalogItem in catalogItemPair)
+                            {
+                                <div class="w-full px-2 mb-2">
+
+                                    <div class="pt-1 gap-3 mb-2 min-w-0 flex items-center @(AppState.Settings.IsSelected(catalogItem) ? "text-orange-500" : "text-cyan-700 group-hover:text-cyan-500")">
+                                        <span class="font-semibold truncate">
+                                            @catalogItem.Resource.Id
+                                        </span>
+
+                                        <input class="whitespace-nowrap text-gray-700 px-2 w-20" placeholder="Unit" 
+                                            value="@(GetMetadataOverridesValue(catalogItem.Resource.Id, CatalogItemViewModel.UNIT_KEY) ?? catalogItem.Unit)" 
+                                            @onchange="@(e => SetMetadataOverridesValue(e, catalogItem.Resource.Id, CatalogItemViewModel.UNIT_KEY))" />
+
+                                        <input class="whitespace-nowrap flex-1 text-gray-700 px-2" placeholder="Warning" 
+                                            value="@(GetMetadataOverridesValue(catalogItem.Resource.Id, CatalogItemViewModel.WARNING_KEY) ?? catalogItem.Warning)" 
+                                            @onchange="@(e => SetMetadataOverridesValue(e, catalogItem.Resource.Id, CatalogItemViewModel.WARNING_KEY))" />
+
+                                        <span class="ml-auto whitespace-nowrap text-gray-400">
+                                            @Utilities.ToUnitString(catalogItem.Representation.SamplePeriod)
+                                        </span>
+                                    </div>
+
+                                    <div class="pb-1">
+                                        <input class="whitespace-nowrap w-full text-gray-700 px-2" placeholder="Description" 
+                                            value="@(GetMetadataOverridesValue(catalogItem.Resource.Id, CatalogItemViewModel.DESCRIPTION_KEY) ?? catalogItem.Description)"
+                                            @onchange="@(e => SetMetadataOverridesValue(e, catalogItem.Resource.Id, CatalogItemViewModel.DESCRIPTION_KEY))" />
+                                    </div>
+
+                                </div>
+                            }
+                        </div>
+                    </Virtualize>
+                }
+                else
+                {
+                    <Virtualize Context="catalogItemPair" ItemsProvider="LoadItems" @ref="_virtualizeComponent">
+                        <div class="flex flex-wrap">
+
+                            @foreach (var catalogItem in catalogItemPair)
+                            {
+                                <div class="w-full md:w-1/2 xl:w-full 2xl:w-1/4 px-2 cursor-pointer mb-2 hover:bg-gray-50 hover:shadow-lg"
+                                    @oncontextmenu="eventArgs => OpenContextMenu(eventArgs, catalogItem)" @oncontextmenu:preventDefault
+                                    @onclick="() => ToggleCatalogItemSelection(catalogItem)">
+
+                                    <div class="pt-1 min-w-0 flex items-center @(AppState.Settings.IsSelected(catalogItem) ? "text-orange-500" : "text-cyan-700 group-hover:text-cyan-500")">
+                                        <span class="font-semibold truncate">
+                                            @catalogItem.Resource.Id
+                                        </span>
+                                        <span class="whitespace-nowrap mx-2 text-gray-400">@catalogItem.Unit</span>
+                                        @if (catalogItem.Warning is not null)
+                                        {
+                                            <MudTooltip Text="@catalogItem.Warning">
+                                                <span class="mdi mdi-alert ml-2 mr-1 text-orange-500"></span>
+                                            </MudTooltip>
+                                        }
+                                        <span class="ml-auto whitespace-nowrap text-gray-400">
+                                            @Utilities.ToUnitString(catalogItem.Representation.SamplePeriod)
+                                        </span>
+                                    </div>
+
+                                    <div class="pb-1 min-w-0">
+                                        <MudTooltip Text="@catalogItem.Description">
+                                            @if (string.IsNullOrWhiteSpace(@catalogItem.Description))
+                                            {
+                                                <span>&nbsp;</span>
+                                            }
+                                            else
+                                            {
+                                                @catalogItem.Description
+                                            }
+                                        </MudTooltip>
+                                    </div>
+
+                                </div>
+                            }
+                        </div>
+                    </Virtualize>
+                }
+            }
+        </div>
+    </div>
+
+</div>
+
+<UIContextMenu @bind-IsOpen="_isContextMenuOpen" Top="_contextMenuTop" Left="_contextMenuLeft">
+    <div class="bg-white w-60 border border-gray-300 rounded flex flex-col text-sm py-2 px-2 text-gray-500 shadow-lg">
+        <div class="flex items-center hover:bg-gray-100 py-1 px-2 rounded cursor-pointer" @onclick="OpenPropertiesModal">
+            <span class="text-lg mdi mdi-code-json text-gray-500 mr-2"></span>
+            <span>Properties Viewer</span>
+        </div>
+    </div>
+</UIContextMenu>
+
+<UIDialog
+    @bind-IsVisible="_isParametersDialogOpen" 
+    MaxWidth="MaxWidth.ExtraSmall">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            Parameters
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div>
+            @* Synchronize with Rightbar_Settings *@
+            @foreach (var (key, argument) in _parametersCatalogItem!.Representation.Parameters!)
+            {
+                @if (argument.ValueKind == JsonValueKind.Object &&
+                    argument.TryGetStringValue("type", out var type) && type == "input-integer" &&
+                    argument.TryGetStringValue("label", out var label) &&
+                    argument.TryGetIntegerValue("default", out var defaultValue) &&
+                    argument.TryGetIntegerValue("minimum", out var minimum) &&
+                    argument.TryGetIntegerValue("maximum", out var maximum))
+                {
+                    <UIOption Key="@key" DefaultValue="defaultValue.Value" Store="_parametersArgumentMap">
+                        <ChildContent>
+                            <MudNumericField 
+                                @bind-Value="@context.Value" 
+                                Label="@label"
+                                Min="minimum.Value" 
+                                Max="maximum.Value" />
+                        </ChildContent>
+                    </UIOption>
+                }
+                else if (argument.ValueKind == JsonValueKind.Object &&
+                    argument.TryGetStringValue("type", out var type2) && type2 == "select" &&
+                    argument.TryGetStringValue("label", out var label2) &&
+                    argument.TryGetStringValue("default", out var defaultValue2))
+                {
+                    <UIOption Key="@key" DefaultValue="defaultValue2" Store="_parametersArgumentMap">
+                        <UISelect 
+                            T="string"
+                            Color="Color.Secondary"
+                            @bind-Value="@context.Value"
+                            Label="@label2"
+                            Items="@((argument.GetStringDictionary("items") ?? new Dictionary<string, string>()).Keys)"
+                            ToStringFunc="@(item => argument.GetStringDictionary("items")![item])" />
+                    </UIOption>
+                }
+                else
+                {
+                    <span>The argument @key could not be rendered.</span>
+                }
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton 
+            OnClick="SelectParameterizedCatalogItem"
+            Color="Color.Primary"
+            StartIcon="@Icons.Material.Outlined.Add">
+            Add
+        </MudButton>
+    </DialogActions>
+</UIDialog>
+
+@if (_contextMenuCatalogItem is not null)
+{
+    <PropertiesView Properties="_contextMenuCatalogItem.Resource.Properties" @bind-IsOpen="_isPropertiesViewDialogOpen" />
+}
+
+@code {
+
+    private Virtualize<List<CatalogItemViewModel>>? _virtualizeComponent;
+    private PropertyChangedEventHandler _handler;
+    private string _searchIcon = Icons.Material.Filled.Search;
+    private bool _isPropertiesViewDialogOpen;
+    private bool _isParametersDialogOpen;
+    private bool _isContextMenuOpen;
+    private double _contextMenuTop;
+    private double _contextMenuLeft;
+    private CatalogItemViewModel? _contextMenuCatalogItem;
+    private CatalogItemViewModel? _parametersCatalogItem;
+    private IDictionary<string, string>? _parametersArgumentMap;
+
+    public ResourceView()
+    {
+        _handler = async (sender, e) => 
+        {
+            if (e.PropertyName == nameof(AppState.CatalogItemsMap))
+            {                   
+                if (_virtualizeComponent is not null)
+                {
+                    await _virtualizeComponent.RefreshDataAsync();
+                    StateHasChanged();
+                }
+            }
+
+            else if (e.PropertyName == nameof(AppState.SearchString))
+            {
+                _searchIcon = string.IsNullOrWhiteSpace(AppState.SearchString)
+                    ? Icons.Material.Filled.Search
+                    : Icons.Material.Filled.Close;
+
+                if (_virtualizeComponent is not null)
+                    await _virtualizeComponent.RefreshDataAsync();
+            }
+
+            else if (e.PropertyName == nameof(AppState.Settings.SelectedCatalogItems))
+            {
+                StateHasChanged();
+            }
+
+            else if (e.PropertyName == nameof(AppState.EditModeCatalogMap))
+            {
+                StateHasChanged();
+            }
+        };
+    }
+
+    private async Task SelectCatalogItemsGroupAsync(List<CatalogItemViewModel> catalogItems)
+    {
+        AppState.CatalogItemsGroup = catalogItems;
+
+        if (_virtualizeComponent is not null)
+            await _virtualizeComponent.RefreshDataAsync();
+    }
+
+    private ValueTask<ItemsProviderResult<List<CatalogItemViewModel>>> LoadItems(ItemsProviderRequest request)
+    {
+        var catalogItemsGroup = AppState.CatalogItemsGroup;
+
+        if (catalogItemsGroup is null)
+            return ValueTask.FromResult(new ItemsProviderResult<List<CatalogItemViewModel>>(Enumerable.Empty<List<CatalogItemViewModel>>(), 0));
+
+        var groupSize = 4;
+        var total = (int)Math.Ceiling(catalogItemsGroup.Count / (double)groupSize);
+
+        var source = catalogItemsGroup
+            .Skip(request.StartIndex * groupSize)
+            .Take(request.Count * groupSize);
+
+        var index = 0;
+        
+        var groups = source
+            .GroupBy(item =>
+            {
+                var result = index / groupSize;
+                index++;
+                return result;
+            })
+            .Select(group => group.ToList())
+            .ToList();
+
+        return ValueTask.FromResult(new ItemsProviderResult<List<CatalogItemViewModel>>(groups, total));
+    }
+
+    private void OpenPropertiesModal()
+    {
+        _isPropertiesViewDialogOpen = true;
+    }
+
+    private void OpenContextMenu(MouseEventArgs args, CatalogItemViewModel catalogItem)
+    {
+        _contextMenuLeft = args.PageX;
+        _contextMenuTop = args.PageY;
+        _contextMenuCatalogItem = catalogItem;
+        _isContextMenuOpen = true;
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += _handler;
+        AppState.Settings.PropertyChanged +=  _handler;
+    }
+
+    private void SetMetadataOverridesValue(ChangeEventArgs e, string resourceId, string propertyKey)
+    {
+        if (AppState.EditModeCatalogMap.TryGetValue(AppState.SelectedCatalog!.Id, out var map))
+        {
+            var key = new EditModeItem(resourceId, propertyKey);
+            var value = e.Value?.ToString();
+
+            map[key] = value;
+        }
+    }
+
+    private string? GetMetadataOverridesValue(string resourceId, string propertyKey)
+    {
+        if (AppState.EditModeCatalogMap.TryGetValue(AppState.SelectedCatalog!.Id, out var map))
+        {
+            var key = new EditModeItem(resourceId, propertyKey);
+            
+            if (map.TryGetValue(key, out var value))
+                return value;
+        }
+
+        return default;
+    }
+
+    private void SelectParameterizedCatalogItem()
+    {
+        _isParametersDialogOpen = false;
+        AppState.Settings.ToggleCatalogItemSelection(new CatalogItemSelectionViewModel(_parametersCatalogItem!, _parametersArgumentMap));
+    }
+
+    private void ToggleCatalogItemSelection(CatalogItemViewModel catalogItem)
+    {
+        var parameters = catalogItem.Representation.Parameters;
+
+        if (parameters is not null && parameters.Any())
+        {
+            _parametersArgumentMap = new Dictionary<string, string>();
+            _parametersCatalogItem = catalogItem;
+            _isParametersDialogOpen = true;
+        }
+        else
+        {
+            AppState.Settings.ToggleCatalogItemSelection(new CatalogItemSelectionViewModel(catalogItem, default));
+        }
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= _handler;
+        AppState.Settings.PropertyChanged -= _handler;
+    }
+}

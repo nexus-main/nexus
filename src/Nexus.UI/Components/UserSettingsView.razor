@@ -1,0 +1,356 @@
+﻿@using System.Net
+@using System.Text.Encodings.Web
+
+@inject AppState AppState
+@inject ISnackbar Snackbar
+@inject INexusClient Client
+@inject IJSInProcessRuntime JSRuntime
+@inject NavigationManager NavigationManager
+
+<div class="mx-3 w-9 h-9 flex justify-center items-center rounded-full text-white bg-cyan-900 hover:bg-cyan-700 cursor-pointer select-none"
+    @onclick="OpenUserSettingsModal">
+    @GetInitials(_authenticationState.User.Identity!.Name!)
+</div>
+
+<UIDialog 
+    @bind-IsVisible="_isUserSettingsDialogOpen" 
+    MaxWidth="MaxWidth.Medium">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            Settings
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTabs 
+            Class="min-h-[20rem]"
+            Outlined="true" 
+            Position="MudBlazor.Position.Top" 
+            Rounded="true" 
+            Border="true"
+            ApplyEffectsToContainer="true" PanelClass="pa-6">
+
+            <MudTabPanel Text="Database" Icon="@Icons.Material.Filled.Storage">
+                <div class="text-sm mb-3">Here you can refresh the database which causes all extensions to be reloaded and the root resource catalog to be reset.</div>
+
+                <div class="flex w-100 justify-center">
+
+                    @if (_isRefreshingDatabase)
+                    {
+                        <div class="group flex items-center mx-auto">
+                            <div class="group-hover:hidden">
+                                <MudProgressCircular 
+                                    Color="Color.Primary"
+                                    Value="_refreshDatabaseProgress"
+                                    Max="1" />
+                            </div>
+                            <span class="p-2 hidden group-hover:inline text-xl mr-1 mdi mdi-close hover:text-orange-500 cursor-pointer"
+                                @onclick="() => _cts?.Cancel()">
+                            </span>
+                            <span class="ml-2 text-sm">Refreshing ...</span>
+                        </div>
+                    }
+                
+                    <div class="@(_isRefreshingDatabase ? "hidden" : "")">
+                        <MudButton 
+                            OnClick="RefreshDatabaseAsync"
+                            Color="Color.Primary"
+                            StartIcon="@Icons.Material.Outlined.Refresh">
+                            Refresh Database
+                        </MudButton>
+                    </div>
+
+                </div>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Refresh Tokens" Icon="@Icons.Material.Filled.Key">
+                <div class="text-cyan-700 border-b my-3 text-lg">New Token</div>
+
+                <div class="ml-4">
+
+                    @if (_newRefreshToken is not null)
+                    {
+                        <div class="text-sm mb-3">This is your newly generated token. Make a copy and store it safely as you will not be able to see it again.</div>
+                        <div class="flex items-center text-gray-400">
+                            <span class="text-sm break-all mr-3 bg-gray-100 rounded-lg p-3">@_newRefreshToken</span>
+                            <MudIconButton
+                                OnClick="CopyToClipboard"
+                                Icon="@Icons.Material.Filled.ContentCopy" />
+                        </div>
+                    }
+                    else
+                    {
+                        if (_isRefreshingToken)
+                        {
+                            <div class="flex items-center mx-auto">
+                                <MudProgressCircular 
+                                    Color="Color.Primary"
+                                    Indeterminate=true />
+                                <span class="ml-3 text-gray-400">Creating ...</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="flex">
+                                <input 
+                                    type="text" 
+                                    class="bg-gray-100 w-full mr-2 py-1 px-2" 
+                                    placeholder="Enter your description here ..."
+                                    @bind-value="_newRefreshTokenDescription" @bind-value:event="oninput" />
+
+                                <MudButton 
+                                    OnClick="GenerateTokenAsync"
+                                    Color="Color.Primary"
+                                    StartIcon="@Icons.Material.Outlined.Autorenew"
+                                    Variant="Variant.Outlined"
+                                    Disabled="string.IsNullOrWhiteSpace(_newRefreshTokenDescription)">
+                                    Create
+                                </MudButton>
+                            </div>
+                        }
+                    }
+
+                </div>
+
+                <div class="text-cyan-700 border-b my-3 text-lg">Available Tokens</div>
+
+                @if (_refreshTokenMap is null)
+                {
+                    <div class="flex items-center mx-auto">
+                        <MudProgressCircular 
+                            Color="Color.Primary"
+                            Indeterminate=true />
+                        <span class="ml-3 text-gray-400">Acquiring refresh tokens ...</span>
+                    </div>
+                }
+
+                else
+                {
+                    <div class="flex flex-col gap-2 ml-4">
+
+                        @foreach (var (id, refreshToken) in _refreshTokenMap)
+                        {
+                            <div class="flex items-center text-gray-400 border select-none hover:border-gray-400 rounded-lg px-2 py-1">
+                                <div>
+                                    <div>@refreshToken.Description</div>
+                                    <div class="text-sm font-bold">@(refreshToken.Expires == DateTime.MaxValue ? "expires never" : "expires on " + refreshToken.Expires.Date.ToString("yyyy-MM-dd"))</div>
+                                </div>
+                                <MudIconButton
+                                    OnClick="() => DeleteTokenAsync(Guid.Parse(id))"
+                                    Icon="@Icons.Material.Filled.Delete"
+                                    Class="ml-auto" />
+                            </div>
+                        }
+
+                    </div>
+                }
+            </MudTabPanel>
+              
+            <MudTabPanel Text="Request Configuration" Icon="@Icons.Custom.FileFormats.FileCode">
+                <div class="text-sm mb-3">In the text area below you can add your user specific configuration which will be sent to the Nexus backend on every request.</div>
+
+                <div class="flex-1">
+                    
+                    <div class="flex flex-col h-1/2">
+                        <div class="text-cyan-700 border-b mb-1">Input (JSON)</div>
+                        <textarea 
+                            class="w-full flex-1 bg-gray-100 p-2" 
+                            placeholder="Put your configuration here." 
+                            style="resize:none" 
+                            @bind="_jsonString" @bind:event="oninput">
+                        </textarea>
+                    </div>
+                    <div class="h-1/2">
+                        <div class="text-cyan-700 border-b mb-1 mt-2">Preview</div>
+                        <pre class="p-2 text-gray-400">
+                            <code>
+                                @GetHighlightedCode()
+                            </code>
+                        </pre>
+                    </div>
+                </div>
+            </MudTabPanel>
+
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <form action="/api/v1/users/signout?returnUrl=@(WebUtility.UrlEncode(NavigationManager.Uri))" method="post">
+            <MudButton 
+                ButtonType="ButtonType.Submit"
+                Color="Color.Primary"
+                StartIcon="@Icons.Material.Outlined.Logout">
+                Sign-Out
+            </MudButton>
+        </form>
+    </DialogActions>
+</UIDialog>
+
+@code {
+
+    private static JsonSerializerOptions _options = new JsonSerializerOptions()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        WriteIndented = true
+    };
+
+    private double _refreshDatabaseProgress;
+    private bool _isRefreshingDatabase;
+    private CancellationTokenSource? _cts;
+    private string? _jsonString;
+    private string? _newRefreshToken;
+    private string? _newRefreshTokenDescription;
+    private IReadOnlyDictionary<string, RefreshToken>? _refreshTokenMap;
+
+    private bool _isRefreshingToken;
+
+    private bool _isUserSettingsDialogOpen;
+
+    private AuthenticationState _authenticationState = default!;
+
+    [CascadingParameter]
+    public Task<AuthenticationState> GetAuthenticationStateTask { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _authenticationState = await GetAuthenticationStateTask;
+
+        var jsonElement = JSRuntime.Invoke<JsonElement?>("nexus.util.loadSetting", Constants.REQUEST_CONFIGURATION_KEY);
+
+        _jsonString = JsonSerializer
+            .Serialize(jsonElement, _options);
+
+        try
+        {
+            _refreshTokenMap = (await Client.Users.GetMeAsync()).RefreshTokens;
+        }
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private void OpenUserSettingsModal()
+    {
+        _isUserSettingsDialogOpen = true;
+        _newRefreshToken = default;
+    }
+
+    private void CopyToClipboard()
+    {
+        JSRuntime.InvokeVoid("nexus.util.copyToClipboard", _newRefreshToken);
+    }
+
+    private async Task GenerateTokenAsync()
+    {
+        if (_newRefreshTokenDescription is null)
+            return;
+
+        _isRefreshingToken = true;
+        StateHasChanged();
+
+        try
+        {
+            _newRefreshToken = await Client.Users.GenerateRefreshTokenAsync(_newRefreshTokenDescription);
+            _newRefreshTokenDescription = default;
+            _refreshTokenMap = (await Client.Users.GetMeAsync()).RefreshTokens;
+        }
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+
+        _isRefreshingToken = false;
+        StateHasChanged();
+    }
+
+    private async Task DeleteTokenAsync(Guid id)
+    {
+        try
+        {
+            await Client.Users.DeleteRefreshTokenAsync(id, CancellationToken.None);
+            _refreshTokenMap = (await Client.Users.GetMeAsync()).RefreshTokens;
+        }
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private string GetInitials(string name)
+    {
+        var parts = name.Split(" ", StringSplitOptions.RemoveEmptyEntries);
+        var initials = string.Empty;
+
+        foreach (var part in parts)
+        {
+            initials += part[0];
+        }
+
+        return initials.ToUpper();
+    }
+
+    private MarkupString GetHighlightedCode()
+    {
+        if (string.IsNullOrWhiteSpace(_jsonString))
+            return new MarkupString("Please enter a valid JSON string.");
+
+        try
+        {
+            var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString!);
+            var formattedJson = JsonSerializer.Serialize(jsonElement, _options);
+            var highlightedJson = JSRuntime.Invoke<string>("nexus.util.highlight", formattedJson, "json");
+
+            AppState.SetRequestConfiguration(jsonElement);
+
+            return new MarkupString(highlightedJson);
+        }
+        catch
+        {
+            AppState.ClearRequestConfiguration();
+            return new MarkupString("Invalid JSON string.");
+        }
+    }
+
+    private async Task RefreshDatabaseAsync()
+    {
+        var cts = new CancellationTokenSource();
+
+        _cts = cts;
+        _refreshDatabaseProgress = 0;
+        _isRefreshingDatabase = true;
+
+        StateHasChanged();
+
+        try
+        {
+            cts.Token.ThrowIfCancellationRequested();
+
+            var job = await Client.Jobs.RefreshDatabaseAsync(_cts.Token);
+
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+
+                cts.Token.ThrowIfCancellationRequested();
+
+                var status = await Client.Jobs.GetJobStatusAsync(job.Id, _cts.Token);
+                _refreshDatabaseProgress = status.Progress;
+
+                if (status.ExceptionMessage is not null)
+                    throw new Exception("stauts:"  + status.ExceptionMessage);
+
+                if (status.Status >= Api.TaskStatus.RanToCompletion)
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            cts.Cancel();
+            AppState.AddError(ex, Snackbar);
+        }
+        finally
+        {
+            _isRefreshingDatabase = false;
+            StateHasChanged();
+        }
+    }
+}
