@@ -123,8 +123,12 @@ namespace Nexus.Core
         /// </summary>
         public string Description { get; init; }
 
+        [JsonIgnore]
+        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
         internal bool IsExpired => DateTime.UtcNow >= Expires;
 
+        [JsonIgnore]
+        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
         internal InternalRefreshToken InternalRefreshToken { get; }
 
 #pragma warning disable CS1591

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace Nexus.DataModel
@@ -45,8 +46,12 @@ namespace Nexus.DataModel
         /// <summary>
         /// Gets a regular expression to validate a resource catalog identifier.
         /// </summary>
+        [JsonIgnore]
+        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
         public static Regex ValidIdExpression { get; } = new Regex(@"^(?:\/[a-zA-Z_][a-zA-Z_0-9]*)+$", RegexOptions.Compiled);
 
+        [JsonIgnore]
+        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
         private static Regex _matchSingleParametersExpression { get; } = new Regex(@"\s*(.+?)\s*=\s*([^,\)]+)\s*,?", RegexOptions.Compiled);
 
         /// <summary>
