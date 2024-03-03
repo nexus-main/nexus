@@ -96,7 +96,7 @@ jobs:
       - name: Prepare GitHub Pages
         run: |
           touch app/wwwroot/.nojekyll
-          sed -i 's/<base href="\/" \/>/<base href="\/nexus\/" \/>/g' app/wwwroot/index.html
+          mv app/wwwroot/index.demo.html app/wwwroot/index.html
         if: github.ref == 'refs/heads/master'
 
       - name: Deploy GitHub Pages
