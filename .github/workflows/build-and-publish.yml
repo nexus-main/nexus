@@ -58,7 +58,7 @@ jobs:
 
       - name: Build
         run: |
-          (cd src/Nexus.UI && libman restore)
+          (cd src/Nexus && libman restore)
           dotnet publish -c Release -o app /p:GeneratePackage=true src/Nexus/Nexus.csproj
           python -m build --wheel --outdir artifacts/package --no-isolation src/clients/python-client
           python -m build --wheel --outdir artifacts/package --no-isolation src/extensibility/python-extensibility
