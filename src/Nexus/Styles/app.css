@@ -33,7 +33,7 @@ html {
     flex-direction: column;
 }
 
-#loading-screen {
+#loading-screen > :first-child {
     height: 100vh;
     display: flex;
     flex-direction: column;

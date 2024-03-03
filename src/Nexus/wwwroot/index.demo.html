@@ -1,4 +1,4 @@
-<!-- KEEP IN SYNC WITH App.razor! -->
+<!-- KEEP IN SYNC WITH compontents/App.razor! -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -27,7 +27,7 @@
         <!-- 
             We (mis)use builder.RootComponents.Add<LoadingScreen>("#loading-screen");
             in the WASM library to be able to show the loading screen component (see 
-            below) and to have it replaced with nothing when the app starts.
+            below) and to have its content replaced with nothing when the app starts.
 
             This is required because we disabled prerendering and so we need a loading
             screen. We disabled prerendering because it requires services like those
@@ -37,16 +37,18 @@
             Background to the .NET 8 changes:
             https://github.com/dotnet/aspnetcore/issues/49056#issuecomment-1639105878 
         -->
-        <div id="loading-screen" class="bg-gradient-to-b from-white to-slate-200">
-            <div class="flex-1 sm:text-2xl">  
-                <div class="h-2/3 flex flex-col justify-center items-center">
-                    <div class="w-full flex justify-center pb-5">
-                        <img class="w-28 sm:w-40" src="text.svg" />
-                    </div>
-        
-                    <div class="w-72 relative">
-                        <div class="bg-gray-200 h-0.5 absolute top-0 left-0" style="width: 100%"></div>
-                        <div class="bg-cyan-700 h-0.5 absolute top-0 left-0 loading-progress"></div>
+        <div id="loading-screen">
+            <div class="bg-gradient-to-b from-white to-slate-200">
+                <div class="flex-1 sm:text-2xl">  
+                    <div class="h-2/3 flex flex-col justify-center items-center">
+                        <div class="w-full flex justify-center pb-5">
+                            <img class="w-28 sm:w-40" src="text.svg" />
+                        </div>
+            
+                        <div class="w-72 relative">
+                            <div class="bg-gray-200 h-0.5 absolute top-0 left-0" style="width: 100%"></div>
+                            <div class="bg-cyan-700 h-0.5 absolute top-0 left-0 loading-progress"></div>
+                        </div>
                     </div>
                 </div>
             </div>
