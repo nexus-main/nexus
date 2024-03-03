@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "Nexus.UI",
   "resources": {
-    "hash": "sha256-bJOoNo0HWEXDizCYJcB0SJR2K6AkLCwoVxTdXnArinY=",
+    "hash": "sha256-ZwWZ0E+LnKlq3R2sQV/HBhdCcFTW/yGXzHdqRNP7M7E=",
     "jsModuleNative": {
       "dotnet.native.8.0.2.5mvkwj547d.js": "sha256-AvTFHe7j2qoAUNTTg4SvHX/8JZMVLKo3PE9R+e1txMU="
     },
@@ -38,8 +38,8 @@
       "Microsoft.JSInterop.wasm": "sha256-ehzHeMvmC4Hsd+F66f3wjD/2etjPW4i6YiKkChuqd6k=",
       "Microsoft.JSInterop.WebAssembly.wasm": "sha256-2qBJkLnOCr4py2S0peps0cFo0z3Ew9OVwGYodtvAVkk=",
       "MudBlazor.wasm": "sha256-eS3AyN4A7JzdFfTSNTNGghifzh2iNfVyjZxfR+o4gH8=",
-      "Nexus.Api.wasm": "sha256-QeiKtb5qQzdBNaz6VGN7VywCeg3tkdbVjeLLH9cSpnA=",
-      "Nexus.UI.wasm": "sha256-gVz5hsOsbnlrxtwQgEGcecGaoC/ed3Ozfr2GcpvWp8s=",
+      "Nexus.Api.wasm": "sha256-glYVnigYOOzaUIxPof3S7PmUELiMdxvgB5rY1jFjp2o=",
+      "Nexus.UI.wasm": "sha256-w20UO4+jjochHvaNdncU1N7kXu4xymULubKy6pwYJGk=",
       "SkiaSharp.Views.Blazor.wasm": "sha256-0xaV5JtsG2tclSqXDflOuEsjaJlYeYiAbKg1TAjKvBM=",
       "SkiaSharp.wasm": "sha256-fDfc2vLs4FMi2maffc0QxBEaX4BrZHV3WrwOCTgnjRw=",
       "System.Collections.Concurrent.wasm": "sha256-zOGlKKX4k+8zXlQr1Y1pRnkXl+cLvpHrPp5wxtv2I3s=",
