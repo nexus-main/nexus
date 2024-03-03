@@ -1,0 +1,63 @@
+<!-- KEEP IN SYNC WITH App.razor! -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+        <base href="/" />
+
+        <!-- keep this order for MudBlazor and app.css to correctly apply overrides -->
+        <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+        <link rel="stylesheet" href="css/app.css" />
+        <link rel="stylesheet" href="Nexus.styles.css">
+        <link rel="stylesheet" href="lib/mdi/font/css/materialdesignicons.min.css">
+        <link rel="stylesheet" href="lib/highlightjs/cdn-assets/styles/stackoverflow-light.min.css">
+
+        <link rel="icon" type="image/png" href="icon.svg" />
+
+        <!--Blazor:{"type":"webassembly","key":{"locationHash":"F0D08B7EDA2582111DC0201BF7AE993F27FDC7A8:6","formattedComponentKey":""},"assembly":"Microsoft.AspNetCore.Components.Web","typeName":"Microsoft.AspNetCore.Components.Web.HeadOutlet","parameterDefinitions":"W10=","parameterValues":"W10="}-->
+    </head>
+
+    <body class="font-sans">
+        <!--Blazor:{"type":"webassembly","key":{"locationHash":"531B0D4EDBAB1F7033C2AE7ACA95EC4DA3B917DD:10","formattedComponentKey":""},"assembly":"Nexus.UI","typeName":"Nexus.UI.Routes","parameterDefinitions":"W10=","parameterValues":"W10="}-->       
+        
+        <!-- 
+            We (mis)use builder.RootComponents.Add<LoadingScreen>("#loading-screen");
+            in the WASM library to be able to show the loading screen component (see 
+            below) and to have it replaced with nothing when the app starts.
+
+            This is required because we disabled prerendering and so we need a loading
+            screen. We disabled prerendering because it requires services like those
+            from MudBlazor to be registered server-side and wasm-side which feels
+            unclean.
+
+            Background to the .NET 8 changes:
+            https://github.com/dotnet/aspnetcore/issues/49056#issuecomment-1639105878 
+        -->
+        <div id="loading-screen" class="bg-gradient-to-b from-white to-slate-200">
+            <div class="flex-1 sm:text-2xl">  
+                <div class="h-2/3 flex flex-col justify-center items-center">
+                    <div class="w-full flex justify-center pb-5">
+                        <img class="w-28 sm:w-40" src="text.svg" />
+                    </div>
+        
+                    <div class="w-72 relative">
+                        <div class="bg-gray-200 h-0.5 absolute top-0 left-0" style="width: 100%"></div>
+                        <div class="bg-cyan-700 h-0.5 absolute top-0 left-0 loading-progress"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="js/app.js"></script>
+        <script src="js/chart.js"></script>
+        <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+        <script src="lib/marked/marked.js"></script>
+        <script src="lib/highlightjs/cdn-assets/highlight.min.js"></script>
+        <script src="_framework/blazor.web.js"></script>
+    </body>
+
+</html>

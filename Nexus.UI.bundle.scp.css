@@ -1,0 +1,269 @@
+/* /Charts/AvailabilityChart.razor.rz.scp.css */
+.chart-container[b-gsk3eneje9] {
+    height: 100%;
+}
+
+[b-gsk3eneje9] canvas {
+    height: 100%;
+    width: 100%;
+}
+/* /Charts/Chart.razor.rz.scp.css */
+.chart-container[b-69k30c8u93] {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+    .legend[b-69k30c8u93] {
+        margin-top: 2rem;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .legend-item[b-69k30c8u93] {
+        display: flex;
+        margin-left: 0.7rem;
+        margin-right: 0.7rem;
+        align-items: center;
+        font-size: 0.9rem;
+        cursor: pointer;
+        user-select: none;
+    }
+
+        .legend-item.inactive[b-69k30c8u93] {
+            opacity: 0.3;
+        }
+
+    .color-box[b-69k30c8u93] {
+        width: 1em;
+        height: 1em;
+        border: 2px solid transparent;
+        margin-right: 0.2rem;
+    }
+
+    .name[b-69k30c8u93] {
+        margin-right: 0.4rem;
+        font-weight: 600;
+    }
+
+.chart[b-69k30c8u93] {
+    position: relative;
+    width: 100%;
+    flex: 1;
+}
+
+    [b-69k30c8u93] canvas {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    .pointer[b-69k30c8u93] {
+        position: absolute;
+        top: 0;
+        left: 0;
+        border-radius: 50%;
+        width: 5px;
+        height: 5px;
+        margin-left: -2px;
+        margin-top: -2px;
+    }
+
+.overlay[b-69k30c8u93] {
+    position: relative;
+}
+
+    .overlay *[b-69k30c8u93] {
+        pointer-events: none;
+    }
+
+    .crosshairs-x[b-69k30c8u93] {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        border-bottom: 1px dashed #607D8B;
+    }
+
+    .crosshairs-y[b-69k30c8u93] {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        border-right: 1px dashed #607D8B;
+    }
+
+    .selection[b-69k30c8u93] {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.07);
+        height: 100%;
+    }
+/* /Components/MarkdownRenderer.razor.rz.scp.css */
+.markdown[b-6ykucraaiz] {
+    font-size: 0.8em;
+    line-height: 1.2em;
+    word-wrap: break-word;
+    height: 100%;
+}
+
+    /* css below taken from https://github.com/microsoft/vscode/blob/main/extensions/markdown-language-features/media/markdown.css
+ * em values modified, mostly by factor 2
+ */
+
+    .markdown[b-6ykucraaiz]  h1 {
+        font-size: 1.1em;
+    }
+
+    .markdown[b-6ykucraaiz]  h2 {
+        font-size: 1.0em;
+    }
+
+    .markdown[b-6ykucraaiz]  h3 {
+        font-size: 0.9em;
+    }
+
+    /* Reset margin top for elements */
+    .markdown[b-6ykucraaiz]  h1 {
+        margin-top: 1em;
+        margin-bottom: 0.5em;
+    }
+
+    .markdown[b-6ykucraaiz]  h2, .markdown[b-6ykucraaiz]  h3, .markdown[b-6ykucraaiz]  h4, .markdown[b-6ykucraaiz]  h5, .markdown[b-6ykucraaiz]  h6,
+    .markdown[b-6ykucraaiz]  p, .markdown[b-6ykucraaiz]  ol, .markdown[b-6ykucraaiz]  ul, .markdown[b-6ykucraaiz]  pre {
+        margin-top: 0;
+    }
+
+    .markdown[b-6ykucraaiz]  h2, .markdown[b-6ykucraaiz]  h3, .markdown[b-6ykucraaiz]  h4, .markdown[b-6ykucraaiz]  h5, .markdown[b-6ykucraaiz]  h6 {
+        margin-bottom: 0.6em;
+    }
+
+    .markdown[b-6ykucraaiz]  ul {
+        list-style-type: disc;
+        margin-left: 2em;
+    }
+
+        .markdown[b-6ykucraaiz]  ul ul,
+        .markdown[b-6ykucraaiz]  ul ol,
+        .markdown[b-6ykucraaiz]  ol ul,
+        .markdown[b-6ykucraaiz]  ol ol {
+            margin-bottom: 0;
+        }
+
+    .markdown[b-6ykucraaiz]  img {
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    .markdown[b-6ykucraaiz]  a {
+        color: var(--md-color-text-link);
+        text-decoration: none;
+    }
+
+        .markdown[b-6ykucraaiz]  a:hover {
+            text-decoration: underline;
+        }
+
+        .markdown[b-6ykucraaiz]  a:focus,
+        .markdown[b-6ykucraaiz]  input:focus,
+        .markdown[b-6ykucraaiz]  select:focus,
+        .markdown[b-6ykucraaiz]  textarea:focus {
+            outline: 1px solid -webkit-focus-ring-color;
+            outline-offset: -1px;
+        }
+
+    .markdown[b-6ykucraaiz]  p {
+        margin-bottom: 1.4em;
+    }
+
+    .markdown[b-6ykucraaiz]  ul,
+    .markdown[b-6ykucraaiz]  ol {
+        margin-bottom: 1.4em;
+    }
+
+    .markdown[b-6ykucraaiz]  li {
+        margin-bottom: 0.4em;
+    }
+
+
+    .markdown[b-6ykucraaiz]  hr {
+        border: 0;
+        height: 2px;
+        border-bottom: 2px solid;
+    }
+
+    .markdown[b-6ykucraaiz]  h1 {
+        padding-bottom: 0.3em;
+        line-height: 1.2;
+        border-bottom-width: 1px;
+        border-bottom-style: solid;
+    }
+
+    .markdown[b-6ykucraaiz]  table {
+        border-collapse: collapse;
+        margin-bottom: 1.4em;
+    }
+
+    .markdown[b-6ykucraaiz]  th {
+        text-align: left;
+        border-bottom: 1px solid;
+    }
+
+    .markdown[b-6ykucraaiz]  th,
+    .markdown[b-6ykucraaiz]  td {
+        padding: 5px 10px;
+    }
+
+    .markdown[b-6ykucraaiz]  table > tbody > tr + tr > td {
+        border-top: 1px solid;
+    }
+
+    .markdown[b-6ykucraaiz]  blockquote {
+        margin: 0 7px 0 5px;
+        padding: 0 16px 0 10px;
+        border-left-width: 5px;
+        border-left-style: solid;
+    }
+
+    .markdown[b-6ykucraaiz]  code {
+        font-family: var(--md-vscode-editor-font-family, "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace);
+        font-size: 1em;
+        line-height: 1.357em;
+    }
+
+    .markdown[b-6ykucraaiz]  code {
+        color: var(--md-code-foreground);
+    }
+
+    .markdown[b-6ykucraaiz]  body.wordWrap pre {
+        white-space: pre-wrap;
+    }
+
+    .markdown[b-6ykucraaiz]  pre:not(.hljs),
+    .markdown[b-6ykucraaiz]  pre.hljs code > div {
+        padding: 16px;
+        border-radius: 3px;
+        overflow: auto;
+    }
+
+    .markdown[b-6ykucraaiz]  pre code {
+        color: var(--md-pre-code-foreground);
+        tab-size: 4;
+    }
+
+    /* Theming */
+
+    .markdown[b-6ykucraaiz]  pre {
+        background-color: var(--md-code-background);
+    }
+
+    .markdown[b-6ykucraaiz]  th {
+        border-color: var(--md-table-header);
+    }
+
+    .markdown[b-6ykucraaiz]  h1,
+    .markdown[b-6ykucraaiz]  hr,
+    .markdown[b-6ykucraaiz]  td {
+        border-color: var(--md-border);
+    }
