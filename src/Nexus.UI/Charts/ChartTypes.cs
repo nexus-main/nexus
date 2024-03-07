@@ -1,78 +1,75 @@
-﻿using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
-using SkiaSharp;
+﻿using SkiaSharp;
 
-namespace Nexus.UI.Charts
+namespace Nexus.UI.Charts;
+
+public record AvailabilityData(
+    DateTime Begin,
+    DateTime End,
+    TimeSpan Step,
+    IReadOnlyList<double> Data
+);
+
+public record LineSeriesData(
+    DateTime Begin,
+    DateTime End,
+    IList<LineSeries> Series
+);
+
+public record LineSeries(
+    string Name,
+    string Unit,
+    TimeSpan SamplePeriod,
+    double[] Data)
 {
-    public record AvailabilityData(
-        DateTime Begin,
-        DateTime End,
-        TimeSpan Step,
-        IReadOnlyList<double> Data
-    );
+    public bool Show { get; set; } = true;
+    internal string Id { get; } = Guid.NewGuid().ToString();
+    internal SKColor Color { get; set; }
+}
 
-    public record LineSeriesData(
-        DateTime Begin,
-        DateTime End,
-        IList<LineSeries> Series
-    );
+internal record struct ZoomInfo(
+    Memory<double> Data,
+    SKRect DataBox,
+    bool IsClippedRight);
 
-    public record LineSeries(
-        string Name,
-        string Unit,
-        TimeSpan SamplePeriod,
-        double[] Data)
-    {
-        public bool Show { get; set; } = true;
-        internal string Id { get; } = Guid.NewGuid().ToString();
-        internal SKColor Color { get; set; }
-    }
+internal record struct Position(
+    float X,
+    float Y);
 
-    internal record struct ZoomInfo(
-        Memory<double> Data,
-        SKRect DataBox,
-        bool IsClippedRight);
+internal record AxisInfo(
+    string Unit,
+    float OriginalMin,
+    float OriginalMax)
+{
+    public float Min { get; set; }
+    public float Max { get; set; }
+};
 
-    internal record struct Position(
-        float X,
-        float Y);
+internal record TimeAxisConfig(
 
-    internal record AxisInfo(
-        string Unit,
-        float OriginalMin,
-        float OriginalMax)
-    {
-        public float Min { get; set; }
-        public float Max { get; set; }
-    };
+    /* The tick interval */
+    TimeSpan TickInterval,
 
-    internal record TimeAxisConfig(
+    /* The standard tick label format */
+    string FastTickLabelFormat,
 
-        /* The tick interval */
-        TimeSpan TickInterval,
+    /* Ticks where the TriggerPeriod changes will have a slow tick label attached */
+    TriggerPeriod SlowTickTrigger,
 
-        /* The standard tick label format */
-        string FastTickLabelFormat,
+    /* The slow tick format (row 1) */
+    string? SlowTickLabelFormat1,
 
-        /* Ticks where the TriggerPeriod changes will have a slow tick label attached */
-        TriggerPeriod SlowTickTrigger,
+    /* The slow tick format (row 2) */
+    string? SlowTickLabelFormat2,
 
-        /* The slow tick format (row 1) */
-        string? SlowTickLabelFormat1,
+    /* The cursor label format*/
+    string CursorLabelFormat);
 
-        /* The slow tick format (row 2) */
-        string? SlowTickLabelFormat2,
-
-        /* The cursor label format*/
-        string CursorLabelFormat);
-
-    internal enum TriggerPeriod
-    {
-        Second,
-        Minute,
-        Hour,
-        Day,
-        Month,
-        Year
-    }
+internal enum TriggerPeriod
+{
+    Second,
+    Minute,
+    Hour,
+    Day,
+    Month,
+    Year
 }

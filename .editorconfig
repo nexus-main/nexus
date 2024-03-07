@@ -12,7 +12,7 @@ trim_trailing_whitespace = true
 # TODO: build real editorconfig file: https://github.com/dotnet/roslyn/blob/main/.editorconfig 
 
 # Use file scoped namespace declarations
-csharp_style_namespace_declarations = file_scoped:error
+csharp_style_namespace_declarations = file_scoped:warning
 
 # Make field
 dotnet_diagnostic.IDE0044.severity = warning

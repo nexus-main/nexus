@@ -6,60 +6,85 @@ using Nexus.Services;
 using Nexus.Utilities;
 using System.ComponentModel.DataAnnotations;
 
-namespace Nexus.Controllers
+namespace Nexus.Controllers;
+
+/// <summary>
+/// Provides access to jobs.
+/// </summary>
+[Authorize]
+[ApiController]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/[controller]")]
+internal class JobsController : ControllerBase
 {
-    /// <summary>
-    /// Provides access to jobs.
-    /// </summary>
-    [Authorize]
-    [ApiController]
-    [ApiVersion("1.0")]
-    [Route("api/v{version:apiVersion}/[controller]")]
-    internal class JobsController : ControllerBase
+    // GET      /jobs
+    // DELETE   /jobs{jobId}
+    // GET      /jobs{jobId}/status
+    // POST     /jobs/export
+    // POST     /jobs/load-packages
+    // POST     /jobs/clear-cache
+
+    #region Fields
+
+    private readonly AppStateManager _appStateManager;
+    private readonly ILogger _logger;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly Serilog.IDiagnosticContext _diagnosticContext;
+    private readonly IJobService _jobService;
+
+    #endregion
+
+    #region Constructors
+
+    public JobsController(
+        AppStateManager appStateManager,
+        IJobService jobService,
+        IServiceProvider serviceProvider,
+        Serilog.IDiagnosticContext diagnosticContext,
+        ILogger<JobsController> logger)
     {
-        // GET      /jobs
-        // DELETE   /jobs{jobId}
-        // GET      /jobs{jobId}/status
-        // POST     /jobs/export
-        // POST     /jobs/load-packages
-        // POST     /jobs/clear-cache
+        _appStateManager = appStateManager;
+        _jobService = jobService;
+        _serviceProvider = serviceProvider;
+        _diagnosticContext = diagnosticContext;
+        _logger = logger;
+    }
 
-        #region Fields
+    #endregion
 
-        private readonly AppStateManager _appStateManager;
-        private readonly ILogger _logger;
-        private readonly IServiceProvider _serviceProvider;
-        private readonly Serilog.IDiagnosticContext _diagnosticContext;
-        private readonly IJobService _jobService;
+    #region Jobs Management
 
-        #endregion
+    /// <summary>
+    /// Gets a list of jobs.
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet]
+    public ActionResult<List<Job>> GetJobs()
+    {
+        var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
+        var username = User.Identity?.Name;
 
-        #region Constructors
+        if (username is null)
+            throw new Exception("This should never happen.");
 
-        public JobsController(
-            AppStateManager appStateManager,
-            IJobService jobService,
-            IServiceProvider serviceProvider,
-            Serilog.IDiagnosticContext diagnosticContext,
-            ILogger<JobsController> logger)
-        {
-            _appStateManager = appStateManager;
-            _jobService = jobService;
-            _serviceProvider = serviceProvider;
-            _diagnosticContext = diagnosticContext;
-            _logger = logger;
-        }
+        var result = _jobService
+            .GetJobs()
+            .Select(jobControl => jobControl.Job)
+            .Where(job => job.Owner == username || isAdmin)
+            .ToList();
 
-        #endregion
+        return result;
+    }
 
-        #region Jobs Management
-
-        /// <summary>
-        /// Gets a list of jobs.
-        /// </summary>
-        /// <returns></returns>
-        [HttpGet]
-        public ActionResult<List<Job>> GetJobs()
+    /// <summary>
+    /// Cancels the specified job.
+    /// </summary>
+    /// <param name="jobId"></param>
+    /// <returns></returns>
+    [HttpDelete("{jobId}")]
+    public ActionResult CancelJob(Guid jobId)
+    {
+        if (_jobService.TryGetJob(jobId, out var jobControl))
         {
             var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
             var username = User.Identity?.Name;
@@ -67,286 +92,260 @@ namespace Nexus.Controllers
             if (username is null)
                 throw new Exception("This should never happen.");
 
-            var result = _jobService
-                .GetJobs()
-                .Select(jobControl => jobControl.Job)
-                .Where(job => job.Owner == username || isAdmin)
-                .ToList();
-
-            return result;
-        }
-
-        /// <summary>
-        /// Cancels the specified job.
-        /// </summary>
-        /// <param name="jobId"></param>
-        /// <returns></returns>
-        [HttpDelete("{jobId}")]
-        public ActionResult CancelJob(Guid jobId)
-        {
-            if (_jobService.TryGetJob(jobId, out var jobControl))
+            if (jobControl.Job.Owner == username || isAdmin)
             {
-                var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
-                var username = User.Identity?.Name;
-
-                if (username is null)
-                    throw new Exception("This should never happen.");
-
-                if (jobControl.Job.Owner == username || isAdmin)
-                {
-                    jobControl.CancellationTokenSource.Cancel();
-                    return Accepted();
-                }
-
-                else
-                {
-                    return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to cancel the job {jobControl.Job.Id}.");
-                }
+                jobControl.CancellationTokenSource.Cancel();
+                return Accepted();
             }
 
             else
             {
-                return NotFound(jobId);
+                return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to cancel the job {jobControl.Job.Id}.");
             }
         }
 
-        /// <summary>
-        /// Gets the status of the specified job.
-        /// </summary>
-        /// <param name="jobId"></param>
-        /// <returns></returns>
-        [HttpGet("{jobId}/status")]
-        public async Task<ActionResult<JobStatus>> GetJobStatusAsync(Guid jobId)
+        else
         {
-            if (_jobService.TryGetJob(jobId, out var jobControl))
+            return NotFound(jobId);
+        }
+    }
+
+    /// <summary>
+    /// Gets the status of the specified job.
+    /// </summary>
+    /// <param name="jobId"></param>
+    /// <returns></returns>
+    [HttpGet("{jobId}/status")]
+    public async Task<ActionResult<JobStatus>> GetJobStatusAsync(Guid jobId)
+    {
+        if (_jobService.TryGetJob(jobId, out var jobControl))
+        {
+            var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
+            var username = User.Identity?.Name;
+
+            if (username is null)
+                throw new Exception("This should never happen.");
+
+            if (jobControl.Job.Owner == username || isAdmin)
             {
-                var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
-                var username = User.Identity?.Name;
+                var status = new JobStatus(
+                    Start: jobControl.Start,
+                    Progress: jobControl.Progress,
+                    Status: jobControl.Task.Status,
+                    ExceptionMessage: jobControl.Task.Exception is not null
+                        ? jobControl.Task.Exception.Message
+                        : default,
+                    Result: jobControl.Task.Status == TaskStatus.RanToCompletion && (await jobControl.Task) is not null
+                        ? await jobControl.Task
+                        : default);
 
-                if (username is null)
-                    throw new Exception("This should never happen.");
-
-                if (jobControl.Job.Owner == username || isAdmin)
-                {
-                    var status = new JobStatus(
-                        Start: jobControl.Start,
-                        Progress: jobControl.Progress,
-                        Status: jobControl.Task.Status,
-                        ExceptionMessage: jobControl.Task.Exception is not null
-                            ? jobControl.Task.Exception.Message
-                            : default,
-                        Result: jobControl.Task.Status == TaskStatus.RanToCompletion && (await jobControl.Task) is not null
-                            ? await jobControl.Task
-                            : default);
-
-                    return status;
-                }
-                else
-                {
-                    return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to access the status of job {jobControl.Job.Id}.");
-                }
+                return status;
             }
             else
             {
-                return NotFound(jobId);
+                return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to access the status of job {jobControl.Job.Id}.");
             }
         }
-
-        #endregion
-
-        #region Jobs
-
-        /// <summary>
-        /// Creates a new export job.
-        /// </summary>
-        /// <param name="parameters">Export parameters.</param>
-        /// <param name="cancellationToken">The token to cancel the current operation.</param>
-        /// <returns></returns>
-        [HttpPost("export")]
-        public async Task<ActionResult<Job>> ExportAsync(
-            ExportParameters parameters,
-            CancellationToken cancellationToken)
+        else
         {
-            _diagnosticContext.Set("Body", JsonSerializerHelper.SerializeIndented(parameters));
+            return NotFound(jobId);
+        }
+    }
 
-            parameters = parameters with
+    #endregion
+
+    #region Jobs
+
+    /// <summary>
+    /// Creates a new export job.
+    /// </summary>
+    /// <param name="parameters">Export parameters.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    /// <returns></returns>
+    [HttpPost("export")]
+    public async Task<ActionResult<Job>> ExportAsync(
+        ExportParameters parameters,
+        CancellationToken cancellationToken)
+    {
+        _diagnosticContext.Set("Body", JsonSerializerHelper.SerializeIndented(parameters));
+
+        parameters = parameters with
+        {
+            Begin = parameters.Begin.ToUniversalTime(),
+            End = parameters.End.ToUniversalTime()
+        };
+
+        var root = _appStateManager.AppState.CatalogState.Root;
+
+        // check that there is anything to export
+        if (!parameters.ResourcePaths.Any())
+            return BadRequest("The list of resource paths is empty.");
+
+        // translate resource paths to catalog item requests
+        CatalogItemRequest[] catalogItemRequests;
+
+        try
+        {
+            catalogItemRequests = await Task.WhenAll(parameters.ResourcePaths.Select(async resourcePath =>
             {
-                Begin = parameters.Begin.ToUniversalTime(),
-                End = parameters.End.ToUniversalTime()
-            };
+                var catalogItemRequest = await root.TryFindAsync(resourcePath, cancellationToken);
 
-            var root = _appStateManager.AppState.CatalogState.Root;
+                if (catalogItemRequest is null)
+                    throw new ValidationException($"Could not find resource path {resourcePath}.");
 
-            // check that there is anything to export
-            if (!parameters.ResourcePaths.Any())
-                return BadRequest("The list of resource paths is empty.");
+                return catalogItemRequest;
+            }));
+        }
+        catch (ValidationException ex)
+        {
+            return UnprocessableEntity(ex.Message);
+        }
 
-            // translate resource paths to catalog item requests
-            CatalogItemRequest[] catalogItemRequests;
-
-            try
+        // authorize
+        try
+        {
+            foreach (var group in catalogItemRequests.GroupBy(current => current.Container.Id))
             {
-                catalogItemRequests = await Task.WhenAll(parameters.ResourcePaths.Select(async resourcePath =>
-                {
-                    var catalogItemRequest = await root.TryFindAsync(resourcePath, cancellationToken);
+                var catalogContainer = group.First().Container;
 
-                    if (catalogItemRequest is null)
-                        throw new ValidationException($"Could not find resource path {resourcePath}.");
-
-                    return catalogItemRequest;
-                }));
+                if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                    throw new UnauthorizedAccessException($"The current user is not permitted to access catalog {catalogContainer.Id}.");
             }
-            catch (ValidationException ex)
-            {
-                return UnprocessableEntity(ex.Message);
-            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
 
-            // authorize
-            try
+        //
+        var username = User.Identity?.Name!;
+        var job = new Job(Guid.NewGuid(), "export", username, parameters);
+        var dataService = _serviceProvider.GetRequiredService<IDataService>();
+
+        try
+        {
+            var jobControl = _jobService.AddJob(job, dataService.WriteProgress, async (jobControl, cts) =>
             {
-                foreach (var group in catalogItemRequests.GroupBy(current => current.Container.Id))
+                try
                 {
-                    var catalogContainer = group.First().Container;
-
-                    if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
-                        throw new UnauthorizedAccessException($"The current user is not permitted to access catalog {catalogContainer.Id}.");
+                    var result = await dataService.ExportAsync(job.Id, catalogItemRequests, dataService.ReadAsDoubleAsync, parameters, cts.Token);
+                    return result;
                 }
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
-            }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Unable to export the requested data.");
+                    throw;
+                }
+            });
 
-            //
-            var username = User.Identity?.Name!;
-            var job = new Job(Guid.NewGuid(), "export", username, parameters);
-            var dataService = _serviceProvider.GetRequiredService<IDataService>();
+            return Accepted(GetAcceptUrl(job.Id), job);
+        }
+        catch (ValidationException ex)
+        {
+            return UnprocessableEntity(ex.Message);
+        }
+    }
 
+    /// <summary>
+    /// Creates a new job which reloads all extensions and resets the resource catalog.
+    /// </summary>
+    [HttpPost("refresh-database")]
+    public ActionResult<Job> RefreshDatabase()
+    {
+        var username = User.Identity?.Name!;
+
+        var job = new Job(Guid.NewGuid(), "refresh-database", username, default);
+        var progress = new Progress<double>();
+
+        var jobControl = _jobService.AddJob(job, progress, async (jobControl, cts) =>
+        {
             try
             {
-                var jobControl = _jobService.AddJob(job, dataService.WriteProgress, async (jobControl, cts) =>
-                {
-                    try
-                    {
-                        var result = await dataService.ExportAsync(job.Id, catalogItemRequests, dataService.ReadAsDoubleAsync, parameters, cts.Token);
-                        return result;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Unable to export the requested data.");
-                        throw;
-                    }
-                });
-
-                return Accepted(GetAcceptUrl(job.Id), job);
+                await _appStateManager.RefreshDatabaseAsync(progress, cts.Token);
+                return null;
             }
-            catch (ValidationException ex)
+            catch (Exception ex)
             {
-                return UnprocessableEntity(ex.Message);
+                _logger.LogError(ex, "Unable to reload extensions and reset the resource catalog.");
+                throw;
             }
-        }
+        });
 
-        /// <summary>
-        /// Creates a new job which reloads all extensions and resets the resource catalog.
-        /// </summary>
-        [HttpPost("refresh-database")]
-        public ActionResult<Job> RefreshDatabase()
+        var response = (ActionResult<Job>)Accepted(GetAcceptUrl(job.Id), job);
+        return response;
+    }
+
+    /// <summary>
+    /// Clears the aggregation data cache for the specified period of time.
+    /// </summary>
+    /// <param name="catalogId">The catalog identifier.</param>
+    /// <param name="begin">Start date/time.</param>
+    /// <param name="end">End date/time.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    [HttpPost("clear-cache")]
+    public async Task<ActionResult<Job>> ClearCacheAsync(
+        [BindRequired] string catalogId,
+        [BindRequired] DateTime begin,
+        [BindRequired] DateTime end,
+        CancellationToken cancellationToken)
+    {
+        var username = User.Identity?.Name!;
+        var job = new Job(Guid.NewGuid(), "clear-cache", username, default);
+
+        var response = await ProtectCatalogNonGenericAsync(catalogId, catalogContainer =>
         {
-            var username = User.Identity?.Name!;
-
-            var job = new Job(Guid.NewGuid(), "refresh-database", username, default);
             var progress = new Progress<double>();
+            var cacheService = _serviceProvider.GetRequiredService<ICacheService>();
 
             var jobControl = _jobService.AddJob(job, progress, async (jobControl, cts) =>
             {
                 try
                 {
-                    await _appStateManager.RefreshDatabaseAsync(progress, cts.Token);
+                    await cacheService.ClearAsync(catalogId, begin, end, progress, cts.Token);
                     return null;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Unable to reload extensions and reset the resource catalog.");
+                    _logger.LogError(ex, "Unable to clear the cache.");
                     throw;
                 }
             });
 
-            var response = (ActionResult<Job>)Accepted(GetAcceptUrl(job.Id), job);
-            return response;
-        }
+            return Task.FromResult<ActionResult>(Accepted(GetAcceptUrl(job.Id), job));
+        }, cancellationToken);
 
-        /// <summary>
-        /// Clears the aggregation data cache for the specified period of time.
-        /// </summary>
-        /// <param name="catalogId">The catalog identifier.</param>
-        /// <param name="begin">Start date/time.</param>
-        /// <param name="end">End date/time.</param>
-        /// <param name="cancellationToken">A token to cancel the current operation.</param>
-        [HttpPost("clear-cache")]
-        public async Task<ActionResult<Job>> ClearCacheAsync(
-            [BindRequired] string catalogId,
-            [BindRequired] DateTime begin,
-            [BindRequired] DateTime end,
-            CancellationToken cancellationToken)
-        {
-            var username = User.Identity?.Name!;
-            var job = new Job(Guid.NewGuid(), "clear-cache", username, default);
-
-            var response = await ProtectCatalogNonGenericAsync(catalogId, catalogContainer =>
-            {
-                var progress = new Progress<double>();
-                var cacheService = _serviceProvider.GetRequiredService<ICacheService>();
-
-                var jobControl = _jobService.AddJob(job, progress, async (jobControl, cts) =>
-                {
-                    try
-                    {
-                        await cacheService.ClearAsync(catalogId, begin, end, progress, cts.Token);
-                        return null;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Unable to clear the cache.");
-                        throw;
-                    }
-                });
-
-                return Task.FromResult<ActionResult>(Accepted(GetAcceptUrl(job.Id), job));
-            }, cancellationToken);
-
-            return (ActionResult<Job>)response;
-        }
-
-        #endregion
-
-        #region Methods
-
-        private string GetAcceptUrl(Guid jobId)
-        {
-            return $"{Request.Scheme}://{Request.Host}{Request.Path}/{jobId}/status";
-        }
-
-        private async Task<ActionResult> ProtectCatalogNonGenericAsync(
-            string catalogId,
-            Func<CatalogContainer, Task<ActionResult>> action,
-            CancellationToken cancellationToken)
-        {
-            var root = _appStateManager.AppState.CatalogState.Root;
-            var catalogContainer = await root.TryFindCatalogContainerAsync(catalogId, cancellationToken);
-
-            if (catalogContainer is not null)
-            {
-                if (!AuthUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
-                    return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
-
-                return await action.Invoke(catalogContainer);
-            }
-            else
-            {
-                return NotFound(catalogId);
-            }
-        }
-
-        #endregion
+        return (ActionResult<Job>)response;
     }
+
+    #endregion
+
+    #region Methods
+
+    private string GetAcceptUrl(Guid jobId)
+    {
+        return $"{Request.Scheme}://{Request.Host}{Request.Path}/{jobId}/status";
+    }
+
+    private async Task<ActionResult> ProtectCatalogNonGenericAsync(
+        string catalogId,
+        Func<CatalogContainer, Task<ActionResult>> action,
+        CancellationToken cancellationToken)
+    {
+        var root = _appStateManager.AppState.CatalogState.Root;
+        var catalogContainer = await root.TryFindCatalogContainerAsync(catalogId, cancellationToken);
+
+        if (catalogContainer is not null)
+        {
+            if (!AuthUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
+                return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
+
+            return await action.Invoke(catalogContainer);
+        }
+        else
+        {
+            return NotFound(catalogId);
+        }
+    }
+
+    #endregion
 }
