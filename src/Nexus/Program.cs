@@ -223,7 +223,7 @@ void ConfigurePipeline(WebApplication app)
 
     // endpoints
     app.MapControllers();
-    
+
     // razor components
     app.MapRazorComponents<App>()
         .AddInteractiveWebAssemblyRenderMode()

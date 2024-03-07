@@ -6,7 +6,7 @@
     "tests/extensibility/python-extensibility-tests"
   ],
   "stubPath": "",
-  "executionEnvironments":[
+  "executionEnvironments": [
     {
       "root": ".",
       "extraPaths": [

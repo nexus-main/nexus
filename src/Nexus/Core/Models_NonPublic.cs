@@ -3,71 +3,70 @@ using Nexus.Extensibility;
 using System.IO.Pipelines;
 using System.Text.Json;
 
-namespace Nexus.Core
+namespace Nexus.Core;
+
+internal record InternalPersonalAccessToken(
+    Guid Id,
+    string Description,
+    DateTime Expires,
+    IReadOnlyList<TokenClaim> Claims);
+
+internal record struct Interval(
+    DateTime Begin,
+    DateTime End);
+
+internal record ReadUnit(
+    CatalogItemRequest CatalogItemRequest,
+    PipeWriter DataWriter);
+
+internal record CatalogItemRequest(
+    CatalogItem Item,
+    CatalogItem? BaseItem,
+    CatalogContainer Container);
+
+internal record NexusProject(
+    IReadOnlyDictionary<string, JsonElement>? SystemConfiguration,
+    IReadOnlyDictionary<Guid, InternalPackageReference> PackageReferences,
+    IReadOnlyDictionary<string, UserConfiguration> UserConfigurations);
+
+internal record UserConfiguration(
+    IReadOnlyDictionary<Guid, InternalDataSourceRegistration> DataSourceRegistrations);
+
+internal record CatalogState(
+    CatalogContainer Root,
+    CatalogCache Cache);
+
+internal record LazyCatalogInfo(
+    DateTime Begin,
+    DateTime End,
+    ResourceCatalog Catalog);
+
+internal record ExportContext(
+    TimeSpan SamplePeriod,
+    IEnumerable<CatalogItemRequest> CatalogItemRequests,
+    ReadDataHandler ReadDataHandler,
+    ExportParameters ExportParameters);
+
+internal record JobControl(
+    DateTime Start,
+    Job Job,
+    CancellationTokenSource CancellationTokenSource)
 {
-    internal record InternalPersonalAccessToken (
-        Guid Id,
-        string Description,
-        DateTime Expires,
-        IReadOnlyList<TokenClaim> Claims);
-        
-    internal record struct Interval(
-        DateTime Begin,
-        DateTime End);
+    public event EventHandler<double>? ProgressUpdated;
+    public event EventHandler? Completed;
 
-    internal record ReadUnit(
-        CatalogItemRequest CatalogItemRequest,
-        PipeWriter DataWriter);
+    public double Progress { get; private set; }
 
-    internal record CatalogItemRequest(
-        CatalogItem Item,
-        CatalogItem? BaseItem,
-        CatalogContainer Container);
+    public Task<object?> Task { get; set; } = default!;
 
-    internal record NexusProject(
-        IReadOnlyDictionary<string, JsonElement>? SystemConfiguration,
-        IReadOnlyDictionary<Guid, InternalPackageReference> PackageReferences,
-        IReadOnlyDictionary<string, UserConfiguration> UserConfigurations);
-
-    internal record UserConfiguration(
-        IReadOnlyDictionary<Guid, InternalDataSourceRegistration> DataSourceRegistrations);
-
-    internal record CatalogState(
-        CatalogContainer Root,
-        CatalogCache Cache);
-
-    internal record LazyCatalogInfo(
-        DateTime Begin,
-        DateTime End,
-        ResourceCatalog Catalog);
-
-    internal record ExportContext(
-        TimeSpan SamplePeriod,
-        IEnumerable<CatalogItemRequest> CatalogItemRequests,
-        ReadDataHandler ReadDataHandler,
-        ExportParameters ExportParameters);
-
-    internal record JobControl(
-        DateTime Start,
-        Job Job,
-        CancellationTokenSource CancellationTokenSource)
+    public void OnProgressUpdated(double e)
     {
-        public event EventHandler<double>? ProgressUpdated;
-        public event EventHandler? Completed;
+        Progress = e;
+        ProgressUpdated?.Invoke(this, e);
+    }
 
-        public double Progress { get; private set; }
-
-        public Task<object?> Task { get; set; } = default!;
-
-        public void OnProgressUpdated(double e)
-        {
-            Progress = e;
-            ProgressUpdated?.Invoke(this, e);
-        }
-
-        public void OnCompleted()
-        {
-            Completed?.Invoke(this, EventArgs.Empty);
-        }
+    public void OnCompleted()
+    {
+        Completed?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -14,7 +14,7 @@ public class MemoryTrackerTests
         // Arrange
         var weAreWaiting = new AutoResetEvent(initialState: false);
         var dataOptions = new DataOptions() { TotalBufferMemoryConsumption = 200 };
-        
+
         var memoryTracker = new MemoryTracker(Options.Create(dataOptions), NullLogger<IMemoryTracker>.Instance)
         {
             // TODO: remove this property and test with factor 8

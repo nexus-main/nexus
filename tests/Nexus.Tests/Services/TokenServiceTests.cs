@@ -41,13 +41,13 @@ public class TokenServiceTests
         var actualTokenMap = JsonSerializer.Deserialize<Dictionary<string, InternalPersonalAccessToken>>(jsonString)!;
 
         Assert.Collection(
-            actualTokenMap, 
-            entry1 => 
+            actualTokenMap,
+            entry1 =>
             {
                 Assert.Equal(description, entry1.Value.Description);
                 Assert.Equal(expires, entry1.Value.Expires);
 
-                Assert.Collection(entry1.Value.Claims, 
+                Assert.Collection(entry1.Value.Claims,
                     entry1_1 =>
                     {
                         Assert.Equal(claim1Type, entry1_1.Type);

@@ -10,521 +10,520 @@ using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using Xunit;
 
-namespace DataSource
+namespace DataSource;
+
+public class DataSourceControllerTests : IClassFixture<DataSourceControllerFixture>
 {
-    public class DataSourceControllerTests : IClassFixture<DataSourceControllerFixture>
+    private readonly DataSourceControllerFixture _fixture;
+
+    public DataSourceControllerTests(DataSourceControllerFixture fixture)
     {
-        private readonly DataSourceControllerFixture _fixture;
+        _fixture = fixture;
+    }
 
-        public DataSourceControllerTests(DataSourceControllerFixture fixture)
+    [Fact]
+    internal async Task CanGetAvailability()
+    {
+        using var controller = new DataSourceController(
+            _fixture.DataSource,
+            _fixture.Registration,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(default!, default!, CancellationToken.None);
+
+        var catalogId = Sample.LocalCatalogId;
+        var begin = new DateTime(2020, 01, 01, 00, 00, 00, DateTimeKind.Utc);
+        var end = new DateTime(2020, 01, 03, 00, 00, 00, DateTimeKind.Utc);
+        var actual = await controller.GetAvailabilityAsync(catalogId, begin, end, TimeSpan.FromDays(1), CancellationToken.None);
+
+        var expectedData = new double[]
         {
-            _fixture = fixture;
-        }
+            1,
+            1
+        };
 
-        [Fact]
-        internal async Task CanGetAvailability()
+        Assert.True(expectedData.SequenceEqual(actual.Data));
+    }
+
+    [Fact]
+    public async Task CanGetTimeRange()
+    {
+        using var controller = new DataSourceController(
+            _fixture.DataSource,
+            _fixture.Registration,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(default!, default!, CancellationToken.None);
+
+        var catalogId = Sample.LocalCatalogId;
+        var actual = await controller.GetTimeRangeAsync(catalogId, CancellationToken.None);
+
+        Assert.Equal(DateTime.MinValue, actual.Begin);
+        Assert.Equal(DateTime.MaxValue, actual.End);
+    }
+
+    [Fact]
+    public async Task CanCheckIsDataOfDayAvailable()
+    {
+        using var controller = new DataSourceController(
+            _fixture.DataSource,
+            _fixture.Registration,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(default!, default!, CancellationToken.None);
+
+        var day = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var catalogId = Sample.LocalCatalogId;
+        var actual = await controller.IsDataOfDayAvailableAsync(catalogId, day, CancellationToken.None);
+
+        Assert.True(actual);
+    }
+
+    [Fact]
+    public async Task CanRead()
+    {
+        using var controller = new DataSourceController(
+            _fixture.DataSource,
+            _fixture.Registration,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
+
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2020, 01, 02, 0, 0, 1, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+
+        // resource 1
+        var resourcePath1 = $"{Sample.LocalCatalogId}/V1/1_s";
+        var catalogItem1 = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath1);
+        var catalogItemRequest1 = new CatalogItemRequest(catalogItem1, default, default!);
+
+        var pipe1 = new Pipe();
+        var dataWriter1 = pipe1.Writer;
+
+        // resource 2
+        var resourcePath2 = $"{Sample.LocalCatalogId}/T1/1_s";
+        var catalogItem2 = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath2);
+        var catalogItemRequest2 = new CatalogItemRequest(catalogItem2, default, default!);
+
+        var pipe2 = new Pipe();
+        var dataWriter2 = pipe2.Writer;
+
+        // combine
+        var catalogItemRequestPipeWriters = new CatalogItemRequestPipeWriter[]
         {
-            using var controller = new DataSourceController(
-                _fixture.DataSource,
-                _fixture.Registration,
-                default!,
-                default!,
-                default!,
-                default!,
-                default!,
-                NullLogger<DataSourceController>.Instance);
+            new CatalogItemRequestPipeWriter(catalogItemRequest1, dataWriter1),
+            new CatalogItemRequestPipeWriter(catalogItemRequest2, dataWriter2)
+        };
 
-            await controller.InitializeAsync(default!, default!, CancellationToken.None);
-
-            var catalogId = Sample.LocalCatalogId;
-            var begin = new DateTime(2020, 01, 01, 00, 00, 00, DateTimeKind.Utc);
-            var end = new DateTime(2020, 01, 03, 00, 00, 00, DateTimeKind.Utc);
-            var actual = await controller.GetAvailabilityAsync(catalogId, begin, end, TimeSpan.FromDays(1), CancellationToken.None);
-
-            var expectedData = new double[]
-            {
-                1,
-                1
-            };
-
-            Assert.True(expectedData.SequenceEqual(actual.Data));
-        }
-
-        [Fact]
-        public async Task CanGetTimeRange()
+        var readingGroups = new DataReadingGroup[]
         {
-            using var controller = new DataSourceController(
-                _fixture.DataSource,
-                _fixture.Registration,
-                default!,
-                default!,
-                default!,
-                default!,
-                default!,
-                NullLogger<DataSourceController>.Instance);
+            new DataReadingGroup(controller, catalogItemRequestPipeWriters)
+        };
 
-            await controller.InitializeAsync(default!, default!, CancellationToken.None);
+        var result1 = new double[86401];
 
-            var catalogId = Sample.LocalCatalogId;
-            var actual = await controller.GetTimeRangeAsync(catalogId, CancellationToken.None);
-
-            Assert.Equal(DateTime.MinValue, actual.Begin);
-            Assert.Equal(DateTime.MaxValue, actual.End);
-        }
-
-        [Fact]
-        public async Task CanCheckIsDataOfDayAvailable()
+        var writing1 = Task.Run(async () =>
         {
-            using var controller = new DataSourceController(
-                _fixture.DataSource,
-                _fixture.Registration,
-                default!,
-                default!,
-                default!,
-                default!,
-                default!,
-                NullLogger<DataSourceController>.Instance);
+            var resultBuffer1 = result1.AsMemory().Cast<double, byte>();
+            var stream1 = pipe1.Reader.AsStream();
 
-            await controller.InitializeAsync(default!, default!, CancellationToken.None);
+            while (resultBuffer1.Length > 0)
+            {
+                // V1
+                var readBytes1 = await stream1.ReadAsync(resultBuffer1);
 
-            var day = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
-            var catalogId = Sample.LocalCatalogId;
-            var actual = await controller.IsDataOfDayAvailableAsync(catalogId, day, CancellationToken.None);
+                if (readBytes1 == 0)
+                    throw new Exception("The stream stopped early.");
 
-            Assert.True(actual);
-        }
+                resultBuffer1 = resultBuffer1[readBytes1..];
+            }
+        });
 
-        [Fact]
-        public async Task CanRead()
+        var result2 = new double[86401];
+
+        var writing2 = Task.Run(async () =>
         {
-            using var controller = new DataSourceController(
-                _fixture.DataSource,
-                _fixture.Registration,
-                default!,
-                default!,
-                default!,
-                default!,
-                default!,
-                NullLogger<DataSourceController>.Instance);
+            var resultBuffer2 = result2.AsMemory().Cast<double, byte>();
+            var stream2 = pipe2.Reader.AsStream();
 
-            await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
-
-            var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
-            var end = new DateTime(2020, 01, 02, 0, 0, 1, DateTimeKind.Utc);
-            var samplePeriod = TimeSpan.FromSeconds(1);
-
-            // resource 1
-            var resourcePath1 = $"{Sample.LocalCatalogId}/V1/1_s";
-            var catalogItem1 = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath1);
-            var catalogItemRequest1 = new CatalogItemRequest(catalogItem1, default, default!);
-
-            var pipe1 = new Pipe();
-            var dataWriter1 = pipe1.Writer;
-
-            // resource 2
-            var resourcePath2 = $"{Sample.LocalCatalogId}/T1/1_s";
-            var catalogItem2 = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath2);
-            var catalogItemRequest2 = new CatalogItemRequest(catalogItem2, default, default!);
-
-            var pipe2 = new Pipe();
-            var dataWriter2 = pipe2.Writer;
-
-            // combine
-            var catalogItemRequestPipeWriters = new CatalogItemRequestPipeWriter[]
+            while (resultBuffer2.Length > 0)
             {
-                new CatalogItemRequestPipeWriter(catalogItemRequest1, dataWriter1),
-                new CatalogItemRequestPipeWriter(catalogItemRequest2, dataWriter2)
-            };
+                // T1
+                var readBytes2 = await stream2.ReadAsync(resultBuffer2);
 
-            var readingGroups = new DataReadingGroup[]
-            {
-                new DataReadingGroup(controller, catalogItemRequestPipeWriters)
-            };
+                if (readBytes2 == 0)
+                    throw new Exception("The stream stopped early.");
 
-            double[] result1 = new double[86401];
+                resultBuffer2 = resultBuffer2[readBytes2..];
+            }
+        });
 
-            var writing1 = Task.Run(async () =>
-            {
-                Memory<byte> resultBuffer1 = result1.AsMemory().Cast<double, byte>();
-                var stream1 = pipe1.Reader.AsStream();
+        var memoryTracker = Mock.Of<IMemoryTracker>();
 
-                while (resultBuffer1.Length > 0)
-                {
-                    // V1
-                    var readBytes1 = await stream1.ReadAsync(resultBuffer1);
+        Mock.Get(memoryTracker)
+            .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minium, maximum, _) => new AllocationRegistration(memoryTracker, actualByteCount: maximum));
 
-                    if (readBytes1 == 0)
-                        throw new Exception("The stream stopped early.");
+        var reading = DataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            readingGroups,
+            default!,
+            memoryTracker,
+            progress: default,
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None);
 
-                    resultBuffer1 = resultBuffer1[readBytes1..];
-                }
-            });
+        await Task.WhenAll(writing1, writing2, reading);
 
-            double[] result2 = new double[86401];
+        // /SAMPLE/LOCAL/V1/1_s
+        Assert.Equal(6.5, result1[0], precision: 1);
+        Assert.Equal(6.7, result1[10 * 60 + 1], precision: 1);
+        Assert.Equal(7.9, result1[01 * 60 * 60 + 2], precision: 1);
+        Assert.Equal(8.1, result1[02 * 60 * 60 + 3], precision: 1);
+        Assert.Equal(7.5, result1[10 * 60 * 60 + 4], precision: 1);
 
-            var writing2 = Task.Run(async () =>
-            {
-                Memory<byte> resultBuffer2 = result2.AsMemory().Cast<double, byte>();
-                var stream2 = pipe2.Reader.AsStream();
+        // /SAMPLE/LOCAL/T1/1_s
+        Assert.Equal(6.5, result2[0], precision: 1);
+        Assert.Equal(6.7, result2[10 * 60 + 1], precision: 1);
+        Assert.Equal(7.9, result2[01 * 60 * 60 + 2], precision: 1);
+        Assert.Equal(8.1, result2[02 * 60 * 60 + 3], precision: 1);
+        Assert.Equal(7.5, result2[10 * 60 * 60 + 4], precision: 1);
+    }
 
-                while (resultBuffer2.Length > 0)
-                {
-                    // T1
-                    var readBytes2 = await stream2.ReadAsync(resultBuffer2);
+    [Fact]
+    public async Task CanReadAsStream()
+    {
+        using var controller = new DataSourceController(
+            _fixture.DataSource,
+            _fixture.Registration,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            NullLogger<DataSourceController>.Instance);
 
-                    if (readBytes2 == 0)
-                        throw new Exception("The stream stopped early.");
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
 
-                    resultBuffer2 = resultBuffer2[readBytes2..];
-                }
-            });
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2020, 01, 02, 0, 0, 1, DateTimeKind.Utc);
+        var resourcePath = "/SAMPLE/LOCAL/T1/1_s";
+        var catalogItem = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath);
+        var catalogItemRequest = new CatalogItemRequest(catalogItem, default, default!);
 
-            var memoryTracker = Mock.Of<IMemoryTracker>();
+        var memoryTracker = Mock.Of<IMemoryTracker>();
 
-            Mock.Get(memoryTracker)
-                .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minium, maximum, _) => new AllocationRegistration(memoryTracker, actualByteCount: maximum));
+        Mock.Get(memoryTracker)
+            .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minium, maximum, _) => new AllocationRegistration(memoryTracker, actualByteCount: maximum));
 
-            var reading = DataSourceController.ReadAsync(
-                begin,
-                end,
-                samplePeriod,
-                readingGroups,
-                default!,
-                memoryTracker,
-                progress: default,
-                NullLogger<DataSourceController>.Instance,
-                CancellationToken.None);
+        var stream = controller.ReadAsStream(
+            begin,
+            end,
+            catalogItemRequest,
+            default!,
+            memoryTracker,
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None);
 
-            await Task.WhenAll(writing1, writing2, reading);
+        var result = new double[86401];
 
-            // /SAMPLE/LOCAL/V1/1_s
-            Assert.Equal(6.5, result1[0], precision: 1);
-            Assert.Equal(6.7, result1[10 * 60 + 1], precision: 1);
-            Assert.Equal(7.9, result1[01 * 60 * 60 + 2], precision: 1);
-            Assert.Equal(8.1, result1[02 * 60 * 60 + 3], precision: 1);
-            Assert.Equal(7.5, result1[10 * 60 * 60 + 4], precision: 1);
-
-            // /SAMPLE/LOCAL/T1/1_s
-            Assert.Equal(6.5, result2[0], precision: 1);
-            Assert.Equal(6.7, result2[10 * 60 + 1], precision: 1);
-            Assert.Equal(7.9, result2[01 * 60 * 60 + 2], precision: 1);
-            Assert.Equal(8.1, result2[02 * 60 * 60 + 3], precision: 1);
-            Assert.Equal(7.5, result2[10 * 60 * 60 + 4], precision: 1);
-        }
-
-        [Fact]
-        public async Task CanReadAsStream()
+        await Task.Run(async () =>
         {
-            using var controller = new DataSourceController(
-                _fixture.DataSource,
-                _fixture.Registration,
-                default!,
-                default!,
-                default!,
-                default!,
-                default!,
-                NullLogger<DataSourceController>.Instance);
+            var resultBuffer = result.AsMemory().Cast<double, byte>();
 
-            await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
-
-            var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
-            var end = new DateTime(2020, 01, 02, 0, 0, 1, DateTimeKind.Utc);
-            var resourcePath = "/SAMPLE/LOCAL/T1/1_s";
-            var catalogItem = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath);
-            var catalogItemRequest = new CatalogItemRequest(catalogItem, default, default!);
-
-            var memoryTracker = Mock.Of<IMemoryTracker>();
-
-            Mock.Get(memoryTracker)
-                .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minium, maximum, _) => new AllocationRegistration(memoryTracker, actualByteCount: maximum));
-
-            var stream = controller.ReadAsStream(
-                begin,
-                end,
-                catalogItemRequest,
-                default!,
-                memoryTracker,
-                NullLogger<DataSourceController>.Instance,
-                CancellationToken.None);
-
-            double[] result = new double[86401];
-
-            await Task.Run(async () =>
+            while (resultBuffer.Length > 0)
             {
-                Memory<byte> resultBuffer = result.AsMemory().Cast<double, byte>();
+                var readBytes = await stream.ReadAsync(resultBuffer);
 
-                while (resultBuffer.Length > 0)
-                {
-                    var readBytes = await stream.ReadAsync(resultBuffer);
+                if (readBytes == 0)
+                    throw new Exception("This should never happen.");
 
-                    if (readBytes == 0)
-                        throw new Exception("This should never happen.");
+                resultBuffer = resultBuffer[readBytes..];
+            }
+        });
 
-                    resultBuffer = resultBuffer[readBytes..];
-                }
-            });
+        Assert.Equal(86401 * sizeof(double), stream.Length);
+        Assert.Equal(6.5, result[0], precision: 1);
+        Assert.Equal(6.7, result[10 * 60 + 1], precision: 1);
+        Assert.Equal(7.9, result[01 * 60 * 60 + 2], precision: 1);
+        Assert.Equal(8.1, result[02 * 60 * 60 + 3], precision: 1);
+        Assert.Equal(7.5, result[10 * 60 * 60 + 4], precision: 1);
+    }
 
-            Assert.Equal(86401 * sizeof(double), stream.Length);
-            Assert.Equal(6.5, result[0], precision: 1);
-            Assert.Equal(6.7, result[10 * 60 + 1], precision: 1);
-            Assert.Equal(7.9, result[01 * 60 * 60 + 2], precision: 1);
-            Assert.Equal(8.1, result[02 * 60 * 60 + 3], precision: 1);
-            Assert.Equal(7.5, result[10 * 60 * 60 + 4], precision: 1);
-        }
+    [Fact]
+    public async Task CanReadResampled()
+    {
+        // Arrange
+        var processingService = new Mock<IProcessingService>();
 
-        [Fact]
-        public async Task CanReadResampled()
+        using var controller = new DataSourceController(
+            _fixture.DataSource,
+            _fixture.Registration,
+            default!,
+            default!,
+            processingService.Object,
+            default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
+
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, 200, DateTimeKind.Utc);
+        var end = new DateTime(2020, 01, 01, 0, 0, 1, 700, DateTimeKind.Utc);
+        var pipe = new Pipe();
+        var baseItem = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find("/SAMPLE/LOCAL/T1/1_s");
+
+        var item = baseItem with
         {
-            // Arrange
-            var processingService = new Mock<IProcessingService>();
+            Representation = new Representation(
+                NexusDataType.FLOAT64,
+                TimeSpan.FromMilliseconds(100),
+                parameters: default,
+                RepresentationKind.Resampled)
+        };
 
-            using var controller = new DataSourceController(
-                _fixture.DataSource,
-                _fixture.Registration,
-                default!,
-                default!,
-                processingService.Object,
-                default!,
-                new DataOptions(),
-                NullLogger<DataSourceController>.Instance);
+        var catalogItemRequest = new CatalogItemRequest(item, baseItem, default!);
 
-            await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
+        var memoryTracker = Mock.Of<IMemoryTracker>();
 
-            var begin = new DateTime(2020, 01, 01, 0, 0, 0, 200, DateTimeKind.Utc);
-            var end = new DateTime(2020, 01, 01, 0, 0, 1, 700, DateTimeKind.Utc);
-            var pipe = new Pipe();
-            var baseItem = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find("/SAMPLE/LOCAL/T1/1_s");
+        Mock.Get(memoryTracker)
+            .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AllocationRegistration(memoryTracker, actualByteCount: 20000));
 
-            var item = baseItem with
-            {
-                Representation = new Representation(
-                    NexusDataType.FLOAT64,
-                    TimeSpan.FromMilliseconds(100),
-                    parameters: default,
-                    RepresentationKind.Resampled)
-            };
+        // Act
+        await controller.ReadSingleAsync(
+            begin,
+            end,
+            catalogItemRequest,
+            pipe.Writer,
+            default!,
+            memoryTracker,
+            new Progress<double>(),
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None);
 
-            var catalogItemRequest = new CatalogItemRequest(item, baseItem, default!);
+        // Assert
+        processingService
+            .Verify(processingService => processingService.Resample(
+               NexusDataType.FLOAT64,
+               It.IsAny<ReadOnlyMemory<byte>>(),
+               It.IsAny<ReadOnlyMemory<byte>>(),
+               It.IsAny<Memory<double>>(),
+               10,
+               2), Times.Exactly(1));
+    }
 
-            var memoryTracker = Mock.Of<IMemoryTracker>();
+    [Fact]
+    public async Task CanReadCached()
+    {
+        // Arrange
+        var expected1 = new double[] { 65, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 101 };
+        var expected2 = new double[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
 
-            Mock.Get(memoryTracker)
-                .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new AllocationRegistration(memoryTracker, actualByteCount: 20000));
+        var begin = new DateTime(2020, 01, 01, 23, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2020, 01, 03, 1, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromHours(1);
 
-            // Act
-            await controller.ReadSingleAsync(
-                begin,
-                end,
-                catalogItemRequest,
-                pipe.Writer,
-                default!,
-                memoryTracker,
-                new Progress<double>(),
-                NullLogger<DataSourceController>.Instance,
-                CancellationToken.None);
+        var representationBase1 = new Representation(NexusDataType.INT32, TimeSpan.FromMinutes(30), parameters: default, RepresentationKind.Original);
+        var representation1 = new Representation(NexusDataType.INT32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Mean);
+        var representation2 = new Representation(NexusDataType.INT32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Original);
 
-            // Assert
-            processingService
-                .Verify(processingService => processingService.Resample(
-                   NexusDataType.FLOAT64,
-                   It.IsAny<ReadOnlyMemory<byte>>(),
-                   It.IsAny<ReadOnlyMemory<byte>>(),
-                   It.IsAny<Memory<double>>(),
-                   10,
-                   2), Times.Exactly(1));
-        }
+        var resource1 = new ResourceBuilder("id1")
+            .AddRepresentation(representationBase1)
+            .Build();
 
-        [Fact]
-        public async Task CanReadCached()
+        var resource2 = new ResourceBuilder("id2")
+            .AddRepresentation(representation2)
+            .Build();
+
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource1)
+            .AddResource(resource2)
+            .Build();
+
+        var baseItem1 = new CatalogItem(catalog, resource1, representationBase1, Parameters: default);
+        var catalogItem1 = new CatalogItem(catalog, resource1, representation1, Parameters: default);
+        var catalogItem2 = new CatalogItem(catalog, resource2, representation2, Parameters: default);
+
+        var request1 = new CatalogItemRequest(catalogItem1, baseItem1, default!);
+        var request2 = new CatalogItemRequest(catalogItem2, default, default!);
+
+        var pipe1 = new Pipe();
+        var pipe2 = new Pipe();
+
+        var catalogItemRequestPipeWriters = new[]
         {
-            // Arrange
-            var expected1 = new double[] { 65, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 101 };
-            var expected2 = new double[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
+            new CatalogItemRequestPipeWriter(request1, pipe1.Writer),
+            new CatalogItemRequestPipeWriter(request2, pipe2.Writer)
+        };
 
-            var begin = new DateTime(2020, 01, 01, 23, 0, 0, DateTimeKind.Utc);
-            var end = new DateTime(2020, 01, 03, 1, 0, 0, DateTimeKind.Utc);
-            var samplePeriod = TimeSpan.FromHours(1);
+        /* IDataSource */
+        var dataSource = Mock.Of<IDataSource>();
 
-            var representationBase1 = new Representation(NexusDataType.INT32, TimeSpan.FromMinutes(30), parameters: default, RepresentationKind.Original);
-            var representation1 = new Representation(NexusDataType.INT32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Mean);
-            var representation2 = new Representation(NexusDataType.INT32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Original);
+        Mock.Get(dataSource)
+           .Setup(dataSource => dataSource.ReadAsync(
+               It.IsAny<DateTime>(),
+               It.IsAny<DateTime>(),
+               It.IsAny<ReadRequest[]>(),
+               It.IsAny<ReadDataHandler>(),
+               It.IsAny<IProgress<double>>(),
+               It.IsAny<CancellationToken>())
+           )
+           .Callback<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(
+            (currentBegin, currentEnd, requests, readDataHandler, progress, cancellationToken) =>
+           {
+               var request = requests[0];
+               var intData = MemoryMarshal.Cast<byte, int>(request.Data.Span);
 
-            var resource1 = new ResourceBuilder("id1")
-                .AddRepresentation(representationBase1)
-                .Build();
-
-            var resource2 = new ResourceBuilder("id2")
-                .AddRepresentation(representation2)
-                .Build();
-
-            var catalog = new ResourceCatalogBuilder("/C1")
-                .AddResource(resource1)
-                .AddResource(resource2)
-                .Build();
-
-            var baseItem1 = new CatalogItem(catalog, resource1, representationBase1, Parameters: default);
-            var catalogItem1 = new CatalogItem(catalog, resource1, representation1, Parameters: default);
-            var catalogItem2 = new CatalogItem(catalog, resource2, representation2, Parameters: default);
-
-            var request1 = new CatalogItemRequest(catalogItem1, baseItem1, default!);
-            var request2 = new CatalogItemRequest(catalogItem2, default, default!);
-
-            var pipe1 = new Pipe();
-            var pipe2 = new Pipe();
-
-            var catalogItemRequestPipeWriters = new[]
-            {
-                new CatalogItemRequestPipeWriter(request1, pipe1.Writer),
-                new CatalogItemRequestPipeWriter(request2, pipe2.Writer)
-            };
-
-            /* IDataSource */
-            var dataSource = Mock.Of<IDataSource>();
-
-            Mock.Get(dataSource)
-               .Setup(dataSource => dataSource.ReadAsync(
-                   It.IsAny<DateTime>(),
-                   It.IsAny<DateTime>(),
-                   It.IsAny<ReadRequest[]>(),
-                   It.IsAny<ReadDataHandler>(),
-                   It.IsAny<IProgress<double>>(),
-                   It.IsAny<CancellationToken>())
-               )
-               .Callback<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(
-                (currentBegin, currentEnd, requests, readDataHandler, progress, cancellationToken) =>
+               if (request.CatalogItem.Resource.Id == catalogItem1.Resource.Id &&
+                   currentBegin == begin)
                {
-                   var request = requests[0];
-                   var intData = MemoryMarshal.Cast<byte, int>(request.Data.Span);
+                   Assert.Equal(2, intData.Length);
+                   intData[0] = 33; request.Status.Span[0] = 1;
+                   intData[1] = 97; request.Status.Span[1] = 1;
 
-                   if (request.CatalogItem.Resource.Id == catalogItem1.Resource.Id &&
-                       currentBegin == begin)
+               }
+               else if (request.CatalogItem.Resource.Id == catalogItem1.Resource.Id &&
+                        currentBegin == new DateTime(2020, 01, 03, 0, 0, 0, DateTimeKind.Utc))
+               {
+                   Assert.Equal(2, intData.Length);
+                   intData[0] = 100; request.Status.Span[0] = 1;
+                   intData[1] = 102; request.Status.Span[1] = 1;
+               }
+               else if (request.CatalogItem.Resource.Id == "id2")
+               {
+                   Assert.Equal(26, intData.Length);
+
+                   for (int i = 0; i < intData.Length; i++)
                    {
-                       Assert.Equal(2, intData.Length);
-                       intData[0] = 33; request.Status.Span[0] = 1;
-                       intData[1] = 97; request.Status.Span[1] = 1;
-
+                       intData[i] = i;
+                       request.Status.Span[i] = 1;
                    }
-                   else if (request.CatalogItem.Resource.Id == catalogItem1.Resource.Id &&
-                            currentBegin == new DateTime(2020, 01, 03, 0, 0, 0, DateTimeKind.Utc))
-                   {
-                       Assert.Equal(2, intData.Length);
-                       intData[0] = 100; request.Status.Span[0] = 1;
-                       intData[1] = 102; request.Status.Span[1] = 1;
-                   }
-                   else if (request.CatalogItem.Resource.Id == "id2")
-                   {
-                       Assert.Equal(26, intData.Length);
+               }
+               else
+               {
+                   throw new Exception("This should never happen.");
+               }
+           })
+           .Returns(Task.CompletedTask);
 
-                       for (int i = 0; i < intData.Length; i++)
-                       {
-                           intData[i] = i;
-                           request.Status.Span[i] = 1;
-                       }
-                   }
-                   else
-                   {
-                       throw new Exception("This should never happen.");
-                   }
-               })
-               .Returns(Task.CompletedTask);
+        /* IProcessingService */
+        var processingService = Mock.Of<IProcessingService>();
 
-            /* IProcessingService */
-            var processingService = Mock.Of<IProcessingService>();
-
-            Mock.Get(processingService)
-                .Setup(processingService => processingService.Aggregate(
-                   It.IsAny<NexusDataType>(),
-                   It.IsAny<RepresentationKind>(),
-                   It.IsAny<Memory<byte>>(),
-                   It.IsAny<ReadOnlyMemory<byte>>(),
-                   It.IsAny<Memory<double>>(),
-                   It.IsAny<int>()))
-                .Callback<NexusDataType, RepresentationKind, Memory<byte>, ReadOnlyMemory<byte>, Memory<double>, int>(
-                (dataType, kind, data, status, targetBuffer, blockSize) =>
-                {
-                    Assert.Equal(NexusDataType.INT32, dataType);
-                    Assert.Equal(RepresentationKind.Mean, kind);
-                    Assert.Equal(8, data.Length);
-                    Assert.Equal(2, status.Length);
-                    Assert.Equal(1, targetBuffer.Length);
-                    Assert.Equal(2, blockSize);
-
-                    targetBuffer.Span[0] = (MemoryMarshal.Cast<byte, int>(data.Span)[0] + MemoryMarshal.Cast<byte, int>(data.Span)[1]) / 2.0;
-                });
-
-            /* ICacheService */
-            var uncachedIntervals = new List<Interval>
+        Mock.Get(processingService)
+            .Setup(processingService => processingService.Aggregate(
+               It.IsAny<NexusDataType>(),
+               It.IsAny<RepresentationKind>(),
+               It.IsAny<Memory<byte>>(),
+               It.IsAny<ReadOnlyMemory<byte>>(),
+               It.IsAny<Memory<double>>(),
+               It.IsAny<int>()))
+            .Callback<NexusDataType, RepresentationKind, Memory<byte>, ReadOnlyMemory<byte>, Memory<double>, int>(
+            (dataType, kind, data, status, targetBuffer, blockSize) =>
             {
-                new Interval(begin, new DateTime(2020, 01, 02, 0, 0, 0, DateTimeKind.Utc)),
-                new Interval(new DateTime(2020, 01, 03, 0, 0, 0, DateTimeKind.Utc), end)
-            };
+                Assert.Equal(NexusDataType.INT32, dataType);
+                Assert.Equal(RepresentationKind.Mean, kind);
+                Assert.Equal(8, data.Length);
+                Assert.Equal(2, status.Length);
+                Assert.Equal(1, targetBuffer.Length);
+                Assert.Equal(2, blockSize);
 
-            var cacheService = new Mock<ICacheService>();
+                targetBuffer.Span[0] = (MemoryMarshal.Cast<byte, int>(data.Span)[0] + MemoryMarshal.Cast<byte, int>(data.Span)[1]) / 2.0;
+            });
 
-            cacheService
-                .Setup(cacheService => cacheService.ReadAsync(
-                   It.IsAny<CatalogItem>(),
-                   It.IsAny<DateTime>(),
-                   It.IsAny<Memory<double>>(),
-                   It.IsAny<CancellationToken>())
-                )
-                .Callback<CatalogItem, DateTime, Memory<double>, CancellationToken>((item, begin, targetBuffer, cancellationToken) =>
-                {
-                    var offset = 1;
-                    var length = 24;
-                    targetBuffer.Span.Slice(offset, length).Fill(-1);
-                })
-                .Returns(Task.FromResult(uncachedIntervals));
+        /* ICacheService */
+        var uncachedIntervals = new List<Interval>
+        {
+            new Interval(begin, new DateTime(2020, 01, 02, 0, 0, 0, DateTimeKind.Utc)),
+            new Interval(new DateTime(2020, 01, 03, 0, 0, 0, DateTimeKind.Utc), end)
+        };
 
-            /* DataSourceController */
-            var registration = new InternalDataSourceRegistration(
-                Id: Guid.NewGuid(),
-                "a",
-                new Uri("http://xyz"),
-                default,
-                default);
+        var cacheService = new Mock<ICacheService>();
 
-            var dataSourceController = new DataSourceController(
-                dataSource,
-                registration,
-                default!,
-                default!,
-                processingService,
-                cacheService.Object,
-                new DataOptions(),
-                NullLogger<DataSourceController>.Instance);
+        cacheService
+            .Setup(cacheService => cacheService.ReadAsync(
+               It.IsAny<CatalogItem>(),
+               It.IsAny<DateTime>(),
+               It.IsAny<Memory<double>>(),
+               It.IsAny<CancellationToken>())
+            )
+            .Callback<CatalogItem, DateTime, Memory<double>, CancellationToken>((item, begin, targetBuffer, cancellationToken) =>
+            {
+                var offset = 1;
+                var length = 24;
+                targetBuffer.Span.Slice(offset, length).Fill(-1);
+            })
+            .Returns(Task.FromResult(uncachedIntervals));
 
-            var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>() { [catalog.Id] = catalog };
+        /* DataSourceController */
+        var registration = new InternalDataSourceRegistration(
+            Id: Guid.NewGuid(),
+            "a",
+            new Uri("http://xyz"),
+            default,
+            default);
 
-            await dataSourceController.InitializeAsync(catalogCache, NullLogger.Instance, CancellationToken.None);
+        var dataSourceController = new DataSourceController(
+            dataSource,
+            registration,
+            default!,
+            default!,
+            processingService,
+            cacheService.Object,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
 
-            // Act
-            await dataSourceController.ReadAsync(
-                begin,
-                end,
-                samplePeriod,
-                catalogItemRequestPipeWriters,
-                default!,
-                new Progress<double>(),
-                CancellationToken.None);
+        var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>() { [catalog.Id] = catalog };
 
-            // Assert
-            var actual1 = MemoryMarshal.Cast<byte, double>((await pipe1.Reader.ReadAsync()).Buffer.First.Span).ToArray();
-            var actual2 = MemoryMarshal.Cast<byte, double>((await pipe2.Reader.ReadAsync()).Buffer.First.Span).ToArray();
+        await dataSourceController.InitializeAsync(catalogCache, NullLogger.Instance, CancellationToken.None);
 
-            Assert.True(expected1.SequenceEqual(actual1));
-            Assert.True(expected2.SequenceEqual(actual2));
+        // Act
+        await dataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            catalogItemRequestPipeWriters,
+            default!,
+            new Progress<double>(),
+            CancellationToken.None);
 
-            cacheService
-                .Verify(cacheService => cacheService.UpdateAsync(
-                   catalogItem1,
-                   new DateTime(2020, 01, 01, 23, 0, 0, DateTimeKind.Utc),
-                   It.IsAny<Memory<double>>(),
-                   uncachedIntervals,
-                   It.IsAny<CancellationToken>()), Times.Once());
-        }
+        // Assert
+        var actual1 = MemoryMarshal.Cast<byte, double>((await pipe1.Reader.ReadAsync()).Buffer.First.Span).ToArray();
+        var actual2 = MemoryMarshal.Cast<byte, double>((await pipe2.Reader.ReadAsync()).Buffer.First.Span).ToArray();
+
+        Assert.True(expected1.SequenceEqual(actual1));
+        Assert.True(expected2.SequenceEqual(actual2));
+
+        cacheService
+            .Verify(cacheService => cacheService.UpdateAsync(
+               catalogItem1,
+               new DateTime(2020, 01, 01, 23, 0, 0, DateTimeKind.Utc),
+               It.IsAny<Memory<double>>(),
+               uncachedIntervals,
+               It.IsAny<CancellationToken>()), Times.Once());
     }
 }

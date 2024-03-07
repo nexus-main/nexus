@@ -2,23 +2,22 @@
 using Nexus.Extensibility;
 using Nexus.Sources;
 
-namespace DataSource
+namespace DataSource;
+
+public class DataSourceControllerFixture
 {
-    public class DataSourceControllerFixture
+    public DataSourceControllerFixture()
     {
-        public DataSourceControllerFixture()
-        {
-            DataSource = new Sample();
+        DataSource = new Sample();
 
-            Registration = new InternalDataSourceRegistration(
-                Id: Guid.NewGuid(),
-                Type: typeof(Sample).FullName!,
-                ResourceLocator: default,
-                Configuration: default);
-        }
-
-        internal IDataSource DataSource { get; }
-
-        internal InternalDataSourceRegistration Registration { get; }
+        Registration = new InternalDataSourceRegistration(
+            Id: Guid.NewGuid(),
+            Type: typeof(Sample).FullName!,
+            ResourceLocator: default,
+            Configuration: default);
     }
+
+    internal IDataSource DataSource { get; }
+
+    internal InternalDataSourceRegistration Registration { get; }
 }

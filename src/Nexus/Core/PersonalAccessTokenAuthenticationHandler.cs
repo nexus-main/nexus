@@ -22,8 +22,8 @@ internal class PersonalAccessTokenAuthHandler : AuthenticationHandler<Authentica
     public PersonalAccessTokenAuthHandler(
         ITokenService tokenService,
         IDBService dbService,
-        IOptionsMonitor<AuthenticationSchemeOptions> options, 
-        ILoggerFactory logger, 
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
         UrlEncoder encoder) : base(options, logger, encoder)
     {
         _tokenService = tokenService;
@@ -75,7 +75,7 @@ internal class PersonalAccessTokenAuthHandler : AuthenticationHandler<Authentica
 
                     var identity = new ClaimsIdentity(
                         claims,
-                        Scheme.Name, 
+                        Scheme.Name,
                         nameType: Claims.Name,
                         roleType: Claims.Role);
 

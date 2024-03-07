@@ -1,17 +1,16 @@
 ﻿using Microsoft.AspNetCore.Mvc.Formatters;
 
-namespace Nexus.Core
-{
-    internal class StreamInputFormatter : IInputFormatter
-    {
-        public bool CanRead(InputFormatterContext context)
-        {
-            return context.HttpContext.Request.ContentType == "application/octet-stream";
-        }
+namespace Nexus.Core;
 
-        public async Task<InputFormatterResult> ReadAsync(InputFormatterContext context)
-        {
-            return await InputFormatterResult.SuccessAsync(context.HttpContext.Request.Body);
-        }
+internal class StreamInputFormatter : IInputFormatter
+{
+    public bool CanRead(InputFormatterContext context)
+    {
+        return context.HttpContext.Request.ContentType == "application/octet-stream";
+    }
+
+    public async Task<InputFormatterResult> ReadAsync(InputFormatterContext context)
+    {
+        return await InputFormatterResult.SuccessAsync(context.HttpContext.Request.Body);
     }
 }

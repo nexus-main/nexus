@@ -1,27 +1,26 @@
 ﻿using System.Buffers;
 using System.Runtime.InteropServices;
 
-namespace Nexus.Utilities
+namespace Nexus.Utilities;
+
+// TODO: Validate against this: https://github.com/windows-toolkit/WindowsCommunityToolkit/pull/3520/files 
+
+internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
+    where TFrom : struct
+    where TTo : struct
 {
-    // TODO: Validate against this: https://github.com/windows-toolkit/WindowsCommunityToolkit/pull/3520/files 
+    private readonly Memory<TFrom> _from;
 
-    internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
-        where TFrom : struct
-        where TTo : struct
+    public CastMemoryManager(Memory<TFrom> from) => _from = from;
+
+    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.Span);
+
+    protected override void Dispose(bool disposing)
     {
-        private readonly Memory<TFrom> _from;
-
-        public CastMemoryManager(Memory<TFrom> from) => _from = from;
-
-        public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.Span);
-
-        protected override void Dispose(bool disposing)
-        {
-            //
-        }
-
-        public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
-
-        public override void Unpin() => throw new NotSupportedException();
+        //
     }
+
+    public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+
+    public override void Unpin() => throw new NotSupportedException();
 }

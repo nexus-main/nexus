@@ -5,78 +5,78 @@ using Moq;
 using Moq.Protected;
 using Xunit;
 
-namespace Nexus.Api.Tests
+namespace Nexus.Api.Tests;
+
+public class ClientTests
 {
-    public class ClientTests
+    public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
+
+    [Fact]
+    public async Task CanAddConfigurationAsync()
     {
-        public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
+        // Arrange
+        var messageHandlerMock = new Mock<HttpMessageHandler>();
+        var catalogId = "my-catalog-id";
+        var expectedCatalog = new ResourceCatalog(Id: catalogId, default, default);
 
-        [Fact]
-        public async Task CanAddConfigurationAsync()
+        var actualHeaders = new List<IEnumerable<string>?>();
+
+        messageHandlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((requestMessage, cancellationToken) =>
+            {
+                requestMessage.Headers.TryGetValues(NexusConfigurationHeaderKey, out var headers);
+                actualHeaders.Add(headers);
+            })
+            .ReturnsAsync(() =>
+            {
+                return new HttpResponseMessage()
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent(JsonSerializer.Serialize(expectedCatalog), Encoding.UTF8, "application/json"),
+                };
+            });
+
+        // -> http client
+        var httpClient = new HttpClient(messageHandlerMock.Object)
         {
-            // Arrange
-            var messageHandlerMock = new Mock<HttpMessageHandler>();
-            var catalogId = "my-catalog-id";
-            var expectedCatalog = new ResourceCatalog(Id: catalogId, default, default);
+            BaseAddress = new Uri("http://localhost")
+        };
 
-            var actualHeaders = new List<IEnumerable<string>?>();
+        // -> API client
+        var client = new NexusClient(httpClient);
 
-            messageHandlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.IsAny<HttpRequestMessage>(),
-                    ItExpr.IsAny<CancellationToken>())
-                .Callback<HttpRequestMessage, CancellationToken>((requestMessage, cancellationToken) =>
-                {
-                    requestMessage.Headers.TryGetValues(NexusConfigurationHeaderKey, out var headers);
-                    actualHeaders.Add(headers);
-                })
-                .ReturnsAsync(() =>
-                {
-                    return new HttpResponseMessage()
-                    {
-                        StatusCode = HttpStatusCode.OK,
-                        Content = new StringContent(JsonSerializer.Serialize(expectedCatalog), Encoding.UTF8, "application/json"),
-                    };
-                });
+        // -> configuration
+        var configuration = new
+        {
+            foo1 = "bar1",
+            foo2 = "bar2"
+        };
 
-            // -> http client
-            var httpClient = new HttpClient(messageHandlerMock.Object)
-            {
-                BaseAddress = new Uri("http://localhost")
-            };
+        // Act
+        _ = await client.Catalogs.GetAsync(catalogId);
 
-            // -> API client
-            var client = new NexusClient(httpClient);
-
-            // -> configuration
-            var configuration = new
-            {
-                foo1 = "bar1",
-                foo2 = "bar2"
-            };
-
-            // Act
+        using (var disposable = client.AttachConfiguration(configuration))
+        {
             _ = await client.Catalogs.GetAsync(catalogId);
-
-            using (var disposable = client.AttachConfiguration(configuration))
-            {
-                _ = await client.Catalogs.GetAsync(catalogId);
-            }
-
-            _ = await client.Catalogs.GetAsync(catalogId);
-
-            // Assert
-            var encodedJson = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(configuration));
-
-            Assert.Collection(actualHeaders,
-                Assert.Null,
-                headers => {
-                    Assert.NotNull(headers);
-                    Assert.Collection(headers, header => Assert.Equal(encodedJson, header));
-                },
-                Assert.Null);
         }
+
+        _ = await client.Catalogs.GetAsync(catalogId);
+
+        // Assert
+        var encodedJson = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(configuration));
+
+        Assert.Collection(actualHeaders,
+            Assert.Null,
+            headers =>
+            {
+                Assert.NotNull(headers);
+                Assert.Collection(headers, header => Assert.Equal(encodedJson, header));
+            },
+            Assert.Null);
     }
 }

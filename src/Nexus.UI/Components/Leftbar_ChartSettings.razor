@@ -4,11 +4,8 @@
 @if (AppState.ViewState == ViewState.Data)
 {
     <div class="rounded border border-cyan-700 px-5 py-3 my-3">
-        <MudCheckBox 
-            @bind-Checked="AppState.BeginAtZero"
-            Dense="true"
-            Label="Begin at zero" />
-    </div>
+    <MudCheckBox @bind-Value="AppState.BeginAtZero" Dense="true" Label="Begin at zero" />
+</div>
 }
 
 @code {

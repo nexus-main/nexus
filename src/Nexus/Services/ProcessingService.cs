@@ -288,7 +288,7 @@ internal class ProcessingService : IProcessingService
         {
             case RepresentationKind.MinBitwise:
 
-                T[] bitField_and = new T[targetBuffer.Length];
+                var bitField_and = new T[targetBuffer.Length];
 
                 Parallel.For(0, targetBuffer.Length, x =>
                 {
@@ -324,7 +324,7 @@ internal class ProcessingService : IProcessingService
 
             case RepresentationKind.MaxBitwise:
 
-                T[] bitField_or = new T[targetBuffer.Length];
+                var bitField_or = new T[targetBuffer.Length];
 
                 Parallel.For(0, targetBuffer.Length, x =>
                 {
@@ -406,7 +406,7 @@ internal class ProcessingService : IProcessingService
             return double.NaN;
 
         var sum = 0.0;
-        
+
         for (int i = 0; i < data.Length; i++)
         {
             sum += data[i];
@@ -423,10 +423,10 @@ internal class ProcessingService : IProcessingService
 
         var mean = 0.0;
         var m = 0UL;
-        
+
         for (int i = 0; i < data.Length; i++)
         {
-            mean += (data[i] - mean)/++m;
+            mean += (data[i] - mean) / ++m;
         }
 
         return mean;
@@ -488,11 +488,11 @@ internal class ProcessingService : IProcessingService
         for (int i = 1; i < samples.Length; i++)
         {
             t += samples[i];
-            var diff = ((i + 1)*samples[i]) - t;
+            var diff = ((i + 1) * samples[i]) - t;
             variance += diff * diff / ((i + 1.0) * i);
         }
 
-        return variance/(samples.Length - 1);
+        return variance / (samples.Length - 1);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -506,7 +506,7 @@ internal class ProcessingService : IProcessingService
 
         for (int i = 0; i < data.Length; i++)
         {
-            mean += (data[i]*data[i] - mean)/++m;
+            mean += (data[i] * data[i] - mean) / ++m;
         }
 
         return Math.Sqrt(mean);

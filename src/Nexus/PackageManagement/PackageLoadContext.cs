@@ -1,47 +1,34 @@
 ﻿using System.Reflection;
 using System.Runtime.Loader;
 
-namespace Nexus.PackageManagement
+namespace Nexus.PackageManagement;
+
+internal class PackageLoadContext : AssemblyLoadContext
 {
-    internal class PackageLoadContext : AssemblyLoadContext
+    private readonly AssemblyDependencyResolver _resolver;
+
+    public PackageLoadContext(string entryDllPath) : base(isCollectible: true)
     {
-        #region Fields
+        _resolver = new AssemblyDependencyResolver(entryDllPath);
+    }
 
-        private readonly AssemblyDependencyResolver _resolver;
+    protected override Assembly? Load(AssemblyName assemblyName)
+    {
+        var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
 
-        #endregion
+        if (assemblyPath is not null)
+            return LoadFromAssemblyPath(assemblyPath);
 
-        #region Constructors
+        return null;
+    }
 
-        public PackageLoadContext(string entryDllPath) : base(isCollectible: true)
-        {
-            _resolver = new AssemblyDependencyResolver(entryDllPath);
-        }
+    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+    {
+        var libraryPath = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
 
-        #endregion
+        if (libraryPath is not null)
+            return LoadUnmanagedDllFromPath(libraryPath);
 
-        #region Methods
-
-        protected override Assembly? Load(AssemblyName assemblyName)
-        {
-            var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
-
-            if (assemblyPath is not null)
-                return LoadFromAssemblyPath(assemblyPath);
-
-            return null;
-        }
-
-        protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
-        {
-            var libraryPath = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-
-            if (libraryPath is not null)
-                return LoadUnmanagedDllFromPath(libraryPath);
-
-            return IntPtr.Zero;
-        }
-
-        #endregion
+        return IntPtr.Zero;
     }
 }
