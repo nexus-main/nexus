@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Nexus.Services;
+using Nexus.Utilities;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Core;
@@ -16,16 +17,20 @@ internal class PersonalAccessTokenAuthHandler : AuthenticationHandler<Authentica
 {
     private readonly ITokenService _tokenService;
 
+    private readonly IDBService _dbService;
+
     public PersonalAccessTokenAuthHandler(
         ITokenService tokenService,
+        IDBService dbService,
         IOptionsMonitor<AuthenticationSchemeOptions> options, 
         ILoggerFactory logger, 
         UrlEncoder encoder) : base(options, logger, encoder)
     {
         _tokenService = tokenService;
+        _dbService = dbService;
     }
 
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected async override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var headerValues = Request.Headers.Authorization;
         var principal = default(ClaimsPrincipal);
@@ -35,30 +40,41 @@ internal class PersonalAccessTokenAuthHandler : AuthenticationHandler<Authentica
             if (headerValue is null)
                 continue;
 
-            if (headerValue.StartsWith("bearer ", StringComparison.OrdinalIgnoreCase))
+            if (headerValue.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             {
                 var parts = headerValue.Split(' ', count: 2);
-                var tokenValue = parts[1];
+                var (userId, secret) = AuthUtilities.TokenValueToComponents(parts[1]);
 
-                if (_tokenService.TryGet(tokenValue, out var userId, out var token))
+                var user = await _dbService.FindUserAsync(userId);
+
+                if (user is null)
+                    continue;
+
+                if (_tokenService.TryGet(userId, secret, out var token))
                 {
-                    var claims = token.Claims
+                    if (DateTime.UtcNow >= token.Expires)
+                        return AuthenticateResult.NoResult();
 
-                        .Where(claim => 
-                            claim.Type == NexusClaims.CAN_READ_CATALOG || 
-                            claim.Type == NexusClaims.CAN_WRITE_CATALOG)
+                    var userClaims = user.Claims
+                        .Select(claim => new Claim(NexusClaims.ToPatUserClaimType(claim.Type), claim.Value));
 
-                        /* Prefix PAT claims with "pat_" so they are distinguishable from the 
-                         * more powerful user claims. It will be checked for in the catalogs 
-                         * controller.
-                         */
-                        .Select(claim => new Claim($"pat_{claim.Type}", claim.Value));
+                    var tokenClaimsRead = token.Claims
+                        .Where(claim => claim.Type == NexusClaims.CAN_READ_CATALOG)
+                        .Select(claim => new Claim(NexusClaims.CAN_READ_CATALOG, claim.Value));
 
-                    claims = claims.Append(new Claim(Claims.Subject, userId));
-                    claims = claims.Append(new Claim(Claims.Role, NexusRoles.USER));
+                    var tokenClaimsWrite = token.Claims
+                        .Where(claim => claim.Type == NexusClaims.CAN_WRITE_CATALOG)
+                        .Select(claim => new Claim(NexusClaims.CAN_WRITE_CATALOG, claim.Value));
+
+                    var claims = Enumerable.Empty<Claim>()
+                        .Append(new Claim(Claims.Subject, userId))
+                        .Append(new Claim(Claims.Role, NexusRoles.USER))
+                        .Concat(userClaims)
+                        .Concat(tokenClaimsRead)
+                        .Concat(tokenClaimsWrite);
 
                     var identity = new ClaimsIdentity(
-                        claims, 
+                        claims,
                         Scheme.Name, 
                         nameType: Claims.Name,
                         roleType: Claims.Role);
@@ -84,6 +100,6 @@ internal class PersonalAccessTokenAuthHandler : AuthenticationHandler<Authentica
             result = AuthenticateResult.Success(ticket);
         }
 
-        return Task.FromResult(result);
+        return result;
     }
 }

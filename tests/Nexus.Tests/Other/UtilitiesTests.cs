@@ -22,7 +22,7 @@ namespace Other
         [InlineData("Basic", false, new string[0], new string[] { "A2" }, false)]
         [InlineData(null, true, new string[0], new string[0], false)]
         public void CanDetermineCatalogAccessibility(
-            string authenticationType,
+            string? authenticationType,
             bool isAdmin,
             string[] canReadCatalog,
             string[] canReadCatalogGroup,
@@ -46,7 +46,7 @@ namespace Other
                     roleType: Claims.Role));
 
             // Act
-            var actual = AuthorizationUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
+            var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
 
             // Assert
             Assert.Equal(expected, actual);
@@ -62,7 +62,7 @@ namespace Other
         [InlineData("Basic", false, new string[0], false)]
         [InlineData(null, true, new string[0], false)]
         public void CanDetermineCatalogEditability(
-            string authenticationType,
+            string? authenticationType,
             bool isAdmin,
             string[] canWriteCatalog,
             bool expected)
@@ -84,7 +84,7 @@ namespace Other
                     roleType: Claims.Role));
 
             // Act
-            var actual = AuthorizationUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);
+            var actual = AuthUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);
 
             // Assert
             Assert.Equal(expected, actual);

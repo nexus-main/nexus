@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Services;
+using Nexus.Utilities;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Security.Claims;
@@ -134,7 +135,9 @@ namespace Nexus.Controllers
         public async Task<ActionResult> DeleteTokenByValueAsync(
             [BindRequired] string value)
         {
-            await _tokenService.DeleteAsync(value);
+            var (userId, secret) = AuthUtilities.TokenValueToComponents(value);
+            await _tokenService.DeleteAsync(userId, secret);
+
             return Ok();
         }
 
@@ -193,12 +196,16 @@ namespace Nexus.Controllers
                 if (user is null)
                     return NotFound($"Could not find user {userId}.");
 
-                var tokenValue = await _tokenService
+                var utcExpires = token.Expires.ToUniversalTime();
+
+                var secret = await _tokenService
                     .CreateAsync(
                         actualUserId, 
                         token.Description, 
-                        token.Expires, 
+                        utcExpires, 
                         token.Claims);
+
+                var tokenValue = AuthUtilities.ComponentsToTokenValue(actualUserId, secret);
 
                 return Ok(tokenValue);
             }

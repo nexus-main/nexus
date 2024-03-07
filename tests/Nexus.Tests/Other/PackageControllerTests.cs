@@ -18,7 +18,7 @@ public class PackageControllerTests
     // However, this token - in combination with the test user's account
     // privileges - allows only read-only access to a test project, so there
     // is no real risk.
-    private static byte[] _token =
+    private static readonly byte[] _token =
     [
         0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x5F, 0x70, 0x61, 0x74, 
         0x5F, 0x31, 0x31, 0x41, 0x46, 0x41, 0x41, 0x45, 0x59, 0x49, 

@@ -62,6 +62,37 @@ public class TokenServiceTests
     }
 
     [Fact]
+    public void CanTryGetToken()
+    {
+        // Arrange
+        var expectedDescription = "The description";
+
+        var tokenMap = new Dictionary<string, InternalPersonalAccessToken>()
+        {
+            ["abc"] = new InternalPersonalAccessToken(
+                default,
+                Description: string.Empty,
+                Expires: default,
+                Claims: new List<TokenClaim>()
+            ),
+            ["def"] = new InternalPersonalAccessToken(
+                default,
+                Description: "The description",
+                Expires: default,
+                Claims: new List<TokenClaim>()
+            )
+        };
+
+        var tokenService = GetTokenService(default!, tokenMap);
+
+        // Act
+        var actual = tokenService.TryGet("starlord", "def", out var actualToken);
+
+        Assert.True(actual);
+        Assert.Equal(expectedDescription, actualToken!.Description);
+    }
+
+    [Fact]
     public async Task CanDeleteTokenByValue()
     {
         // Arrange
@@ -88,7 +119,7 @@ public class TokenServiceTests
         var tokenService = GetTokenService(filePath, tokenMap);
 
         // Act
-        await tokenService.DeleteAsync("abc_userid");
+        await tokenService.DeleteAsync("starlord", "abc");
 
         // Assert
         tokenMap.Remove("abc");
@@ -185,7 +216,7 @@ public class TokenServiceTests
 
         Mock.Get(databaseService)
             .Setup(databaseService => databaseService.WriteTokenMap(It.IsAny<string>()))
-            .Returns(File.OpenWrite(filePath));
+            .Returns(() => File.OpenWrite(filePath));
 
         var tokenService = new TokenService(databaseService);
 

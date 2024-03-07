@@ -53,7 +53,7 @@ public class DataControllerServiceTests
         var encodedRequestConfiguration = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(requestConfiguration));
 
         var httpContext = new DefaultHttpContext();
-        httpContext.Request.Headers.Add(DataControllerService.NexusConfigurationHeaderKey, encodedRequestConfiguration);
+        httpContext.Request.Headers.Append(DataControllerService.NexusConfigurationHeaderKey, encodedRequestConfiguration);
 
         var httpContextAccessor = Mock.Of<IHttpContextAccessor>();
 

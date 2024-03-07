@@ -41,7 +41,7 @@ namespace Nexus.Core
             _dataControllerService = dataControllerService;
 
             if (owner is not null)
-                IsReleasable = AuthorizationUtilities.IsCatalogWritable(Id, metadata, owner);
+                IsReleasable = AuthUtilities.IsCatalogWritable(Id, metadata, owner);
         }
 
         public string Id { get; }

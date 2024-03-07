@@ -340,18 +340,21 @@
         try
         {
             var claims = _newAccessTokenClaims
+
                 .Where(
                     claimData => claimData is not null &&
                     claimData.CatalogPattern is not null)
+
                 .Select(claimData => new TokenClaim(
                     claimData.WriteAccess ? "CanWriteCatalog" : "CanReadCatalog",
                     claimData.CatalogPattern!))
+
                 .ToList();
 
             var token = new PersonalAccessToken(
                 _newAccessTokenDescription,
                 _newAccessTokenExpiration.HasValue 
-                    ? _newAccessTokenExpiration.Value 
+                    ? _newAccessTokenExpiration.Value.ToUniversalTime()
                     : DateTime.MaxValue,
                 claims
             );

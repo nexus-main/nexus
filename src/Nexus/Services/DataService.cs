@@ -102,7 +102,7 @@ namespace Nexus.Services
             var catalogContainer = catalogItemRequest.Container;
 
             // security check
-            if (!AuthorizationUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, _user))
+            if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, _user))
                 throw new Exception($"The current user is not permitted to access the catalog {catalogContainer.Id}.");
 
             // controller

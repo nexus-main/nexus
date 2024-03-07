@@ -16,19 +16,15 @@ internal interface ITokenService
         IReadOnlyList<TokenClaim> claims);
 
     bool TryGet(
-        string tokenValue,
-        [NotNullWhen(true)] out string? userId,
+        string userId,
+        string secret,
         [NotNullWhen(true)] out InternalPersonalAccessToken? token);
 
-    Task DeleteAsync(
-        string userId,
-        Guid tokenId);
+    Task DeleteAsync(string userId, Guid tokenId);
 
-    Task DeleteAsync(
-        string tokenValue);
+    Task DeleteAsync(string userId, string secret);
 
-    Task<IReadOnlyDictionary<string, InternalPersonalAccessToken>> GetAllAsync(
-        string userId);
+    Task<IReadOnlyDictionary<string, InternalPersonalAccessToken>> GetAllAsync(string userId);
 }
 
 internal class TokenService : ITokenService
@@ -74,10 +70,18 @@ internal class TokenService : ITokenService
                 (key, _) => token
             );
 
-            var tokenValue = $"{secret}_{userId}";
-
-            return tokenValue;
+            return secret;
         }, saveChanges: true);
+    }
+
+    public bool TryGet(
+        string userId,
+        string secret,
+        [NotNullWhen(true)] out InternalPersonalAccessToken? token)
+    {
+        var tokenMap = GetTokenMap(userId);
+
+        return tokenMap.TryGetValue(secret, out token);
     }
 
     public Task DeleteAsync(string userId, Guid tokenId)
@@ -92,12 +96,8 @@ internal class TokenService : ITokenService
         }, saveChanges: true);
     }
 
-    public Task DeleteAsync(string tokenValue)
+    public Task DeleteAsync(string userId, string secret)
     {
-        var splittedTokenValue = tokenValue.Split('_', count: 2);
-        var secret = splittedTokenValue[0];
-        var userId = splittedTokenValue[1];
-
         return InteractWithTokenMapAsync<object?>(userId, tokenMap =>
         {
             tokenMap.TryRemove(secret, out _);
@@ -112,19 +112,6 @@ internal class TokenService : ITokenService
             userId, 
             tokenMap => (IReadOnlyDictionary<string, InternalPersonalAccessToken>)tokenMap, 
             saveChanges: false);
-    }
-
-    public bool TryGet(
-        string tokenValue,
-        [NotNullWhen(true)] out string? userId,
-        [NotNullWhen(true)] out InternalPersonalAccessToken? token)
-    {
-        var splittedTokenValue = tokenValue.Split('_', count: 2);
-        var secret = splittedTokenValue[0];
-        userId = splittedTokenValue[1];
-        var tokenMap = GetTokenMap(userId);
-
-        return tokenMap.TryGetValue(secret, out token);
     }
 
     private ConcurrentDictionary<string, InternalPersonalAccessToken> GetTokenMap(

@@ -101,7 +101,7 @@ namespace Nexus.Controllers
                 {
                     var catalogContainer = group.First().Request.Container;
 
-                    if (!AuthorizationUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                    if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
                         throw new UnauthorizedAccessException($"The current user is not permitted to access catalog {catalogContainer.Id}.");
                 }
             }
@@ -182,8 +182,8 @@ namespace Nexus.Controllers
                             license = reader.ReadToEnd();
                         }
 
-                        var isReadable = AuthorizationUtilities.IsCatalogReadable(childContainer.Id, childContainer.Metadata, childContainer.Owner, User);
-                        var isWritable = AuthorizationUtilities.IsCatalogWritable(childContainer.Id, childContainer.Metadata, User);
+                        var isReadable = AuthUtilities.IsCatalogReadable(childContainer.Id, childContainer.Metadata, childContainer.Owner, User);
+                        var isWritable = AuthUtilities.IsCatalogWritable(childContainer.Id, childContainer.Metadata, User);
 
                         var isReleased = childContainer.Owner is null ||
                             childContainer.IsReleasable && Regex.IsMatch(id, childContainer.DataSourceRegistration.ReleasePattern ?? "");
@@ -499,7 +499,7 @@ namespace Nexus.Controllers
 
             var response = ProtectCatalogAsync<object>(catalogId, ensureReadable: true, ensureWritable: false, async catalogContainer =>
             {
-                var canEdit = AuthorizationUtilities.IsCatalogWritable(catalogId, catalogContainer.Metadata, User);
+                var canEdit = AuthUtilities.IsCatalogWritable(catalogId, catalogContainer.Metadata, User);
 
                 if (!canEdit)
                     return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
@@ -528,7 +528,7 @@ namespace Nexus.Controllers
 
             if (catalogContainer is not null)
             {
-                if (ensureReadable && !AuthorizationUtilities.IsCatalogReadable(
+                if (ensureReadable && !AuthUtilities.IsCatalogReadable(
                     catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
                 {
                     return StatusCode(
@@ -536,7 +536,7 @@ namespace Nexus.Controllers
                         $"The current user is not permitted to read the catalog {catalogId}.");
                 }
 
-                if (ensureWritable && !AuthorizationUtilities.IsCatalogWritable(
+                if (ensureWritable && !AuthUtilities.IsCatalogWritable(
                     catalogContainer.Id, catalogContainer.Metadata, User))
                 {
                     return StatusCode(
@@ -564,10 +564,10 @@ namespace Nexus.Controllers
 
             if (catalogContainer is not null)
             {
-                if (ensureReadable && !AuthorizationUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                if (ensureReadable && !AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
                     return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to read the catalog {catalogId}.");
 
-                if (ensureWritable && !AuthorizationUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
+                if (ensureWritable && !AuthUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
                     return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
 
                 return await action.Invoke(catalogContainer);
