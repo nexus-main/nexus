@@ -60,9 +60,9 @@ public static class Program
             ConfigurationHeaderKey: "Nexus-Configuration",
             ExceptionType: "NexusException",
             ExceptionCodePrefix: "N",
-            GetOperationName: (path, type, operation) => operation.OperationId.Split(new[] { '_' }, 2)[1],
+            GetOperationName: (path, type, operation) => operation.OperationId.Split(['_'], 2)[1],
             Special_WebAssemblySupport: true,
-            Special_RefreshTokenSupport: true,
+            Special_AccessTokenSupport: true,
             Special_NexusFeatures: true);
 
         // generate C# client

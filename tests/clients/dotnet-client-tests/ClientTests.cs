@@ -12,127 +12,6 @@ namespace Nexus.Api.Tests
         public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
 
         [Fact]
-        public async Task CanAuthenticateAndRefreshAsync()
-        {
-            // Arrange
-            var messageHandlerMock = new Mock<HttpMessageHandler>();
-            var refreshToken = Guid.NewGuid().ToString();
-
-            // -> refresh token 1
-            var refreshTokenTryCount = 0;
-
-            var tokenPair1 = new TokenPair(
-                AccessToken: "111",
-                RefreshToken: "222"
-            );
-
-            messageHandlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.Is<HttpRequestMessage>(x => x.RequestUri!.ToString().EndsWith("tokens/refresh") && refreshTokenTryCount == 0),
-                    ItExpr.IsAny<CancellationToken>())
-                .Callback<HttpRequestMessage, CancellationToken>((requestMessage, cancellationToken) =>
-                {
-                    var refreshTokenRequest = JsonSerializer.Deserialize<RefreshTokenRequest>(requestMessage.Content!.ReadAsStream(cancellationToken));
-                    Assert.Equal(refreshToken, refreshTokenRequest!.RefreshToken);
-                    refreshTokenTryCount++;
-                })
-                .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent(JsonSerializer.Serialize(tokenPair1), Encoding.UTF8, "application/json")
-                });
-
-            // -> get catalogs (1st try)
-            var catalogTryCount = 0;
-
-            var catalogsResponseMessage1 = new HttpResponseMessage()
-            {
-                StatusCode = HttpStatusCode.Unauthorized
-            };
-
-            catalogsResponseMessage1.Headers.Add("WWW-Authenticate", "Bearer The token expired at ...");
-
-            messageHandlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.Is<HttpRequestMessage>(x => x.RequestUri!.ToString().Contains("catalogs") && catalogTryCount == 0),
-                    ItExpr.IsAny<CancellationToken>())
-                .Callback<HttpRequestMessage, CancellationToken>((requestMessage, cancellationToken) =>
-                {
-                    var actual = requestMessage.Headers.Authorization!;
-                    Assert.Equal($"Bearer {tokenPair1.AccessToken}", $"{actual.Scheme} {actual.Parameter}");
-                    catalogsResponseMessage1.RequestMessage = requestMessage;
-                    catalogTryCount++;
-                })
-                .ReturnsAsync(catalogsResponseMessage1);
-
-            // -> refresh token 2
-            var tokenPair2 = new TokenPair(
-                AccessToken: "333",
-                RefreshToken: "444"
-            );
-
-            messageHandlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.Is<HttpRequestMessage>(x => x.RequestUri!.ToString().EndsWith("tokens/refresh") && refreshTokenTryCount == 1),
-                    ItExpr.IsAny<CancellationToken>())
-                .Callback<HttpRequestMessage, CancellationToken>((requestMessage, cancellationToken) =>
-                {
-                    var refreshTokenRequest = JsonSerializer.Deserialize<RefreshTokenRequest>(requestMessage.Content!.ReadAsStream(cancellationToken));
-                    Assert.Equal(tokenPair1.RefreshToken, refreshTokenRequest!.RefreshToken);
-                })
-                .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent(JsonSerializer.Serialize(tokenPair2), Encoding.UTF8, "application/json")
-                });
-
-            // -> get catalogs (2nd try)
-            var catalogId = "my-catalog-id";
-            var expectedCatalog = new ResourceCatalog(Id: catalogId, default, default);
-
-            var catalogsResponseMessage2 = new HttpResponseMessage()
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(JsonSerializer.Serialize(expectedCatalog), Encoding.UTF8, "application/json"),
-            };
-
-            messageHandlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.Is<HttpRequestMessage>(x => x.RequestUri!.ToString().Contains("catalogs") && catalogTryCount == 1),
-                    ItExpr.IsAny<CancellationToken>())
-                .Callback<HttpRequestMessage, CancellationToken>((requestMessage, cancellationToken) =>
-                {
-                    var actual = requestMessage.Headers.Authorization!;
-                    Assert.Equal($"Bearer {tokenPair2.AccessToken}", $"{actual.Scheme} {actual.Parameter}");
-                })
-                .ReturnsAsync(catalogsResponseMessage2);
-
-            // -> http client
-            var httpClient = new HttpClient(messageHandlerMock.Object)
-            {
-                BaseAddress = new Uri("http://localhost")
-            };
-
-            // -> API client
-            var client = new NexusClient(httpClient);
-
-            // Act
-            await client.SignInAsync(refreshToken);
-            var actualCatalog = await client.Catalogs.GetAsync(catalogId);
-
-            // Assert
-            Assert.Equal(
-                JsonSerializer.Serialize(expectedCatalog),
-                JsonSerializer.Serialize(actualCatalog));
-        }
-
-        [Fact]
         public async Task CanAddConfigurationAsync()
         {
             // Arrange
@@ -192,12 +71,12 @@ namespace Nexus.Api.Tests
             var encodedJson = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(configuration));
 
             Assert.Collection(actualHeaders,
-                headers => Assert.Null(headers),
+                Assert.Null,
                 headers => {
                     Assert.NotNull(headers);
                     Assert.Collection(headers, header => Assert.Equal(encodedJson, header));
                 },
-                headers => Assert.Null(headers));
+                Assert.Null);
         }
     }
 }
