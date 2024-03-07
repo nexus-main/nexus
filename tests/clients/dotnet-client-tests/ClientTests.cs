@@ -72,7 +72,8 @@ namespace Nexus.Api.Tests
 
             Assert.Collection(actualHeaders,
                 Assert.Null,
-                headers => {
+                headers =>
+                {
                     Assert.NotNull(headers);
                     Assert.Collection(headers, header => Assert.Equal(encodedJson, header));
                 },

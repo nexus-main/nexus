@@ -83,9 +83,9 @@ namespace Nexus.Controllers
                 resourcePathAndRequests = await Task.WhenAll(resourcePaths.Distinct().Select(async resourcePath =>
                 {
                     var catalogItemRequest = await root
-                        .TryFindAsync(resourcePath, cancellationToken) 
+                        .TryFindAsync(resourcePath, cancellationToken)
                         ?? throw new ValidationException($"Could not find resource path {resourcePath}.");
-                        
+
                     return (resourcePath, catalogItemRequest);
                 }));
             }
@@ -532,7 +532,7 @@ namespace Nexus.Controllers
                     catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
                 {
                     return StatusCode(
-                        StatusCodes.Status403Forbidden, 
+                        StatusCodes.Status403Forbidden,
                         $"The current user is not permitted to read the catalog {catalogId}.");
                 }
 
@@ -540,7 +540,7 @@ namespace Nexus.Controllers
                     catalogContainer.Id, catalogContainer.Metadata, User))
                 {
                     return StatusCode(
-                        StatusCodes.Status403Forbidden, 
+                        StatusCodes.Status403Forbidden,
                         $"The current user is not permitted to modify the catalog {catalogId}.");
                 }
 

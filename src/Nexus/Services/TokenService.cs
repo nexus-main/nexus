@@ -44,7 +44,7 @@ internal class TokenService : ITokenService
 
     public Task<string> CreateAsync(
         string userId,
-        string description, 
+        string description,
         DateTime expires,
         IReadOnlyList<TokenClaim> claims)
     {
@@ -109,8 +109,8 @@ internal class TokenService : ITokenService
         string userId)
     {
         return InteractWithTokenMapAsync(
-            userId, 
-            tokenMap => (IReadOnlyDictionary<string, InternalPersonalAccessToken>)tokenMap, 
+            userId,
+            tokenMap => (IReadOnlyDictionary<string, InternalPersonalAccessToken>)tokenMap,
             saveChanges: false);
     }
 
@@ -119,11 +119,11 @@ internal class TokenService : ITokenService
     {
         return _cache.GetOrAdd(
             userId,
-            key => 
+            key =>
             {
                 if (_databaseService.TryReadTokenMap(userId, out var jsonString))
                 {
-                    return JsonSerializer.Deserialize<ConcurrentDictionary<string, InternalPersonalAccessToken>>(jsonString) 
+                    return JsonSerializer.Deserialize<ConcurrentDictionary<string, InternalPersonalAccessToken>>(jsonString)
                         ?? throw new Exception("tokenMap is null");
                 }
 
@@ -135,7 +135,7 @@ internal class TokenService : ITokenService
     }
 
     private async Task<T> InteractWithTokenMapAsync<T>(
-        string userId, 
+        string userId,
         Func<ConcurrentDictionary<string, InternalPersonalAccessToken>, T> func,
         bool saveChanges)
     {

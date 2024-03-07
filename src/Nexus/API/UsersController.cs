@@ -200,9 +200,9 @@ namespace Nexus.Controllers
 
                 var secret = await _tokenService
                     .CreateAsync(
-                        actualUserId, 
-                        token.Description, 
-                        utcExpires, 
+                        actualUserId,
+                        token.Description,
+                        utcExpires,
                         token.Claims);
 
                 var tokenValue = AuthUtilities.ComponentsToTokenValue(actualUserId, secret);

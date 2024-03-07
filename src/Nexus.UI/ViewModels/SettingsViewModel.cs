@@ -283,7 +283,7 @@ public class SettingsViewModel : INotifyPropertyChanged
                 // try restore saved file type
                 var expectedFileType = _jsRuntime.Invoke<string?>("nexus.util.loadSetting", Constants.UI_FILE_TYPE_KEY);
 
-                if (!string.IsNullOrWhiteSpace(expectedFileType) && 
+                if (!string.IsNullOrWhiteSpace(expectedFileType) &&
                     writerDescriptions.Any(writerDescription => writerDescription.Type == expectedFileType))
                     actualFileType = expectedFileType;
 

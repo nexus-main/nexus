@@ -12,7 +12,7 @@ namespace Nexus.Utilities
 
         public static string DefaultBaseUrl
         {
-            get 
+            get
             {
                 if (_defaultBaseUrl is null)
                 {

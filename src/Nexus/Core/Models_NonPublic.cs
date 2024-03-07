@@ -5,12 +5,12 @@ using System.Text.Json;
 
 namespace Nexus.Core
 {
-    internal record InternalPersonalAccessToken (
+    internal record InternalPersonalAccessToken(
         Guid Id,
         string Description,
         DateTime Expires,
         IReadOnlyList<TokenClaim> Claims);
-        
+
     internal record struct Interval(
         DateTime Begin,
         DateTime End);

@@ -38,8 +38,8 @@ namespace Nexus.Utilities
         }
 
         public static bool IsCatalogWritable(
-            string catalogId, 
-            CatalogMetadata catalogMetadata, 
+            string catalogId,
+            CatalogMetadata catalogMetadata,
             ClaimsPrincipal user)
         {
             return InternalIsCatalogAccessible(
@@ -54,9 +54,9 @@ namespace Nexus.Utilities
         }
 
         private static bool InternalIsCatalogAccessible(
-            string catalogId, 
-            CatalogMetadata catalogMetadata, 
-            ClaimsPrincipal? owner, 
+            string catalogId,
+            CatalogMetadata catalogMetadata,
+            ClaimsPrincipal? owner,
             ClaimsPrincipal user,
             string singleClaimType,
             string groupClaimType,
@@ -83,7 +83,7 @@ namespace Nexus.Utilities
                 if (identity.AuthenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme)
                 {
                     var isAdmin = identity.HasClaim(
-                        NexusClaims.ToPatUserClaimType(Claims.Role), 
+                        NexusClaims.ToPatUserClaimType(Claims.Role),
                         NexusRoles.ADMINISTRATOR);
 
                     if (isAdmin)
@@ -91,7 +91,7 @@ namespace Nexus.Utilities
 
                     /* The token alone can access the catalog ... */
                     var canAccessCatalog = identity.HasClaim(
-                        claim => 
+                        claim =>
                             claim.Type == singleClaimType &&
                             Regex.IsMatch(catalogId, claim.Value)
                     );
@@ -102,11 +102,11 @@ namespace Nexus.Utilities
                     if (canAccessCatalog)
                     {
                         result = CanUserAccessCatalog(
-                            catalogId, 
-                            catalogMetadata, 
-                            owner, 
+                            catalogId,
+                            catalogMetadata,
+                            owner,
                             identity,
-                            NexusClaims.ToPatUserClaimType(singleClaimType), 
+                            NexusClaims.ToPatUserClaimType(singleClaimType),
                             NexusClaims.ToPatUserClaimType(groupClaimType));
                     }
                 }
@@ -115,7 +115,7 @@ namespace Nexus.Utilities
                 else
                 {
                     var isAdmin = identity.HasClaim(
-                        Claims.Role, 
+                        Claims.Role,
                         NexusRoles.ADMINISTRATOR);
 
                     if (isAdmin)
@@ -123,11 +123,11 @@ namespace Nexus.Utilities
 
                     /* ensure that user can read that catalog */
                     result = CanUserAccessCatalog(
-                        catalogId, 
-                        catalogMetadata, 
-                        owner, 
-                        identity, 
-                        singleClaimType, 
+                        catalogId,
+                        catalogMetadata,
+                        owner,
+                        identity,
+                        singleClaimType,
                         groupClaimType);
                 }
 
@@ -140,26 +140,26 @@ namespace Nexus.Utilities
         }
 
         private static bool CanUserAccessCatalog(
-            string catalogId, 
-            CatalogMetadata catalogMetadata, 
-            ClaimsPrincipal? owner, 
+            string catalogId,
+            CatalogMetadata catalogMetadata,
+            ClaimsPrincipal? owner,
             ClaimsIdentity identity,
             string singleClaimType,
             string groupClaimType
         )
         {
-            var isOwner = 
-                owner is not null && 
+            var isOwner =
+                owner is not null &&
                 owner?.FindFirstValue(Claims.Subject) == identity.FindFirst(Claims.Subject)?.Value;
 
             var canReadCatalog = identity.HasClaim(
-                claim => 
+                claim =>
                     claim.Type == singleClaimType &&
                     Regex.IsMatch(catalogId, claim.Value)
             );
 
             var canReadCatalogGroup = catalogMetadata.GroupMemberships is not null && identity.HasClaim(
-                claim => 
+                claim =>
                     claim.Type == groupClaimType &&
                     catalogMetadata.GroupMemberships.Any(group => Regex.IsMatch(group, claim.Value))
             );

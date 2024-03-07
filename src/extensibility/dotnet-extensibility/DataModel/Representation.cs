@@ -118,7 +118,7 @@ namespace Nexus.DataModel
         /// The representation kind.
         /// </summary>
         [JsonIgnore]
-        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
+#warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
         internal RepresentationKind Kind { get; }
 
         /// <summary>

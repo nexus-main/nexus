@@ -873,7 +873,7 @@ namespace Nexus.Extensibility
             // of 10 minutes and a sample period of 10 ms, which leads to an estimated row size of 8 * 60000 = 480000 bytes. 
             // The algorithm works this way because it cannot know if the data are already cached. It also does not know
             // if the data source will request more data which further increases the memory consumption.
-            
+
             var bytesPerRow = 0L;
             var largestSamplePeriod = samplePeriod;
 
@@ -1043,7 +1043,7 @@ namespace Nexus.Extensibility
                     foreach (var catalogItemRequestPipeWriter in readingGroup.CatalogItemRequestPipeWriters)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        
+
                         await catalogItemRequestPipeWriter.DataWriter.CompleteAsync();
                     }
                 }

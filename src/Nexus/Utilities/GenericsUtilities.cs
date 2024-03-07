@@ -9,7 +9,7 @@ namespace Nexus.Utilities
 
         private static Func<T, double> EmitToDoubleConverter()
         {
-            var method = new DynamicMethod(string.Empty, typeof(double), new Type[] { typeof(T) });
+            var method = new DynamicMethod(string.Empty, typeof(double), [typeof(T)]);
             var ilGenerator = method.GetILGenerator();
 
             ilGenerator.Emit(OpCodes.Ldarg_0);

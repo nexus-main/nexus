@@ -11,7 +11,7 @@ namespace Nexus.Utilities
             var targetType = NexusUtilities.GetTypeFromNexusDataType(dataType);
 
             var method = typeof(BufferUtilities)
-                .GetMethod(nameof(BufferUtilities.InternalApplyRepresentationStatusByDataType), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetMethod(nameof(InternalApplyRepresentationStatusByDataType), BindingFlags.NonPublic | BindingFlags.Static)!
                 .MakeGenericMethod(targetType);
 
             method.Invoke(null, new object[] { data, status, target });
@@ -20,7 +20,7 @@ namespace Nexus.Utilities
         private static void InternalApplyRepresentationStatusByDataType<T>(ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<double> target)
             where T : unmanaged
         {
-            BufferUtilities.ApplyRepresentationStatus<T>(data.Cast<byte, T>(), status, target);
+            ApplyRepresentationStatus<T>(data.Cast<byte, T>(), status, target);
         }
 
         public static unsafe void ApplyRepresentationStatus<T>(ReadOnlyMemory<T> data, ReadOnlyMemory<byte> status, Memory<double> target) where T : unmanaged
@@ -31,7 +31,7 @@ namespace Nexus.Utilities
                 {
                     fixed (double* targetPtr = target.Span)
                     {
-                        BufferUtilities.InternalApplyRepresentationStatus(target.Length, dataPtr, statusPtr, targetPtr);
+                        InternalApplyRepresentationStatus(target.Length, dataPtr, statusPtr, targetPtr);
                     }
                 }
             }

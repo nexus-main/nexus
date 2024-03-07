@@ -118,7 +118,7 @@ namespace Nexus.Services
         private void SetConsumedBytesAndTriggerWaitingTasks(long difference)
         {
             _consumedBytes += difference;
-                
+
             // allow all other waiting tasks to continue
             foreach (var retrySemaphore in _retrySemaphores)
             {

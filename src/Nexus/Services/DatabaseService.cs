@@ -34,7 +34,7 @@ namespace Nexus.Services
 
         /* /users */
         bool TryReadTokenMap(
-            string userId, 
+            string userId,
             [NotNullWhen(true)] out string? tokenMap);
 
         Stream WriteTokenMap(
@@ -338,7 +338,7 @@ namespace Nexus.Services
 
         /* /users */
         public bool TryReadTokenMap(
-            string userId, 
+            string userId,
             [NotNullWhen(true)] out string? tokenMap)
         {
             var folderPath = SafePathCombine(_pathsOptions.Users, userId);

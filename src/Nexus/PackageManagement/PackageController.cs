@@ -302,7 +302,7 @@ namespace Nexus.PackageManagement
             while (!process.StandardOutput.EndOfStream)
             {
                 var refLine = await process.StandardOutput.ReadLineAsync(cancellationToken);
-                
+
                 try
                 {
                     var refString = refLine!.Split('\t')[1];
@@ -315,7 +315,7 @@ namespace Nexus.PackageManagement
 
                     else
                     {
-                        _logger.LogDebug("Unable to extract tag from ref {Ref}", refLine);    
+                        _logger.LogDebug("Unable to extract tag from ref {Ref}", refLine);
                     }
                 }
                 catch
@@ -331,8 +331,8 @@ namespace Nexus.PackageManagement
                 var escapedUriWithoutUserInfo = new Uri(repository)
                     .GetComponents(UriComponents.AbsoluteUri & ~UriComponents.UserInfo, UriFormat.UriEscaped);
 
-                var error = process is null 
-                    ? default : 
+                var error = process is null
+                    ? default :
                     $" Reason: {await process.StandardError.ReadToEndAsync(cancellationToken)}";
 
                 throw new Exception($"Unable to discover tags for repository {escapedUriWithoutUserInfo}.{error}");
@@ -391,8 +391,8 @@ namespace Nexus.PackageManagement
                         var escapedUriWithoutUserInfo = new Uri(repository)
                             .GetComponents(UriComponents.AbsoluteUri & ~UriComponents.UserInfo, UriFormat.UriEscaped);
 
-                        var error = process1 is null 
-                            ? default : 
+                        var error = process1 is null
+                            ? default :
                             $" Reason: {await process1.StandardError.ReadToEndAsync(cancellationToken)}";
 
                         throw new Exception($"Unable to clone repository {escapedUriWithoutUserInfo}.{error}");
@@ -426,8 +426,8 @@ namespace Nexus.PackageManagement
                         var escapedUriWithoutUserInfo = new Uri(repository)
                             .GetComponents(UriComponents.AbsoluteUri & ~UriComponents.UserInfo, UriFormat.UriEscaped);
 
-                        var error = process2 is null 
-                            ? default : 
+                        var error = process2 is null
+                            ? default :
                             $" Reason: {await process2.StandardError.ReadToEndAsync(cancellationToken)}";
 
                         throw new Exception($"Unable to publish project.{error}");
@@ -444,7 +444,7 @@ namespace Nexus.PackageManagement
                         if (Directory.Exists(targetPath))
                             Directory.Delete(targetPath, recursive: true);
                     }
-                    catch {}
+                    catch { }
 
                     throw;
                 }
@@ -456,7 +456,7 @@ namespace Nexus.PackageManagement
                         if (Directory.Exists(cloneFolder))
                             Directory.Delete(cloneFolder, recursive: true);
                     }
-                    catch {}
+                    catch { }
 
                     // try delete publish folder
                     try
@@ -464,7 +464,7 @@ namespace Nexus.PackageManagement
                         if (Directory.Exists(publishFolder))
                             Directory.Delete(publishFolder, recursive: true);
                     }
-                    catch {}
+                    catch { }
                 }
             }
             else

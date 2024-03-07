@@ -1,10 +1,18 @@
-# How to format:
-# (1) Add dotnet_diagnostic.XXXX.severity = error
-# (2) Run dotnet-format: dotnet format --diagnostics XXXX
+# How to apply single rule:
+# Run dotnet format --diagnostics XXXX --severity info
+
+# How to apply all rules:
+# Run dotnet format --severity info/warning/error
+
+[*]
+trim_trailing_whitespace = true
 
 [*.cs]
 # "run cleanup": https://betterprogramming.pub/enforce-net-code-style-with-editorconfig-d2f0d79091ac
 # TODO: build real editorconfig file: https://github.com/dotnet/roslyn/blob/main/.editorconfig 
+
+# Use file scoped namespace declarations
+csharp_style_namespace_declarations = file_scoped:error
 
 # Make field
 dotnet_diagnostic.IDE0044.severity = warning
