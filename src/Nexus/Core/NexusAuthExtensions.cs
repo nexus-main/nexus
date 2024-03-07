@@ -5,9 +5,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using Microsoft.IdentityModel.Tokens;
 using Nexus.Core;
 using Nexus.Utilities;
 using System.Net;
@@ -34,8 +32,6 @@ namespace Microsoft.Extensions.DependencyInjection
         {
             /* https://stackoverflow.com/a/52493428/1636629 */
 
-            JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
-
             services.AddDataProtection()
                 .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(pathsOptions.Config, "data-protection-keys")));
 
@@ -55,21 +51,6 @@ namespace Microsoft.Extensions.DependencyInjection
                     {
                         context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
                         return Task.CompletedTask;
-                    };
-                })
-
-                .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters()
-                    {
-                        NameClaimType = Claims.Name,
-                        RoleClaimType = Claims.Role,
-                        ClockSkew = TimeSpan.Zero,
-                        ValidateAudience = false,
-                        ValidateIssuer = false,
-                        ValidateActor = false,
-                        ValidateLifetime = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(securityOptions.Base64JwtSigningKey))
                     };
                 });
 

@@ -31,6 +31,12 @@ namespace Nexus.Services
         bool TryReadCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry);
         bool TryWriteCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry);
         Task ClearCacheEntriesAsync(string catalogId, DateOnly day, TimeSpan timeout, Predicate<string> predicate);
+
+        /* /users */
+        IEnumerable<string> EnumerateTokens(string userId);
+        bool TryReadToken(string userId, string tokenId, [NotNullWhen(true)] out string? token);
+        Stream WriteToken(string userId, string tokenId);
+        void DeleteToken(string userId, string tokenId);
     }
 
     internal class DatabaseService : IDatabaseService
@@ -193,7 +199,6 @@ namespace Nexus.Services
         {
             var physicalId = catalogId.TrimStart('/').Replace("/", "_");
             var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, physicalId), attachmentId);
-            _ = Path.GetDirectoryName(attachmentFile)!;
 
             File.Delete(attachmentFile);
         }
@@ -327,6 +332,54 @@ namespace Nexus.Services
 
             if (File.Exists(cacheEntry))
                 throw new Exception($"Cannot delete cache entry {cacheEntry}.");
+        }
+
+        /* /users */
+        public IEnumerable<string> EnumerateTokens(string userId)
+        {
+            var tokensFolder = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
+
+            if (Directory.Exists(tokensFolder))
+                return Directory
+                    .EnumerateFiles(tokensFolder, "*", SearchOption.AllDirectories)
+                    .Select(tokenFilePath => tokenFilePath[(tokensFolder.Length + 1)..]);
+
+            else
+                return Enumerable.Empty<string>();
+        }
+
+        public bool TryReadToken(string userId, string tokenId, [NotNullWhen(true)] out string? token)
+        {
+            var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
+            var tokenFilePath = Path.Combine(folderPath, $"{tokenId}.json");
+
+            token = default;
+
+            if (File.Exists(tokenFilePath))
+            {
+                token = File.ReadAllText(tokenFilePath);
+                return true;
+            }
+
+            return false;
+        }
+
+        public Stream WriteToken(string userId, string tokenId)
+        {
+            var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
+            var tokenFilePath = Path.Combine(folderPath, $"{tokenId}.json");
+
+            Directory.CreateDirectory(folderPath);
+
+            return File.Open(tokenFilePath, FileMode.Create, FileAccess.Write);
+        }
+
+        public void DeleteToken(string userId, string tokenId)
+        {
+            var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
+            var tokenFilePath = Path.Combine(folderPath, $"{tokenId}.json");
+
+            File.Delete(tokenFilePath);
         }
 
         private static string SafePathCombine(string basePath, string relativePath)

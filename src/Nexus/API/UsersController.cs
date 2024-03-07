@@ -27,13 +27,12 @@ namespace Nexus.Controllers
         // GET      /api/users/authentication-schemes
         // GET      /api/users/authenticate
         // GET      /api/users/signout
-        // POST     /api/users/tokens/refresh
-        // POST     /api/users/tokens/revoke
+        // POST     /api/users/tokens/delete
 
         // [authenticated]
         // GET      /api/users/me
         // GET      /api/users/accept-license?catalogId=X
-        // POST     /api/users/tokens/generate
+        // POST     /api/users/tokens/create
         // DELETE   /api/users/tokens/{tokenId}
 
         // [privileged]
@@ -50,7 +49,7 @@ namespace Nexus.Controllers
         #region Fields
 
         private readonly IDBService _dbService;
-        private readonly INexusAuthenticationService _authService;
+        private readonly ITokenService _tokenService;
         private readonly SecurityOptions _securityOptions;
         private readonly ILogger<UsersController> _logger;
 
@@ -60,12 +59,12 @@ namespace Nexus.Controllers
 
         public UsersController(
             IDBService dBService,
-            INexusAuthenticationService authService,
+            ITokenService tokenService,
             IOptions<SecurityOptions> securityOptions,
             ILogger<UsersController> logger)
         {
             _dbService = dBService;
-            _authService = authService;
+            _tokenService = tokenService;
             _securityOptions = securityOptions.Value;
             _logger = logger;
         }
@@ -127,58 +126,24 @@ namespace Nexus.Controllers
         }
 
         /// <summary>
-        /// Refreshes the JWT token.
+        /// Deletes a personal access token.
         /// </summary>
-        /// <param name="request">The refresh token request.</param>
-        /// <returns>A new pair of JWT and refresh token.</returns>
+        /// <param name="value">The personal access token to delete.</param>
         [AllowAnonymous]
-        [HttpPost("tokens/refresh")]
-        public async Task<ActionResult<TokenPair>> RefreshTokenAsync(RefreshTokenRequest request)
+        [HttpDelete("tokens/delete")]
+        public async Task<ActionResult> DeleteTokenByValueAsync(
+            [BindRequired] string value)
         {
             // get token
-            var internalRefreshToken = InternalRefreshToken.Deserialize(request.RefreshToken);
-            var token = await _dbService.FindRefreshTokenAsync(internalRefreshToken.Id, includeUserClaims: true);
+            // var internalRefreshToken = InternalRefreshToken.Deserialize();
+            // var token = await _dbService.FindRefreshTokenAsync(internalRefreshToken.Id, includeUserClaims: false);
 
-            if (token is null)
-                return NotFound("Token not found.");
+            // if (token is null)
+            //     return NotFound("Token not found.");
 
-            // check token
-            if (token.Token != request.RefreshToken)
-            {
-                _logger.LogWarning($"Attempted reuse of revoked token of user {token.Owner.Id} ({token.Owner.Name}).");
-
-                # warning Temporarily disabled
-                // await _authService.RevokeTokenAsync(token);
-            }
-
-            if (token.IsExpired)
-                return UnprocessableEntity("Invalid token.");
-
-            // refresh token
-            var tokenPair = await _authService
-                .RefreshTokenAsync(token);
-
-            return tokenPair;
-        }
-
-        /// <summary>
-        /// Revokes a refresh token.
-        /// </summary>
-        /// <param name="request">The revoke token request.</param>
-        [AllowAnonymous]
-        [HttpPost("tokens/revoke")]
-        public async Task<ActionResult> RevokeTokenAsync(RevokeTokenRequest request)
-        {
-            // get token
-            var internalRefreshToken = InternalRefreshToken.Deserialize(request.RefreshToken);
-            var token = await _dbService.FindRefreshTokenAsync(internalRefreshToken.Id, includeUserClaims: false);
-
-            if (token is null)
-                return NotFound("Token not found.");
-
-            // revoke token
-            await _authService
-                .RevokeTokenAsync(token);
+            // // revoke token
+            // await _authService
+            //     .RevokeTokenAsync(token);
 
             return Ok();
         }
@@ -207,18 +172,18 @@ namespace Nexus.Controllers
                 user.Id,
                 user,
                 isAdmin,
-                user.RefreshTokens.ToDictionary(entry => entry.Id, entry => entry));
+                default!); // user.RefreshTokens.ToDictionary(entry => entry.Id, entry => entry));
         }
 
         /// <summary>
-        /// Generates a refresh token.
+        /// Creates a personal access token.
         /// </summary>
-        /// <param name="description">The refresh token description.</param>
+        /// <param name="request">The create token request.</param>
         /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
         [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
-        [HttpPost("tokens/generate")]
-        public async Task<ActionResult<string>> GenerateRefreshTokenAsync(
-            [BindRequired] string description,
+        [HttpPost("tokens/create")]
+        public async Task<ActionResult<string>> CreateTokenAsync(
+            CreateTokenRequest request,
             [FromQuery] string? userId = default
         )
         {
@@ -229,9 +194,10 @@ namespace Nexus.Controllers
                 if (user is null)
                     return NotFound($"Could not find user {userId}.");
 
-                var refreshToken = await _authService.GenerateRefreshTokenAsync(user, description);
+                // var refreshToken = await _authService.GenerateRefreshTokenAsync(user, description);
 
-                return Ok(refreshToken);
+                // return Ok(refreshToken);
+                throw new Exception();
             }
 
             else
@@ -279,23 +245,23 @@ namespace Nexus.Controllers
         }
 
         /// <summary>
-        /// Deletes a refresh token.
+        /// Deletes a personal access token.
         /// </summary>
-        /// <param name="tokenId">The identifier of the refresh token.</param>
+        /// <param name="tokenId">The identifier of the personal access token.</param>
         [HttpDelete("tokens/{tokenId}")]
-        public async Task<ActionResult> DeleteRefreshTokenAsync(
+        public async Task<ActionResult> DeleteTokenAsync(
             Guid tokenId)
         {
-            // TODO: Is this thread safe? Maybe yes, because of scoped EF context.
+            // // TODO: Is this thread safe? Maybe yes, because of scoped EF context.
 
-            var token = await _dbService.FindRefreshTokenAsync(tokenId, includeUserClaims: true);
+            // var token = await _dbService.FindRefreshTokenAsync(tokenId, includeUserClaims: true);
 
-            if (token is null)
-                return NotFound($"Could not find refresh token {tokenId}.");
+            // if (token is null)
+            //     return NotFound($"Could not find refresh token {tokenId}.");
 
-            token.Owner.RefreshTokens.Remove(token);
+            // token.Owner.RefreshTokens.Remove(token);
 
-            await _dbService.SaveChangesAsync();
+            // await _dbService.SaveChangesAsync();
 
             return Ok();
         }
@@ -418,12 +384,12 @@ namespace Nexus.Controllers
         }
 
         /// <summary>
-        /// Gets all refresh tokens.
+        /// Gets all personal access tokens.
         /// </summary>
         /// <param name="userId">The identifier of the user.</param>
         [Authorize(Policy = NexusPolicies.RequireAdmin)]
         [HttpGet("{userId}/tokens")]
-        public async Task<ActionResult<IReadOnlyDictionary<Guid, RefreshToken>>> GetRefreshTokensAsync(
+        public async Task<ActionResult<IReadOnlyList<PersonalAccessToken>>> GetPersonalAccessTokensAsync(
             string userId)
         {
             var user = await _dbService.FindUserAsync(userId);
@@ -431,7 +397,8 @@ namespace Nexus.Controllers
             if (user is null)
                 return NotFound($"Could not find user {userId}.");
 
-            return Ok(user.RefreshTokens.ToDictionary(token => token.Id, token => token));
+            // return Ok(user.RefreshTokens.ToDictionary(token => token.Id, token => token));
+            throw new Exception();
         }
 
         private bool TryAuthenticate(

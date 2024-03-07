@@ -9,7 +9,7 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Services
 {
-    public class NexusAuthenticationServiceTests
+    public class NexusPersonalAccessTokenServiceTests
     {
         private static readonly IOptions<SecurityOptions> _securityOptions = Options.Create(new SecurityOptions()
         {
@@ -57,7 +57,7 @@ namespace Services
 
             var dbService = Mock.Of<IDBService>();
 
-            var authService = new NexusAuthenticationService(
+            var authService = new NexusPersonalAccessTokenService(
                 dbService,
                 _securityOptions);
             _ = new JwtSecurityTokenHandler();
@@ -94,7 +94,7 @@ namespace Services
 
             var dbService = Mock.Of<IDBService>();
 
-            var service = new NexusAuthenticationService(
+            var service = new NexusPersonalAccessTokenService(
                 dbService,
                 _securityOptions);
 
@@ -129,7 +129,7 @@ namespace Services
 
             var dbService = Mock.Of<IDBService>();
 
-            var service = new NexusAuthenticationService(
+            var service = new NexusPersonalAccessTokenService(
                 dbService,
                 _securityOptions);
 

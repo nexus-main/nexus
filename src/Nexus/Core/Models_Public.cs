@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Nexus.DataModel;
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -20,7 +19,6 @@ namespace Nexus.Core
             Id = id;
             Name = name;
 
-            RefreshTokens = new();
             Claims = new();
         }
 
@@ -36,9 +34,6 @@ namespace Nexus.Core
         public string Name { get; set; } = default!;
 
 #pragma warning disable CS1591
-
-        [JsonIgnore]
-        public List<RefreshToken> RefreshTokens { get; set; } = default!;
 
         [JsonIgnore]
         public List<NexusClaim> Claims { get; set; } = default!;
@@ -88,80 +83,31 @@ namespace Nexus.Core
     }
 
     /// <summary>
-    /// A refresh token.
+    /// A personal access token.
     /// </summary>
-    public class RefreshToken
-    {
-#pragma warning disable CS1591
-
-        public RefreshToken(Guid id, string token, DateTime expires, string description)
-        {
-            Id = id;
-            Token = token;
-            Expires = expires;
-            Description = description;
-
-            InternalRefreshToken = InternalRefreshToken.Deserialize(token);
-        }
-
-        [JsonIgnore]
-        [ValidateNever]
-        public Guid Id { get; init; }
-
-        [JsonIgnore]
-        public string Token { get; init; }
-
-#pragma warning restore CS1591
-
-        /// <summary>
-        /// The date/time when the token expires.
-        /// </summary>
-        public DateTime Expires { get; init; }
-
-        /// <summary>
-        /// The token description.
-        /// </summary>
-        public string Description { get; init; }
-
-        [JsonIgnore]
-        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
-        internal bool IsExpired => DateTime.UtcNow >= Expires;
-
-        [JsonIgnore]
-        #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
-        internal InternalRefreshToken InternalRefreshToken { get; }
-
-#pragma warning disable CS1591
-
-        // https://learn.microsoft.com/en-us/ef/core/modeling/relationships?tabs=fluent-api%2Cfluent-api-simple-key%2Csimple-key#no-foreign-key-property
-        [JsonIgnore]
-        public NexusUser Owner { get; set; } = default!;
-
-#pragma warning restore CS1591
-    }
-
-    /// <summary>
-    /// A refresh token request.
-    /// </summary>
-    /// <param name="RefreshToken">The refresh token.</param>
-    public record RefreshTokenRequest(
-        [Required] string RefreshToken);
-
+    /// <param name="Id">The token identifier.</param>
+    /// <param name="Secret">The token secret.</param>
+    /// <param name="Description">The token description.</param>
+    /// <param name="Expires">The date/time when the token expires.</param>
+    /// <param name="Claims">The claims that will be part of the token.</param>
+    public record PersonalAccessToken(
+        [property: JsonIgnore, ValidateNever] Guid Id, 
+        [property: JsonIgnore] string Secret, 
+        string Description,
+        DateTime Expires,
+        IDictionary<string, string> Claims
+    );
+    
     /// <summary>
     /// A revoke token request.
     /// </summary>
-    /// <param name="RefreshToken">The refresh token.</param>
-    public record RevokeTokenRequest(
-        [Required] string RefreshToken);
-
-    /// <summary>
-    /// A token pair.
-    /// </summary>
-    /// <param name="AccessToken">The JWT token.</param>
-    /// <param name="RefreshToken">The refresh token.</param>
-    public record TokenPair(
-        string AccessToken,
-        string RefreshToken);
+    /// <param name="Claims">The claims that will be part of the token.</param>
+    /// <param name="Description">The token description.</param>
+    /// <param name="Expires">The date/time when the token expires.</param>
+    public record CreateTokenRequest(
+        IDictionary<string, string> Claims,
+        string Description,
+        DateTime Expires);
 
     /// <summary>
     /// Describes an OpenID connect provider.
@@ -342,10 +288,10 @@ namespace Nexus.Core
     /// <param name="UserId">The user id.</param>
     /// <param name="User">The user.</param>
     /// <param name="IsAdmin">A boolean which indicates if the user is an administrator.</param>
-    /// <param name="RefreshTokens">A list of currently present refresh tokens.</param>
+    /// <param name="PersonalAccessTokens">A list of personal access tokens.</param>
     public record MeResponse(
         string UserId,
         NexusUser User,
         bool IsAdmin,
-        IReadOnlyDictionary<Guid, RefreshToken> RefreshTokens);
+        IReadOnlyList<PersonalAccessToken> PersonalAccessTokens);
 }
