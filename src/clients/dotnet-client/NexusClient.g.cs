@@ -2410,30 +2410,17 @@ public interface IUsersClient
     Task SignOutAsync(string returnUrl, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Refreshes the JWT token.
+    /// Deletes a personal access token.
     /// </summary>
-    /// <param name="request">The refresh token request.</param>
-    TokenPair RefreshToken(RefreshTokenRequest request);
+    /// <param name="value">The personal access token to delete.</param>
+    HttpResponseMessage DeleteTokenByValue(string value);
 
     /// <summary>
-    /// Refreshes the JWT token.
+    /// Deletes a personal access token.
     /// </summary>
-    /// <param name="request">The refresh token request.</param>
+    /// <param name="value">The personal access token to delete.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<TokenPair> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Revokes a refresh token.
-    /// </summary>
-    /// <param name="request">The revoke token request.</param>
-    HttpResponseMessage RevokeToken(RevokeTokenRequest request);
-
-    /// <summary>
-    /// Revokes a refresh token.
-    /// </summary>
-    /// <param name="request">The revoke token request.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> RevokeTokenAsync(RevokeTokenRequest request, CancellationToken cancellationToken = default);
+    Task<HttpResponseMessage> DeleteTokenByValueAsync(string value, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the current user.
@@ -2447,19 +2434,32 @@ public interface IUsersClient
     Task<MeResponse> GetMeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Generates a refresh token.
+    /// Creates a personal access token.
     /// </summary>
-    /// <param name="description">The refresh token description.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    string GenerateRefreshToken(string description, string? userId = default);
+    /// <param name="request">The create token request.</param>
+    string CreateToken(CreateTokenRequest request, string? userId = default);
 
     /// <summary>
-    /// Generates a refresh token.
+    /// Creates a personal access token.
     /// </summary>
-    /// <param name="description">The refresh token description.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    /// <param name="request">The create token request.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> GenerateRefreshTokenAsync(string description, string? userId = default, CancellationToken cancellationToken = default);
+    Task<string> CreateTokenAsync(CreateTokenRequest request, string? userId = default, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a personal access token.
+    /// </summary>
+    /// <param name="tokenId">The identifier of the personal access token.</param>
+    HttpResponseMessage DeleteToken(Guid tokenId);
+
+    /// <summary>
+    /// Deletes a personal access token.
+    /// </summary>
+    /// <param name="tokenId">The identifier of the personal access token.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> DeleteTokenAsync(Guid tokenId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Accepts the license of the specified catalog.
@@ -2473,19 +2473,6 @@ public interface IUsersClient
     /// <param name="catalogId">The catalog identifier.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<HttpResponseMessage> AcceptLicenseAsync(string catalogId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Deletes a refresh token.
-    /// </summary>
-    /// <param name="tokenId">The identifier of the refresh token.</param>
-    HttpResponseMessage DeleteRefreshToken(Guid tokenId);
-
-    /// <summary>
-    /// Deletes a refresh token.
-    /// </summary>
-    /// <param name="tokenId">The identifier of the refresh token.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> DeleteRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets a list of users.
@@ -2566,17 +2553,17 @@ public interface IUsersClient
     Task<HttpResponseMessage> DeleteClaimAsync(Guid claimId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets all refresh tokens.
+    /// Gets all personal access tokens.
     /// </summary>
     /// <param name="userId">The identifier of the user.</param>
-    IReadOnlyDictionary<string, RefreshToken> GetRefreshTokens(string userId);
+    IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string userId);
 
     /// <summary>
-    /// Gets all refresh tokens.
+    /// Gets all personal access tokens.
     /// </summary>
     /// <param name="userId">The identifier of the user.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, RefreshToken>> GetRefreshTokensAsync(string userId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string userId, CancellationToken cancellationToken = default);
 
 }
 
@@ -2683,43 +2670,37 @@ public class UsersClient : IUsersClient
     }
 
     /// <inheritdoc />
-    public TokenPair RefreshToken(RefreshTokenRequest request)
+    public HttpResponseMessage DeleteTokenByValue(string value)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/tokens/refresh");
+        __urlBuilder.Append("/api/v1/users/tokens/delete");
+
+        var __queryValues = new Dictionary<string, string>();
+
+        __queryValues["value"] = Uri.EscapeDataString(value);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<TokenPair>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+        return ___client.Invoke<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default);
     }
 
     /// <inheritdoc />
-    public Task<TokenPair> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> DeleteTokenByValueAsync(string value, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/tokens/refresh");
+        __urlBuilder.Append("/api/v1/users/tokens/delete");
+
+        var __queryValues = new Dictionary<string, string>();
+
+        __queryValues["value"] = Uri.EscapeDataString(value);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<TokenPair>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public HttpResponseMessage RevokeToken(RevokeTokenRequest request)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/tokens/revoke");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
-    }
-
-    /// <inheritdoc />
-    public Task<HttpResponseMessage> RevokeTokenAsync(RevokeTokenRequest request, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/tokens/revoke");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+        return ___client.InvokeAsync<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -2743,14 +2724,12 @@ public class UsersClient : IUsersClient
     }
 
     /// <inheritdoc />
-    public string GenerateRefreshToken(string description, string? userId = default)
+    public string CreateToken(CreateTokenRequest request, string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/tokens/generate");
+        __urlBuilder.Append("/api/v1/users/tokens/create");
 
         var __queryValues = new Dictionary<string, string>();
-
-        __queryValues["description"] = Uri.EscapeDataString(description);
 
         if (userId is not null)
             __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
@@ -2759,18 +2738,16 @@ public class UsersClient : IUsersClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<string>("POST", __url, "application/json", default, default);
+        return ___client.Invoke<string>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
-    public Task<string> GenerateRefreshTokenAsync(string description, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<string> CreateTokenAsync(CreateTokenRequest request, string? userId = default, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/tokens/generate");
+        __urlBuilder.Append("/api/v1/users/tokens/create");
 
         var __queryValues = new Dictionary<string, string>();
-
-        __queryValues["description"] = Uri.EscapeDataString(description);
 
         if (userId is not null)
             __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
@@ -2779,7 +2756,29 @@ public class UsersClient : IUsersClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<string>("POST", __url, "application/json", default, default, cancellationToken);
+        return ___client.InvokeAsync<string>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public HttpResponseMessage DeleteToken(Guid tokenId)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/users/tokens/{tokenId}");
+        __urlBuilder.Replace("{tokenId}", Uri.EscapeDataString(Convert.ToString(tokenId, CultureInfo.InvariantCulture)!));
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> DeleteTokenAsync(Guid tokenId, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/users/tokens/{tokenId}");
+        __urlBuilder.Replace("{tokenId}", Uri.EscapeDataString(Convert.ToString(tokenId, CultureInfo.InvariantCulture)!));
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -2814,28 +2813,6 @@ public class UsersClient : IUsersClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public HttpResponseMessage DeleteRefreshToken(Guid tokenId)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/tokens/{tokenId}");
-        __urlBuilder.Replace("{tokenId}", Uri.EscapeDataString(Convert.ToString(tokenId, CultureInfo.InvariantCulture)!));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<HttpResponseMessage> DeleteRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/tokens/{tokenId}");
-        __urlBuilder.Replace("{tokenId}", Uri.EscapeDataString(Convert.ToString(tokenId, CultureInfo.InvariantCulture)!));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -2967,25 +2944,25 @@ public class UsersClient : IUsersClient
     }
 
     /// <inheritdoc />
-    public IReadOnlyDictionary<string, RefreshToken> GetRefreshTokens(string userId)
+    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string userId)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/{userId}/tokens");
         __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyDictionary<string, RefreshToken>>("GET", __url, "application/json", default, default);
+        return ___client.Invoke<IReadOnlyDictionary<string, PersonalAccessToken>>("GET", __url, "application/json", default, default);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, RefreshToken>> GetRefreshTokensAsync(string userId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string userId, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/{userId}/tokens");
         __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyDictionary<string, RefreshToken>>("GET", __url, "application/json", default, default, cancellationToken);
+        return ___client.InvokeAsync<IReadOnlyDictionary<string, PersonalAccessToken>>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
 }
@@ -3342,32 +3319,13 @@ public record DataSourceRegistration(string Type, Uri? ResourceLocator, IReadOnl
 public record AuthenticationSchemeDescription(string Scheme, string DisplayName);
 
 /// <summary>
-/// A token pair.
-/// </summary>
-/// <param name="AccessToken">The JWT token.</param>
-/// <param name="RefreshToken">The refresh token.</param>
-public record TokenPair(string AccessToken, string RefreshToken);
-
-/// <summary>
-/// A refresh token request.
-/// </summary>
-/// <param name="RefreshToken">The refresh token.</param>
-public record RefreshTokenRequest(string RefreshToken);
-
-/// <summary>
-/// A revoke token request.
-/// </summary>
-/// <param name="RefreshToken">The refresh token.</param>
-public record RevokeTokenRequest(string RefreshToken);
-
-/// <summary>
 /// A me response.
 /// </summary>
 /// <param name="UserId">The user id.</param>
 /// <param name="User">The user.</param>
 /// <param name="IsAdmin">A boolean which indicates if the user is an administrator.</param>
-/// <param name="RefreshTokens">A list of currently present refresh tokens.</param>
-public record MeResponse(string UserId, NexusUser User, bool IsAdmin, IReadOnlyDictionary<string, RefreshToken> RefreshTokens);
+/// <param name="PersonalAccessTokens">A list of personal access tokens.</param>
+public record MeResponse(string UserId, NexusUser User, bool IsAdmin, IReadOnlyDictionary<string, PersonalAccessToken> PersonalAccessTokens);
 
 /// <summary>
 /// Represents a user.
@@ -3376,11 +3334,27 @@ public record MeResponse(string UserId, NexusUser User, bool IsAdmin, IReadOnlyD
 public record NexusUser(string Name);
 
 /// <summary>
-/// A refresh token.
+/// A personal access token.
 /// </summary>
-/// <param name="Expires">The date/time when the token expires.</param>
 /// <param name="Description">The token description.</param>
-public record RefreshToken(DateTime Expires, string Description);
+/// <param name="Expires">The date/time when the token expires.</param>
+/// <param name="Claims">The claims that will be part of the token.</param>
+public record PersonalAccessToken(string Description, DateTime Expires, IReadOnlyList<TokenClaim> Claims);
+
+/// <summary>
+/// A revoke token request.
+/// </summary>
+/// <param name="Type">The claim type.</param>
+/// <param name="Value">The claim value.</param>
+public record TokenClaim(string Type, string Value);
+
+/// <summary>
+/// A revoke token request.
+/// </summary>
+/// <param name="Description">The token description.</param>
+/// <param name="Expires">The date/time when the token expires.</param>
+/// <param name="Claims">The claims that will be part of the token.</param>
+public record CreateTokenRequest(string Description, DateTime Expires, IReadOnlyList<TokenClaim> Claims);
 
 /// <summary>
 /// Represents a claim.

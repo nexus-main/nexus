@@ -719,49 +719,6 @@ class AuthenticationSchemeDescription:
 
 
 @dataclass(frozen=True)
-class TokenPair:
-    """
-    A token pair.
-
-    Args:
-        access_token: The JWT token.
-        refresh_token: The refresh token.
-    """
-
-    access_token: str
-    """The JWT token."""
-
-    refresh_token: str
-    """The refresh token."""
-
-
-@dataclass(frozen=True)
-class RefreshTokenRequest:
-    """
-    A refresh token request.
-
-    Args:
-        refresh_token: The refresh token.
-    """
-
-    refresh_token: str
-    """The refresh token."""
-
-
-@dataclass(frozen=True)
-class RevokeTokenRequest:
-    """
-    A revoke token request.
-
-    Args:
-        refresh_token: The refresh token.
-    """
-
-    refresh_token: str
-    """The refresh token."""
-
-
-@dataclass(frozen=True)
 class MeResponse:
     """
     A me response.
@@ -770,7 +727,7 @@ class MeResponse:
         user_id: The user id.
         user: The user.
         is_admin: A boolean which indicates if the user is an administrator.
-        refresh_tokens: A list of currently present refresh tokens.
+        personal_access_tokens: A list of personal access tokens.
     """
 
     user_id: str
@@ -782,8 +739,8 @@ class MeResponse:
     is_admin: bool
     """A boolean which indicates if the user is an administrator."""
 
-    refresh_tokens: dict[str, RefreshToken]
-    """A list of currently present refresh tokens."""
+    personal_access_tokens: dict[str, PersonalAccessToken]
+    """A list of personal access tokens."""
 
 
 @dataclass(frozen=True)
@@ -800,20 +757,62 @@ class NexusUser:
 
 
 @dataclass(frozen=True)
-class RefreshToken:
+class PersonalAccessToken:
     """
-    A refresh token.
+    A personal access token.
 
     Args:
-        expires: The date/time when the token expires.
         description: The token description.
+        expires: The date/time when the token expires.
+        claims: The claims that will be part of the token.
     """
+
+    description: str
+    """The token description."""
 
     expires: datetime
     """The date/time when the token expires."""
 
+    claims: list[TokenClaim]
+    """The claims that will be part of the token."""
+
+
+@dataclass(frozen=True)
+class TokenClaim:
+    """
+    A revoke token request.
+
+    Args:
+        type: The claim type.
+        value: The claim value.
+    """
+
+    type: str
+    """The claim type."""
+
+    value: str
+    """The claim value."""
+
+
+@dataclass(frozen=True)
+class CreateTokenRequest:
+    """
+    A revoke token request.
+
+    Args:
+        description: The token description.
+        expires: The date/time when the token expires.
+        claims: The claims that will be part of the token.
+    """
+
     description: str
     """The token description."""
+
+    expires: datetime
+    """The date/time when the token expires."""
+
+    claims: list[TokenClaim]
+    """The claims that will be part of the token."""
 
 
 @dataclass(frozen=True)
@@ -1418,27 +1417,24 @@ class UsersAsyncClient:
 
         return self.___client._invoke(type(None), "POST", __url, None, None, None)
 
-    def refresh_token(self, request: RefreshTokenRequest) -> Awaitable[TokenPair]:
+    def delete_token_by_value(self, value: str) -> Awaitable[Response]:
         """
-        Refreshes the JWT token.
+        Deletes a personal access token.
 
         Args:
+            value: The personal access token to delete.
         """
 
-        __url = "/api/v1/users/tokens/refresh"
+        __url = "/api/v1/users/tokens/delete"
 
-        return self.___client._invoke(TokenPair, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        __query_values: dict[str, str] = {}
 
-    def revoke_token(self, request: RevokeTokenRequest) -> Awaitable[Response]:
-        """
-        Revokes a refresh token.
+        __query_values["value"] = quote(_to_string(value), safe="")
 
-        Args:
-        """
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
 
-        __url = "/api/v1/users/tokens/revoke"
-
-        return self.___client._invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def get_me(self) -> Awaitable[MeResponse]:
         """
@@ -1451,20 +1447,17 @@ class UsersAsyncClient:
 
         return self.___client._invoke(MeResponse, "GET", __url, "application/json", None, None)
 
-    def generate_refresh_token(self, description: str, user_id: Optional[str] = None) -> Awaitable[str]:
+    def create_token(self, request: CreateTokenRequest, user_id: Optional[str] = None) -> Awaitable[str]:
         """
-        Generates a refresh token.
+        Creates a personal access token.
 
         Args:
-            description: The refresh token description.
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
-        __url = "/api/v1/users/tokens/generate"
+        __url = "/api/v1/users/tokens/create"
 
         __query_values: dict[str, str] = {}
-
-        __query_values["description"] = quote(_to_string(description), safe="")
 
         if user_id is not None:
             __query_values["userId"] = quote(_to_string(user_id), safe="")
@@ -1472,7 +1465,20 @@ class UsersAsyncClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(str, "POST", __url, "application/json", None, None)
+        return self.___client._invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
+    def delete_token(self, token_id: UUID) -> Awaitable[Response]:
+        """
+        Deletes a personal access token.
+
+        Args:
+            token_id: The identifier of the personal access token.
+        """
+
+        __url = "/api/v1/users/tokens/{tokenId}"
+        __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
+
+        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def accept_license(self, catalog_id: str) -> Awaitable[Response]:
         """
@@ -1492,19 +1498,6 @@ class UsersAsyncClient:
         __url += __query
 
         return self.___client._invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def delete_refresh_token(self, token_id: UUID) -> Awaitable[Response]:
-        """
-        Deletes a refresh token.
-
-        Args:
-            token_id: The identifier of the refresh token.
-        """
-
-        __url = "/api/v1/users/tokens/{tokenId}"
-        __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
-
-        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def get_users(self) -> Awaitable[dict[str, NexusUser]]:
         """
@@ -1580,9 +1573,9 @@ class UsersAsyncClient:
 
         return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
-    def get_refresh_tokens(self, user_id: str) -> Awaitable[dict[str, RefreshToken]]:
+    def get_tokens(self, user_id: str) -> Awaitable[dict[str, PersonalAccessToken]]:
         """
-        Gets all refresh tokens.
+        Gets all personal access tokens.
 
         Args:
             user_id: The identifier of the user.
@@ -1591,7 +1584,7 @@ class UsersAsyncClient:
         __url = "/api/v1/users/{userId}/tokens"
         __url = __url.replace("{userId}", quote(str(user_id), safe=""))
 
-        return self.___client._invoke(dict[str, RefreshToken], "GET", __url, "application/json", None, None)
+        return self.___client._invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
 
 class WritersAsyncClient:
@@ -2199,27 +2192,24 @@ class UsersClient:
 
         return self.___client._invoke(type(None), "POST", __url, None, None, None)
 
-    def refresh_token(self, request: RefreshTokenRequest) -> TokenPair:
+    def delete_token_by_value(self, value: str) -> Response:
         """
-        Refreshes the JWT token.
+        Deletes a personal access token.
 
         Args:
+            value: The personal access token to delete.
         """
 
-        __url = "/api/v1/users/tokens/refresh"
+        __url = "/api/v1/users/tokens/delete"
 
-        return self.___client._invoke(TokenPair, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        __query_values: dict[str, str] = {}
 
-    def revoke_token(self, request: RevokeTokenRequest) -> Response:
-        """
-        Revokes a refresh token.
+        __query_values["value"] = quote(_to_string(value), safe="")
 
-        Args:
-        """
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
 
-        __url = "/api/v1/users/tokens/revoke"
-
-        return self.___client._invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def get_me(self) -> MeResponse:
         """
@@ -2232,20 +2222,17 @@ class UsersClient:
 
         return self.___client._invoke(MeResponse, "GET", __url, "application/json", None, None)
 
-    def generate_refresh_token(self, description: str, user_id: Optional[str] = None) -> str:
+    def create_token(self, request: CreateTokenRequest, user_id: Optional[str] = None) -> str:
         """
-        Generates a refresh token.
+        Creates a personal access token.
 
         Args:
-            description: The refresh token description.
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
-        __url = "/api/v1/users/tokens/generate"
+        __url = "/api/v1/users/tokens/create"
 
         __query_values: dict[str, str] = {}
-
-        __query_values["description"] = quote(_to_string(description), safe="")
 
         if user_id is not None:
             __query_values["userId"] = quote(_to_string(user_id), safe="")
@@ -2253,7 +2240,20 @@ class UsersClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(str, "POST", __url, "application/json", None, None)
+        return self.___client._invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
+    def delete_token(self, token_id: UUID) -> Response:
+        """
+        Deletes a personal access token.
+
+        Args:
+            token_id: The identifier of the personal access token.
+        """
+
+        __url = "/api/v1/users/tokens/{tokenId}"
+        __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
+
+        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def accept_license(self, catalog_id: str) -> Response:
         """
@@ -2273,19 +2273,6 @@ class UsersClient:
         __url += __query
 
         return self.___client._invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def delete_refresh_token(self, token_id: UUID) -> Response:
-        """
-        Deletes a refresh token.
-
-        Args:
-            token_id: The identifier of the refresh token.
-        """
-
-        __url = "/api/v1/users/tokens/{tokenId}"
-        __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
-
-        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def get_users(self) -> dict[str, NexusUser]:
         """
@@ -2361,9 +2348,9 @@ class UsersClient:
 
         return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
-    def get_refresh_tokens(self, user_id: str) -> dict[str, RefreshToken]:
+    def get_tokens(self, user_id: str) -> dict[str, PersonalAccessToken]:
         """
-        Gets all refresh tokens.
+        Gets all personal access tokens.
 
         Args:
             user_id: The identifier of the user.
@@ -2372,7 +2359,7 @@ class UsersClient:
         __url = "/api/v1/users/{userId}/tokens"
         __url = __url.replace("{userId}", quote(str(user_id), safe=""))
 
-        return self.___client._invoke(dict[str, RefreshToken], "GET", __url, "application/json", None, None)
+        return self.___client._invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
 
 class WritersClient:

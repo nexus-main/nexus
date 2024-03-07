@@ -1250,60 +1250,25 @@
         }
       }
     },
-    "/api/v1/users/tokens/refresh": {
-      "post": {
+    "/api/v1/users/tokens/delete": {
+      "delete": {
         "tags": [
           "Users"
         ],
-        "summary": "Refreshes the JWT token.",
-        "operationId": "Users_RefreshToken",
-        "requestBody": {
-          "x-name": "request",
-          "description": "The refresh token request.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefreshTokenRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "A new pair of JWT and refresh token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenPair"
-                }
-              }
-            }
+        "summary": "Deletes a personal access token.",
+        "operationId": "Users_DeleteTokenByValue",
+        "parameters": [
+          {
+            "name": "value",
+            "in": "query",
+            "required": true,
+            "description": "The personal access token to delete.",
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 1
           }
-        }
-      }
-    },
-    "/api/v1/users/tokens/revoke": {
-      "post": {
-        "tags": [
-          "Users"
         ],
-        "summary": "Revokes a refresh token.",
-        "operationId": "Users_RevokeToken",
-        "requestBody": {
-          "x-name": "request",
-          "description": "The revoke token request.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RevokeTokenRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
         "responses": {
           "200": {
             "description": "",
@@ -1340,24 +1305,14 @@
         }
       }
     },
-    "/api/v1/users/tokens/generate": {
+    "/api/v1/users/tokens/create": {
       "post": {
         "tags": [
           "Users"
         ],
-        "summary": "Generates a refresh token.",
-        "operationId": "Users_GenerateRefreshToken",
+        "summary": "Creates a personal access token.",
+        "operationId": "Users_CreateToken",
         "parameters": [
-          {
-            "name": "description",
-            "in": "query",
-            "required": true,
-            "description": "The refresh token description.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          },
           {
             "name": "userId",
             "in": "query",
@@ -1369,6 +1324,19 @@
             "x-position": 2
           }
         ],
+        "requestBody": {
+          "x-name": "request",
+          "description": "The create token request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
         "responses": {
           "200": {
             "description": "",
@@ -1376,6 +1344,41 @@
               "application/json": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/tokens/{tokenId}": {
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Deletes a personal access token.",
+        "operationId": "Users_DeleteToken",
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "description": "The identifier of the personal access token.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -1398,41 +1401,6 @@
             "description": "The catalog identifier.",
             "schema": {
               "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/tokens/{tokenId}": {
-      "delete": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Deletes a refresh token.",
-        "operationId": "Users_DeleteRefreshToken",
-        "parameters": [
-          {
-            "name": "tokenId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the refresh token.",
-            "schema": {
-              "type": "string",
-              "format": "guid"
             },
             "x-position": 1
           }
@@ -1663,8 +1631,8 @@
         "tags": [
           "Users"
         ],
-        "summary": "Gets all refresh tokens.",
-        "operationId": "Users_GetRefreshTokens",
+        "summary": "Gets all personal access tokens.",
+        "operationId": "Users_GetTokens",
         "parameters": [
           {
             "name": "userId",
@@ -1685,7 +1653,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "#/components/schemas/RefreshToken"
+                    "$ref": "#/components/schemas/PersonalAccessToken"
                   }
                 }
               }
@@ -2224,43 +2192,6 @@
           }
         }
       },
-      "TokenPair": {
-        "type": "object",
-        "description": "A token pair.",
-        "additionalProperties": false,
-        "properties": {
-          "accessToken": {
-            "type": "string",
-            "description": "The JWT token."
-          },
-          "refreshToken": {
-            "type": "string",
-            "description": "The refresh token."
-          }
-        }
-      },
-      "RefreshTokenRequest": {
-        "type": "object",
-        "description": "A refresh token request.",
-        "additionalProperties": false,
-        "properties": {
-          "refreshToken": {
-            "type": "string",
-            "description": "The refresh token."
-          }
-        }
-      },
-      "RevokeTokenRequest": {
-        "type": "object",
-        "description": "A revoke token request.",
-        "additionalProperties": false,
-        "properties": {
-          "refreshToken": {
-            "type": "string",
-            "description": "The refresh token."
-          }
-        }
-      },
       "MeResponse": {
         "type": "object",
         "description": "A me response.",
@@ -2282,11 +2213,11 @@
             "type": "boolean",
             "description": "A boolean which indicates if the user is an administrator."
           },
-          "refreshTokens": {
+          "personalAccessTokens": {
             "type": "object",
-            "description": "A list of currently present refresh tokens.",
+            "description": "A list of personal access tokens.",
             "additionalProperties": {
-              "$ref": "#/components/schemas/RefreshToken"
+              "$ref": "#/components/schemas/PersonalAccessToken"
             }
           }
         }
@@ -2302,19 +2233,64 @@
           }
         }
       },
-      "RefreshToken": {
+      "PersonalAccessToken": {
         "type": "object",
-        "description": "A refresh token.",
+        "description": "A personal access token.",
         "additionalProperties": false,
         "properties": {
+          "description": {
+            "type": "string",
+            "description": "The token description."
+          },
           "expires": {
             "type": "string",
             "description": "The date/time when the token expires.",
             "format": "date-time"
           },
+          "claims": {
+            "type": "array",
+            "description": "The claims that will be part of the token.",
+            "items": {
+              "$ref": "#/components/schemas/TokenClaim"
+            }
+          }
+        }
+      },
+      "TokenClaim": {
+        "type": "object",
+        "description": "A revoke token request.",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The claim type."
+          },
+          "value": {
+            "type": "string",
+            "description": "The claim value."
+          }
+        }
+      },
+      "CreateTokenRequest": {
+        "type": "object",
+        "description": "A revoke token request.",
+        "additionalProperties": false,
+        "properties": {
           "description": {
             "type": "string",
             "description": "The token description."
+          },
+          "expires": {
+            "type": "string",
+            "description": "The date/time when the token expires.",
+            "format": "date-time"
+          },
+          "claims": {
+            "type": "array",
+            "description": "The claims that will be part of the token.",
+            "items": {
+              "$ref": "#/components/schemas/TokenClaim"
+            }
           }
         }
       },
