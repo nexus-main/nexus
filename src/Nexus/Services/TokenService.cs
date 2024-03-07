@@ -88,9 +88,9 @@ internal class TokenService : ITokenService
 
     public Task DeleteAsync(string tokenValue)
     {
-        var splittedTokenValue = tokenValue.Split('_', count: 1);
-        var userId = splittedTokenValue[0];
-        var secret = splittedTokenValue[1];
+        var splittedTokenValue = tokenValue.Split('_', count: 2);
+        var secret = splittedTokenValue[0];
+        var userId = splittedTokenValue[1];
 
         return UpdateTokenMapAsync<object?>(userId, tokenMap =>
         {

@@ -39,9 +39,6 @@ namespace Nexus.Services
 
         Stream WriteTokenMap(
             string userId);
-
-        void DeleteTokenMap(
-            string userId);
     }
 
     internal class DatabaseService : IDatabaseService
@@ -367,15 +364,6 @@ namespace Nexus.Services
             Directory.CreateDirectory(folderPath);
 
             return File.Open(tokenFilePath, FileMode.Create, FileAccess.Write);
-        }
-
-        public void DeleteTokenMap(
-            string userId)
-        {
-            var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
-            var tokenFilePath = Path.Combine(folderPath, "tokens.json");
-
-            File.Delete(tokenFilePath);
         }
 
         //
