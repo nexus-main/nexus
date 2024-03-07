@@ -7,15 +7,9 @@ namespace Nexus.DataModel;
 /// </summary>
 public record ResourceCatalogBuilder
 {
-    #region Fields
-
     private readonly string _id;
     private Dictionary<string, JsonElement>? _properties;
     private List<Resource>? _resources;
-
-    #endregion
-
-    #region Constructors
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ResourceCatalogBuilder"/>.
@@ -25,10 +19,6 @@ public record ResourceCatalogBuilder
     {
         _id = id;
     }
-
-    #endregion
-
-    #region "Methods"
 
     /// <summary>
     /// Adds a property.
@@ -106,6 +96,4 @@ public record ResourceCatalogBuilder
     {
         return new ResourceCatalog(_id, _properties, _resources);
     }
-
-    #endregion
 }

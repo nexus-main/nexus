@@ -12,8 +12,6 @@ namespace Other;
 
 public class PackageControllerTests
 {
-    #region Constants
-
     // Need to do it this way because GitHub revokes obvious tokens on commit.
     // However, this token - in combination with the test user's account
     // privileges - allows only read-only access to a test project, so there
@@ -114,8 +112,6 @@ public class PackageControllerTests
         0x58,
         0x41
     ];
-
-    #endregion
 
     #region Load
 

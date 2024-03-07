@@ -18,8 +18,6 @@ internal interface ICatalogManager
 
 internal class CatalogManager : ICatalogManager
 {
-    #region Types
-
     record CatalogPrototype(
         CatalogRegistration Registration,
         InternalDataSourceRegistration DataSourceRegistration,
@@ -27,20 +25,12 @@ internal class CatalogManager : ICatalogManager
         CatalogMetadata Metadata,
         ClaimsPrincipal? Owner);
 
-    #endregion
-
-    #region Fields
-
     private readonly AppState _appState;
     private readonly IDataControllerService _dataControllerService;
     private readonly IDatabaseService _databaseService;
     private readonly IServiceProvider _serviceProvider;
     private readonly IExtensionHive _extensionHive;
     private readonly ILogger<CatalogManager> _logger;
-
-    #endregion
-
-    #region Constructors
 
     public CatalogManager(
         AppState appState,
@@ -57,10 +47,6 @@ internal class CatalogManager : ICatalogManager
         _extensionHive = extensionHive;
         _logger = logger;
     }
-
-    #endregion
-
-    #region Methods
 
     public async Task<CatalogContainer[]> GetCatalogContainersAsync(
         CatalogContainer parent,
@@ -317,6 +303,4 @@ internal class CatalogManager : ICatalogManager
 
         return catalogPrototypesToKeep.ToArray();
     }
-
-    #endregion
 }

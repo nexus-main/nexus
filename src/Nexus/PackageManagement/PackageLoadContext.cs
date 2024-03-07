@@ -5,22 +5,12 @@ namespace Nexus.PackageManagement;
 
 internal class PackageLoadContext : AssemblyLoadContext
 {
-    #region Fields
-
     private readonly AssemblyDependencyResolver _resolver;
-
-    #endregion
-
-    #region Constructors
 
     public PackageLoadContext(string entryDllPath) : base(isCollectible: true)
     {
         _resolver = new AssemblyDependencyResolver(entryDllPath);
     }
-
-    #endregion
-
-    #region Methods
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
@@ -41,6 +31,4 @@ internal class PackageLoadContext : AssemblyLoadContext
 
         return IntPtr.Zero;
     }
-
-    #endregion
 }

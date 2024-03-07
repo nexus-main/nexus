@@ -18,21 +18,13 @@ internal class DataController : ControllerBase
 {
     // GET      /api/data
 
-    #region Fields
-
     private readonly IDataService _dataService;
-
-    #endregion
-
-    #region Constructors
 
     public DataController(
         IDataService dataService)
     {
         _dataService = dataService;
     }
-
-    #endregion
 
     /// <summary>
     /// Gets the requested data.

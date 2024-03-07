@@ -4,17 +4,11 @@ namespace Nexus.Extensibility;
 
 internal class DataSourceDoubleStream : Stream
 {
-    #region Fields
-
     private readonly CancellationTokenSource _cts = new();
     private long _position;
     private readonly long _length;
     private readonly PipeReader _reader;
     private readonly Stream _stream;
-
-    #endregion
-
-    #region Constructors
 
     public DataSourceDoubleStream(long length, PipeReader reader)
     {
@@ -22,10 +16,6 @@ internal class DataSourceDoubleStream : Stream
         _reader = reader;
         _stream = reader.AsStream();
     }
-
-    #endregion
-
-    #region Properties
 
     public override bool CanRead => true;
 
@@ -46,10 +36,6 @@ internal class DataSourceDoubleStream : Stream
             throw new NotImplementedException();
         }
     }
-
-    #endregion
-
-    #region Methods
 
     public void Cancel()
     {
@@ -118,6 +104,4 @@ internal class DataSourceDoubleStream : Stream
     {
         _stream.Dispose();
     }
-
-    #endregion
 }

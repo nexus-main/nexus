@@ -11,14 +11,8 @@ namespace Nexus.DataModel;
 [DebuggerDisplay("{Id,nq}")]
 public record Resource
 {
-    #region Fields
-
     private string _id = default!;
     private IReadOnlyList<Representation>? _representations;
-
-    #endregion
-
-    #region Constructors
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Resource"/>.
@@ -36,10 +30,6 @@ public record Resource
         Properties = properties;
         Representations = representations;
     }
-
-    #endregion
-
-    #region Properties
 
     /// <summary>
     /// Gets a regular expression to validate a resource identifier.
@@ -105,10 +95,6 @@ public record Resource
         }
     }
 
-    #endregion
-
-    #region "Methods"
-
     internal Resource Merge(Resource resource)
     {
         if (Id != resource.Id)
@@ -143,6 +129,4 @@ public record Resource
         if (uniqueIds.Count() != representations.Count)
             throw new ArgumentException("There are multiple representations with the same identifier.");
     }
-
-    #endregion
 }

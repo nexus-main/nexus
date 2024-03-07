@@ -38,15 +38,9 @@ internal class CatalogsController : ControllerBase
     // GET      /api/catalogs/{catalogId}/metadata
     // PUT      /api/catalogs/{catalogId}/metadata
 
-    #region Fields
-
     private readonly AppState _appState;
     private readonly IDatabaseService _databaseService;
     private readonly IDataControllerService _dataControllerService;
-
-    #endregion
-
-    #region Constructors
 
     public CatalogsController(
         AppState appState,
@@ -57,10 +51,6 @@ internal class CatalogsController : ControllerBase
         _databaseService = databaseService;
         _dataControllerService = dataControllerService;
     }
-
-    #endregion
-
-    #region Methods
 
     /// <summary>
     /// Searches for the given resource paths and returns the corresponding catalog items.
@@ -577,6 +567,4 @@ internal class CatalogsController : ControllerBase
             return NotFound(catalogId);
         }
     }
-
-    #endregion
 }

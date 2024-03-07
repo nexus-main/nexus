@@ -8,8 +8,6 @@ namespace Nexus.Extensibility;
 /// </summary>
 public abstract class SimpleDataSource : IDataSource
 {
-    #region Properties
-
     /// <summary>
     /// Gets the data source context. This property is not accessible from within class constructors as it will bet set later.
     /// </summary>
@@ -19,10 +17,6 @@ public abstract class SimpleDataSource : IDataSource
     /// Gets the data logger. This property is not accessible from within class constructors as it will bet set later.
     /// </summary>
     protected ILogger Logger { get; private set; } = default!;
-
-    #endregion
-
-    #region Methods
 
     /// <inheritdoc />
     public Task SetContextAsync(
@@ -72,6 +66,4 @@ public abstract class SimpleDataSource : IDataSource
         ReadDataHandler readData,
         IProgress<double> progress,
         CancellationToken cancellationToken);
-
-    #endregion
 }

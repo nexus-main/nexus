@@ -47,16 +47,10 @@ internal class UsersController : ControllerBase
 
     // GET      /api/users/{userId}/tokens
 
-    #region Fields
-
     private readonly IDBService _dbService;
     private readonly ITokenService _tokenService;
     private readonly SecurityOptions _securityOptions;
     private readonly ILogger<UsersController> _logger;
-
-    #endregion
-
-    #region Constructors
 
     public UsersController(
         IDBService dBService,
@@ -69,8 +63,6 @@ internal class UsersController : ControllerBase
         _securityOptions = securityOptions.Value;
         _logger = logger;
     }
-
-    #endregion
 
     #region Anonymous
 

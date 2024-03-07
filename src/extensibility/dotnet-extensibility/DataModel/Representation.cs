@@ -11,16 +11,10 @@ namespace Nexus.DataModel;
 [DebuggerDisplay("{Id,nq}")]
 public record Representation
 {
-    #region Fields
-
     private static readonly Regex _snakeCaseEvaluator = new("(?<=[a-z])([A-Z])", RegexOptions.Compiled);
     private static readonly HashSet<NexusDataType> _nexusDataTypeValues = new(Enum.GetValues<NexusDataType>());
 
     private IReadOnlyDictionary<string, JsonElement>? _parameters;
-
-    #endregion
-
-    #region Constructors
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Representation"/>.
@@ -75,10 +69,6 @@ public record Representation
         }
     }
 
-    #endregion
-
-    #region Properties
-
     /// <summary>
     /// The identifer of the representation. It is constructed using the sample period.
     /// </summary>
@@ -127,10 +117,6 @@ public record Representation
     [JsonIgnore]
     public int ElementSize => ((int)DataType & 0xFF) >> 3;
 
-    #endregion
-
-    #region "Methods"
-
     internal Representation DeepCopy()
     {
         return new Representation(
@@ -150,6 +136,4 @@ public record Representation
                 throw new Exception("The representation argument identifier is not valid.");
         }
     }
-
-    #endregion
 }

@@ -31,17 +31,11 @@ internal interface IExtensionHive
 
 internal class ExtensionHive : IExtensionHive
 {
-    #region Fields
-
     private readonly ILogger<ExtensionHive> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly PathsOptions _pathsOptions;
 
     private Dictionary<PackageController, ReadOnlyCollection<Type>>? _packageControllerMap = default!;
-
-    #endregion
-
-    #region Constructors
 
     public ExtensionHive(
         IOptions<PathsOptions> pathsOptions,
@@ -52,10 +46,6 @@ internal class ExtensionHive : IExtensionHive
         _loggerFactory = loggerFactory;
         _pathsOptions = pathsOptions.Value;
     }
-
-    #endregion
-
-    #region Methods
 
     public async Task LoadPackagesAsync(
         IEnumerable<InternalPackageReference> packageReferences,
@@ -221,6 +211,4 @@ internal class ExtensionHive : IExtensionHive
 
         return foundTypes;
     }
-
-    #endregion
 }

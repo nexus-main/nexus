@@ -10,19 +10,17 @@ namespace Nexus.Sources;
     "https://github.com/malstroem-labs/nexus/blob/master/src/Nexus/Extensions/Sources/Sample.cs")]
 internal class Sample : IDataSource
 {
-    #region Fields
-
     public static Guid RegistrationId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
 
-    private static readonly double[] DATA = new double[]
-    {
+    private static readonly double[] DATA =
+    [
         6.5, 6.7, 7.9, 8.1, 7.5, 7.6, 7.0, 6.5, 6.0, 5.9,
         5.8, 5.2, 4.6, 5.0, 5.1, 4.9, 5.3, 5.8, 5.9, 6.1,
         5.9, 6.3, 6.5, 6.9, 7.1, 6.9, 7.1, 7.2, 7.6, 7.9,
         8.2, 8.1, 8.2, 8.0, 7.5, 7.7, 7.6, 8.0, 7.5, 7.2,
         6.8, 6.5, 6.6, 6.6, 6.7, 6.2, 5.9, 5.7, 5.9, 6.3,
         6.6, 6.7, 6.9, 6.5, 6.0, 5.8, 5.3, 5.8, 6.1, 6.8
-    };
+    ];
 
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
     public const string RemoteCatalogId = "/SAMPLE/REMOTE";
@@ -33,15 +31,7 @@ internal class Sample : IDataSource
     public const string RemoteUsername = "test";
     public const string RemotePassword = "1234";
 
-    #endregion
-
-    #region Properties
-
     private DataSourceContext Context { get; set; } = default!;
-
-    #endregion
-
-    #region Methods
 
     public Task SetContextAsync(
         DataSourceContext context,
@@ -229,6 +219,4 @@ As soon as these credentials have been added, you should be granted full access 
     {
         return value.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
     }
-
-    #endregion
 }

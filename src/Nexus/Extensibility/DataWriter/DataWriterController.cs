@@ -26,8 +26,6 @@ internal interface IDataWriterController : IDisposable
 
 internal class DataWriterController : IDataWriterController
 {
-    #region Constructors
-
     public DataWriterController(
         IDataWriter dataWriter,
         Uri resourceLocator,
@@ -42,10 +40,6 @@ internal class DataWriterController : IDataWriterController
         Logger = logger;
     }
 
-    #endregion
-
-    #region Properties
-
     private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; }
 
     private IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; }
@@ -55,10 +49,6 @@ internal class DataWriterController : IDataWriterController
     private Uri ResourceLocator { get; }
 
     private ILogger Logger { get; }
-
-    #endregion
-
-    #region Methods
 
     public async Task InitializeAsync(
         ILogger logger,
@@ -248,10 +238,6 @@ internal class DataWriterController : IDataWriterController
             throw new ValidationException("The file period parameter must be a multiple of the sample period.");
     }
 
-    #endregion
-
-    #region IDisposable
-
     private bool _disposedValue;
 
     protected virtual void Dispose(bool disposing)
@@ -273,6 +259,4 @@ internal class DataWriterController : IDataWriterController
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
-
-    #endregion
 }

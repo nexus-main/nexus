@@ -24,15 +24,9 @@ internal class SystemController : ControllerBase
     // [privileged]
     // PUT      /api/system/configuration
 
-    #region Fields
-
     private readonly AppState _appState;
     private readonly AppStateManager _appStateManager;
     private readonly GeneralOptions _generalOptions;
-
-    #endregion
-
-    #region Constructors
 
     public SystemController(
         AppState appState,
@@ -43,10 +37,6 @@ internal class SystemController : ControllerBase
         _appState = appState;
         _appStateManager = appStateManager;
     }
-
-    #endregion
-
-    #region Methods
 
     /// <summary>
     /// Gets the default file type.
@@ -84,6 +74,4 @@ internal class SystemController : ControllerBase
     {
         return _appStateManager.PutSystemConfigurationAsync(configuration);
     }
-
-    #endregion
 }

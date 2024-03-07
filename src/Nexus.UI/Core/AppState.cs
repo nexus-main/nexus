@@ -11,13 +11,7 @@ namespace Nexus.UI.Core;
 
 public class AppState : INotifyPropertyChanged
 {
-    #region Events
-
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    #endregion
-
-    #region Fields
 
     private ResourceCatalogViewModel? _selectedCatalog;
     private ViewState _viewState = ViewState.Normal;
@@ -30,10 +24,6 @@ public class AppState : INotifyPropertyChanged
     private const string GROUP_KEY = "groups";
     private readonly IJSInProcessRuntime _jsRuntime;
     private IDisposable? _requestConfiguration;
-
-    #endregion
-
-    #region Constructors
 
     public AppState(
         bool isDemo,
@@ -87,10 +77,6 @@ public class AppState : INotifyPropertyChanged
         if (isDemo)
             BeginAtZero = true;
     }
-
-    #endregion
-
-    #region Properties
 
     public bool IsDemo { get; }
 
@@ -195,10 +181,6 @@ public class AppState : INotifyPropertyChanged
     }
 
     public ObservableCollection<JobViewModel> Jobs { get; set; } = new ObservableCollection<JobViewModel>();
-
-    #endregion
-
-    #region Methods
 
     public void AddJob(JobViewModel job)
     {
@@ -415,6 +397,4 @@ public class AppState : INotifyPropertyChanged
     {
         _jsRuntime.InvokeVoid("nexus.util.clearSetting", Constants.REQUEST_CONFIGURATION_KEY);
     }
-
-    #endregion
 }

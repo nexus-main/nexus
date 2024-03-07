@@ -14,8 +14,6 @@ namespace Nexus.PackageManagement;
 
 internal partial class PackageController
 {
-    #region Fields
-
     public static Guid BUILTIN_ID = new("97d297d2-df6f-4c85-9d07-86bc64a041a6");
     public const string BUILTIN_PROVIDER = "nexus";
 
@@ -27,25 +25,13 @@ internal partial class PackageController
     private readonly ILogger _logger;
     private PackageLoadContext? _loadContext;
 
-    #endregion
-
-    #region Constructors
-
     public PackageController(InternalPackageReference packageReference, ILogger<PackageController> logger)
     {
         PackageReference = packageReference;
         _logger = logger;
     }
 
-    #endregion
-
-    #region Properties
-
     public InternalPackageReference PackageReference { get; }
-
-    #endregion
-
-    #region Methods
 
     public async Task<string[]> DiscoverAsync(CancellationToken cancellationToken)
     {
@@ -207,8 +193,6 @@ internal partial class PackageController
             throw new Exception("Only assets of type .zip or .tar.gz are supported.");
         }
     }
-
-    #endregion
 
     #region local
 

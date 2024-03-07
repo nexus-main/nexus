@@ -9,15 +9,9 @@ namespace Nexus.DataModel;
 [DebuggerDisplay("{Id,nq}")]
 public record ResourceBuilder
 {
-    #region Fields
-
     private readonly string _id;
     private Dictionary<string, JsonElement>? _properties;
     private List<Representation>? _representations;
-
-    #endregion
-
-    #region Constructors
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ResourceBuilder"/>.
@@ -27,10 +21,6 @@ public record ResourceBuilder
     {
         _id = id;
     }
-
-    #endregion
-
-    #region "Methods"
 
     /// <summary>
     /// Adds a property.
@@ -93,6 +83,4 @@ public record ResourceBuilder
     {
         return new Resource(_id, _properties, _representations);
     }
-
-    #endregion
 }

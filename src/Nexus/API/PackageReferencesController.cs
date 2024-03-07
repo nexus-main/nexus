@@ -19,15 +19,9 @@ internal class PackageReferencesController : ControllerBase
     // DELETE   /api/packagereferences/{packageReferenceId}
     // GET      /api/packagereferences/{packageReferenceId}/versions
 
-    #region Fields
-
     private readonly AppState _appState;
     private readonly AppStateManager _appStateManager;
     private readonly IExtensionHive _extensionHive;
-
-    #endregion
-
-    #region Constructors
 
     public PackageReferencesController(
         AppState appState,
@@ -38,10 +32,6 @@ internal class PackageReferencesController : ControllerBase
         _appStateManager = appStateManager;
         _extensionHive = extensionHive;
     }
-
-    #endregion
-
-    #region Methods
 
     /// <summary>
     /// Gets the list of package references.
@@ -105,6 +95,4 @@ internal class PackageReferencesController : ControllerBase
 
         return result;
     }
-
-    #endregion
 }

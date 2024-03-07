@@ -24,17 +24,11 @@ internal class JobsController : ControllerBase
     // POST     /jobs/load-packages
     // POST     /jobs/clear-cache
 
-    #region Fields
-
     private readonly AppStateManager _appStateManager;
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly Serilog.IDiagnosticContext _diagnosticContext;
     private readonly IJobService _jobService;
-
-    #endregion
-
-    #region Constructors
 
     public JobsController(
         AppStateManager appStateManager,
@@ -49,8 +43,6 @@ internal class JobsController : ControllerBase
         _diagnosticContext = diagnosticContext;
         _logger = logger;
     }
-
-    #endregion
 
     #region Jobs Management
 

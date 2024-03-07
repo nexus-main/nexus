@@ -9,18 +9,12 @@ namespace Nexus.Services;
 
 internal class AppStateManager
 {
-    #region Fields
-
     private readonly IExtensionHive _extensionHive;
     private readonly ICatalogManager _catalogManager;
     private readonly IDatabaseService _databaseService;
     private readonly ILogger<AppStateManager> _logger;
     private readonly SemaphoreSlim _refreshDatabaseSemaphore = new(initialCount: 1, maxCount: 1);
     private readonly SemaphoreSlim _projectSemaphore = new(initialCount: 1, maxCount: 1);
-
-    #endregion
-
-    #region Constructors
 
     public AppStateManager(
         AppState appState,
@@ -36,15 +30,7 @@ internal class AppStateManager
         _logger = logger;
     }
 
-    #endregion
-
-    #region Properties
-
     public AppState AppState { get; }
-
-    #endregion
-
-    #region Methods
 
     public async Task RefreshDatabaseAsync(
         IProgress<double> progress,
@@ -308,6 +294,4 @@ internal class AppStateManager
         using var stream = _databaseService.WriteProject();
         await JsonSerializerHelper.SerializeIndentedAsync(stream, project);
     }
-
-    #endregion
 }

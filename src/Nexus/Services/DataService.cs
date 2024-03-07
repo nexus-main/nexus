@@ -36,8 +36,6 @@ internal interface IDataService
 
 internal class DataService : IDataService
 {
-    #region Fields
-
     private readonly AppState _appState;
     private readonly IMemoryTracker _memoryTracker;
     private readonly ClaimsPrincipal _user;
@@ -45,10 +43,6 @@ internal class DataService : IDataService
     private readonly ILoggerFactory _loggerFactory;
     private readonly IDatabaseService _databaseService;
     private readonly IDataControllerService _dataControllerService;
-
-    #endregion
-
-    #region Constructors
 
     public DataService(
         AppState appState,
@@ -71,17 +65,9 @@ internal class DataService : IDataService
         WriteProgress = new Progress<double>();
     }
 
-    #endregion
-
-    #region Properties
-
     public Progress<double> ReadProgress { get; }
 
     public Progress<double> WriteProgress { get; }
-
-    #endregion
-
-    #region Methods
 
     public async Task<Stream> ReadAsStreamAsync(
        string resourcePath,
@@ -395,6 +381,4 @@ internal class DataService : IDataService
             //
         }
     }
-
-    #endregion
 }

@@ -9,8 +9,6 @@ namespace Nexus.UI.Charts;
 
 public partial class Chart : IDisposable
 {
-    #region Fields
-
     private SKGLView _skiaView = default!;
     private readonly string _chartId = Guid.NewGuid().ToString();
     private Dictionary<AxisInfo, LineSeries[]> _axesMap = default!;
@@ -40,7 +38,7 @@ public partial class Chart : IDisposable
     private const float AXIS_MARGIN_RIGHT = 5;
     private const float HALF_LINE_HEIGHT = 3.5f;
 
-    private readonly int[] _factors = new int[] { 2, 5, 10, 20, 50 };
+    private readonly int[] _factors = [2, 5, 10, 20, 50];
 
     /* Time-Axis */
     private const float TIME_AXIS_MARGIN_TOP = 15;
@@ -51,10 +49,6 @@ public partial class Chart : IDisposable
     /* Others */
     private bool _beginAtZero;
     private readonly SKColor[] _colors;
-
-    #endregion
-
-    #region Constructors
 
     public Chart()
     {
@@ -122,10 +116,6 @@ public partial class Chart : IDisposable
         };
     }
 
-    #endregion
-
-    #region Properties
-
     [Inject]
     public TypeFaceService TypeFaceService { get; set; } = default!;
 
@@ -159,10 +149,6 @@ public partial class Chart : IDisposable
             }
         }
     }
-
-    #endregion
-
-    #region Callbacks
 
     protected override void OnInitialized()
     {
@@ -275,8 +261,6 @@ public partial class Chart : IDisposable
         series.Show = !series.Show;
         _skiaView.Invalidate();
     }
-
-    #endregion
 
     #region Draw
 

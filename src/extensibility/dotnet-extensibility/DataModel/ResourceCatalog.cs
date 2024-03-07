@@ -13,14 +13,8 @@ namespace Nexus.DataModel;
 [DebuggerDisplay("{Id,nq}")]
 public record ResourceCatalog
 {
-    #region Fields
-
     private string _id = default!;
     private IReadOnlyList<Resource>? _resources;
-
-    #endregion
-
-    #region Constructors
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ResourceCatalog"/>.
@@ -38,10 +32,6 @@ public record ResourceCatalog
         Properties = properties;
         Resources = resources;
     }
-
-    #endregion
-
-    #region Properties
 
     /// <summary>
     /// Gets a regular expression to validate a resource catalog identifier.
@@ -96,10 +86,6 @@ public record ResourceCatalog
             _resources = value;
         }
     }
-
-    #endregion
-
-    #region "Methods"
 
     /// <summary>
     /// Merges another catalog with this instance.
@@ -216,6 +202,4 @@ public record ResourceCatalog
         if (uniqueIds.Count() != resources.Count)
             throw new ArgumentException("There are multiple resources with the same identifier.");
     }
-
-    #endregion
 }

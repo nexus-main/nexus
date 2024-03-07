@@ -21,15 +21,9 @@ internal interface IJobService
 
 internal class JobService : IJobService
 {
-    #region Fields
-
     private readonly Timer _timer;
 
     private readonly ConcurrentDictionary<Guid, JobControl> _jobs = new();
-
-    #endregion
-
-    #region Constructors
 
     public JobService()
     {
@@ -57,10 +51,6 @@ internal class JobService : IJobService
             }
         };
     }
-
-    #endregion
-
-    #region Methods
 
     public JobControl AddJob(
         Job job,
@@ -119,6 +109,4 @@ internal class JobService : IJobService
             .Select(entry => entry.Value)
             .ToList();
     }
-
-    #endregion
 }

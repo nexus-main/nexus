@@ -8,21 +8,13 @@ namespace Nexus.UI.ViewModels;
 
 public class SettingsViewModel : INotifyPropertyChanged
 {
-    #region Events
-
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    #endregion
-
-    #region Fields
 
     private TimeSpan _samplePeriod = TimeSpan.FromSeconds(1);
     private readonly AppState _appState;
     private readonly INexusClient _client;
     private readonly IJSInProcessRuntime _jsRuntime;
     private List<CatalogItemSelectionViewModel> _selectedCatalogItems = new();
-
-    #endregion
 
     public SettingsViewModel(AppState appState, IJSInProcessRuntime jsRuntime, INexusClient client)
     {
@@ -33,7 +25,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         InitializeTask = new Lazy<Task>(InitializeAsync);
     }
 
-    private string DefaultFileType { get; set; }
+    private string DefaultFileType { get; set; } = default!;
 
     public DateTime Begin
     {

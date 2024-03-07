@@ -15,23 +15,13 @@ internal class ArtifactsController : ControllerBase
 {
     // GET      /api/artifacts/{artifactId}
 
-    #region Fields
-
     public IDatabaseService _databaseService;
-
-    #endregion
-
-    #region Constructors
 
     public ArtifactsController(
         IDatabaseService databaseService)
     {
         _databaseService = databaseService;
     }
-
-    #endregion
-
-    #region Methods
 
     /// <summary>
     /// Gets the specified artifact.
@@ -53,6 +43,4 @@ internal class ArtifactsController : ControllerBase
             return NotFound($"Could not find artifact {artifactId}.");
         }
     }
-
-    #endregion
 }

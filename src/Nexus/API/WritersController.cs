@@ -15,23 +15,13 @@ internal class WritersController : ControllerBase
 {
     // GET      /api/writers/descriptions
 
-    #region Fields
-
     private readonly AppState _appState;
-
-    #endregion
-
-    #region Constructors
 
     public WritersController(
         AppState appState)
     {
         _appState = appState;
     }
-
-    #endregion
-
-    #region Methods
 
     /// <summary>
     /// Gets the list of writer descriptions.
@@ -41,6 +31,4 @@ internal class WritersController : ControllerBase
     {
         return _appState.DataWriterDescriptions;
     }
-
-    #endregion
 }

@@ -23,8 +23,6 @@ namespace Nexus.Writers;
     "https://github.com/malstroem-labs/nexus/blob/master/src/Nexus/Extensions/Writers/Csv.cs")]
 internal class Csv : IDataWriter, IDisposable
 {
-    #region "Fields"
-
     private const string DESCRIPTION = """
     {
         "label":"CSV + Schema (*.csv)",
@@ -73,15 +71,7 @@ internal class Csv : IDataWriter, IDisposable
     private TimeSpan _lastSamplePeriod;
     private readonly Dictionary<string, CsvResource> _resourceMap = new();
 
-    #endregion
-
-    #region Properties
-
     private DataWriterContext Context { get; set; } = default!;
-
-    #endregion
-
-    #region "Methods"
 
     public Task SetContextAsync(
         DataWriterContext context,
@@ -328,10 +318,6 @@ internal class Csv : IDataWriter, IDisposable
         return dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH-mm-ssZ");
     }
 
-    #endregion
-
-    #region IDisposable
-
     private bool _disposedValue;
 
     protected virtual void Dispose(bool disposing)
@@ -356,6 +342,4 @@ internal class Csv : IDataWriter, IDisposable
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
-
-    #endregion
 }

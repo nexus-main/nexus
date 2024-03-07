@@ -55,16 +55,10 @@ internal interface IDataSourceController : IDisposable
 
 internal class DataSourceController : IDataSourceController
 {
-    #region Fields
-
     private readonly IProcessingService _processingService;
     private readonly ICacheService _cacheService;
     private readonly DataOptions _dataOptions;
     private ConcurrentDictionary<string, ResourceCatalog> _catalogCache = default!;
-
-    #endregion
-
-    #region Constructors
 
     public DataSourceController(
         IDataSource dataSource,
@@ -87,10 +81,6 @@ internal class DataSourceController : IDataSourceController
         _dataOptions = dataOptions;
     }
 
-    #endregion
-
-    #region Properties
-
     private IDataSource DataSource { get; }
 
     private InternalDataSourceRegistration DataSourceRegistration { get; }
@@ -100,10 +90,6 @@ internal class DataSourceController : IDataSourceController
     internal IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; }
 
     private ILogger Logger { get; }
-
-    #endregion
-
-    #region Methods
 
     public async Task InitializeAsync(
         ConcurrentDictionary<string, ResourceCatalog> catalogCache,
@@ -796,10 +782,6 @@ internal class DataSourceController : IDataSourceController
         return readUnits.ToArray();
     }
 
-    #endregion
-
-    #region Static Methods
-
     public static async Task ReadAsync(
         DateTime begin,
         DateTime end,
@@ -1081,10 +1063,6 @@ internal class DataSourceController : IDataSourceController
             throw new ValidationException("The end parameter must be a multiple of the sample period.");
     }
 
-    #endregion
-
-    #region IDisposable
-
     private bool _disposedValue;
 
     protected virtual void Dispose(bool disposing)
@@ -1106,6 +1084,4 @@ internal class DataSourceController : IDataSourceController
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
-
-    #endregion
 }

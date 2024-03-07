@@ -24,15 +24,9 @@ internal class SourcesController : ControllerBase
     // POST     /api/sources/registrations
     // DELETE   /api/sources/registrations/{registrationId}
 
-    #region Fields
-
     private readonly AppState _appState;
     private readonly AppStateManager _appStateManager;
     private readonly IExtensionHive _extensionHive;
-
-    #endregion
-
-    #region Constructors
 
     public SourcesController(
         AppState appState,
@@ -43,8 +37,6 @@ internal class SourcesController : ControllerBase
         _appStateManager = appStateManager;
         _extensionHive = extensionHive;
     }
-
-    #endregion
 
     /// <summary>
     /// Gets the list of source descriptions.
