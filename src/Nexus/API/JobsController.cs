@@ -167,7 +167,7 @@ namespace Nexus.Controllers
             ExportParameters parameters,
             CancellationToken cancellationToken)
         {
-            _diagnosticContext.Set("Body", JsonSerializerHelper.SerializeIntended(parameters));
+            _diagnosticContext.Set("Body", JsonSerializerHelper.SerializeIndented(parameters));
 
             parameters = parameters with
             {

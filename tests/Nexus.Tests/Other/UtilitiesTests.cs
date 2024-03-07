@@ -213,7 +213,7 @@ namespace Other
             var expected = new MyType(A: 1, B: "Two", C: TimeSpan.FromSeconds(1));
 
             // Act
-            var jsonString = JsonSerializerHelper.SerializeIntended(expected);
+            var jsonString = JsonSerializerHelper.SerializeIndented(expected);
             var actual = JsonSerializer.Deserialize<MyType>(jsonString);
 
             // Assert

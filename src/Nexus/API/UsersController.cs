@@ -134,17 +134,7 @@ namespace Nexus.Controllers
         public async Task<ActionResult> DeleteTokenByValueAsync(
             [BindRequired] string value)
         {
-            // get token
-            // var internalRefreshToken = InternalRefreshToken.Deserialize();
-            // var token = await _dbService.FindRefreshTokenAsync(internalRefreshToken.Id, includeUserClaims: false);
-
-            // if (token is null)
-            //     return NotFound("Token not found.");
-
-            // // revoke token
-            // await _authService
-            //     .RevokeTokenAsync(token);
-
+            await _tokenService.DeleteAsync(value);
             return Ok();
         }
 
@@ -194,16 +184,31 @@ namespace Nexus.Controllers
                 if (user is null)
                     return NotFound($"Could not find user {userId}.");
 
-                // var refreshToken = await _authService.GenerateRefreshTokenAsync(user, description);
+                await _tokenService
+                    .CreateAsync(actualUserId, request.Description, request.Expires, request.Claims);
 
-                // return Ok(refreshToken);
-                throw new Exception();
+                return Ok();
             }
 
             else
             {
                 return response;
             }
+        }
+
+        /// <summary>
+        /// Deletes a personal access token.
+        /// </summary>
+        /// <param name="tokenId">The identifier of the personal access token.</param>
+        [HttpDelete("tokens/{tokenId}")]
+        public async Task<ActionResult> DeleteTokenAsync(
+            Guid tokenId)
+        {
+            var userId = User.FindFirst(Claims.Subject)!.Value;
+
+            await _tokenService.DeleteAsync(userId, tokenId);
+
+            return Ok();
         }
 
         /// <summary>
@@ -242,28 +247,6 @@ namespace Nexus.Controllers
             var redirectUrl = "/catalogs/" + WebUtility.UrlEncode(catalogId);
 
             return Redirect(redirectUrl);
-        }
-
-        /// <summary>
-        /// Deletes a personal access token.
-        /// </summary>
-        /// <param name="tokenId">The identifier of the personal access token.</param>
-        [HttpDelete("tokens/{tokenId}")]
-        public async Task<ActionResult> DeleteTokenAsync(
-            Guid tokenId)
-        {
-            // // TODO: Is this thread safe? Maybe yes, because of scoped EF context.
-
-            // var token = await _dbService.FindRefreshTokenAsync(tokenId, includeUserClaims: true);
-
-            // if (token is null)
-            //     return NotFound($"Could not find refresh token {tokenId}.");
-
-            // token.Owner.RefreshTokens.Remove(token);
-
-            // await _dbService.SaveChangesAsync();
-
-            return Ok();
         }
 
         #endregion
@@ -389,7 +372,7 @@ namespace Nexus.Controllers
         /// <param name="userId">The identifier of the user.</param>
         [Authorize(Policy = NexusPolicies.RequireAdmin)]
         [HttpGet("{userId}/tokens")]
-        public async Task<ActionResult<IReadOnlyList<PersonalAccessToken>>> GetPersonalAccessTokensAsync(
+        public async Task<ActionResult<IReadOnlyList<PersonalAccessToken>>> GetTokensAsync(
             string userId)
         {
             var user = await _dbService.FindUserAsync(userId);
@@ -397,8 +380,16 @@ namespace Nexus.Controllers
             if (user is null)
                 return NotFound($"Could not find user {userId}.");
 
-            // return Ok(user.RefreshTokens.ToDictionary(token => token.Id, token => token));
-            throw new Exception();
+            var tokenMap = await _tokenService.GetAllAsync(userId);
+
+            var translatedTokenMap = tokenMap
+                .ToDictionary(entry => entry.Key, entry => new PersonalAccessToken(
+                    entry.Value.Description,
+                    entry.Value.Expires,
+                    entry.Value.Claims
+                ));
+
+            return Ok(translatedTokenMap);
         }
 
         private bool TryAuthenticate(
@@ -413,7 +404,7 @@ namespace Nexus.Controllers
                 response = null;
 
             else
-                response = StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to get source registrations of user {requestedId}.");
+                response = StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to perform the operation for user {requestedId}.");
 
             userId = requestedId is null
                 ? currentId

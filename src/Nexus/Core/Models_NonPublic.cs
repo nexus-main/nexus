@@ -7,10 +7,9 @@ namespace Nexus.Core
 {
     internal record InternalPersonalAccessToken (
         Guid Id,
-        byte[] Secret,
         string Description,
         DateTime Expires,
-        IDictionary<string, string> Claims);
+        IReadOnlyList<TokenClaim> Claims);
         
     internal record struct Interval(
         DateTime Begin,

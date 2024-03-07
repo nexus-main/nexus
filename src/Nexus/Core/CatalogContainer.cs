@@ -120,7 +120,7 @@ namespace Nexus.Core
             {
                 // persist
                 using var stream = _databaseService.WriteCatalogMetadata(Id);
-                await JsonSerializerHelper.SerializeIntendedAsync(stream, metadata);
+                await JsonSerializerHelper.SerializeIndentedAsync(stream, metadata);
 
                 // assign
                 Metadata = metadata;

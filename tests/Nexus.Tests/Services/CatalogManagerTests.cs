@@ -275,8 +275,8 @@ namespace Services
             var lazyCatalogInfo = await catalogContainer.GetLazyCatalogInfoAsync(CancellationToken.None);
 
             // Assert
-            var actualJsonString = JsonSerializerHelper.SerializeIntended(lazyCatalogInfo.Catalog);
-            var expectedJsonString = JsonSerializerHelper.SerializeIntended(expectedCatalog);
+            var actualJsonString = JsonSerializerHelper.SerializeIndented(lazyCatalogInfo.Catalog);
+            var expectedJsonString = JsonSerializerHelper.SerializeIndented(expectedCatalog);
 
             Assert.Equal(actualJsonString, expectedJsonString);
             Assert.Equal(new DateTime(2020, 01, 01), lazyCatalogInfo.Begin);

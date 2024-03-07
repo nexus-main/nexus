@@ -1,0 +1,78 @@
+using System.Text.Json;
+using Moq;
+using Nexus.Core;
+using Nexus.Services;
+using Xunit;
+
+namespace Services;
+
+public class TokenServiceTests
+{
+    delegate bool GobbleReturns(string userId, out string tokenMap);
+
+    [Fact]
+    public async Task CanCreateToken()
+    {
+        // Arrange
+        var databaseService = Mock.Of<IDatabaseService>();
+
+        Mock.Get(databaseService)
+            .Setup(databaseService => databaseService.TryReadTokenMap(It.IsAny<string>(), out It.Ref<string?>.IsAny))
+            .Returns(new GobbleReturns((string userId, out string tokenMap) =>
+            {
+                tokenMap = JsonSerializer.Serialize(new Dictionary<string, string>());
+                return true;
+            }));
+
+        var filePath = Path.GetTempFileName();
+
+        Mock.Get(databaseService)
+            .Setup(databaseService => databaseService.WriteTokenMap(It.IsAny<string>()))
+            .Returns(File.OpenWrite(filePath));
+
+        var tokenService = new TokenService(databaseService);
+
+        // Act
+        var description = "The description.";
+        var expires = new DateTime(2020, 01, 01);
+        var claim1Type = "claim1";
+        var claim1Value = "value1";
+        var claim2Type = "claim2";
+        var claim2Value = "value2";
+
+        await tokenService.CreateAsync(
+            userId: "starlord",
+            description,
+            expires,
+            new List<TokenClaim>
+            {
+                new TokenClaim(claim1Type, claim1Value),
+                new TokenClaim(claim2Type, claim2Value),
+            }
+        );
+
+        // Assert
+        var jsonString = File.ReadAllText(filePath);
+        var actualTokenMap = JsonSerializer.Deserialize<Dictionary<string, InternalPersonalAccessToken>>(jsonString)!;
+
+        Assert.Collection(
+            actualTokenMap, 
+            entry1 => 
+            {
+                Assert.Equal(description, entry1.Value.Description);
+                Assert.Equal(expires, entry1.Value.Expires);
+
+                Assert.Collection(entry1.Value.Claims, 
+                    entry1_1 =>
+                    {
+                        Assert.Equal(claim1Type, entry1_1.Type);
+                        Assert.Equal(claim1Value, entry1_1.Value);
+                    },
+                    entry1_2 =>
+                    {
+                        Assert.Equal(claim2Type, entry1_2.Type);
+                        Assert.Equal(claim2Value, entry1_2.Value);
+                    });
+            });
+    }
+}

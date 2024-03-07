@@ -13,12 +13,17 @@ namespace Nexus.Utilities
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
 
-        public static string SerializeIntended<T>(T value)
+        public static string SerializeIndented<T>(T value)
         {
             return JsonSerializer.Serialize(value, _options);
         }
 
-        public static Task SerializeIntendedAsync<T>(Stream utf8Json, T value)
+        public static void SerializeIndented<T>(Stream utf8Json, T value)
+        {
+            JsonSerializer.Serialize(utf8Json, value, _options);
+        }
+
+        public static Task SerializeIndentedAsync<T>(Stream utf8Json, T value)
         {
             return JsonSerializer.SerializeAsync(utf8Json, value, _options);
         }

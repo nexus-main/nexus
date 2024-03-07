@@ -33,10 +33,15 @@ namespace Nexus.Services
         Task ClearCacheEntriesAsync(string catalogId, DateOnly day, TimeSpan timeout, Predicate<string> predicate);
 
         /* /users */
-        IEnumerable<string> EnumerateTokens(string userId);
-        bool TryReadToken(string userId, string tokenId, [NotNullWhen(true)] out string? token);
-        Stream WriteToken(string userId, string tokenId);
-        void DeleteToken(string userId, string tokenId);
+        bool TryReadTokenMap(
+            string userId, 
+            [NotNullWhen(true)] out string? tokenMap);
+
+        Stream WriteTokenMap(
+            string userId);
+
+        void DeleteTokenMap(
+            string userId);
     }
 
     internal class DatabaseService : IDatabaseService
@@ -335,53 +340,45 @@ namespace Nexus.Services
         }
 
         /* /users */
-        public IEnumerable<string> EnumerateTokens(string userId)
-        {
-            var tokensFolder = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
-
-            if (Directory.Exists(tokensFolder))
-                return Directory
-                    .EnumerateFiles(tokensFolder, "*", SearchOption.AllDirectories)
-                    .Select(tokenFilePath => tokenFilePath[(tokensFolder.Length + 1)..]);
-
-            else
-                return Enumerable.Empty<string>();
-        }
-
-        public bool TryReadToken(string userId, string tokenId, [NotNullWhen(true)] out string? token)
+        public bool TryReadTokenMap(
+            string userId, 
+            [NotNullWhen(true)] out string? tokenMap)
         {
             var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
-            var tokenFilePath = Path.Combine(folderPath, $"{tokenId}.json");
+            var tokenFilePath = Path.Combine(folderPath, "tokens.json");
 
-            token = default;
+            tokenMap = default;
 
             if (File.Exists(tokenFilePath))
             {
-                token = File.ReadAllText(tokenFilePath);
+                tokenMap = File.ReadAllText(tokenFilePath);
                 return true;
             }
 
             return false;
         }
 
-        public Stream WriteToken(string userId, string tokenId)
+        public Stream WriteTokenMap(
+            string userId)
         {
             var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
-            var tokenFilePath = Path.Combine(folderPath, $"{tokenId}.json");
+            var tokenFilePath = Path.Combine(folderPath, "tokens.json");
 
             Directory.CreateDirectory(folderPath);
 
             return File.Open(tokenFilePath, FileMode.Create, FileAccess.Write);
         }
 
-        public void DeleteToken(string userId, string tokenId)
+        public void DeleteTokenMap(
+            string userId)
         {
             var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
-            var tokenFilePath = Path.Combine(folderPath, $"{tokenId}.json");
+            var tokenFilePath = Path.Combine(folderPath, "tokens.json");
 
             File.Delete(tokenFilePath);
         }
 
+        //
         private static string SafePathCombine(string basePath, string relativePath)
         {
             var filePath = Path.GetFullPath(Path.Combine(basePath, relativePath));

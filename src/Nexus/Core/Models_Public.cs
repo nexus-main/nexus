@@ -85,29 +85,34 @@ namespace Nexus.Core
     /// <summary>
     /// A personal access token.
     /// </summary>
-    /// <param name="Id">The token identifier.</param>
-    /// <param name="Secret">The token secret.</param>
     /// <param name="Description">The token description.</param>
     /// <param name="Expires">The date/time when the token expires.</param>
     /// <param name="Claims">The claims that will be part of the token.</param>
     public record PersonalAccessToken(
-        [property: JsonIgnore, ValidateNever] Guid Id, 
-        [property: JsonIgnore] string Secret, 
         string Description,
         DateTime Expires,
-        IDictionary<string, string> Claims
+        IReadOnlyList<TokenClaim> Claims
     );
-    
+
     /// <summary>
     /// A revoke token request.
     /// </summary>
-    /// <param name="Claims">The claims that will be part of the token.</param>
     /// <param name="Description">The token description.</param>
     /// <param name="Expires">The date/time when the token expires.</param>
+    /// <param name="Claims">The claims that will be part of the token.</param>
     public record CreateTokenRequest(
-        IDictionary<string, string> Claims,
         string Description,
-        DateTime Expires);
+        DateTime Expires,
+        IReadOnlyList<TokenClaim> Claims);
+
+    /// <summary>
+    /// A revoke token request.
+    /// </summary>
+    /// <param name="Type">The claim type.</param>
+    /// <param name="Value">The claim value.</param>
+    public record TokenClaim(
+        string Type,
+        string Value);
 
     /// <summary>
     /// Describes an OpenID connect provider.

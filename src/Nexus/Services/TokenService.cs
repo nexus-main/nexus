@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Nexus.Core;
+using Nexus.Utilities;
 
 namespace Nexus.Services;
 
@@ -10,7 +12,7 @@ internal interface ITokenService
         string userId,
         string description,
         DateTime expires,
-        IDictionary<string, string> claims);
+        IReadOnlyList<TokenClaim> claims);
 
     Task DeleteAsync(
         string userId,
@@ -19,7 +21,7 @@ internal interface ITokenService
     Task DeleteAsync(
         string tokenValue);
 
-    Task<IDictionary<Guid, PersonalAccessToken>> GetAllAsync(
+    Task<IDictionary<Guid, InternalPersonalAccessToken>> GetAllAsync(
         string userId);
 }
 
@@ -27,69 +29,127 @@ internal class TokenService : ITokenService
 {
     private static readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();
 
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, PersonalAccessToken>> _cache = new();
+    private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
+
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, InternalPersonalAccessToken>> _cache = new();
+
+    private readonly IDatabaseService _databaseService;
+
+    public TokenService(IDatabaseService databaseService)
+    {
+        _databaseService = databaseService;
+    }
 
     public Task<string> CreateAsync(
         string userId,
         string description, 
         DateTime expires,
-        IDictionary<string, string> claims)
+        IReadOnlyList<TokenClaim> claims)
     {
-        var userMap = GetUserMap(userId);
-        var id = Guid.NewGuid();
+        return UpdateTokenMapAsync(userId, tokenMap =>
+        {
+            var id = Guid.NewGuid();
 
-        Span<byte> secretBytes = stackalloc byte[64];
-        _rng.GetBytes(secretBytes);
+            Span<byte> secretBytes = stackalloc byte[64];
+            _rng.GetBytes(secretBytes);
 
-        var secret = Convert.ToBase64String(secretBytes);
+            var secret = Convert.ToBase64String(secretBytes);
 
-        var token = new PersonalAccessToken(
-            id,
-            secret,
-            description,
-            expires,
-            claims
-        );
+            var token = new InternalPersonalAccessToken(
+                id,
+                description,
+                expires,
+                claims
+            );
 
-        userMap.AddOrUpdate(
-            secret,
-            token,
-            (key, _) => token
-        );
+            tokenMap.AddOrUpdate(
+                secret,
+                token,
+                (key, _) => token
+            );
 
-        var tokenValue = $"{userId}_{secret}";
+            var tokenValue = $"{secret}_{userId}";
 
-        return Task.FromResult(tokenValue);
+            return tokenValue;
+        }, saveChanges: true);
     }
 
     public Task DeleteAsync(string userId, Guid tokenId)
     {
-        var userMap = GetUserMap(userId);
+        return UpdateTokenMapAsync<object?>(userId, tokenMap =>
+        {
+            var tokenEntry = tokenMap
+                .FirstOrDefault(entry => entry.Value.Id == tokenId);
 
-
+            tokenMap.TryRemove(tokenEntry.Key, out _);
+            return default;
+        }, saveChanges: true);
     }
 
     public Task DeleteAsync(string tokenValue)
     {
-        var userMap = GetUserMap(userId);
+        var splittedTokenValue = tokenValue.Split('_', count: 1);
+        var userId = splittedTokenValue[0];
+        var secret = splittedTokenValue[1];
+
+        return UpdateTokenMapAsync<object?>(userId, tokenMap =>
+        {
+            tokenMap.TryRemove(secret, out _);
+            return default;
+        }, saveChanges: true);
     }
 
-    public Task<IDictionary<Guid, PersonalAccessToken>> GetAllAsync(
+    public Task<IDictionary<Guid, InternalPersonalAccessToken>> GetAllAsync(
         string userId)
     {
-        var userMap = GetUserMap(userId);
+        return UpdateTokenMapAsync(userId, tokenMap =>
+        {
+            var result = tokenMap.ToDictionary(
+                entry => entry.Value.Id, 
+                entry => entry.Value);
 
-        var result = userMap.ToDictionary(
-            entry => entry.Value.Id, 
-            entry => entry.Value);
-
-        return Task.FromResult((IDictionary<Guid, PersonalAccessToken>)result);
+            return (IDictionary<Guid, InternalPersonalAccessToken>)result;
+        }, saveChanges: false);
     }
 
-    private ConcurrentDictionary<string, PersonalAccessToken> GetUserMap(string userId)
+    private async Task<T> UpdateTokenMapAsync<T>(
+        string userId, 
+        Func<ConcurrentDictionary<string, InternalPersonalAccessToken>, T> func,
+        bool saveChanges)
     {
-        return _cache.GetOrAdd(
-            userId, 
-            key => new ConcurrentDictionary<string, PersonalAccessToken>());
+        await _semaphoreSlim.WaitAsync().ConfigureAwait(false);
+
+        try
+        {
+            var tokenMap = _cache.GetOrAdd(
+                userId,
+                key => 
+                {
+                    if (_databaseService.TryReadTokenMap(userId, out var jsonString))
+                    {
+                        return JsonSerializer.Deserialize<ConcurrentDictionary<string, InternalPersonalAccessToken>>(jsonString) 
+                            ?? throw new Exception("tokenMap is null");
+                    }
+
+                    else
+                    {
+                        return new ConcurrentDictionary<string, InternalPersonalAccessToken>();
+                    }
+                });
+
+            var result = func(tokenMap);
+
+            if (saveChanges)
+            {
+                using var stream = _databaseService.WriteTokenMap(userId);
+                JsonSerializerHelper.SerializeIndented(stream, tokenMap);
+            }
+
+            return result;
+        }
+        finally
+        {
+            _semaphoreSlim.Release();
+        }
     }
 }
