@@ -31,8 +31,8 @@ namespace Nexus.Utilities
                 catalogMetadata,
                 owner,
                 user,
-                singleClaimValue: NexusClaims.CAN_READ_CATALOG,
-                groupClaimValue: NexusClaims.CAN_READ_CATALOG,
+                singleClaimType: NexusClaims.CAN_READ_CATALOG,
+                groupClaimType: NexusClaims.CAN_READ_CATALOG_GROUP,
                 checkImplicitAccess: true
             );
         }
@@ -47,8 +47,8 @@ namespace Nexus.Utilities
                 catalogMetadata,
                 owner: default,
                 user,
-                singleClaimValue: NexusClaims.CAN_READ_CATALOG,
-                groupClaimValue: NexusClaims.CAN_WRITE_CATALOG,
+                singleClaimType: NexusClaims.CAN_WRITE_CATALOG,
+                groupClaimType: NexusClaims.CAN_WRITE_CATALOG_GROUP,
                 checkImplicitAccess: false
             );
         }
@@ -58,8 +58,8 @@ namespace Nexus.Utilities
             CatalogMetadata catalogMetadata, 
             ClaimsPrincipal? owner, 
             ClaimsPrincipal user,
-            string singleClaimValue,
-            string groupClaimValue,
+            string singleClaimType,
+            string groupClaimType,
             bool checkImplicitAccess)
         {
             foreach (var identity in user.Identities)
@@ -92,7 +92,7 @@ namespace Nexus.Utilities
                     /* The token alone can access the catalog ... */
                     var canAccessCatalog = identity.HasClaim(
                         claim => 
-                            claim.Type == singleClaimValue &&
+                            claim.Type == singleClaimType &&
                             Regex.IsMatch(catalogId, claim.Value)
                     );
 
@@ -106,8 +106,8 @@ namespace Nexus.Utilities
                             catalogMetadata, 
                             owner, 
                             identity,
-                            NexusClaims.ToPatUserClaimType(singleClaimValue), 
-                            NexusClaims.ToPatUserClaimType(groupClaimValue));
+                            NexusClaims.ToPatUserClaimType(singleClaimType), 
+                            NexusClaims.ToPatUserClaimType(groupClaimType));
                     }
                 }
 
@@ -127,8 +127,8 @@ namespace Nexus.Utilities
                         catalogMetadata, 
                         owner, 
                         identity, 
-                        singleClaimValue, 
-                        groupClaimValue);
+                        singleClaimType, 
+                        groupClaimType);
                 }
 
                 /* leave loop when access is granted */
@@ -144,8 +144,8 @@ namespace Nexus.Utilities
             CatalogMetadata catalogMetadata, 
             ClaimsPrincipal? owner, 
             ClaimsIdentity identity,
-            string singleClaimValue,
-            string groupClaimValue
+            string singleClaimType,
+            string groupClaimType
         )
         {
             var isOwner = 
@@ -154,13 +154,13 @@ namespace Nexus.Utilities
 
             var canReadCatalog = identity.HasClaim(
                 claim => 
-                    claim.Type == singleClaimValue &&
+                    claim.Type == singleClaimType &&
                     Regex.IsMatch(catalogId, claim.Value)
             );
 
             var canReadCatalogGroup = catalogMetadata.GroupMemberships is not null && identity.HasClaim(
                 claim => 
-                    claim.Type == groupClaimValue &&
+                    claim.Type == groupClaimType &&
                     catalogMetadata.GroupMemberships.Any(group => Regex.IsMatch(group, claim.Value))
             );
 
