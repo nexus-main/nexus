@@ -213,17 +213,13 @@ def to_snake_case(value: str) -> str:
 
 import asyncio
 import base64
-import hashlib
 import json
-import os
 import time
 from array import array
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from pathlib import Path
 from tempfile import NamedTemporaryFile
-from threading import Lock
 from typing import (Any, AsyncIterable, Awaitable, Callable, Iterable,
                     Optional, Type, Union, cast)
 from urllib.parse import quote
@@ -231,7 +227,6 @@ from uuid import UUID
 from zipfile import ZipFile
 
 from httpx import AsyncClient, Client, Request, Response
-from httpx import codes
 
 def _to_string(value: Any) -> str:
 
@@ -2435,11 +2430,7 @@ class NexusAsyncClient:
     _configuration_header_key: str = "Nexus-Configuration"
     _authorization_header_key: str = "Authorization"
 
-    _token_folder_path: str = os.path.join(str(Path.home()), "", "tokens")
-    _mutex: Lock = Lock()
-
-    _token_pair: Optional[TokenPair]
-    _token_file_path: Optional[str]
+    _token: Optional[str]
     _http_client: AsyncClient
 
     _artifacts: ArtifactsAsyncClient
@@ -2475,7 +2466,7 @@ class NexusAsyncClient:
             raise Exception("The base url of the HTTP client must be set.")
 
         self._http_client = http_client
-        self._token_pair = None
+        self._token = None
 
         self._artifacts = ArtifactsAsyncClient(self)
         self._catalogs = CatalogsAsyncClient(self)
@@ -2491,7 +2482,7 @@ class NexusAsyncClient:
     @property
     def is_authenticated(self) -> bool:
         """Gets a value which indicates if the user is authenticated."""
-        return self._token_pair is not None
+        return self._token is not None
 
     @property
     def artifacts(self) -> ArtifactsAsyncClient:
@@ -2540,32 +2531,20 @@ class NexusAsyncClient:
 
 
 
-    async def sign_in(self, refresh_token: str):
+    def sign_in(self, access_token: str):
         """Signs in the user.
 
         Args:
-            token_pair: The refresh token.
+            access_token: The access token.
         """
 
-        actual_refresh_token: str
+        authorization_header_value = f"Bearer {access_token}"
 
-        sha256 = hashlib.sha256()
-        sha256.update(refresh_token.encode())
-        refresh_token_hash = sha256.hexdigest()
-        self._token_file_path = os.path.join(self._token_folder_path, refresh_token_hash + ".json")
-        
-        if Path(self._token_file_path).is_file():
-            with open(self._token_file_path) as file:
-                actual_refresh_token = file.read()
+        if self._authorization_header_key in self._http_client.headers:
+            del self._http_client.headers[self._authorization_header_key]
 
-        else:
-            Path(self._token_folder_path).mkdir(parents=True, exist_ok=True)
-
-            with open(self._token_file_path, "w") as file:
-                file.write(refresh_token)
-                actual_refresh_token = refresh_token
-                
-        await self._refresh_token(actual_refresh_token)
+        self._http_client.headers[self._authorization_header_key] = authorization_header_value
+        self._token = access_token
 
     def attach_configuration(self, configuration: Any) -> Any:
         """Attaches configuration data to subsequent API requests.
@@ -2600,42 +2579,14 @@ class NexusAsyncClient:
         # process response
         if not response.is_success:
             
-            # try to refresh the access token
-            if response.status_code == codes.UNAUTHORIZED and self._token_pair is not None:
+            message = response.text
+            status_code = f"N00.{response.status_code}"
 
-                www_authenticate_header = response.headers.get("WWW-Authenticate")
-                sign_out = True
+            if not message:
+                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
 
-                if www_authenticate_header is not None:
-
-                    if "The token expired at" in www_authenticate_header:
-
-                        try:
-                            await self._refresh_token(self._token_pair.refresh_token)
-
-                            new_request = self._build_request_message(method, relative_url, content, content_type_value, accept_header_value)
-                            new_response = await self._http_client.send(new_request)
-
-                            await response.aclose()
-                            response = new_response
-                            sign_out = False
-
-                        except:
-                            pass
-
-                if sign_out:
-                    self._sign_out()
-
-            if not response.is_success:
-
-                message = response.text
-                status_code = f"N00.{response.status_code}"
-
-                if not message:
-                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
-
-                else:
-                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+            else:
+                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
 
         try:
 
@@ -2670,43 +2621,6 @@ class NexusAsyncClient:
             request_message.headers["Accept"] = accept_header_value
 
         return request_message
-
-    async def _refresh_token(self, refresh_token: str):
-        self._mutex.acquire()
-
-        try:
-            # make sure the refresh token has not already been redeemed
-            if (self._token_pair is not None and refresh_token != self._token_pair.refresh_token):
-                return
-
-            # see https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/blob/dev/src/Microsoft.IdentityModel.Tokens/Validators.cs#L390
-
-            refresh_request = RefreshTokenRequest(refresh_token)
-            token_pair = await self.users.refresh_token(refresh_request)
-
-            if self._token_file_path is not None:
-                Path(self._token_folder_path).mkdir(parents=True, exist_ok=True)
-                
-                with open(self._token_file_path, "w") as file:
-                    file.write(token_pair.refresh_token)
-
-            authorizationHeaderValue = f"Bearer {token_pair.access_token}"
-
-            if self._authorization_header_key in self._http_client.headers:
-                del self._http_client.headers[self._authorization_header_key]
-
-            self._http_client.headers[self._authorization_header_key] = authorizationHeaderValue
-            self._token_pair = token_pair
-
-        finally:
-            self._mutex.release()
-
-    def _sign_out(self) -> None:
-
-        if self._authorization_header_key in self._http_client.headers:
-            del self._http_client.headers[self._authorization_header_key]
-
-        self._token_pair = None
 
     # "disposable" methods
     async def __aenter__(self) -> NexusAsyncClient:
@@ -2911,11 +2825,7 @@ class NexusClient:
     _configuration_header_key: str = "Nexus-Configuration"
     _authorization_header_key: str = "Authorization"
 
-    _token_folder_path: str = os.path.join(str(Path.home()), "", "tokens")
-    _mutex: Lock = Lock()
-
-    _token_pair: Optional[TokenPair]
-    _token_file_path: Optional[str]
+    _token: Optional[str]
     _http_client: Client
 
     _artifacts: ArtifactsClient
@@ -2951,7 +2861,7 @@ class NexusClient:
             raise Exception("The base url of the HTTP client must be set.")
 
         self._http_client = http_client
-        self._token_pair = None
+        self._token = None
 
         self._artifacts = ArtifactsClient(self)
         self._catalogs = CatalogsClient(self)
@@ -2967,7 +2877,7 @@ class NexusClient:
     @property
     def is_authenticated(self) -> bool:
         """Gets a value which indicates if the user is authenticated."""
-        return self._token_pair is not None
+        return self._token is not None
 
     @property
     def artifacts(self) -> ArtifactsClient:
@@ -3016,32 +2926,20 @@ class NexusClient:
 
 
 
-    def sign_in(self, refresh_token: str):
+    def sign_in(self, access_token: str):
         """Signs in the user.
 
         Args:
-            token_pair: The refresh token.
+            access_token: The access token.
         """
 
-        actual_refresh_token: str
+        authorization_header_value = f"Bearer {access_token}"
 
-        sha256 = hashlib.sha256()
-        sha256.update(refresh_token.encode())
-        refresh_token_hash = sha256.hexdigest()
-        self._token_file_path = os.path.join(self._token_folder_path, refresh_token_hash + ".json")
-        
-        if Path(self._token_file_path).is_file():
-            with open(self._token_file_path) as file:
-                actual_refresh_token = file.read()
+        if self._authorization_header_key in self._http_client.headers:
+            del self._http_client.headers[self._authorization_header_key]
 
-        else:
-            Path(self._token_folder_path).mkdir(parents=True, exist_ok=True)
-
-            with open(self._token_file_path, "w") as file:
-                file.write(refresh_token)
-                actual_refresh_token = refresh_token
-                
-        self._refresh_token(actual_refresh_token)
+        self._http_client.headers[self._authorization_header_key] = authorization_header_value
+        self._token = access_token
 
     def attach_configuration(self, configuration: Any) -> Any:
         """Attaches configuration data to subsequent API requests.
@@ -3076,42 +2974,14 @@ class NexusClient:
         # process response
         if not response.is_success:
             
-            # try to refresh the access token
-            if response.status_code == codes.UNAUTHORIZED and self._token_pair is not None:
+            message = response.text
+            status_code = f"N00.{response.status_code}"
 
-                www_authenticate_header = response.headers.get("WWW-Authenticate")
-                sign_out = True
+            if not message:
+                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
 
-                if www_authenticate_header is not None:
-
-                    if "The token expired at" in www_authenticate_header:
-
-                        try:
-                            self._refresh_token(self._token_pair.refresh_token)
-
-                            new_request = self._build_request_message(method, relative_url, content, content_type_value, accept_header_value)
-                            new_response = self._http_client.send(new_request)
-
-                            response.close()
-                            response = new_response
-                            sign_out = False
-
-                        except:
-                            pass
-
-                if sign_out:
-                    self._sign_out()
-
-            if not response.is_success:
-
-                message = response.text
-                status_code = f"N00.{response.status_code}"
-
-                if not message:
-                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
-
-                else:
-                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+            else:
+                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
 
         try:
 
@@ -3146,43 +3016,6 @@ class NexusClient:
             request_message.headers["Accept"] = accept_header_value
 
         return request_message
-
-    def _refresh_token(self, refresh_token: str):
-        self._mutex.acquire()
-
-        try:
-            # make sure the refresh token has not already been redeemed
-            if (self._token_pair is not None and refresh_token != self._token_pair.refresh_token):
-                return
-
-            # see https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/blob/dev/src/Microsoft.IdentityModel.Tokens/Validators.cs#L390
-
-            refresh_request = RefreshTokenRequest(refresh_token)
-            token_pair = self.users.refresh_token(refresh_request)
-
-            if self._token_file_path is not None:
-                Path(self._token_folder_path).mkdir(parents=True, exist_ok=True)
-                
-                with open(self._token_file_path, "w") as file:
-                    file.write(token_pair.refresh_token)
-
-            authorizationHeaderValue = f"Bearer {token_pair.access_token}"
-
-            if self._authorization_header_key in self._http_client.headers:
-                del self._http_client.headers[self._authorization_header_key]
-
-            self._http_client.headers[self._authorization_header_key] = authorizationHeaderValue
-            self._token_pair = token_pair
-
-        finally:
-            self._mutex.release()
-
-    def _sign_out(self) -> None:
-
-        if self._authorization_header_key in self._http_client.headers:
-            del self._http_client.headers[self._authorization_header_key]
-
-        self._token_pair = None
 
     # "disposable" methods
     def __enter__(self) -> NexusClient:

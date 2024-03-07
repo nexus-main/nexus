@@ -4,11 +4,9 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
-using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -70,17 +68,9 @@ public interface INexusClient
     /// <summary>
     /// Signs in the user.
     /// </summary>
-    /// <param name="refreshToken">The refresh token.</param>
+    /// <param name="accessToken">The access token.</param>
     /// <returns>A task.</returns>
-    void SignIn(string refreshToken);
-
-    /// <summary>
-    /// Signs in the user.
-    /// </summary>
-    /// <param name="refreshToken">The refresh token.</param>
-    /// <param name="cancellationToken">A token to cancel the current operation.</param>
-    /// <returns>A task.</returns>
-    Task SignInAsync(string refreshToken, CancellationToken cancellationToken);
+    void SignIn(string accessToken);
 
     /// <summary>
     /// Attaches configuration data to subsequent API requests.
@@ -100,11 +90,7 @@ public class NexusClient : INexusClient, IDisposable
     private const string ConfigurationHeaderKey = "Nexus-Configuration";
     private const string AuthorizationHeaderKey = "Authorization";
 
-    private static string _tokenFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "", "tokens");
-    private static SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(initialCount: 1, maxCount: 1);
-
-    private TokenPair? _tokenPair;
-    private string? _tokenFilePath;
+    private string? _token;
     private HttpClient _httpClient;
 
     private ArtifactsClient _artifacts;
@@ -152,7 +138,7 @@ public class NexusClient : INexusClient, IDisposable
     /// <summary>
     /// Gets a value which indicates if the user is authenticated.
     /// </summary>
-    public bool IsAuthenticated => _tokenPair is not null;
+    public bool IsAuthenticated => _token is not null;
 
     /// <inheritdoc />
     public IArtifactsClient Artifacts => _artifacts;
@@ -184,51 +170,13 @@ public class NexusClient : INexusClient, IDisposable
 
 
     /// <inheritdoc />
-    public void SignIn(string refreshToken)
+    public void SignIn(string accessToken)
     {
-        string actualRefreshToken;
+        var authorizationHeaderValue = $"Bearer {accessToken}";
+        _httpClient.DefaultRequestHeaders.Remove(AuthorizationHeaderKey);
+        _httpClient.DefaultRequestHeaders.Add(AuthorizationHeaderKey, authorizationHeaderValue);
 
-        var byteHash = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
-        var refreshTokenHash = BitConverter.ToString(byteHash).Replace("-", "");
-        _tokenFilePath = Path.Combine(_tokenFolderPath, refreshTokenHash + ".json");
-        
-        if (File.Exists(_tokenFilePath))
-        {
-            actualRefreshToken = File.ReadAllText(_tokenFilePath);
-        }
-
-        else
-        {
-            Directory.CreateDirectory(_tokenFolderPath);
-            File.WriteAllText(_tokenFilePath, refreshToken);
-            actualRefreshToken = refreshToken;
-        }
-
-        RefreshToken(actualRefreshToken);
-    }
-
-    /// <inheritdoc />
-    public async Task SignInAsync(string refreshToken, CancellationToken cancellationToken = default)
-    {
-        string actualRefreshToken;
-
-        var byteHash = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
-        var refreshTokenHash = BitConverter.ToString(byteHash).Replace("-", "");
-        _tokenFilePath = Path.Combine(_tokenFolderPath, refreshTokenHash + ".json");
-        
-        if (File.Exists(_tokenFilePath))
-        {
-            actualRefreshToken = File.ReadAllText(_tokenFilePath);
-        }
-
-        else
-        {
-            Directory.CreateDirectory(_tokenFolderPath);
-            File.WriteAllText(_tokenFilePath, refreshToken);
-            actualRefreshToken = refreshToken;
-        }
-
-        await RefreshTokenAsync(actualRefreshToken, cancellationToken).ConfigureAwait(false);
+        _token = accessToken;
     }
 
     /// <inheritdoc />
@@ -259,54 +207,14 @@ public class NexusClient : INexusClient, IDisposable
         // process response
         if (!response.IsSuccessStatusCode)
         {
-            // try to refresh the access token
-            if (response.StatusCode == HttpStatusCode.Unauthorized && _tokenPair is not null)
-            {
-                var wwwAuthenticateHeader = response.Headers.WwwAuthenticate.FirstOrDefault();
-                var signOut = true;
+            var message = new StreamReader(response.Content.ReadAsStream()).ReadToEnd();
+            var statusCode = $"N00.{(int)response.StatusCode}";
 
-                if (wwwAuthenticateHeader is not null)
-                {
-                    var parameter = wwwAuthenticateHeader.Parameter;
+            if (string.IsNullOrWhiteSpace(message))
+                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
 
-                    if (parameter is not null && parameter.Contains("The token expired at"))
-                    {
-                        try
-                        {
-                            RefreshToken(_tokenPair.RefreshToken);
-
-                            using var newRequest = BuildRequestMessage(method, relativeUrl, content, contentTypeValue, acceptHeaderValue);
-                            var newResponse = _httpClient.Send(newRequest, HttpCompletionOption.ResponseHeadersRead);
-
-                            if (newResponse is not null)
-                            {
-                                response.Dispose();
-                                response = newResponse;
-                                signOut = false;
-                            }
-                        }
-                        catch
-                        {
-                            //
-                        }
-                    }
-                }
-
-                if (signOut)
-                    SignOut();
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var message = new StreamReader(response.Content.ReadAsStream()).ReadToEnd();
-                var statusCode = $"N00.{(int)response.StatusCode}";
-
-                if (string.IsNullOrWhiteSpace(message))
-                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
-
-                else
-                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
-            }
+            else
+                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
         }
 
         try
@@ -353,54 +261,14 @@ public class NexusClient : INexusClient, IDisposable
         // process response
         if (!response.IsSuccessStatusCode)
         {
-            // try to refresh the access token
-            if (response.StatusCode == HttpStatusCode.Unauthorized && _tokenPair is not null)
-            {
-                var wwwAuthenticateHeader = response.Headers.WwwAuthenticate.FirstOrDefault();
-                var signOut = true;
+            var message = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var statusCode = $"N00.{(int)response.StatusCode}";
 
-                if (wwwAuthenticateHeader is not null)
-                {
-                    var parameter = wwwAuthenticateHeader.Parameter;
+            if (string.IsNullOrWhiteSpace(message))
+                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
 
-                    if (parameter is not null && parameter.Contains("The token expired at"))
-                    {
-                        try
-                        {
-                            await RefreshTokenAsync(_tokenPair.RefreshToken, cancellationToken).ConfigureAwait(false);
-
-                            using var newRequest = BuildRequestMessage(method, relativeUrl, content, contentTypeValue, acceptHeaderValue);
-                            var newResponse = await _httpClient.SendAsync(newRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-
-                            if (newResponse is not null)
-                            {
-                                response.Dispose();
-                                response = newResponse;
-                                signOut = false;
-                            }
-                        }
-                        catch
-                        {
-                            //
-                        }
-                    }
-                }
-
-                if (signOut)
-                    SignOut();
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var message = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                var statusCode = $"N00.{(int)response.StatusCode}";
-
-                if (string.IsNullOrWhiteSpace(message))
-                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
-
-                else
-                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
-            }
+            else
+                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
         }
 
         try
@@ -459,80 +327,6 @@ public class NexusClient : INexusClient, IDisposable
         requestMessage.Options.Set(WebAssemblyEnableStreamingResponseKey, true);
 
         return requestMessage;
-    }
-
-    private void RefreshToken(string refreshToken)
-    {
-        _semaphoreSlim.Wait();
-
-        try
-        {
-            // make sure the refresh token has not already been redeemed
-            if (_tokenPair is not null && refreshToken != _tokenPair.RefreshToken)
-                return;
-
-            // see https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/blob/dev/src/Microsoft.IdentityModel.Tokens/Validators.cs#L390
-
-            var refreshRequest = new RefreshTokenRequest(refreshToken);
-            var tokenPair = Users.RefreshToken(refreshRequest);
-
-            if (_tokenFilePath is not null)
-            {
-                Directory.CreateDirectory(_tokenFolderPath);
-                File.WriteAllText(_tokenFilePath, tokenPair.RefreshToken);
-            }
-
-            var authorizationHeaderValue = $"Bearer {tokenPair.AccessToken}";
-            _httpClient.DefaultRequestHeaders.Remove(AuthorizationHeaderKey);
-            _httpClient.DefaultRequestHeaders.Add(AuthorizationHeaderKey, authorizationHeaderValue);
-
-            _tokenPair = tokenPair;
-
-        }
-        finally
-        {
-            _semaphoreSlim.Release();
-        }
-    }
-
-    private async Task RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken)
-    {
-        await _semaphoreSlim.WaitAsync().ConfigureAwait(false);
-
-        try
-        {
-            // make sure the refresh token has not already been redeemed
-            if (_tokenPair is not null && refreshToken != _tokenPair.RefreshToken)
-                return;
-
-            // see https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/blob/dev/src/Microsoft.IdentityModel.Tokens/Validators.cs#L390
-
-            var refreshRequest = new RefreshTokenRequest(refreshToken);
-            var tokenPair = await Users.RefreshTokenAsync(refreshRequest, cancellationToken).ConfigureAwait(false);
-
-            if (_tokenFilePath is not null)
-            {
-                Directory.CreateDirectory(_tokenFolderPath);
-                File.WriteAllText(_tokenFilePath, tokenPair.RefreshToken);
-            }
-
-            var authorizationHeaderValue = $"Bearer {tokenPair.AccessToken}";
-            _httpClient.DefaultRequestHeaders.Remove(AuthorizationHeaderKey);
-            _httpClient.DefaultRequestHeaders.Add(AuthorizationHeaderKey, authorizationHeaderValue);
-
-            _tokenPair = tokenPair;
-
-        }
-        finally
-        {
-            _semaphoreSlim.Release();
-        }
-    }
-
-    private void SignOut()
-    {
-        _httpClient.DefaultRequestHeaders.Remove(AuthorizationHeaderKey);
-        _tokenPair = default;
     }
 
     /// <inheritdoc />
