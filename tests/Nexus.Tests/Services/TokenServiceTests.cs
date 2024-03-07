@@ -165,7 +165,7 @@ public class TokenServiceTests
         var actualTokenMap = await tokenService.GetAllAsync(string.Empty);
 
         // Assert
-        var expected = JsonSerializerHelper.SerializeIndented(expectedTokenMap.ToDictionary(entry => entry.Value.Id, entry => entry.Value));
+        var expected = JsonSerializerHelper.SerializeIndented(expectedTokenMap);
         var actual = JsonSerializerHelper.SerializeIndented(actualTokenMap);
 
         Assert.Equal(expected, actual);

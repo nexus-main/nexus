@@ -21,7 +21,7 @@ internal interface ITokenService
     Task DeleteAsync(
         string tokenValue);
 
-    Task<IDictionary<Guid, InternalPersonalAccessToken>> GetAllAsync(
+    Task<IReadOnlyDictionary<string, InternalPersonalAccessToken>> GetAllAsync(
         string userId);
 }
 
@@ -99,17 +99,13 @@ internal class TokenService : ITokenService
         }, saveChanges: true);
     }
 
-    public Task<IDictionary<Guid, InternalPersonalAccessToken>> GetAllAsync(
+    public Task<IReadOnlyDictionary<string, InternalPersonalAccessToken>> GetAllAsync(
         string userId)
     {
-        return UpdateTokenMapAsync(userId, tokenMap =>
-        {
-            var result = tokenMap.ToDictionary(
-                entry => entry.Value.Id, 
-                entry => entry.Value);
-
-            return (IDictionary<Guid, InternalPersonalAccessToken>)result;
-        }, saveChanges: false);
+        return UpdateTokenMapAsync(
+            userId, 
+            tokenMap => (IReadOnlyDictionary<string, InternalPersonalAccessToken>)tokenMap, 
+            saveChanges: false);
     }
 
     private async Task<T> UpdateTokenMapAsync<T>(

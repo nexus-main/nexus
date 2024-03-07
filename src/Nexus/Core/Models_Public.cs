@@ -298,5 +298,5 @@ namespace Nexus.Core
         string UserId,
         NexusUser User,
         bool IsAdmin,
-        IReadOnlyList<PersonalAccessToken> PersonalAccessTokens);
+        IReadOnlyDictionary<Guid, PersonalAccessToken> PersonalAccessTokens);
 }

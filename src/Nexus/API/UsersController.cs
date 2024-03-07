@@ -158,11 +158,20 @@ namespace Nexus.Controllers
                 claim => claim.Type == Claims.Role &&
                          claim.Value == NexusRoles.ADMINISTRATOR);
 
+            var tokenMap = await _tokenService.GetAllAsync(userId);
+
+            var translatedTokenMap = tokenMap
+                .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
+                    entry.Value.Description,
+                    entry.Value.Expires,
+                    entry.Value.Claims
+                ));
+
             return new MeResponse(
                 user.Id,
                 user,
                 isAdmin,
-                default!); // user.RefreshTokens.ToDictionary(entry => entry.Id, entry => entry));
+                translatedTokenMap);
         }
 
         /// <summary>
@@ -372,7 +381,7 @@ namespace Nexus.Controllers
         /// <param name="userId">The identifier of the user.</param>
         [Authorize(Policy = NexusPolicies.RequireAdmin)]
         [HttpGet("{userId}/tokens")]
-        public async Task<ActionResult<IReadOnlyList<PersonalAccessToken>>> GetTokensAsync(
+        public async Task<ActionResult<IReadOnlyDictionary<Guid, PersonalAccessToken>>> GetTokensAsync(
             string userId)
         {
             var user = await _dbService.FindUserAsync(userId);
@@ -383,13 +392,13 @@ namespace Nexus.Controllers
             var tokenMap = await _tokenService.GetAllAsync(userId);
 
             var translatedTokenMap = tokenMap
-                .ToDictionary(entry => entry.Key, entry => new PersonalAccessToken(
+                .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
                     entry.Value.Description,
                     entry.Value.Expires,
                     entry.Value.Claims
                 ));
 
-            return Ok(translatedTokenMap);
+            return translatedTokenMap;
         }
 
         private bool TryAuthenticate(
