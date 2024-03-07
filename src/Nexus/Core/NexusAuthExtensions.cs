@@ -54,7 +54,10 @@ namespace Microsoft.Extensions.DependencyInjection
                         context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
                         return Task.CompletedTask;
                     };
-                });
+                })
+
+                .AddScheme<AuthenticationSchemeOptions, PersonalAccessTokenAuthHandler>(
+                    PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, default);
 
             var providers = securityOptions.OidcProviders.Any()
                 ? securityOptions.OidcProviders
@@ -207,7 +210,7 @@ namespace Microsoft.Extensions.DependencyInjection
             var authenticationSchemes = new[]
             {
                 CookieAuthenticationDefaults.AuthenticationScheme,
-                // JwtBearerDefaults.AuthenticationScheme
+                PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme
             };
 
             services.AddAuthorization(options =>

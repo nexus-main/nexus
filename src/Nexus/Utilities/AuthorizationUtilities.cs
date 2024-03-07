@@ -8,7 +8,11 @@ namespace Nexus.Utilities
 {
     internal static class AuthorizationUtilities
     {
-        public static bool IsCatalogReadable(string catalogId, CatalogMetadata catalogMetadata, ClaimsPrincipal? owner, ClaimsPrincipal user)
+        public static bool IsCatalogReadable(
+            string catalogId, 
+            CatalogMetadata catalogMetadata, 
+            ClaimsPrincipal? owner, 
+            ClaimsPrincipal user)
         {
             var identity = user.Identity;
 
@@ -38,7 +42,10 @@ namespace Nexus.Utilities
             return false;
         }
 
-        public static bool IsCatalogWritable(string catalogId, CatalogMetadata catalogMetadata, ClaimsPrincipal user)
+        public static bool IsCatalogWritable(
+            string catalogId, 
+            CatalogMetadata catalogMetadata, 
+            ClaimsPrincipal user)
         {
             var identity = user.Identity;
 

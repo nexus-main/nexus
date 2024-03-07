@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Nexus.Core;
@@ -13,6 +14,11 @@ internal interface ITokenService
         string description,
         DateTime expires,
         IReadOnlyList<TokenClaim> claims);
+
+    bool TryGet(
+        string tokenValue,
+        [NotNullWhen(true)] out string? userId,
+        [NotNullWhen(true)] out InternalPersonalAccessToken? token);
 
     Task DeleteAsync(
         string userId,
@@ -46,7 +52,7 @@ internal class TokenService : ITokenService
         DateTime expires,
         IReadOnlyList<TokenClaim> claims)
     {
-        return UpdateTokenMapAsync(userId, tokenMap =>
+        return InteractWithTokenMapAsync(userId, tokenMap =>
         {
             var id = Guid.NewGuid();
 
@@ -76,7 +82,7 @@ internal class TokenService : ITokenService
 
     public Task DeleteAsync(string userId, Guid tokenId)
     {
-        return UpdateTokenMapAsync<object?>(userId, tokenMap =>
+        return InteractWithTokenMapAsync<object?>(userId, tokenMap =>
         {
             var tokenEntry = tokenMap
                 .FirstOrDefault(entry => entry.Value.Id == tokenId);
@@ -92,7 +98,7 @@ internal class TokenService : ITokenService
         var secret = splittedTokenValue[0];
         var userId = splittedTokenValue[1];
 
-        return UpdateTokenMapAsync<object?>(userId, tokenMap =>
+        return InteractWithTokenMapAsync<object?>(userId, tokenMap =>
         {
             tokenMap.TryRemove(secret, out _);
             return default;
@@ -102,13 +108,46 @@ internal class TokenService : ITokenService
     public Task<IReadOnlyDictionary<string, InternalPersonalAccessToken>> GetAllAsync(
         string userId)
     {
-        return UpdateTokenMapAsync(
+        return InteractWithTokenMapAsync(
             userId, 
             tokenMap => (IReadOnlyDictionary<string, InternalPersonalAccessToken>)tokenMap, 
             saveChanges: false);
     }
 
-    private async Task<T> UpdateTokenMapAsync<T>(
+    public bool TryGet(
+        string tokenValue,
+        [NotNullWhen(true)] out string? userId,
+        [NotNullWhen(true)] out InternalPersonalAccessToken? token)
+    {
+        var splittedTokenValue = tokenValue.Split('_', count: 2);
+        var secret = splittedTokenValue[0];
+        userId = splittedTokenValue[1];
+        var tokenMap = GetTokenMap(userId);
+
+        return tokenMap.TryGetValue(secret, out token);
+    }
+
+    private ConcurrentDictionary<string, InternalPersonalAccessToken> GetTokenMap(
+        string userId)
+    {
+        return _cache.GetOrAdd(
+            userId,
+            key => 
+            {
+                if (_databaseService.TryReadTokenMap(userId, out var jsonString))
+                {
+                    return JsonSerializer.Deserialize<ConcurrentDictionary<string, InternalPersonalAccessToken>>(jsonString) 
+                        ?? throw new Exception("tokenMap is null");
+                }
+
+                else
+                {
+                    return new ConcurrentDictionary<string, InternalPersonalAccessToken>();
+                }
+            });
+    }
+
+    private async Task<T> InteractWithTokenMapAsync<T>(
         string userId, 
         Func<ConcurrentDictionary<string, InternalPersonalAccessToken>, T> func,
         bool saveChanges)
@@ -117,22 +156,7 @@ internal class TokenService : ITokenService
 
         try
         {
-            var tokenMap = _cache.GetOrAdd(
-                userId,
-                key => 
-                {
-                    if (_databaseService.TryReadTokenMap(userId, out var jsonString))
-                    {
-                        return JsonSerializer.Deserialize<ConcurrentDictionary<string, InternalPersonalAccessToken>>(jsonString) 
-                            ?? throw new Exception("tokenMap is null");
-                    }
-
-                    else
-                    {
-                        return new ConcurrentDictionary<string, InternalPersonalAccessToken>();
-                    }
-                });
-
+            var tokenMap = GetTokenMap(userId);
             var result = func(tokenMap);
 
             if (saveChanges)

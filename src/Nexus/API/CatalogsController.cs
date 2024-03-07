@@ -528,11 +528,21 @@ namespace Nexus.Controllers
 
             if (catalogContainer is not null)
             {
-                if (ensureReadable && !AuthorizationUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
-                    return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to read the catalog {catalogId}.");
+                if (ensureReadable && !AuthorizationUtilities.IsCatalogReadable(
+                    catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden, 
+                        $"The current user is not permitted to read the catalog {catalogId}.");
+                }
 
-                if (ensureWritable && !AuthorizationUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
-                    return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
+                if (ensureWritable && !AuthorizationUtilities.IsCatalogWritable(
+                    catalogContainer.Id, catalogContainer.Metadata, User))
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden, 
+                        $"The current user is not permitted to modify the catalog {catalogId}.");
+                }
 
                 return await action.Invoke(catalogContainer);
             }
