@@ -163,7 +163,7 @@ internal class DataService : IDataService
             throw new ValidationException("The file period must be a multiple of the sample period.");
 
         // start
-        string zipFileName = string.Empty;
+        var zipFileName = string.Empty;
         IDataWriterController? controller = default!;
 
         var tmpFolderPath = Path.Combine(Path.GetTempPath(), "Nexus", Guid.NewGuid().ToString());
@@ -347,7 +347,7 @@ internal class DataService : IDataService
             var fileCount = filePaths.Length;
             var currentCount = 0;
 
-            foreach (string filePath in filePaths)
+            foreach (var filePath in filePaths)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 

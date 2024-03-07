@@ -16,7 +16,7 @@ internal static class NexusUtilities
         {
             if (_defaultBaseUrl is null)
             {
-                int port = 5000;
+                var port = 5000;
                 var aspnetcoreEnvVar = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
 
                 if (aspnetcoreEnvVar is not null)
@@ -85,7 +85,7 @@ internal static class NexusUtilities
 
         var results = new T[tasks.Length];
 
-        for (var i = 0; i < tasks.Length; i++)
+        for (int i = 0; i < tasks.Length; i++)
         {
             try
             {

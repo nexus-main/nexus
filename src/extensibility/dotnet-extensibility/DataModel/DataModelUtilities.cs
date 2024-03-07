@@ -222,7 +222,7 @@ internal static class DataModelUtilities
     {
         foreach (var property in root1.EnumerateObject())
         {
-            if (root2.TryGetProperty(property.Name, out JsonElement newValue) && newValue.ValueKind != JsonValueKind.Null)
+            if (root2.TryGetProperty(property.Name, out var newValue) && newValue.ValueKind != JsonValueKind.Null)
             {
                 var originalValue = property.Value;
                 var originalValueKind = originalValue.ValueKind;

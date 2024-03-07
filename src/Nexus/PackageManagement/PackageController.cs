@@ -36,9 +36,10 @@ internal partial class PackageController
     public async Task<string[]> DiscoverAsync(CancellationToken cancellationToken)
     {
         _logger.LogDebug("Discover package versions using provider {Provider}", PackageReference.Provider);
-        string[] result = PackageReference.Provider switch
+
+        var result = PackageReference.Provider switch
         {
-            BUILTIN_PROVIDER => new string[] { "current" },
+            BUILTIN_PROVIDER => ["current"],
             "local" => await DiscoverLocalAsync(cancellationToken),
             "git-tag" => await DiscoverGitTagsAsync(cancellationToken),
             "github-releases" => await DiscoverGithubReleasesAsync(cancellationToken),
@@ -48,6 +49,7 @@ internal partial class PackageController
              */
             _ => throw new ArgumentException($"The provider {PackageReference.Provider} is not supported."),
         };
+
         return result;
     }
 
@@ -107,7 +109,7 @@ internal partial class PackageController
         var actualRestoreRoot = Path.Combine(restoreRoot, PackageReference.Provider);
 
         _logger.LogDebug("Restore package to {RestoreRoot} using provider {Provider}", actualRestoreRoot, PackageReference.Provider);
-        string restoreFolderPath = PackageReference.Provider switch
+        var restoreFolderPath = PackageReference.Provider switch
         {
             "local" => await RestoreLocalAsync(actualRestoreRoot, cancellationToken),
             "git-tag" => await RestoreGitTagAsync(actualRestoreRoot, cancellationToken),

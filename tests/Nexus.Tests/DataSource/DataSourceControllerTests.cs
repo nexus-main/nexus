@@ -141,11 +141,11 @@ public class DataSourceControllerTests : IClassFixture<DataSourceControllerFixtu
             new DataReadingGroup(controller, catalogItemRequestPipeWriters)
         };
 
-        double[] result1 = new double[86401];
+        var result1 = new double[86401];
 
         var writing1 = Task.Run(async () =>
         {
-            Memory<byte> resultBuffer1 = result1.AsMemory().Cast<double, byte>();
+            var resultBuffer1 = result1.AsMemory().Cast<double, byte>();
             var stream1 = pipe1.Reader.AsStream();
 
             while (resultBuffer1.Length > 0)
@@ -160,11 +160,11 @@ public class DataSourceControllerTests : IClassFixture<DataSourceControllerFixtu
             }
         });
 
-        double[] result2 = new double[86401];
+        var result2 = new double[86401];
 
         var writing2 = Task.Run(async () =>
         {
-            Memory<byte> resultBuffer2 = result2.AsMemory().Cast<double, byte>();
+            var resultBuffer2 = result2.AsMemory().Cast<double, byte>();
             var stream2 = pipe2.Reader.AsStream();
 
             while (resultBuffer2.Length > 0)
@@ -249,11 +249,11 @@ public class DataSourceControllerTests : IClassFixture<DataSourceControllerFixtu
             NullLogger<DataSourceController>.Instance,
             CancellationToken.None);
 
-        double[] result = new double[86401];
+        var result = new double[86401];
 
         await Task.Run(async () =>
         {
-            Memory<byte> resultBuffer = result.AsMemory().Cast<double, byte>();
+            var resultBuffer = result.AsMemory().Cast<double, byte>();
 
             while (resultBuffer.Length > 0)
             {

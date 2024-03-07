@@ -288,7 +288,7 @@ internal class ProcessingService : IProcessingService
         {
             case RepresentationKind.MinBitwise:
 
-                T[] bitField_and = new T[targetBuffer.Length];
+                var bitField_and = new T[targetBuffer.Length];
 
                 Parallel.For(0, targetBuffer.Length, x =>
                 {
@@ -324,7 +324,7 @@ internal class ProcessingService : IProcessingService
 
             case RepresentationKind.MaxBitwise:
 
-                T[] bitField_or = new T[targetBuffer.Length];
+                var bitField_or = new T[targetBuffer.Length];
 
                 Parallel.For(0, targetBuffer.Length, x =>
                 {
