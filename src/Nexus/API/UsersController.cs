@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Services;
+using Nexus.Utilities;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Security.Claims;
@@ -27,13 +28,12 @@ namespace Nexus.Controllers
         // GET      /api/users/authentication-schemes
         // GET      /api/users/authenticate
         // GET      /api/users/signout
-        // POST     /api/users/tokens/refresh
-        // POST     /api/users/tokens/revoke
+        // POST     /api/users/tokens/delete
 
         // [authenticated]
         // GET      /api/users/me
         // GET      /api/users/accept-license?catalogId=X
-        // POST     /api/users/tokens/generate
+        // POST     /api/users/tokens/create
         // DELETE   /api/users/tokens/{tokenId}
 
         // [privileged]
@@ -50,7 +50,7 @@ namespace Nexus.Controllers
         #region Fields
 
         private readonly IDBService _dbService;
-        private readonly INexusAuthenticationService _authService;
+        private readonly ITokenService _tokenService;
         private readonly SecurityOptions _securityOptions;
         private readonly ILogger<UsersController> _logger;
 
@@ -60,12 +60,12 @@ namespace Nexus.Controllers
 
         public UsersController(
             IDBService dBService,
-            INexusAuthenticationService authService,
+            ITokenService tokenService,
             IOptions<SecurityOptions> securityOptions,
             ILogger<UsersController> logger)
         {
             _dbService = dBService;
-            _authService = authService;
+            _tokenService = tokenService;
             _securityOptions = securityOptions.Value;
             _logger = logger;
         }
@@ -127,58 +127,16 @@ namespace Nexus.Controllers
         }
 
         /// <summary>
-        /// Refreshes the JWT token.
+        /// Deletes a personal access token.
         /// </summary>
-        /// <param name="request">The refresh token request.</param>
-        /// <returns>A new pair of JWT and refresh token.</returns>
+        /// <param name="value">The personal access token to delete.</param>
         [AllowAnonymous]
-        [HttpPost("tokens/refresh")]
-        public async Task<ActionResult<TokenPair>> RefreshTokenAsync(RefreshTokenRequest request)
+        [HttpDelete("tokens/delete")]
+        public async Task<ActionResult> DeleteTokenByValueAsync(
+            [BindRequired] string value)
         {
-            // get token
-            var internalRefreshToken = InternalRefreshToken.Deserialize(request.RefreshToken);
-            var token = await _dbService.FindRefreshTokenAsync(internalRefreshToken.Id, includeUserClaims: true);
-
-            if (token is null)
-                return NotFound("Token not found.");
-
-            // check token
-            if (token.Token != request.RefreshToken)
-            {
-                _logger.LogWarning($"Attempted reuse of revoked token of user {token.Owner.Id} ({token.Owner.Name}).");
-
-                # warning Temporarily disabled
-                // await _authService.RevokeTokenAsync(token);
-            }
-
-            if (token.IsExpired)
-                return UnprocessableEntity("Invalid token.");
-
-            // refresh token
-            var tokenPair = await _authService
-                .RefreshTokenAsync(token);
-
-            return tokenPair;
-        }
-
-        /// <summary>
-        /// Revokes a refresh token.
-        /// </summary>
-        /// <param name="request">The revoke token request.</param>
-        [AllowAnonymous]
-        [HttpPost("tokens/revoke")]
-        public async Task<ActionResult> RevokeTokenAsync(RevokeTokenRequest request)
-        {
-            // get token
-            var internalRefreshToken = InternalRefreshToken.Deserialize(request.RefreshToken);
-            var token = await _dbService.FindRefreshTokenAsync(internalRefreshToken.Id, includeUserClaims: false);
-
-            if (token is null)
-                return NotFound("Token not found.");
-
-            // revoke token
-            await _authService
-                .RevokeTokenAsync(token);
+            var (userId, secret) = AuthUtilities.TokenValueToComponents(value);
+            await _tokenService.DeleteAsync(userId, secret);
 
             return Ok();
         }
@@ -203,22 +161,31 @@ namespace Nexus.Controllers
                 claim => claim.Type == Claims.Role &&
                          claim.Value == NexusRoles.ADMINISTRATOR);
 
+            var tokenMap = await _tokenService.GetAllAsync(userId);
+
+            var translatedTokenMap = tokenMap
+                .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
+                    entry.Value.Description,
+                    entry.Value.Expires,
+                    entry.Value.Claims
+                ));
+
             return new MeResponse(
                 user.Id,
                 user,
                 isAdmin,
-                user.RefreshTokens.ToDictionary(entry => entry.Id, entry => entry));
+                translatedTokenMap);
         }
 
         /// <summary>
-        /// Generates a refresh token.
+        /// Creates a personal access token.
         /// </summary>
-        /// <param name="description">The refresh token description.</param>
+        /// <param name="token">The personal access token to create.</param>
         /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
         [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
-        [HttpPost("tokens/generate")]
-        public async Task<ActionResult<string>> GenerateRefreshTokenAsync(
-            [BindRequired] string description,
+        [HttpPost("tokens/create")]
+        public async Task<ActionResult<string>> CreateTokenAsync(
+            PersonalAccessToken token,
             [FromQuery] string? userId = default
         )
         {
@@ -229,15 +196,39 @@ namespace Nexus.Controllers
                 if (user is null)
                     return NotFound($"Could not find user {userId}.");
 
-                var refreshToken = await _authService.GenerateRefreshTokenAsync(user, description);
+                var utcExpires = token.Expires.ToUniversalTime();
 
-                return Ok(refreshToken);
+                var secret = await _tokenService
+                    .CreateAsync(
+                        actualUserId, 
+                        token.Description, 
+                        utcExpires, 
+                        token.Claims);
+
+                var tokenValue = AuthUtilities.ComponentsToTokenValue(actualUserId, secret);
+
+                return Ok(tokenValue);
             }
 
             else
             {
                 return response;
             }
+        }
+
+        /// <summary>
+        /// Deletes a personal access token.
+        /// </summary>
+        /// <param name="tokenId">The identifier of the personal access token.</param>
+        [HttpDelete("tokens/{tokenId}")]
+        public async Task<ActionResult> DeleteTokenAsync(
+            Guid tokenId)
+        {
+            var userId = User.FindFirst(Claims.Subject)!.Value;
+
+            await _tokenService.DeleteAsync(userId, tokenId);
+
+            return Ok();
         }
 
         /// <summary>
@@ -276,28 +267,6 @@ namespace Nexus.Controllers
             var redirectUrl = "/catalogs/" + WebUtility.UrlEncode(catalogId);
 
             return Redirect(redirectUrl);
-        }
-
-        /// <summary>
-        /// Deletes a refresh token.
-        /// </summary>
-        /// <param name="tokenId">The identifier of the refresh token.</param>
-        [HttpDelete("tokens/{tokenId}")]
-        public async Task<ActionResult> DeleteRefreshTokenAsync(
-            Guid tokenId)
-        {
-            // TODO: Is this thread safe? Maybe yes, because of scoped EF context.
-
-            var token = await _dbService.FindRefreshTokenAsync(tokenId, includeUserClaims: true);
-
-            if (token is null)
-                return NotFound($"Could not find refresh token {tokenId}.");
-
-            token.Owner.RefreshTokens.Remove(token);
-
-            await _dbService.SaveChangesAsync();
-
-            return Ok();
         }
 
         #endregion
@@ -418,12 +387,12 @@ namespace Nexus.Controllers
         }
 
         /// <summary>
-        /// Gets all refresh tokens.
+        /// Gets all personal access tokens.
         /// </summary>
         /// <param name="userId">The identifier of the user.</param>
         [Authorize(Policy = NexusPolicies.RequireAdmin)]
         [HttpGet("{userId}/tokens")]
-        public async Task<ActionResult<IReadOnlyDictionary<Guid, RefreshToken>>> GetRefreshTokensAsync(
+        public async Task<ActionResult<IReadOnlyDictionary<Guid, PersonalAccessToken>>> GetTokensAsync(
             string userId)
         {
             var user = await _dbService.FindUserAsync(userId);
@@ -431,7 +400,16 @@ namespace Nexus.Controllers
             if (user is null)
                 return NotFound($"Could not find user {userId}.");
 
-            return Ok(user.RefreshTokens.ToDictionary(token => token.Id, token => token));
+            var tokenMap = await _tokenService.GetAllAsync(userId);
+
+            var translatedTokenMap = tokenMap
+                .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
+                    entry.Value.Description,
+                    entry.Value.Expires,
+                    entry.Value.Claims
+                ));
+
+            return translatedTokenMap;
         }
 
         private bool TryAuthenticate(
@@ -446,7 +424,7 @@ namespace Nexus.Controllers
                 response = null;
 
             else
-                response = StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to get source registrations of user {requestedId}.");
+                response = StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to perform the operation for user {requestedId}.");
 
             userId = requestedId is null
                 ? currentId

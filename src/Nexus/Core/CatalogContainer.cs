@@ -41,7 +41,7 @@ namespace Nexus.Core
             _dataControllerService = dataControllerService;
 
             if (owner is not null)
-                IsReleasable = AuthorizationUtilities.IsCatalogWritable(Id, metadata, owner);
+                IsReleasable = AuthUtilities.IsCatalogWritable(Id, metadata, owner);
         }
 
         public string Id { get; }
@@ -120,7 +120,7 @@ namespace Nexus.Core
             {
                 // persist
                 using var stream = _databaseService.WriteCatalogMetadata(Id);
-                await JsonSerializerHelper.SerializeIntendedAsync(stream, metadata);
+                await JsonSerializerHelper.SerializeIndentedAsync(stream, metadata);
 
                 // assign
                 Metadata = metadata;

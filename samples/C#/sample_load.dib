@@ -1,3 +1,7 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"name":"csharp"}]}}
+
 #!markdown
 
 ### TODO
@@ -17,14 +21,12 @@ Create client and authenticate
 
 using Nexus.Api;
 
-// - You get this token in the Nexus GUI's user menu. 
-// - To avoid the token being invalidated by Nexus, do not use it in parallel.
-// - Best practice: Create one token per script or one token per "thread".
-var refreshToken = "<token>";
+// You get this token in the user settings menu of Nexus.
+var accessToken = "<token>";
 var uri = new Uri("http://localhost:5000");
 var client = new NexusClient(uri);
 
-await client.SignInAsync(refreshToken);
+await client.SignInAsync(accessToken);
 
 #!markdown
 

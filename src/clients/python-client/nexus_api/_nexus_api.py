@@ -213,17 +213,13 @@ def to_snake_case(value: str) -> str:
 
 import asyncio
 import base64
-import hashlib
 import json
-import os
 import time
 from array import array
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from pathlib import Path
 from tempfile import NamedTemporaryFile
-from threading import Lock
 from typing import (Any, AsyncIterable, Awaitable, Callable, Iterable,
                     Optional, Type, Union, cast)
 from urllib.parse import quote
@@ -231,7 +227,6 @@ from uuid import UUID
 from zipfile import ZipFile
 
 from httpx import AsyncClient, Client, Request, Response
-from httpx import codes
 
 def _to_string(value: Any) -> str:
 
@@ -719,49 +714,6 @@ class AuthenticationSchemeDescription:
 
 
 @dataclass(frozen=True)
-class TokenPair:
-    """
-    A token pair.
-
-    Args:
-        access_token: The JWT token.
-        refresh_token: The refresh token.
-    """
-
-    access_token: str
-    """The JWT token."""
-
-    refresh_token: str
-    """The refresh token."""
-
-
-@dataclass(frozen=True)
-class RefreshTokenRequest:
-    """
-    A refresh token request.
-
-    Args:
-        refresh_token: The refresh token.
-    """
-
-    refresh_token: str
-    """The refresh token."""
-
-
-@dataclass(frozen=True)
-class RevokeTokenRequest:
-    """
-    A revoke token request.
-
-    Args:
-        refresh_token: The refresh token.
-    """
-
-    refresh_token: str
-    """The refresh token."""
-
-
-@dataclass(frozen=True)
 class MeResponse:
     """
     A me response.
@@ -770,7 +722,7 @@ class MeResponse:
         user_id: The user id.
         user: The user.
         is_admin: A boolean which indicates if the user is an administrator.
-        refresh_tokens: A list of currently present refresh tokens.
+        personal_access_tokens: A list of personal access tokens.
     """
 
     user_id: str
@@ -782,8 +734,8 @@ class MeResponse:
     is_admin: bool
     """A boolean which indicates if the user is an administrator."""
 
-    refresh_tokens: dict[str, RefreshToken]
-    """A list of currently present refresh tokens."""
+    personal_access_tokens: dict[str, PersonalAccessToken]
+    """A list of personal access tokens."""
 
 
 @dataclass(frozen=True)
@@ -800,20 +752,41 @@ class NexusUser:
 
 
 @dataclass(frozen=True)
-class RefreshToken:
+class PersonalAccessToken:
     """
-    A refresh token.
+    A personal access token.
 
     Args:
-        expires: The date/time when the token expires.
         description: The token description.
+        expires: The date/time when the token expires.
+        claims: The claims that will be part of the token.
     """
+
+    description: str
+    """The token description."""
 
     expires: datetime
     """The date/time when the token expires."""
 
-    description: str
-    """The token description."""
+    claims: list[TokenClaim]
+    """The claims that will be part of the token."""
+
+
+@dataclass(frozen=True)
+class TokenClaim:
+    """
+    A revoke token request.
+
+    Args:
+        type: The claim type.
+        value: The claim value.
+    """
+
+    type: str
+    """The claim type."""
+
+    value: str
+    """The claim value."""
 
 
 @dataclass(frozen=True)
@@ -1418,27 +1391,24 @@ class UsersAsyncClient:
 
         return self.___client._invoke(type(None), "POST", __url, None, None, None)
 
-    def refresh_token(self, request: RefreshTokenRequest) -> Awaitable[TokenPair]:
+    def delete_token_by_value(self, value: str) -> Awaitable[Response]:
         """
-        Refreshes the JWT token.
+        Deletes a personal access token.
 
         Args:
+            value: The personal access token to delete.
         """
 
-        __url = "/api/v1/users/tokens/refresh"
+        __url = "/api/v1/users/tokens/delete"
 
-        return self.___client._invoke(TokenPair, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        __query_values: dict[str, str] = {}
 
-    def revoke_token(self, request: RevokeTokenRequest) -> Awaitable[Response]:
-        """
-        Revokes a refresh token.
+        __query_values["value"] = quote(_to_string(value), safe="")
 
-        Args:
-        """
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
 
-        __url = "/api/v1/users/tokens/revoke"
-
-        return self.___client._invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def get_me(self) -> Awaitable[MeResponse]:
         """
@@ -1451,20 +1421,17 @@ class UsersAsyncClient:
 
         return self.___client._invoke(MeResponse, "GET", __url, "application/json", None, None)
 
-    def generate_refresh_token(self, description: str, user_id: Optional[str] = None) -> Awaitable[str]:
+    def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> Awaitable[str]:
         """
-        Generates a refresh token.
+        Creates a personal access token.
 
         Args:
-            description: The refresh token description.
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
-        __url = "/api/v1/users/tokens/generate"
+        __url = "/api/v1/users/tokens/create"
 
         __query_values: dict[str, str] = {}
-
-        __query_values["description"] = quote(_to_string(description), safe="")
 
         if user_id is not None:
             __query_values["userId"] = quote(_to_string(user_id), safe="")
@@ -1472,7 +1439,20 @@ class UsersAsyncClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(str, "POST", __url, "application/json", None, None)
+        return self.___client._invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(token, _json_encoder_options)))
+
+    def delete_token(self, token_id: UUID) -> Awaitable[Response]:
+        """
+        Deletes a personal access token.
+
+        Args:
+            token_id: The identifier of the personal access token.
+        """
+
+        __url = "/api/v1/users/tokens/{tokenId}"
+        __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
+
+        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def accept_license(self, catalog_id: str) -> Awaitable[Response]:
         """
@@ -1492,19 +1472,6 @@ class UsersAsyncClient:
         __url += __query
 
         return self.___client._invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def delete_refresh_token(self, token_id: UUID) -> Awaitable[Response]:
-        """
-        Deletes a refresh token.
-
-        Args:
-            token_id: The identifier of the refresh token.
-        """
-
-        __url = "/api/v1/users/tokens/{tokenId}"
-        __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
-
-        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def get_users(self) -> Awaitable[dict[str, NexusUser]]:
         """
@@ -1580,9 +1547,9 @@ class UsersAsyncClient:
 
         return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
-    def get_refresh_tokens(self, user_id: str) -> Awaitable[dict[str, RefreshToken]]:
+    def get_tokens(self, user_id: str) -> Awaitable[dict[str, PersonalAccessToken]]:
         """
-        Gets all refresh tokens.
+        Gets all personal access tokens.
 
         Args:
             user_id: The identifier of the user.
@@ -1591,7 +1558,7 @@ class UsersAsyncClient:
         __url = "/api/v1/users/{userId}/tokens"
         __url = __url.replace("{userId}", quote(str(user_id), safe=""))
 
-        return self.___client._invoke(dict[str, RefreshToken], "GET", __url, "application/json", None, None)
+        return self.___client._invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
 
 class WritersAsyncClient:
@@ -2199,27 +2166,24 @@ class UsersClient:
 
         return self.___client._invoke(type(None), "POST", __url, None, None, None)
 
-    def refresh_token(self, request: RefreshTokenRequest) -> TokenPair:
+    def delete_token_by_value(self, value: str) -> Response:
         """
-        Refreshes the JWT token.
+        Deletes a personal access token.
 
         Args:
+            value: The personal access token to delete.
         """
 
-        __url = "/api/v1/users/tokens/refresh"
+        __url = "/api/v1/users/tokens/delete"
 
-        return self.___client._invoke(TokenPair, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        __query_values: dict[str, str] = {}
 
-    def revoke_token(self, request: RevokeTokenRequest) -> Response:
-        """
-        Revokes a refresh token.
+        __query_values["value"] = quote(_to_string(value), safe="")
 
-        Args:
-        """
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
 
-        __url = "/api/v1/users/tokens/revoke"
-
-        return self.___client._invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def get_me(self) -> MeResponse:
         """
@@ -2232,20 +2196,17 @@ class UsersClient:
 
         return self.___client._invoke(MeResponse, "GET", __url, "application/json", None, None)
 
-    def generate_refresh_token(self, description: str, user_id: Optional[str] = None) -> str:
+    def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> str:
         """
-        Generates a refresh token.
+        Creates a personal access token.
 
         Args:
-            description: The refresh token description.
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
-        __url = "/api/v1/users/tokens/generate"
+        __url = "/api/v1/users/tokens/create"
 
         __query_values: dict[str, str] = {}
-
-        __query_values["description"] = quote(_to_string(description), safe="")
 
         if user_id is not None:
             __query_values["userId"] = quote(_to_string(user_id), safe="")
@@ -2253,7 +2214,20 @@ class UsersClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(str, "POST", __url, "application/json", None, None)
+        return self.___client._invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(token, _json_encoder_options)))
+
+    def delete_token(self, token_id: UUID) -> Response:
+        """
+        Deletes a personal access token.
+
+        Args:
+            token_id: The identifier of the personal access token.
+        """
+
+        __url = "/api/v1/users/tokens/{tokenId}"
+        __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
+
+        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def accept_license(self, catalog_id: str) -> Response:
         """
@@ -2273,19 +2247,6 @@ class UsersClient:
         __url += __query
 
         return self.___client._invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def delete_refresh_token(self, token_id: UUID) -> Response:
-        """
-        Deletes a refresh token.
-
-        Args:
-            token_id: The identifier of the refresh token.
-        """
-
-        __url = "/api/v1/users/tokens/{tokenId}"
-        __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
-
-        return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
     def get_users(self) -> dict[str, NexusUser]:
         """
@@ -2361,9 +2322,9 @@ class UsersClient:
 
         return self.___client._invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
-    def get_refresh_tokens(self, user_id: str) -> dict[str, RefreshToken]:
+    def get_tokens(self, user_id: str) -> dict[str, PersonalAccessToken]:
         """
-        Gets all refresh tokens.
+        Gets all personal access tokens.
 
         Args:
             user_id: The identifier of the user.
@@ -2372,7 +2333,7 @@ class UsersClient:
         __url = "/api/v1/users/{userId}/tokens"
         __url = __url.replace("{userId}", quote(str(user_id), safe=""))
 
-        return self.___client._invoke(dict[str, RefreshToken], "GET", __url, "application/json", None, None)
+        return self.___client._invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
 
 class WritersClient:
@@ -2448,11 +2409,7 @@ class NexusAsyncClient:
     _configuration_header_key: str = "Nexus-Configuration"
     _authorization_header_key: str = "Authorization"
 
-    _token_folder_path: str = os.path.join(str(Path.home()), "", "tokens")
-    _mutex: Lock = Lock()
-
-    _token_pair: Optional[TokenPair]
-    _token_file_path: Optional[str]
+    _token: Optional[str]
     _http_client: AsyncClient
 
     _artifacts: ArtifactsAsyncClient
@@ -2488,7 +2445,7 @@ class NexusAsyncClient:
             raise Exception("The base url of the HTTP client must be set.")
 
         self._http_client = http_client
-        self._token_pair = None
+        self._token = None
 
         self._artifacts = ArtifactsAsyncClient(self)
         self._catalogs = CatalogsAsyncClient(self)
@@ -2504,7 +2461,7 @@ class NexusAsyncClient:
     @property
     def is_authenticated(self) -> bool:
         """Gets a value which indicates if the user is authenticated."""
-        return self._token_pair is not None
+        return self._token is not None
 
     @property
     def artifacts(self) -> ArtifactsAsyncClient:
@@ -2553,32 +2510,20 @@ class NexusAsyncClient:
 
 
 
-    async def sign_in(self, refresh_token: str):
+    def sign_in(self, access_token: str):
         """Signs in the user.
 
         Args:
-            token_pair: The refresh token.
+            access_token: The access token.
         """
 
-        actual_refresh_token: str
+        authorization_header_value = f"Bearer {access_token}"
 
-        sha256 = hashlib.sha256()
-        sha256.update(refresh_token.encode())
-        refresh_token_hash = sha256.hexdigest()
-        self._token_file_path = os.path.join(self._token_folder_path, refresh_token_hash + ".json")
-        
-        if Path(self._token_file_path).is_file():
-            with open(self._token_file_path) as file:
-                actual_refresh_token = file.read()
+        if self._authorization_header_key in self._http_client.headers:
+            del self._http_client.headers[self._authorization_header_key]
 
-        else:
-            Path(self._token_folder_path).mkdir(parents=True, exist_ok=True)
-
-            with open(self._token_file_path, "w") as file:
-                file.write(refresh_token)
-                actual_refresh_token = refresh_token
-                
-        await self._refresh_token(actual_refresh_token)
+        self._http_client.headers[self._authorization_header_key] = authorization_header_value
+        self._token = access_token
 
     def attach_configuration(self, configuration: Any) -> Any:
         """Attaches configuration data to subsequent API requests.
@@ -2613,42 +2558,14 @@ class NexusAsyncClient:
         # process response
         if not response.is_success:
             
-            # try to refresh the access token
-            if response.status_code == codes.UNAUTHORIZED and self._token_pair is not None:
+            message = response.text
+            status_code = f"N00.{response.status_code}"
 
-                www_authenticate_header = response.headers.get("WWW-Authenticate")
-                sign_out = True
+            if not message:
+                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
 
-                if www_authenticate_header is not None:
-
-                    if "The token expired at" in www_authenticate_header:
-
-                        try:
-                            await self._refresh_token(self._token_pair.refresh_token)
-
-                            new_request = self._build_request_message(method, relative_url, content, content_type_value, accept_header_value)
-                            new_response = await self._http_client.send(new_request)
-
-                            await response.aclose()
-                            response = new_response
-                            sign_out = False
-
-                        except:
-                            pass
-
-                if sign_out:
-                    self._sign_out()
-
-            if not response.is_success:
-
-                message = response.text
-                status_code = f"N00.{response.status_code}"
-
-                if not message:
-                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
-
-                else:
-                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+            else:
+                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
 
         try:
 
@@ -2683,43 +2600,6 @@ class NexusAsyncClient:
             request_message.headers["Accept"] = accept_header_value
 
         return request_message
-
-    async def _refresh_token(self, refresh_token: str):
-        self._mutex.acquire()
-
-        try:
-            # make sure the refresh token has not already been redeemed
-            if (self._token_pair is not None and refresh_token != self._token_pair.refresh_token):
-                return
-
-            # see https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/blob/dev/src/Microsoft.IdentityModel.Tokens/Validators.cs#L390
-
-            refresh_request = RefreshTokenRequest(refresh_token)
-            token_pair = await self.users.refresh_token(refresh_request)
-
-            if self._token_file_path is not None:
-                Path(self._token_folder_path).mkdir(parents=True, exist_ok=True)
-                
-                with open(self._token_file_path, "w") as file:
-                    file.write(token_pair.refresh_token)
-
-            authorizationHeaderValue = f"Bearer {token_pair.access_token}"
-
-            if self._authorization_header_key in self._http_client.headers:
-                del self._http_client.headers[self._authorization_header_key]
-
-            self._http_client.headers[self._authorization_header_key] = authorizationHeaderValue
-            self._token_pair = token_pair
-
-        finally:
-            self._mutex.release()
-
-    def _sign_out(self) -> None:
-
-        if self._authorization_header_key in self._http_client.headers:
-            del self._http_client.headers[self._authorization_header_key]
-
-        self._token_pair = None
 
     # "disposable" methods
     async def __aenter__(self) -> NexusAsyncClient:
@@ -2924,11 +2804,7 @@ class NexusClient:
     _configuration_header_key: str = "Nexus-Configuration"
     _authorization_header_key: str = "Authorization"
 
-    _token_folder_path: str = os.path.join(str(Path.home()), "", "tokens")
-    _mutex: Lock = Lock()
-
-    _token_pair: Optional[TokenPair]
-    _token_file_path: Optional[str]
+    _token: Optional[str]
     _http_client: Client
 
     _artifacts: ArtifactsClient
@@ -2964,7 +2840,7 @@ class NexusClient:
             raise Exception("The base url of the HTTP client must be set.")
 
         self._http_client = http_client
-        self._token_pair = None
+        self._token = None
 
         self._artifacts = ArtifactsClient(self)
         self._catalogs = CatalogsClient(self)
@@ -2980,7 +2856,7 @@ class NexusClient:
     @property
     def is_authenticated(self) -> bool:
         """Gets a value which indicates if the user is authenticated."""
-        return self._token_pair is not None
+        return self._token is not None
 
     @property
     def artifacts(self) -> ArtifactsClient:
@@ -3029,32 +2905,20 @@ class NexusClient:
 
 
 
-    def sign_in(self, refresh_token: str):
+    def sign_in(self, access_token: str):
         """Signs in the user.
 
         Args:
-            token_pair: The refresh token.
+            access_token: The access token.
         """
 
-        actual_refresh_token: str
+        authorization_header_value = f"Bearer {access_token}"
 
-        sha256 = hashlib.sha256()
-        sha256.update(refresh_token.encode())
-        refresh_token_hash = sha256.hexdigest()
-        self._token_file_path = os.path.join(self._token_folder_path, refresh_token_hash + ".json")
-        
-        if Path(self._token_file_path).is_file():
-            with open(self._token_file_path) as file:
-                actual_refresh_token = file.read()
+        if self._authorization_header_key in self._http_client.headers:
+            del self._http_client.headers[self._authorization_header_key]
 
-        else:
-            Path(self._token_folder_path).mkdir(parents=True, exist_ok=True)
-
-            with open(self._token_file_path, "w") as file:
-                file.write(refresh_token)
-                actual_refresh_token = refresh_token
-                
-        self._refresh_token(actual_refresh_token)
+        self._http_client.headers[self._authorization_header_key] = authorization_header_value
+        self._token = access_token
 
     def attach_configuration(self, configuration: Any) -> Any:
         """Attaches configuration data to subsequent API requests.
@@ -3089,42 +2953,14 @@ class NexusClient:
         # process response
         if not response.is_success:
             
-            # try to refresh the access token
-            if response.status_code == codes.UNAUTHORIZED and self._token_pair is not None:
+            message = response.text
+            status_code = f"N00.{response.status_code}"
 
-                www_authenticate_header = response.headers.get("WWW-Authenticate")
-                sign_out = True
+            if not message:
+                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
 
-                if www_authenticate_header is not None:
-
-                    if "The token expired at" in www_authenticate_header:
-
-                        try:
-                            self._refresh_token(self._token_pair.refresh_token)
-
-                            new_request = self._build_request_message(method, relative_url, content, content_type_value, accept_header_value)
-                            new_response = self._http_client.send(new_request)
-
-                            response.close()
-                            response = new_response
-                            sign_out = False
-
-                        except:
-                            pass
-
-                if sign_out:
-                    self._sign_out()
-
-            if not response.is_success:
-
-                message = response.text
-                status_code = f"N00.{response.status_code}"
-
-                if not message:
-                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
-
-                else:
-                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+            else:
+                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
 
         try:
 
@@ -3159,43 +2995,6 @@ class NexusClient:
             request_message.headers["Accept"] = accept_header_value
 
         return request_message
-
-    def _refresh_token(self, refresh_token: str):
-        self._mutex.acquire()
-
-        try:
-            # make sure the refresh token has not already been redeemed
-            if (self._token_pair is not None and refresh_token != self._token_pair.refresh_token):
-                return
-
-            # see https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/blob/dev/src/Microsoft.IdentityModel.Tokens/Validators.cs#L390
-
-            refresh_request = RefreshTokenRequest(refresh_token)
-            token_pair = self.users.refresh_token(refresh_request)
-
-            if self._token_file_path is not None:
-                Path(self._token_folder_path).mkdir(parents=True, exist_ok=True)
-                
-                with open(self._token_file_path, "w") as file:
-                    file.write(token_pair.refresh_token)
-
-            authorizationHeaderValue = f"Bearer {token_pair.access_token}"
-
-            if self._authorization_header_key in self._http_client.headers:
-                del self._http_client.headers[self._authorization_header_key]
-
-            self._http_client.headers[self._authorization_header_key] = authorizationHeaderValue
-            self._token_pair = token_pair
-
-        finally:
-            self._mutex.release()
-
-    def _sign_out(self) -> None:
-
-        if self._authorization_header_key in self._http_client.headers:
-            del self._http_client.headers[self._authorization_header_key]
-
-        self._token_pair = None
 
     # "disposable" methods
     def __enter__(self) -> NexusClient:

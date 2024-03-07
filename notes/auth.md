@@ -1,3 +1,14 @@
+# Note
+The text below does not fully apply anymore to Nexus because we have switched from refresh tokens + access tokens to personal access tokens that expire only optionally and are not cryptographically signed but checked against the database instead. The negible problem of higher database load is acceptible to get the benefit of not having to manage refresh tokens which are prone to being revoked as soon as the user uses it in more than a single place.
+
+The new personal access tokens approach allows fine-grained access control to catalogs and makes many parts of the code much simpler. Current status is:
+- User can manage personal access tokens in the web interface and specify read or read/write access to specific catalogs.
+- The token the user gets is a string which consists of a combination of the token secret (a long random base64 encoded number) and the user id.
+- Tokens are stored on disk in the folder configured by the `PathsOptions.Users` option in a files named `tokens.json`. They loaded lazily into memory on first demand and kept there for future requests.
+- When the token is part of the Authorization header (`Authorization: Bearer <token>`) it is being handles by the `PersonalAccessTokenAuthenticationHandler` which creates a `ClaimsPrincipal` if the token is valid.
+- The claims that are associated with the token can be anything but right now only the claims `CanReadCatalog` and `CanWriteCatalog` are being considered. To avoid a token to be more powerful than the user itself, the user claims are also being checked (see `AuthUtilities.cs`) on each request.
+- The lifetime of the tokens can be choosen by the users or left untouched to produce tokens with unlimited lifetime.
+
 # Authentication and Authorization
 
 Nexus exposes resources (data, metadata and more) via HTTP API. Most of these resources do not have specific owners - they are owned by the system itself. Most of these resources need to be protected which makes an `authorization` mechanism necessary.
@@ -50,7 +61,7 @@ In order to detect a compromised token, it is recommended to implement token rot
 
 ## Implementation details
 
-The backend of Nexus is a confidential client upon user request, it will perform the authorization code flow to obtain an ID token to authenticate and sign-in the user.
+The backend of Nexus is a confidential client and upon user request, it will perform the authorization code flow to obtain an ID token to authenticate and sign-in the user.
 
 Nexus supports multiple OpenID Connect providers. See [Configuration] on how to add configuration values.
 
@@ -66,7 +77,7 @@ The problem now is that although the access token contains the subject claim, it
 
 Another problem is that Nexus cannot add these user-specific claims to the access token, which means that the user database must be consulted for every single request, resulting in a high disk load.
 
-Also, a such client would be public which means it is possible to copy the `client_id` and use them in other clients, which might be problematic when there is limited traffic allowed .
+Also, a such client would be public which means it is possible to copy the `client_id` and use them in other clients, which might be problematic when there is limited traffic allowed.
 
 The last problem with refresh tokens is that _"for public clients [they] MUST be sender-constrained or use
    refresh token rotation [...]"_ [[OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics-19#section-2.2.2), [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749#section-4.13)].

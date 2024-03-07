@@ -306,7 +306,7 @@ namespace Nexus.Services
         private async Task SaveProjectAsync(NexusProject project)
         {
             using var stream = _databaseService.WriteProject();
-            await JsonSerializerHelper.SerializeIntendedAsync(stream, project);
+            await JsonSerializerHelper.SerializeIndentedAsync(stream, project);
         }
 
         #endregion

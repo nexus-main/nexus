@@ -167,7 +167,7 @@ namespace Nexus.Controllers
             ExportParameters parameters,
             CancellationToken cancellationToken)
         {
-            _diagnosticContext.Set("Body", JsonSerializerHelper.SerializeIntended(parameters));
+            _diagnosticContext.Set("Body", JsonSerializerHelper.SerializeIndented(parameters));
 
             parameters = parameters with
             {
@@ -208,7 +208,7 @@ namespace Nexus.Controllers
                 {
                     var catalogContainer = group.First().Container;
 
-                    if (!AuthorizationUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                    if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
                         throw new UnauthorizedAccessException($"The current user is not permitted to access catalog {catalogContainer.Id}.");
                 }
             }
@@ -336,7 +336,7 @@ namespace Nexus.Controllers
 
             if (catalogContainer is not null)
             {
-                if (!AuthorizationUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
+                if (!AuthUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
                     return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
 
                 return await action.Invoke(catalogContainer);

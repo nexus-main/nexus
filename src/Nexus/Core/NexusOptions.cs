@@ -98,12 +98,8 @@ namespace Nexus.Core
     internal partial record SecurityOptions() : NexusOptionsBase
     {
         public const string Section = "Security";
-        public const string DefaultSigningKey = "WOE6/wiy6E4UQJefC03ffOsBnilijFOjhFUw1eUtzhD/8/YNR7auSUeH+5VcGfXU4pki7ZLCulmvNq8c03S96g==";
 
-        public string Base64JwtSigningKey { get; set; } = DefaultSigningKey;
         public TimeSpan CookieLifetime { get; set; } = TimeSpan.FromDays(30);
-        public TimeSpan AccessTokenLifetime { get; set; } = TimeSpan.FromHours(1);
-        public TimeSpan RefreshTokenLifetime { get; set; } = TimeSpan.MaxValue;
         public List<OpenIdConnectProvider> OidcProviders { get; set; } = new();
     }
 }

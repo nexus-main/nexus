@@ -43,13 +43,6 @@ if (applicationName is not null)
 Log.Logger = loggerConfiguration
     .CreateLogger();
 
-// checks
-if (securityOptions.Base64JwtSigningKey == SecurityOptions.DefaultSigningKey)
-    Log.Logger.Warning("You are using the default key to sign JWT tokens. It is strongly advised to use a different key in production.");
-
-if (securityOptions.AccessTokenLifetime >= securityOptions.RefreshTokenLifetime)
-    Log.Logger.Warning("The refresh token life time should be greater than the access token lifetime.");
-
 // run
 try
 {
@@ -156,11 +149,11 @@ void AddServices(
     services.AddTransient<IDataService, DataService>();
 
     services.AddScoped<IDBService, DbService>();
-    services.AddScoped<INexusAuthenticationService, NexusAuthenticationService>();
     services.AddScoped(provider => provider.GetService<IHttpContextAccessor>()!.HttpContext!.User);
 
     services.AddSingleton<AppState>();
     services.AddSingleton<AppStateManager>();
+    services.AddSingleton<ITokenService, TokenService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();
     services.AddSingleton<IJobService, JobService>();
     services.AddSingleton<IDataControllerService, DataControllerService>();

@@ -12,79 +12,107 @@ namespace Other
     {
         [Theory]
 
-        [InlineData("Basic", true, new string[0], new string[0], true)]
-        [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], true)]
-        [InlineData("Basic", false, new string[] { "^/A/B/.*" }, new string[0], true)]
-        [InlineData("Basic", false, new string[0], new string[] { "A" }, true)]
+        [InlineData("Basic", true, new string[0], new string[0], new string[0], true)]
+        [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], new string[0], true)]
+        [InlineData("Basic", false, new string[] { "^/A/B/.*" }, new string[0], new string[0], true)]
+        [InlineData("Basic", false, new string[0], new string[] { "A" }, new string[0], true)]
 
-        [InlineData("Basic", false, new string[0], new string[0], false)]
-        [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], false)]
-        [InlineData("Basic", false, new string[0], new string[] { "A2" }, false)]
-        [InlineData(null, true, new string[0], new string[0], false)]
-        public void CanDetermineCatalogAccessibility(
-            string authenticationType,
+        [InlineData("Basic", false, new string[0], new string[0], new string[0], false)]
+        [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], new string[0], false)]
+        [InlineData("Basic", false, new string[0], new string[] { "A2" }, new string[0], false)]
+        [InlineData(null, true, new string[0], new string[0], new string[0], false)]
+
+        [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, true, new string[0], new string[0], new string[0], true)]
+        [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
+        [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
+        public void CanDetermineCatalogReadability(
+            string? authenticationType,
             bool isAdmin,
             string[] canReadCatalog,
             string[] canReadCatalogGroup,
+            string[] patUserCanReadCatalog,
             bool expected)
         {
             // Arrange
+            var isPAT = authenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme;
+
+            var roleClaimType = isPAT
+                ? NexusClaims.ToPatUserClaimType(Claims.Role)
+                : Claims.Role;
+
             var catalogId = "/A/B/C";
-            var catalogMetadata = new CatalogMetadata(default, GroupMemberships: new[] { "A" }, default);
+            var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
             var adminClaim = isAdmin
-                ? new Claim[] { new Claim(Claims.Role, NexusRoles.ADMINISTRATOR) }
+                ? [new Claim(roleClaimType, NexusRoles.ADMINISTRATOR)]
                 : Array.Empty<Claim>();
 
             var principal = new ClaimsPrincipal(
                 new ClaimsIdentity(
                     claims: adminClaim
                         .Concat(canReadCatalog.Select(value => new Claim(NexusClaims.CAN_READ_CATALOG, value)))
-                        .Concat(canReadCatalogGroup.Select(value => new Claim(NexusClaims.CAN_READ_CATALOG_GROUP, value))),
+                        .Concat(canReadCatalogGroup.Select(value => new Claim(NexusClaims.CAN_READ_CATALOG_GROUP, value)))
+                        .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaims.ToPatUserClaimType(NexusClaims.CAN_READ_CATALOG), value))),
                     authenticationType,
                     nameType: Claims.Name,
                     roleType: Claims.Role));
 
             // Act
-            var actual = AuthorizationUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
+            var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
 
             // Assert
             Assert.Equal(expected, actual);
         }
 
-        // TODO Extend test for 'CAN_WRITE_CATALOG'
         [Theory]
 
-        [InlineData("Basic", true, new string[0], true)]
-        [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, true)]
-        [InlineData("Basic", false, new string[] { "^/A/B/.*" }, true)]
+        [InlineData("Basic", true, new string[0], new string[0], new string[0], true)]
+        [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], new string[0], true)]
+        [InlineData("Basic", false, new string[] { "^/A/B/.*" }, new string[0], new string[0], true)]
+        [InlineData("Basic", false, new string[0], new string[] { "A" }, new string[0], true)]
 
-        [InlineData("Basic", false, new string[0], false)]
-        [InlineData(null, true, new string[0], false)]
-        public void CanDetermineCatalogEditability(
-            string authenticationType,
+        [InlineData("Basic", false, new string[0], new string[0], new string[0], false)]
+        [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], new string[0], false)]
+        [InlineData("Basic", false, new string[0], new string[] { "A2" }, new string[0], false)]
+        [InlineData(null, true, new string[0], new string[0], new string[0], false)]
+
+        [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, true, new string[0], new string[0], new string[0], true)]
+        [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
+        [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
+        public void CanDetermineCatalogWritability(
+            string? authenticationType,
             bool isAdmin,
             string[] canWriteCatalog,
+            string[] canWriteCatalogGroup,
+            string[] patUserCanWriteCatalog,
             bool expected)
         {
             // Arrange
+            var isPAT = authenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme;
+
+            var roleClaimType = isPAT
+                ? NexusClaims.ToPatUserClaimType(Claims.Role)
+                : Claims.Role;
+
             var catalogId = "/A/B/C";
-            var catalogMetadata = new CatalogMetadata(default, GroupMemberships: new[] { "A" }, default);
+            var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
             var adminClaim = isAdmin
-                ? new Claim[] { new Claim(Claims.Role, NexusRoles.ADMINISTRATOR) }
+                ? [new Claim(roleClaimType, NexusRoles.ADMINISTRATOR)]
                 : Array.Empty<Claim>();
 
             var principal = new ClaimsPrincipal(
                 new ClaimsIdentity(
                     claims: adminClaim
-                        .Concat(canWriteCatalog.Select(value => new Claim(NexusClaims.CAN_WRITE_CATALOG, value))),
+                        .Concat(canWriteCatalog.Select(value => new Claim(NexusClaims.CAN_WRITE_CATALOG, value)))
+                        .Concat(canWriteCatalogGroup.Select(value => new Claim(NexusClaims.CAN_WRITE_CATALOG_GROUP, value)))
+                        .Concat(patUserCanWriteCatalog.Select(value => new Claim(NexusClaims.ToPatUserClaimType(NexusClaims.CAN_WRITE_CATALOG), value))),
                     authenticationType,
                     nameType: Claims.Name,
                     roleType: Claims.Role));
 
             // Act
-            var actual = AuthorizationUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);
+            var actual = AuthUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);
 
             // Assert
             Assert.Equal(expected, actual);
@@ -213,7 +241,7 @@ namespace Other
             var expected = new MyType(A: 1, B: "Two", C: TimeSpan.FromSeconds(1));
 
             // Act
-            var jsonString = JsonSerializerHelper.SerializeIntended(expected);
+            var jsonString = JsonSerializerHelper.SerializeIndented(expected);
             var actual = JsonSerializer.Deserialize<MyType>(jsonString);
 
             // Assert

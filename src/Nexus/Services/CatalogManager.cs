@@ -300,12 +300,12 @@ namespace Nexus.Services
                 {
                     var owner = catalogPrototype.Owner;
                     var ownerCanWrite = owner is null
-                        || AuthorizationUtilities.IsCatalogWritable(catalogPrototype.Registration.Path, catalogPrototype.Metadata, owner);
+                        || AuthUtilities.IsCatalogWritable(catalogPrototype.Registration.Path, catalogPrototype.Metadata, owner);
 
                     var otherPrototype = catalogPrototypesToKeep[referenceIndex];
                     var otherOwner = otherPrototype.Owner;
                     var otherOwnerCanWrite = otherOwner is null
-                        || AuthorizationUtilities.IsCatalogWritable(otherPrototype.Registration.Path, catalogPrototype.Metadata, otherOwner);
+                        || AuthUtilities.IsCatalogWritable(otherPrototype.Registration.Path, catalogPrototype.Metadata, otherOwner);
 
                     if (!otherOwnerCanWrite && ownerCanWrite)
                     {

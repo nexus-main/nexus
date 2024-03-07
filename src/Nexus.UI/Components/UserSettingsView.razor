@@ -15,11 +15,13 @@
 <UIDialog 
     @bind-IsVisible="_isUserSettingsDialogOpen" 
     MaxWidth="MaxWidth.Medium">
+
     <TitleContent>
         <MudText Typo="Typo.h6">
             Settings
         </MudText>
     </TitleContent>
+
     <DialogContent>
         <MudTabs 
             Class="min-h-[20rem]"
@@ -62,16 +64,16 @@
                 </div>
             </MudTabPanel>
 
-            <MudTabPanel Text="Refresh Tokens" Icon="@Icons.Material.Filled.Key">
+            <MudTabPanel Text="Personal Access Tokens" Icon="@Icons.Material.Filled.Key">
                 <div class="text-cyan-700 border-b my-3 text-lg">New Token</div>
 
                 <div class="ml-4">
 
-                    @if (_newRefreshToken is not null)
+                    @if (_newAccessToken is not null)
                     {
                         <div class="text-sm mb-3">This is your newly generated token. Make a copy and store it safely as you will not be able to see it again.</div>
                         <div class="flex items-center text-gray-400">
-                            <span class="text-sm break-all mr-3 bg-gray-100 rounded-lg p-3">@_newRefreshToken</span>
+                            <span class="text-sm break-all mr-3 bg-gray-100 rounded-lg p-3">@_newAccessToken</span>
                             <MudIconButton
                                 OnClick="CopyToClipboard"
                                 Icon="@Icons.Material.Filled.ContentCopy" />
@@ -90,21 +92,91 @@
                         }
                         else
                         {
-                            <div class="flex">
-                                <input 
-                                    type="text" 
-                                    class="bg-gray-100 w-full mr-2 py-1 px-2" 
-                                    placeholder="Enter your description here ..."
-                                    @bind-value="_newRefreshTokenDescription" @bind-value:event="oninput" />
+                            <div class="flex flex-col gap-5">
+                                    
+                                <div class="flex-1 flex flex-col gap-5">
 
-                                <MudButton 
-                                    OnClick="GenerateTokenAsync"
-                                    Color="Color.Primary"
-                                    StartIcon="@Icons.Material.Outlined.Autorenew"
-                                    Variant="Variant.Outlined"
-                                    Disabled="string.IsNullOrWhiteSpace(_newRefreshTokenDescription)">
-                                    Create
-                                </MudButton>
+                                    <div class="flex gap-5">
+
+                                        <MudTextField
+                                            Class="flex-1"
+                                            T="string" 
+                                            Placeholder="Enter your description here ..."
+                                            Variant="Variant.Text" 
+                                            Immediate="true"
+                                            @bind-Text="@_newAccessTokenDescription" />
+
+                                        <div class="flex flex-col">
+                                        
+                                            <MudDatePicker 
+                                                Label="Expiration"
+                                                Clearable="true"
+                                                @bind-Date="_newAccessTokenExpiration" />
+
+                                            @if (_newAccessTokenExpiration is null)
+                                            {
+                                                <MudText Typo="Typo.caption">(expires never)</MudText>
+                                            }
+
+                                        </div>
+
+                                    </div>
+
+                                    <div class="flex flex-col gap-2">
+
+                                        @for (var i = 0; i < _newAccessTokenClaims.Count; i++)
+                                        {
+                                            var local = i;
+
+                                            <div class="flex items-end gap-3">
+                                                <MudTextField
+                                                    Class="flex-1"
+                                                    T="string" 
+                                                    Variant="Variant.Text"
+                                                    Placeholder="^/MY/CATALOG/PATH"
+                                                    @bind-Value="_newAccessTokenClaims[local].CatalogPattern" />
+
+                                                <MudSwitch
+                                                    Color="Color.Primary"
+                                                    Label="Write Access"
+                                                    @bind-Value="@_newAccessTokenClaims[local].WriteAccess" />
+
+                                                <div>
+                                                    <MudIconButton 
+                                                        Icon="@Icons.Material.Filled.Delete"
+                                                        Size="Size.Medium"
+                                                        OnClick="() => _newAccessTokenClaims.RemoveAt(local)" />
+                                                </div>
+                                            </div>
+                                        }
+
+                                        <MudText Typo="Typo.caption">
+                                            The catalog(s) you want to access (regex pattern)
+                                        </MudText>
+
+                                    </div>
+
+                                </div>
+
+                                <div class="flex justify-center">
+                                    <MudIconButton
+                                        OnClick="() => _newAccessTokenClaims.Add(new ClaimData(default, default))"
+                                        Color="Color.Primary"
+                                        Icon="@Icons.Material.Outlined.Add">
+                                        Add
+                                    </MudIconButton>
+                                </div>
+
+                                <div class="flex justify-center">
+                                    <MudButton
+                                        OnClick="CreateTokenAsync"
+                                        Color="Color.Primary"
+                                        Variant="Variant.Outlined"
+                                        Disabled="string.IsNullOrWhiteSpace(_newAccessTokenDescription)">
+                                        Create Token
+                                    </MudButton>
+                                </div>
+
                             </div>
                         }
                     }
@@ -113,13 +185,13 @@
 
                 <div class="text-cyan-700 border-b my-3 text-lg">Available Tokens</div>
 
-                @if (_refreshTokenMap is null)
+                @if (_accessTokenMap is null)
                 {
                     <div class="flex items-center mx-auto">
                         <MudProgressCircular 
                             Color="Color.Primary"
                             Indeterminate=true />
-                        <span class="ml-3 text-gray-400">Acquiring refresh tokens ...</span>
+                        <span class="ml-3 text-gray-400">Acquiring access tokens ...</span>
                     </div>
                 }
 
@@ -127,12 +199,12 @@
                 {
                     <div class="flex flex-col gap-2 ml-4">
 
-                        @foreach (var (id, refreshToken) in _refreshTokenMap)
+                        @foreach (var (id, accessToken) in _accessTokenMap)
                         {
                             <div class="flex items-center text-gray-400 border select-none hover:border-gray-400 rounded-lg px-2 py-1">
                                 <div>
-                                    <div>@refreshToken.Description</div>
-                                    <div class="text-sm font-bold">@(refreshToken.Expires == DateTime.MaxValue ? "expires never" : "expires on " + refreshToken.Expires.Date.ToString("yyyy-MM-dd"))</div>
+                                    <div>@accessToken.Description</div>
+                                    <div class="text-sm font-bold">@(accessToken.Expires == DateTime.MaxValue ? "expires never" : "expires on " + accessToken.Expires.Date.ToString("yyyy-MM-dd"))</div>
                                 </div>
                                 <MudIconButton
                                     OnClick="() => DeleteTokenAsync(Guid.Parse(id))"
@@ -171,7 +243,9 @@
             </MudTabPanel>
 
         </MudTabs>
+
     </DialogContent>
+
     <DialogActions>
         <form action="/api/v1/users/signout?returnUrl=@(WebUtility.UrlEncode(NavigationManager.Uri))" method="post">
             <MudButton 
@@ -182,9 +256,23 @@
             </MudButton>
         </form>
     </DialogActions>
+
 </UIDialog>
 
 @code {
+
+    private class ClaimData
+    {
+        public ClaimData(string? catalogPattern, bool writeAccess)
+        {
+            CatalogPattern = catalogPattern;
+            WriteAccess = writeAccess;
+        }
+
+        public string? CatalogPattern { get; set; }
+
+        public bool WriteAccess { get; set; }
+    }
 
     private static JsonSerializerOptions _options = new JsonSerializerOptions()
     {
@@ -196,9 +284,11 @@
     private bool _isRefreshingDatabase;
     private CancellationTokenSource? _cts;
     private string? _jsonString;
-    private string? _newRefreshToken;
-    private string? _newRefreshTokenDescription;
-    private IReadOnlyDictionary<string, RefreshToken>? _refreshTokenMap;
+    private string? _newAccessToken;
+    private DateTime? _newAccessTokenExpiration;
+    private string? _newAccessTokenDescription;
+    private List<ClaimData> _newAccessTokenClaims = [new ClaimData(default, default)];
+    private IReadOnlyDictionary<string, PersonalAccessToken>? _accessTokenMap;
 
     private bool _isRefreshingToken;
 
@@ -220,7 +310,7 @@
 
         try
         {
-            _refreshTokenMap = (await Client.Users.GetMeAsync()).RefreshTokens;
+            _accessTokenMap = (await Client.Users.GetMeAsync()).PersonalAccessTokens;
         }
         catch (Exception ex)
         {
@@ -231,17 +321,17 @@
     private void OpenUserSettingsModal()
     {
         _isUserSettingsDialogOpen = true;
-        _newRefreshToken = default;
+        _newAccessToken = default;
     }
 
     private void CopyToClipboard()
     {
-        JSRuntime.InvokeVoid("nexus.util.copyToClipboard", _newRefreshToken);
+        JSRuntime.InvokeVoid("nexus.util.copyToClipboard", _newAccessToken);
     }
 
-    private async Task GenerateTokenAsync()
+    private async Task CreateTokenAsync()
     {
-        if (_newRefreshTokenDescription is null)
+        if (_newAccessTokenDescription is null)
             return;
 
         _isRefreshingToken = true;
@@ -249,9 +339,33 @@
 
         try
         {
-            _newRefreshToken = await Client.Users.GenerateRefreshTokenAsync(_newRefreshTokenDescription);
-            _newRefreshTokenDescription = default;
-            _refreshTokenMap = (await Client.Users.GetMeAsync()).RefreshTokens;
+            var claims = _newAccessTokenClaims
+
+                .Where(
+                    claimData => claimData is not null &&
+                    claimData.CatalogPattern is not null)
+
+                .Select(claimData => new TokenClaim(
+                    claimData.WriteAccess ? "CanWriteCatalog" : "CanReadCatalog",
+                    claimData.CatalogPattern!))
+
+                .ToList();
+
+            var token = new PersonalAccessToken(
+                _newAccessTokenDescription,
+                _newAccessTokenExpiration.HasValue 
+                    ? _newAccessTokenExpiration.Value.ToUniversalTime()
+                    : DateTime.MaxValue,
+                claims
+            );
+
+            _newAccessToken = await Client.Users.CreateTokenAsync(token);
+
+            _newAccessTokenDescription = default;
+            _newAccessTokenExpiration = default;
+            _newAccessTokenClaims.Clear();
+            _newAccessTokenClaims.Add(new ClaimData(default, default));
+            _accessTokenMap = (await Client.Users.GetMeAsync()).PersonalAccessTokens;
         }
         catch (Exception ex)
         {
@@ -266,8 +380,8 @@
     {
         try
         {
-            await Client.Users.DeleteRefreshTokenAsync(id, CancellationToken.None);
-            _refreshTokenMap = (await Client.Users.GetMeAsync()).RefreshTokens;
+            await Client.Users.DeleteTokenAsync(id, CancellationToken.None);
+            _accessTokenMap = (await Client.Users.GetMeAsync()).PersonalAccessTokens;
         }
         catch (Exception ex)
         {

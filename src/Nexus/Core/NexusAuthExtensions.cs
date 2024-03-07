@@ -1,13 +1,11 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using Microsoft.IdentityModel.Tokens;
 using Nexus.Core;
 using Nexus.Utilities;
 using System.Net;
@@ -58,20 +56,8 @@ namespace Microsoft.Extensions.DependencyInjection
                     };
                 })
 
-                .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters()
-                    {
-                        NameClaimType = Claims.Name,
-                        RoleClaimType = Claims.Role,
-                        ClockSkew = TimeSpan.Zero,
-                        ValidateAudience = false,
-                        ValidateIssuer = false,
-                        ValidateActor = false,
-                        ValidateLifetime = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(securityOptions.Base64JwtSigningKey))
-                    };
-                });
+                .AddScheme<AuthenticationSchemeOptions, PersonalAccessTokenAuthHandler>(
+                    PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, default);
 
             var providers = securityOptions.OidcProviders.Any()
                 ? securityOptions.OidcProviders
@@ -224,7 +210,7 @@ namespace Microsoft.Extensions.DependencyInjection
             var authenticationSchemes = new[]
             {
                 CookieAuthenticationDefaults.AuthenticationScheme,
-                JwtBearerDefaults.AuthenticationScheme
+                PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme
             };
 
             services.AddAuthorization(options =>
@@ -237,8 +223,8 @@ namespace Microsoft.Extensions.DependencyInjection
 
                 options
                     .AddPolicy(NexusPolicies.RequireAdmin, policy => policy
-                        .RequireRole(NexusRoles.ADMINISTRATOR)
-                        .AddAuthenticationSchemes(authenticationSchemes));
+                    .RequireRole(NexusRoles.ADMINISTRATOR)
+                    .AddAuthenticationSchemes(authenticationSchemes));
             });
 
             return services;

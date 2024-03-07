@@ -8,10 +8,8 @@ namespace Nexus.Services
         IQueryable<NexusUser> GetUsers();
         Task<NexusUser?> FindUserAsync(string userId);
         Task<NexusClaim?> FindClaimAsync(Guid claimId);
-        Task<RefreshToken?> FindRefreshTokenAsync(Guid tokenId, bool includeUserClaims);
         Task AddOrUpdateUserAsync(NexusUser user);
         Task AddOrUpdateClaimAsync(NexusClaim claim);
-        Task AddOrUpdateRefreshTokenAsync(RefreshToken token);
         Task DeleteUserAsync(string userId);
         Task SaveChangesAsync();
     }
@@ -28,15 +26,13 @@ namespace Nexus.Services
 
         public IQueryable<NexusUser> GetUsers()
         {
-            return _context.Users
-                .Include(user => user.RefreshTokens);
+            return _context.Users;
         }
 
         public Task<NexusUser?> FindUserAsync(string userId)
         {
             return _context.Users
                 .Include(user => user.Claims)
-                .Include(user => user.RefreshTokens)
                 .AsSingleQuery()
                 .FirstOrDefaultAsync(user => user.Id == userId);
 
@@ -64,27 +60,6 @@ namespace Nexus.Services
             return claim;
         }
 
-        public async Task<RefreshToken?> FindRefreshTokenAsync(Guid tokenId, bool includeUserClaims)
-        {
-            RefreshToken? token;
-
-            var query = _context.RefreshTokens
-                .Include(token => token.Owner);
-
-            if (includeUserClaims)
-                token = await _context.RefreshTokens
-                    .Include(token => token.Owner)
-                    .ThenInclude(owner => owner.Claims)
-                    .FirstOrDefaultAsync(token => token.Id == tokenId);
-
-            else
-                token = await _context.RefreshTokens
-                    .Include(token => token.Owner)
-                    .FirstOrDefaultAsync(token => token.Id == tokenId);
-
-            return token;
-        }
-
         public async Task AddOrUpdateUserAsync(NexusUser user)
         {
             var reference = await _context.FindAsync<NexusUser>(user.Id);
@@ -107,19 +82,6 @@ namespace Nexus.Services
 
             else // https://stackoverflow.com/a/64094369
                 _context.Entry(reference).CurrentValues.SetValues(claim);
-
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task AddOrUpdateRefreshTokenAsync(RefreshToken token)
-        {
-            var reference = await _context.FindAsync<RefreshToken>(token.Id);
-
-            if (reference is null)
-                _context.Add(token);
-
-            else // https://stackoverflow.com/a/64094369
-                _context.Entry(reference).CurrentValues.SetValues(token);
 
             await _context.SaveChangesAsync();
         }

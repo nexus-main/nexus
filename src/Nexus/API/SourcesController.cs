@@ -96,7 +96,7 @@ namespace Nexus.Controllers
         /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
         [HttpPost("registrations")]
         public async Task<ActionResult<Guid>> CreateRegistrationAsync(
-            [FromBody] DataSourceRegistration registration,
+            DataSourceRegistration registration,
             [FromQuery] string? userId = default)
         {
             if (TryAuthenticate(userId, out var actualUserId, out var response))

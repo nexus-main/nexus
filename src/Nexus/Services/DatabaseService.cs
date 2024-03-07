@@ -31,6 +31,14 @@ namespace Nexus.Services
         bool TryReadCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry);
         bool TryWriteCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry);
         Task ClearCacheEntriesAsync(string catalogId, DateOnly day, TimeSpan timeout, Predicate<string> predicate);
+
+        /* /users */
+        bool TryReadTokenMap(
+            string userId, 
+            [NotNullWhen(true)] out string? tokenMap);
+
+        Stream WriteTokenMap(
+            string userId);
     }
 
     internal class DatabaseService : IDatabaseService
@@ -193,7 +201,6 @@ namespace Nexus.Services
         {
             var physicalId = catalogId.TrimStart('/').Replace("/", "_");
             var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, physicalId), attachmentId);
-            _ = Path.GetDirectoryName(attachmentFile)!;
 
             File.Delete(attachmentFile);
         }
@@ -329,6 +336,37 @@ namespace Nexus.Services
                 throw new Exception($"Cannot delete cache entry {cacheEntry}.");
         }
 
+        /* /users */
+        public bool TryReadTokenMap(
+            string userId, 
+            [NotNullWhen(true)] out string? tokenMap)
+        {
+            var folderPath = SafePathCombine(_pathsOptions.Users, userId);
+            var tokenFilePath = Path.Combine(folderPath, "tokens.json");
+
+            tokenMap = default;
+
+            if (File.Exists(tokenFilePath))
+            {
+                tokenMap = File.ReadAllText(tokenFilePath);
+                return true;
+            }
+
+            return false;
+        }
+
+        public Stream WriteTokenMap(
+            string userId)
+        {
+            var folderPath = SafePathCombine(_pathsOptions.Users, userId);
+            var tokenFilePath = Path.Combine(folderPath, "tokens.json");
+
+            Directory.CreateDirectory(folderPath);
+
+            return File.Open(tokenFilePath, FileMode.Create, FileAccess.Write);
+        }
+
+        //
         private static string SafePathCombine(string basePath, string relativePath)
         {
             var filePath = Path.GetFullPath(Path.Combine(basePath, relativePath));
