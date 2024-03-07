@@ -790,27 +790,6 @@ class TokenClaim:
 
 
 @dataclass(frozen=True)
-class CreateTokenRequest:
-    """
-    A revoke token request.
-
-    Args:
-        description: The token description.
-        expires: The date/time when the token expires.
-        claims: The claims that will be part of the token.
-    """
-
-    description: str
-    """The token description."""
-
-    expires: datetime
-    """The date/time when the token expires."""
-
-    claims: list[TokenClaim]
-    """The claims that will be part of the token."""
-
-
-@dataclass(frozen=True)
 class NexusClaim:
     """
     Represents a claim.
@@ -1442,7 +1421,7 @@ class UsersAsyncClient:
 
         return self.___client._invoke(MeResponse, "GET", __url, "application/json", None, None)
 
-    def create_token(self, request: CreateTokenRequest, user_id: Optional[str] = None) -> Awaitable[str]:
+    def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> Awaitable[str]:
         """
         Creates a personal access token.
 
@@ -1460,7 +1439,7 @@ class UsersAsyncClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___client._invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(token, _json_encoder_options)))
 
     def delete_token(self, token_id: UUID) -> Awaitable[Response]:
         """
@@ -2217,7 +2196,7 @@ class UsersClient:
 
         return self.___client._invoke(MeResponse, "GET", __url, "application/json", None, None)
 
-    def create_token(self, request: CreateTokenRequest, user_id: Optional[str] = None) -> str:
+    def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> str:
         """
         Creates a personal access token.
 
@@ -2235,7 +2214,7 @@ class UsersClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___client._invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(token, _json_encoder_options)))
 
     def delete_token(self, token_id: UUID) -> Response:
         """

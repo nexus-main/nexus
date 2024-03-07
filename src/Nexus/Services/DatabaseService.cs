@@ -341,7 +341,7 @@ namespace Nexus.Services
             string userId, 
             [NotNullWhen(true)] out string? tokenMap)
         {
-            var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
+            var folderPath = SafePathCombine(_pathsOptions.Users, userId);
             var tokenFilePath = Path.Combine(folderPath, "tokens.json");
 
             tokenMap = default;
@@ -358,7 +358,7 @@ namespace Nexus.Services
         public Stream WriteTokenMap(
             string userId)
         {
-            var folderPath = Path.Combine(SafePathCombine(_pathsOptions.Users, userId), "tokens");
+            var folderPath = SafePathCombine(_pathsOptions.Users, userId);
             var tokenFilePath = Path.Combine(folderPath, "tokens.json");
 
             Directory.CreateDirectory(folderPath);

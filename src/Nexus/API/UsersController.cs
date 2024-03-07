@@ -177,12 +177,12 @@ namespace Nexus.Controllers
         /// <summary>
         /// Creates a personal access token.
         /// </summary>
-        /// <param name="request">The create token request.</param>
+        /// <param name="token">The personal access token to create.</param>
         /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
         [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
         [HttpPost("tokens/create")]
         public async Task<ActionResult<string>> CreateTokenAsync(
-            CreateTokenRequest request,
+            PersonalAccessToken token,
             [FromQuery] string? userId = default
         )
         {
@@ -193,10 +193,14 @@ namespace Nexus.Controllers
                 if (user is null)
                     return NotFound($"Could not find user {userId}.");
 
-                await _tokenService
-                    .CreateAsync(actualUserId, request.Description, request.Expires, request.Claims);
+                var tokenValue = await _tokenService
+                    .CreateAsync(
+                        actualUserId, 
+                        token.Description, 
+                        token.Expires, 
+                        token.Claims);
 
-                return Ok();
+                return Ok(tokenValue);
             }
 
             else

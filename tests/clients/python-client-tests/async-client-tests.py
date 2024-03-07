@@ -36,13 +36,6 @@ def _handler(request: Request):
         catalog_json_string = '{"Id":"my-catalog-id","Properties":null,"Resources":null}'
         return Response(codes.OK, content=catalog_json_string)
 
-    elif "refresh-token" in request.url.path:
-        requestContent = request.content.decode("utf-8")
-        assert '{"refreshToken": "456"}' == requestContent
-
-        new_token_pair_json_string = '{ "accessToken": "123", "refreshToken": "456" }'
-        return Response(codes.OK, content=new_token_pair_json_string)
-
     else:
         raise Exception("Unsupported path.")
 

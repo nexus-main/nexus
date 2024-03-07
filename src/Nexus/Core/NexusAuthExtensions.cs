@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Nexus.Core;
 using Nexus.Utilities;
@@ -31,6 +31,8 @@ namespace Microsoft.Extensions.DependencyInjection
             SecurityOptions securityOptions)
         {
             /* https://stackoverflow.com/a/52493428/1636629 */
+
+            JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
             services.AddDataProtection()
                 .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(pathsOptions.Config, "data-protection-keys")));
@@ -205,7 +207,7 @@ namespace Microsoft.Extensions.DependencyInjection
             var authenticationSchemes = new[]
             {
                 CookieAuthenticationDefaults.AuthenticationScheme,
-                JwtBearerDefaults.AuthenticationScheme
+                // JwtBearerDefaults.AuthenticationScheme
             };
 
             services.AddAuthorization(options =>
@@ -218,8 +220,8 @@ namespace Microsoft.Extensions.DependencyInjection
 
                 options
                     .AddPolicy(NexusPolicies.RequireAdmin, policy => policy
-                        .RequireRole(NexusRoles.ADMINISTRATOR)
-                        .AddAuthenticationSchemes(authenticationSchemes));
+                    .RequireRole(NexusRoles.ADMINISTRATOR)
+                    .AddAuthenticationSchemes(authenticationSchemes));
             });
 
             return services;

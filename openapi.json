@@ -1325,12 +1325,12 @@
           }
         ],
         "requestBody": {
-          "x-name": "request",
-          "description": "The create token request.",
+          "x-name": "token",
+          "description": "The personal access token to create.",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateTokenRequest"
+                "$ref": "#/components/schemas/PersonalAccessToken"
               }
             }
           },
@@ -2268,29 +2268,6 @@
           "value": {
             "type": "string",
             "description": "The claim value."
-          }
-        }
-      },
-      "CreateTokenRequest": {
-        "type": "object",
-        "description": "A revoke token request.",
-        "additionalProperties": false,
-        "properties": {
-          "description": {
-            "type": "string",
-            "description": "The token description."
-          },
-          "expires": {
-            "type": "string",
-            "description": "The date/time when the token expires.",
-            "format": "date-time"
-          },
-          "claims": {
-            "type": "array",
-            "description": "The claims that will be part of the token.",
-            "items": {
-              "$ref": "#/components/schemas/TokenClaim"
-            }
           }
         }
       },

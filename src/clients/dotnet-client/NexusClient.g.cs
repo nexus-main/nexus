@@ -2231,16 +2231,16 @@ public interface IUsersClient
     /// Creates a personal access token.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    /// <param name="request">The create token request.</param>
-    string CreateToken(CreateTokenRequest request, string? userId = default);
+    /// <param name="token">The personal access token to create.</param>
+    string CreateToken(PersonalAccessToken token, string? userId = default);
 
     /// <summary>
     /// Creates a personal access token.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    /// <param name="request">The create token request.</param>
+    /// <param name="token">The personal access token to create.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> CreateTokenAsync(CreateTokenRequest request, string? userId = default, CancellationToken cancellationToken = default);
+    Task<string> CreateTokenAsync(PersonalAccessToken token, string? userId = default, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a personal access token.
@@ -2518,7 +2518,7 @@ public class UsersClient : IUsersClient
     }
 
     /// <inheritdoc />
-    public string CreateToken(CreateTokenRequest request, string? userId = default)
+    public string CreateToken(PersonalAccessToken token, string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens/create");
@@ -2532,11 +2532,11 @@ public class UsersClient : IUsersClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<string>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+        return ___client.Invoke<string>("POST", __url, "application/json", "application/json", JsonContent.Create(token, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
-    public Task<string> CreateTokenAsync(CreateTokenRequest request, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<string> CreateTokenAsync(PersonalAccessToken token, string? userId = default, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens/create");
@@ -2550,7 +2550,7 @@ public class UsersClient : IUsersClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<string>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+        return ___client.InvokeAsync<string>("POST", __url, "application/json", "application/json", JsonContent.Create(token, options: Utilities.JsonOptions), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -3141,14 +3141,6 @@ public record PersonalAccessToken(string Description, DateTime Expires, IReadOnl
 /// <param name="Type">The claim type.</param>
 /// <param name="Value">The claim value.</param>
 public record TokenClaim(string Type, string Value);
-
-/// <summary>
-/// A revoke token request.
-/// </summary>
-/// <param name="Description">The token description.</param>
-/// <param name="Expires">The date/time when the token expires.</param>
-/// <param name="Claims">The claims that will be part of the token.</param>
-public record CreateTokenRequest(string Description, DateTime Expires, IReadOnlyList<TokenClaim> Claims);
 
 /// <summary>
 /// Represents a claim.

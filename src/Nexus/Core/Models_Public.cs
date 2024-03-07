@@ -97,17 +97,6 @@ namespace Nexus.Core
     /// <summary>
     /// A revoke token request.
     /// </summary>
-    /// <param name="Description">The token description.</param>
-    /// <param name="Expires">The date/time when the token expires.</param>
-    /// <param name="Claims">The claims that will be part of the token.</param>
-    public record CreateTokenRequest(
-        string Description,
-        DateTime Expires,
-        IReadOnlyList<TokenClaim> Claims);
-
-    /// <summary>
-    /// A revoke token request.
-    /// </summary>
     /// <param name="Type">The claim type.</param>
     /// <param name="Value">The claim value.</param>
     public record TokenClaim(

@@ -6,14 +6,12 @@ websave(fullfile(connectorFolderPath, 'NexusClient.m'), url);
 addpath(connectorFolderPath)
 
 %% Create client and authenticate
-% - You get this token in the Nexus GUI's user menu. 
-% - To avoid the token being invalidated by Nexus, do not use it in parallel.
-% - Best practice: Create one token per script or one token per "thread".
-refreshToken    = '<token>';
+% You get this token in the user settings menu of Nexus. 
+accessToken     = '<token>';
 baseUrl         = 'http://localhost:5000';
 client          = NexusClient(baseUrl);
 
-client.signIn(refreshToken)
+client.signIn(accessToken)
 
 %% Export data from sample catalog /SAMPLE/LOCAL
 dateTimeBegin 	= datetime(2020, 01, 01, 0, 0, 0, 'TimeZone', 'UTC');

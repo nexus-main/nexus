@@ -1,3 +1,8 @@
+# Note
+The text below does not apply anymore to Nexus because we have switched from refresh tokens + access tokens to personal access tokens that expire only optionally and are not cryptographically signed but checked against the database instead. The negible problem of higher database load is acceptible to get the benefit of not having to manage refresh tokens which are prone to being revoked as soon as the user uses it in more than a single place.
+
+The new personal access tokens approach allows fine-grained access control to catalogs and makes many parts of the code much simpler.
+
 # Authentication and Authorization
 
 Nexus exposes resources (data, metadata and more) via HTTP API. Most of these resources do not have specific owners - they are owned by the system itself. Most of these resources need to be protected which makes an `authorization` mechanism necessary.
