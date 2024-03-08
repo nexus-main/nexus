@@ -1156,30 +1156,6 @@
         }
       }
     },
-    "/api/v1/users/authentication-schemes": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Returns a list of available authentication schemes.",
-        "operationId": "Users_GetAuthenticationSchemes",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AuthenticationSchemeDescription"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/users/authenticate": {
       "post": {
         "tags": [
@@ -2174,21 +2150,6 @@
             "type": "string",
             "description": "An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.",
             "nullable": true
-          }
-        }
-      },
-      "AuthenticationSchemeDescription": {
-        "type": "object",
-        "description": "Describes an OpenID connect provider.",
-        "additionalProperties": false,
-        "properties": {
-          "scheme": {
-            "type": "string",
-            "description": "The scheme."
-          },
-          "displayName": {
-            "type": "string",
-            "description": "The display name."
           }
         }
       },

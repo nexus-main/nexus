@@ -697,23 +697,6 @@ class DataSourceRegistration:
 
 
 @dataclass(frozen=True)
-class AuthenticationSchemeDescription:
-    """
-    Describes an OpenID connect provider.
-
-    Args:
-        scheme: The scheme.
-        display_name: The display name.
-    """
-
-    scheme: str
-    """The scheme."""
-
-    display_name: str
-    """The display name."""
-
-
-@dataclass(frozen=True)
 class MeResponse:
     """
     A me response.
@@ -1338,17 +1321,6 @@ class UsersAsyncClient:
     
     def __init__(self, client: NexusAsyncClient):
         self.___client = client
-
-    def get_authentication_schemes(self) -> Awaitable[list[AuthenticationSchemeDescription]]:
-        """
-        Returns a list of available authentication schemes.
-
-        Args:
-        """
-
-        __url = "/api/v1/users/authentication-schemes"
-
-        return self.___client._invoke(list[AuthenticationSchemeDescription], "GET", __url, "application/json", None, None)
 
     def authenticate(self, scheme: str, return_url: str) -> Awaitable[Response]:
         """
@@ -2113,17 +2085,6 @@ class UsersClient:
     
     def __init__(self, client: NexusClient):
         self.___client = client
-
-    def get_authentication_schemes(self) -> list[AuthenticationSchemeDescription]:
-        """
-        Returns a list of available authentication schemes.
-
-        Args:
-        """
-
-        __url = "/api/v1/users/authentication-schemes"
-
-        return self.___client._invoke(list[AuthenticationSchemeDescription], "GET", __url, "application/json", None, None)
 
     def authenticate(self, scheme: str, return_url: str) -> Response:
         """
