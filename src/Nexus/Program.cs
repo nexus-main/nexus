@@ -139,6 +139,19 @@ void AddServices(
     services.AddRazorComponents()
         .AddInteractiveWebAssemblyComponents();
 
+    /* 
+     * login view: We tried to use Blazor Webs ability to render pages
+     * on the server but it does not work properly. With the command
+     * dotnet new blazor --all-interactive --interactivity WebAssembly --no-https
+     * It is possible to simply define server side razor pages without
+     * any changes and because prerendering is enabled by default it is
+     * being displayed shortly but then Blazor starts and redirects
+     * the user to a "Not found" page.
+     * 
+     * Related issue:
+     * https://github.com/dotnet/aspnetcore/issues/51046
+     */
+
     // razor pages (for login view)
     services.AddRazorPages();
 
