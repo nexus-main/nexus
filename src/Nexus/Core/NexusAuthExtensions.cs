@@ -8,7 +8,6 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Nexus.Core;
 using Nexus.Utilities;
-using System.Net;
 using System.Security.Claims;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -49,11 +48,7 @@ internal static class NexusAuthExtensions
                 options.ExpireTimeSpan = securityOptions.CookieLifetime;
                 options.SlidingExpiration = false;
 
-                options.Events.OnRedirectToAccessDenied = context =>
-                {
-                    context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
-                    return Task.CompletedTask;
-                };
+                options.LoginPath = "/login";
             })
 
             .AddScheme<AuthenticationSchemeOptions, PersonalAccessTokenAuthHandler>(

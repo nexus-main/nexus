@@ -125,10 +125,6 @@ void AddServices(
             noContentFormatter.TreatNullValueAsNoContent = false;
     });
 
-    // razor components
-    services.AddRazorComponents()
-        .AddInteractiveWebAssemblyComponents();
-
     // authentication
     services.AddNexusAuth(pathsOptions, securityOptions);
 
@@ -138,6 +134,26 @@ void AddServices(
     // default Identity Provider
     if (!securityOptions.OidcProviders.Any())
         services.AddNexusIdentityProvider();
+
+    // razor components
+    services.AddRazorComponents()
+        .AddInteractiveWebAssemblyComponents();
+
+    /* 
+     * login view: We tried to use Blazor Webs ability to render pages
+     * on the server but it does not work properly. With the command
+     * dotnet new blazor --all-interactive --interactivity WebAssembly --no-https
+     * It is possible to simply define server side razor pages without
+     * any changes and because prerendering is enabled by default it is
+     * being displayed shortly but then Blazor starts and redirects
+     * the user to a "Not found" page.
+     * 
+     * Related issue:
+     * https://github.com/dotnet/aspnetcore/issues/51046
+     */
+
+    // razor pages (for login view)
+    services.AddRazorPages();
 
     // routing
     services.AddRouting(options => options.LowercaseUrls = true);
@@ -222,13 +238,21 @@ void ConfigurePipeline(WebApplication app)
     app.UseAuthorization();
 
     // endpoints
+    
+    /* REST API */
     app.MapControllers();
+
+    /* Login view */
+    app.MapRazorPages();
+
+    /* Debugging (print all routes) */
+    app.MapGet("/debug/routes", (IEnumerable<EndpointDataSource> endpointSources) =>
+        string.Join("\n", endpointSources.SelectMany(source => source.Endpoints)));
 
     // razor components
     app.MapRazorComponents<App>()
         .AddInteractiveWebAssemblyRenderMode()
         .AddAdditionalAssemblies(typeof(MainLayout).Assembly);
-
 }
 
 async Task InitializeAppAsync(

@@ -2165,17 +2165,6 @@ public class SystemClient : ISystemClient
 public interface IUsersClient
 {
     /// <summary>
-    /// Returns a list of available authentication schemes.
-    /// </summary>
-    IReadOnlyList<AuthenticationSchemeDescription> GetAuthenticationSchemes();
-
-    /// <summary>
-    /// Returns a list of available authentication schemes.
-    /// </summary>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyList<AuthenticationSchemeDescription>> GetAuthenticationSchemesAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Authenticates the user.
     /// </summary>
     /// <param name="scheme">The authentication scheme to challenge.</param>
@@ -2369,26 +2358,6 @@ public class UsersClient : IUsersClient
     internal UsersClient(NexusClient client)
     {
         ___client = client;
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyList<AuthenticationSchemeDescription> GetAuthenticationSchemes()
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/authentication-schemes");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyList<AuthenticationSchemeDescription>>("GET", __url, "application/json", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyList<AuthenticationSchemeDescription>> GetAuthenticationSchemesAsync(CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/authentication-schemes");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyList<AuthenticationSchemeDescription>>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -3104,13 +3073,6 @@ public record ExtensionDescription(string Type, string Version, string? Descript
 /// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
 /// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
 public record DataSourceRegistration(string Type, Uri? ResourceLocator, IReadOnlyDictionary<string, JsonElement>? Configuration, string? InfoUrl, string? ReleasePattern, string? VisibilityPattern);
-
-/// <summary>
-/// Describes an OpenID connect provider.
-/// </summary>
-/// <param name="Scheme">The scheme.</param>
-/// <param name="DisplayName">The display name.</param>
-public record AuthenticationSchemeDescription(string Scheme, string DisplayName);
 
 /// <summary>
 /// A me response.
