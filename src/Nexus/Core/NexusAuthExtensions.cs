@@ -49,11 +49,7 @@ internal static class NexusAuthExtensions
                 options.ExpireTimeSpan = securityOptions.CookieLifetime;
                 options.SlidingExpiration = false;
 
-                options.Events.OnRedirectToAccessDenied = context =>
-                {
-                    context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
-                    return Task.CompletedTask;
-                };
+                options.LoginPath = "/login";
             })
 
             .AddScheme<AuthenticationSchemeOptions, PersonalAccessTokenAuthHandler>(

@@ -25,7 +25,6 @@ namespace Nexus.Controllers;
 internal class UsersController : ControllerBase
 {
     // [anonymous]
-    // GET      /api/users/authentication-schemes
     // GET      /api/users/authenticate
     // GET      /api/users/signout
     // POST     /api/users/tokens/delete
@@ -65,22 +64,6 @@ internal class UsersController : ControllerBase
     }
 
     #region Anonymous
-
-    /// <summary>
-    /// Returns a list of available authentication schemes.
-    /// </summary>
-    [AllowAnonymous]
-    [HttpGet("authentication-schemes")]
-    public List<AuthenticationSchemeDescription> GetAuthenticationSchemes()
-    {
-        var providers = _securityOptions.OidcProviders.Any()
-            ? _securityOptions.OidcProviders
-            : new List<OpenIdConnectProvider>() { NexusAuthExtensions.DefaultProvider };
-
-        return providers
-            .Select(provider => new AuthenticationSchemeDescription(provider.Scheme, provider.DisplayName))
-            .ToList();
-    }
 
     /// <summary>
     /// Authenticates the user.

@@ -27,12 +27,10 @@ public class AppState : INotifyPropertyChanged
 
     public AppState(
         bool isDemo,
-        IReadOnlyList<AuthenticationSchemeDescription> authenticationSchemes,
         INexusClient client,
         IJSInProcessRuntime jsRuntime)
     {
         IsDemo = isDemo;
-        AuthenticationSchemes = authenticationSchemes;
         _client = client;
         _jsRuntime = jsRuntime;
         Settings = new SettingsViewModel(this, jsRuntime, client);
@@ -95,8 +93,6 @@ public class AppState : INotifyPropertyChanged
             }
         }
     }
-
-    public IReadOnlyList<AuthenticationSchemeDescription> AuthenticationSchemes { get; }
 
     public ExportParameters ExportParameters
     {

@@ -221,7 +221,7 @@ void ConfigurePipeline(WebApplication app)
     // authorization
     app.UseAuthorization();
 
-    // endpoints
+    // REST API
     app.MapControllers();
 
     // razor components
