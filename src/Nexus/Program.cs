@@ -125,10 +125,6 @@ void AddServices(
             noContentFormatter.TreatNullValueAsNoContent = false;
     });
 
-    // razor components
-    services.AddRazorComponents()
-        .AddInteractiveWebAssemblyComponents();
-
     // authentication
     services.AddNexusAuth(pathsOptions, securityOptions);
 
@@ -138,6 +134,13 @@ void AddServices(
     // default Identity Provider
     if (!securityOptions.OidcProviders.Any())
         services.AddNexusIdentityProvider();
+
+    // razor components
+    services.AddRazorComponents()
+        .AddInteractiveWebAssemblyComponents();
+
+    // razor pages (for login view)
+    services.AddRazorPages();
 
     // routing
     services.AddRouting(options => options.LowercaseUrls = true);
@@ -221,14 +224,22 @@ void ConfigurePipeline(WebApplication app)
     // authorization
     app.UseAuthorization();
 
-    // REST API
+    // endpoints
+    
+    /* REST API */
     app.MapControllers();
+
+    /* Login view */
+    app.MapRazorPages();
+
+    /* Debugging (print all routes) */
+    app.MapGet("/debug/routes", (IEnumerable<EndpointDataSource> endpointSources) =>
+        string.Join("\n", endpointSources.SelectMany(source => source.Endpoints)));
 
     // razor components
     app.MapRazorComponents<App>()
         .AddInteractiveWebAssemblyRenderMode()
         .AddAdditionalAssemblies(typeof(MainLayout).Assembly);
-
 }
 
 async Task InitializeAppAsync(

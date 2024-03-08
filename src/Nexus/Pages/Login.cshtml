@@ -29,19 +29,21 @@
 <body style="height: 100%;">
 
     <div style="height: 66%; display: flex; justify-content: center; align-items: center">
-        <div style="
+        <div 
+            style="
                 display: flex; flex-direction: column; align-items: center; width: 18rem; border-radius: 0.375rem;
                 border-style: solid; border-width: 1px; border-color: rgb(209 213 219); background-color: rgb(255 255 255); 
                 padding: 2.5rem; filter: drop-shadow(0 0 0.75rem rgb(225, 225, 225))">
 
-            <span style="
+            <span 
+                style="
                     font-weight: 600; font-size: 1.5rem; line-height: 2rem; padding-bottom: 0.5rem; 
                     color: rgb(21 94 117); margin-bottom: 1.25rem; letter-spacing: 0.1em; text-transform: uppercase;">
                 Login
             </span>
 
             <div style="display: flex; flex-direction: column; gap: 1.25rem;">
-                @foreach (var provider in SecurityOptions.Value.OidcProviders.Any() ? SecurityOptions.Value.OidcProviders : new List<OpenIdConnectProvider>() { VeltrupAuthExtensions.DefaultProvider })
+                @foreach (var provider in SecurityOptions.Value.OidcProviders.Any() ? SecurityOptions.Value.OidcProviders : new List<OpenIdConnectProvider>() { NexusAuthExtensions.DefaultProvider })
                 {
                     <div class="oidc-provider-container" style="
                         display: flex; justify-content: center; padding-left: 1.5rem; padding-right: 1.5rem; padding-top: 0.5rem; padding-bottom: 0.5rem;
@@ -57,5 +59,4 @@
     </div>
 
 </body>
-
 </html>
