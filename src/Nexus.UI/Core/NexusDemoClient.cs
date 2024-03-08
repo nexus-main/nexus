@@ -431,16 +431,6 @@ public class UsersDemoClient : IUsersClient
         throw new NotImplementedException();
     }
 
-    public IReadOnlyList<AuthenticationSchemeDescription> GetAuthenticationSchemes()
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<IReadOnlyList<AuthenticationSchemeDescription>> GetAuthenticationSchemesAsync(CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult((IReadOnlyList<AuthenticationSchemeDescription>)new List<AuthenticationSchemeDescription>());
-    }
-
     public IReadOnlyDictionary<string, NexusClaim> GetClaims(string userId)
     {
         throw new NotImplementedException();
