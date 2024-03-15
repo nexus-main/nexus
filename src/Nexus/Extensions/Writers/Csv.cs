@@ -203,7 +203,7 @@ internal class Csv : IDataWriter, IDisposable
         var offset = fileOffset.Ticks / _lastSamplePeriod.Ticks;
 
         var requestGroups = requests
-            .GroupBy(request => request.CatalogItem.Catalog)
+            .GroupBy(request => request.CatalogItem.Catalog.Id)
             .ToList();
 
         var rowIndexFormat = Context.RequestConfiguration?.GetStringValue("row-index-format") ?? "index";
@@ -219,9 +219,9 @@ internal class Csv : IDataWriter, IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var catalog = requestGroup.Key;
+            var catalogId = requestGroup.Key;
             var writeRequests = requestGroup.ToArray();
-            var physicalId = catalog.Id.TrimStart('/').Replace('/', '_');
+            var physicalId = catalogId.TrimStart('/').Replace('/', '_');
             var root = Context.ResourceLocator.ToPath();
             var filePath = Path.Combine(root, $"{physicalId}_{ToISO8601(_lastFileBegin)}_{_lastSamplePeriod.ToUnitString()}.csv");
 

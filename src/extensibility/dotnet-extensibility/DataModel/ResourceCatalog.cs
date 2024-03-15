@@ -169,8 +169,8 @@ public record ResourceCatalog
             return false;
 
         catalogItem = new CatalogItem(
-            this with { Resources = default },
-            resource with { Representations = default },
+            this,
+            resource,
             representation,
             parameters);
 

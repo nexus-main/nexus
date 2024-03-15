@@ -41,9 +41,9 @@ public class DataServiceTests
             .Callback<DateTime, DateTime, TimeSpan, TimeSpan, CatalogItemRequestPipeReader[], IProgress<double>, CancellationToken>(
             (begin, end, samplePeriod, filePeriod, catalogItemRequestPipeReaders, progress, cancellationToken) =>
             {
-                foreach (var catalogItemRequestPipeReaderGroup in catalogItemRequestPipeReaders.GroupBy(x => x.Request.Item.Catalog))
+                foreach (var catalogIdRequestPipeReaderGroup in catalogItemRequestPipeReaders.GroupBy(x => x.Request.Item.Catalog.Id))
                 {
-                    var prefix = catalogItemRequestPipeReaderGroup.Key.Id.TrimStart('/').Replace('/', '_');
+                    var prefix = catalogIdRequestPipeReaderGroup.Key.TrimStart('/').Replace('/', '_');
                     var filePath = Path.Combine(tmpUri.LocalPath, $"{prefix}.dat");
                     File.Create(filePath).Dispose();
                 }

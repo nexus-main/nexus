@@ -283,8 +283,8 @@ public class DataModelTests : IClassFixture<DataModelFixture>
         var catalog = new ResourceCatalog(id: "/A/B/C", resources: new List<Resource>() { resource });
 
         var catalogItem = new CatalogItem(
-            catalog with { Resources = default },
-            resource with { Representations = default },
+            catalog,
+            resource,
             representation,
             Parameters: default);
 
