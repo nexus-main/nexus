@@ -76,7 +76,7 @@ try
     ConfigurePipeline(app);
 
     // initialize app state
-    await InitializeAppAsync(app.Services, pathsOptions, securityOptions, app.Logger);
+    await InitializeAppAsync(app.Services, pathsOptions, app.Logger);
 
     // Run
     app.Run();
@@ -258,7 +258,6 @@ void ConfigurePipeline(WebApplication app)
 async Task InitializeAppAsync(
     IServiceProvider serviceProvider,
     PathsOptions pathsOptions,
-    SecurityOptions securityOptions,
     ILogger logger)
 {
     var appState = serviceProvider.GetRequiredService<AppState>();

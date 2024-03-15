@@ -34,9 +34,4 @@ public static class ExtensibilityUtilities
     {
         return (int)((end.Ticks - begin.Ticks) / samplePeriod.Ticks);
     }
-
-    internal static DateTime RoundDown(DateTime dateTime, TimeSpan timeSpan)
-    {
-        return new DateTime(dateTime.Ticks - (dateTime.Ticks % timeSpan.Ticks), dateTime.Kind);
-    }
 }
