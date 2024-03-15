@@ -1,22 +1,18 @@
-﻿@using System.Net
+@using System.Net
 
-@inject AppState AppState
 @inject NavigationManager NavigationManager
 
 <div class="h-2/3 flex justify-center items-center">
-    <div class="flex flex-col items-center w-72 rounded-md border border-gray-300 drop-shadow-2xl bg-white p-10">
-
-        <span class="font-semibold text-2xl pb-2 text-cyan-800 mb-5 tracking-widest uppercase">Sign-in</span>
-
-        <div class="flex flex-col gap-5">
-            @foreach (var scheme in AppState.AuthenticationSchemes)
-            {
-                <div class="flex justify-center px-10 py-2 text-xl text-cyan-700 border-b border-gray-300 hover:border-cyan-700 cursor-pointer">
-                    <form action="/api/v1/users/authenticate?scheme=@scheme.Scheme&returnUrl=@(WebUtility.UrlEncode(NavigationManager.Uri))" method="post">
-                        <button type="submit">@scheme.DisplayName</button>
-                    </form>
-                </div>
-            }
-        </div>
+    <div class="
+        flex flex-col items-center w-72 rounded-md border border-gray-300 
+        drop-shadow-2xl bg-white p-10 gap-7">
+        <MudText Align="Align.Center" Typo="Typo.h5">Sie sind nicht eingeloggt.</MudText>
+        <MudButton
+            Href="@($"/login?ReturnUrl={WebUtility.UrlEncode(NavigationManager.Uri)}")"
+            Color="Color.Primary"
+            StartIcon="@Icons.Material.Filled.Login"
+            Variant="Variant.Text">
+            Einloggen
+        </MudButton>
     </div>
 </div>

@@ -2,10 +2,6 @@ classdef NexusClient < handle
 
     properties(Access = private)
         BaseUrl
-        AccessToken
-        TokenPair
-        TokenFolderPath
-        TokenFilePath
         AuthorizationHeader
         ConfigurationHeader
     end
@@ -13,46 +9,11 @@ classdef NexusClient < handle
     methods
 
         function self = NexusClient(baseUrl)
-
-            self.BaseUrl = baseUrl;
-
-            if ispc
-              home = getenv('USERPROFILE');
-            else
-              home = getenv('HOME');
-            end
-
-            self.TokenFolderPath = fullfile(home, '.nexus-api', 'tokens');      
+            self.BaseUrl = baseUrl; 
         end
 
-        function signIn(self, refreshToken)
-    
-            import java.lang.String
-            import java.math.*
-            import java.security.*
-
-            sha256              = MessageDigest.getInstance('sha-256');
-            hash                = sha256.digest(double(refreshToken));
-            bigInteger          = BigInteger(1, hash);
-            refreshTokenHash    = char(String.format('%064x', bigInteger));
-            self.TokenFilePath  = fullfile(self.TokenFolderPath, [refreshTokenHash '.json']);
-
-            if isfile(self.TokenFilePath)
-                actualRefreshToken = fileread(self.TokenFilePath);
-
-            else
-                if ~exist(self.TokenFolderPath, 'dir')
-                    mkdir(self.TokenFolderPath)
-                end
-
-                fileId = fopen(self.TokenFilePath, 'w');
-                fprintf(fileId, refreshToken);
-                fclose(fileId);
-
-                actualRefreshToken = refreshToken;
-            end
-            
-            self.refreshToken(actualRefreshToken)
+        function signIn(self, accessToken)
+            self.AuthorizationHeader = GenericField('Authorization', ['Bearer ' accessToken]);
         end
 
         function attachConfiguration(self, configuration)
@@ -193,19 +154,9 @@ classdef NexusClient < handle
             import matlab.net.http.*
             import matlab.net.http.field.*
                                       
-            options             = weboptions('HeaderFields', self.AuthorizationHeader);
+            options = weboptions('HeaderFields', self.AuthorizationHeader);
 
-            try
-                websave(tmpFilePath, downloadUrl, options);
-            catch
-                try
-                    self.refreshToken(self.TokenPair.RefreshToken)
-                    websave(tmpFilePath, downloadUrl, options);
-                catch
-                    % do nothing
-                end
-            end
-            
+            websave(tmpFilePath, downloadUrl, options);
             onProgress(1, 'download')
 
             % Extract file
@@ -276,16 +227,6 @@ classdef NexusClient < handle
             downloadUrl = URI([self.BaseUrl sprintf('/api/v1/artifacts/%s', artifactId)]);
         end
 
-        function tokenPair = users_refreshToken(self, refreshToken)
-            import matlab.net.*
-            import matlab.net.http.*
-            
-            requestMessage  = RequestMessage('post', [], refreshToken);
-            uri             = URI([self.BaseUrl '/api/v1/users/tokens/refresh']);
-            response        = self.send(requestMessage, uri);
-            tokenPair       = self.toPascalCase(response.Body.Data);
-        end
-
         function response = send(self, requestMessage, uri)
             import matlab.net.http.*
                                       
@@ -297,70 +238,10 @@ classdef NexusClient < handle
             
             % process response
             if ~self.isSuccessStatusCode(response)
-                
-                if response.StatusCode == 401 && ~isempty(self.TokenPair)
-                    wwwAuthenticateHeader = response.Header.getFields('WWW-Authenticate');
-                    signOut = true;
 
-                    if ~isempty(wwwAuthenticateHeader)
-
-                        if contains(wwwAuthenticateHeader.Value, 'The token expired at')
-
-                            try
-                                self.refreshToken(self.TokenPair.RefreshToken)
-
-                                requestMessage.Header   = [requestMessage.Header self.AuthorizationHeader self.ConfigurationHeader];
-                                options                 = HTTPOptions('ResponseTimeout', 60);
-                                newResponse             = requestMessage.send(uri, options);
-                                response                = newResponse;
-                                signOut                 = false;
-                            catch
-                                % do nothing
-                            end
-                        end
-                    end
-
-                    if signOut
-                        self.signOut()
-                    end
-                end
-
-                if ~self.isSuccessStatusCode(response)
-                    message = [char(response.StatusLine.ReasonPhrase) ' - ' char(response.Body.Data)];
-                    error('The HTTP request failed with status code %d. The response message is: %s', response.StatusCode, message)
-                end
+                message = [char(response.StatusLine.ReasonPhrase) ' - ' char(response.Body.Data)];
+                error('The HTTP request failed with status code %d. The response message is: %s', response.StatusCode, message)
             end
-        end
-
-        function signOut(self)
-            self.AuthorizationHeader = [];
-            self.TokenPair = [];
-        end
-
-        function refreshToken(self, refreshToken)
-            
-            import matlab.net.http.field.*
-
-            % make sure the refresh token has not already been redeemed
-            if ~isempty(self.TokenPair) && strcmp(refreshToken, self.TokenPair.RefreshToken) == 0
-                return
-            end
-
-            refreshRequest  = struct('refreshToken', refreshToken);
-            tokenPair       = self.users_refreshToken(refreshRequest);
-
-            if ~isempty(self.TokenFilePath)
-                if ~exist(self.TokenFolderPath, 'dir')
-                    mkdir(self.TokenFolderPath)
-                end
-
-                fileId = fopen(self.TokenFilePath, 'w');
-                fprintf(fileId, tokenPair.RefreshToken);
-                fclose(fileId);
-            end
-
-            self.AuthorizationHeader = GenericField('Authorization', ['Bearer ' tokenPair.AccessToken]);
-            self.TokenPair = tokenPair;
         end
         
         function result = isSuccessStatusCode(~, response)

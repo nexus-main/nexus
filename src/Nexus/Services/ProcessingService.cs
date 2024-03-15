@@ -28,14 +28,10 @@ internal interface IProcessingService
         int blockSize);
 }
 
-internal class ProcessingService : IProcessingService
+internal class ProcessingService(IOptions<DataOptions> dataOptions) 
+    : IProcessingService
 {
-    private readonly double _nanThreshold;
-
-    public ProcessingService(IOptions<DataOptions> dataOptions)
-    {
-        _nanThreshold = dataOptions.Value.AggregationNaNThreshold;
-    }
+    private readonly double _nanThreshold = dataOptions.Value.AggregationNaNThreshold;
 
     public void Resample(
         NexusDataType dataType,
@@ -46,7 +42,7 @@ internal class ProcessingService : IProcessingService
         int offset)
     {
         using var memoryOwner = MemoryPool<double>.Shared.Rent(status.Length);
-        var doubleData = memoryOwner.Memory.Slice(0, status.Length);
+        var doubleData = memoryOwner.Memory[..status.Length];
 
         BufferUtilities.ApplyRepresentationStatusByDataType(
             dataType,
@@ -103,7 +99,7 @@ internal class ProcessingService : IProcessingService
 
                 using (var memoryOwner = MemoryPool<double>.Shared.Rent(Tdata.Length))
                 {
-                    var doubleData2 = memoryOwner.Memory.Slice(0, Tdata.Length);
+                    var doubleData2 = memoryOwner.Memory[..Tdata.Length];
 
                     BufferUtilities.ApplyRepresentationStatus<T>(Tdata, status, target: doubleData2);
                     ApplyAggregationFunction(kind, blockSize, doubleData2, targetBuffer);
@@ -152,8 +148,8 @@ internal class ProcessingService : IProcessingService
                 using (var memoryOwner_sin = MemoryPool<double>.Shared.Rent(targetBuffer.Length))
                 using (var memoryOwner_cos = MemoryPool<double>.Shared.Rent(targetBuffer.Length))
                 {
-                    var sinBuffer = memoryOwner_sin.Memory.Slice(0, targetBuffer.Length);
-                    var cosBuffer = memoryOwner_cos.Memory.Slice(0, targetBuffer.Length);
+                    var sinBuffer = memoryOwner_sin.Memory[..targetBuffer.Length];
+                    var cosBuffer = memoryOwner_cos.Memory[..targetBuffer.Length];
 
                     var limit = 360;
                     var factor = 2 * Math.PI / limit;
@@ -288,7 +284,7 @@ internal class ProcessingService : IProcessingService
         {
             case RepresentationKind.MinBitwise:
 
-                T[] bitField_and = new T[targetBuffer.Length];
+                var bitField_and = new T[targetBuffer.Length];
 
                 Parallel.For(0, targetBuffer.Length, x =>
                 {
@@ -324,7 +320,7 @@ internal class ProcessingService : IProcessingService
 
             case RepresentationKind.MaxBitwise:
 
-                T[] bitField_or = new T[targetBuffer.Length];
+                var bitField_or = new T[targetBuffer.Length];
 
                 Parallel.For(0, targetBuffer.Length, x =>
                 {
@@ -406,7 +402,7 @@ internal class ProcessingService : IProcessingService
             return double.NaN;
 
         var sum = 0.0;
-        
+
         for (int i = 0; i < data.Length; i++)
         {
             sum += data[i];
@@ -423,10 +419,10 @@ internal class ProcessingService : IProcessingService
 
         var mean = 0.0;
         var m = 0UL;
-        
+
         for (int i = 0; i < data.Length; i++)
         {
-            mean += (data[i] - mean)/++m;
+            mean += (data[i] - mean) / ++m;
         }
 
         return mean;
@@ -488,11 +484,11 @@ internal class ProcessingService : IProcessingService
         for (int i = 1; i < samples.Length; i++)
         {
             t += samples[i];
-            var diff = ((i + 1)*samples[i]) - t;
+            var diff = ((i + 1) * samples[i]) - t;
             variance += diff * diff / ((i + 1.0) * i);
         }
 
-        return variance/(samples.Length - 1);
+        return variance / (samples.Length - 1);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -506,7 +502,7 @@ internal class ProcessingService : IProcessingService
 
         for (int i = 0; i < data.Length; i++)
         {
-            mean += (data[i]*data[i] - mean)/++m;
+            mean += (data[i] * data[i] - mean) / ++m;
         }
 
         return Math.Sqrt(mean);

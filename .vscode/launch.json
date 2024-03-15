@@ -46,7 +46,7 @@
                 "pipeProgram": "ssh",
                 "pipeArgs": [
                     "-T",
-                    "root@ensyno.iwes.fraunhofer.de",
+                    "root@<docker host>",
                     "-p",
                     "2222"
                 ], // replace <docker host>

@@ -2,19 +2,13 @@ using Nexus.UI.Core;
 
 namespace Nexus.UI.ViewModels;
 
-public class CatalogItemSelectionViewModel
+public class CatalogItemSelectionViewModel(
+    CatalogItemViewModel baseItem,
+    IDictionary<string, string>? parameters)
 {
-    public CatalogItemSelectionViewModel(
-        CatalogItemViewModel baseItem,
-        IDictionary<string, string>? parameters)
-    {
-        BaseItem = baseItem;
-        Parameters = parameters;
-    }
-
-    public CatalogItemViewModel BaseItem { get; }
-    public IDictionary<string, string>? Parameters { get; }
-    public List<RepresentationKind> Kinds { get; } = new List<RepresentationKind>();
+    public CatalogItemViewModel BaseItem { get; } = baseItem;
+    public IDictionary<string, string>? Parameters { get; } = parameters;
+    public List<RepresentationKind> Kinds { get; } = [];
 
     public string GetResourcePath(RepresentationKind kind, TimeSpan samplePeriod)
     {

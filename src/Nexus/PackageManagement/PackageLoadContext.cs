@@ -1,47 +1,30 @@
 ﻿using System.Reflection;
 using System.Runtime.Loader;
 
-namespace Nexus.PackageManagement
+namespace Nexus.PackageManagement;
+
+internal class PackageLoadContext(string entryDllPath) 
+    : AssemblyLoadContext(isCollectible: true)
 {
-    internal class PackageLoadContext : AssemblyLoadContext
+    private readonly AssemblyDependencyResolver _resolver = new(entryDllPath);
+
+    protected override Assembly? Load(AssemblyName assemblyName)
     {
-        #region Fields
+        var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
 
-        private readonly AssemblyDependencyResolver _resolver;
+        if (assemblyPath is not null)
+            return LoadFromAssemblyPath(assemblyPath);
 
-        #endregion
+        return null;
+    }
 
-        #region Constructors
+    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+    {
+        var libraryPath = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
 
-        public PackageLoadContext(string entryDllPath) : base(isCollectible: true)
-        {
-            _resolver = new AssemblyDependencyResolver(entryDllPath);
-        }
+        if (libraryPath is not null)
+            return LoadUnmanagedDllFromPath(libraryPath);
 
-        #endregion
-
-        #region Methods
-
-        protected override Assembly? Load(AssemblyName assemblyName)
-        {
-            var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
-
-            if (assemblyPath is not null)
-                return LoadFromAssemblyPath(assemblyPath);
-
-            return null;
-        }
-
-        protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
-        {
-            var libraryPath = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-
-            if (libraryPath is not null)
-                return LoadUnmanagedDllFromPath(libraryPath);
-
-            return IntPtr.Zero;
-        }
-
-        #endregion
+        return IntPtr.Zero;
     }
 }

@@ -11,38 +11,26 @@ namespace Nexus.UI.Core;
 
 public class AppState : INotifyPropertyChanged
 {
-    #region Events
-
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    #endregion
-
-    #region Fields
 
     private ResourceCatalogViewModel? _selectedCatalog;
     private ViewState _viewState = ViewState.Normal;
     private ExportParameters _exportParameters = default!;
     private readonly INexusClient _client;
-    private readonly List<(DateTime, Exception)> _errors = new();
-    private readonly Dictionary<string, Dictionary<EditModeItem, string?>> _editModeCatalogMap = new();
+    private readonly List<(DateTime, Exception)> _errors = [];
+    private readonly Dictionary<string, Dictionary<EditModeItem, string?>> _editModeCatalogMap = [];
     private bool _beginAtZero;
     private string? _searchString;
     private const string GROUP_KEY = "groups";
     private readonly IJSInProcessRuntime _jsRuntime;
     private IDisposable? _requestConfiguration;
 
-    #endregion
-
-    #region Constructors
-
     public AppState(
         bool isDemo,
-        IReadOnlyList<AuthenticationSchemeDescription> authenticationSchemes,
         INexusClient client,
         IJSInProcessRuntime jsRuntime)
     {
         IsDemo = isDemo;
-        AuthenticationSchemes = authenticationSchemes;
         _client = client;
         _jsRuntime = jsRuntime;
         Settings = new SettingsViewModel(this, jsRuntime, client);
@@ -88,10 +76,6 @@ public class AppState : INotifyPropertyChanged
             BeginAtZero = true;
     }
 
-    #endregion
-
-    #region Properties
-
     public bool IsDemo { get; }
 
     public ViewState ViewState
@@ -109,8 +93,6 @@ public class AppState : INotifyPropertyChanged
             }
         }
     }
-
-    public IReadOnlyList<AuthenticationSchemeDescription> AuthenticationSchemes { get; }
 
     public ExportParameters ExportParameters
     {
@@ -194,11 +176,7 @@ public class AppState : INotifyPropertyChanged
         }
     }
 
-    public ObservableCollection<JobViewModel> Jobs { get; set; } = new ObservableCollection<JobViewModel>();
-
-    #endregion
-
-    #region Methods
+    public ObservableCollection<JobViewModel> Jobs { get; set; } = [];
 
     public void AddJob(JobViewModel job)
     {
@@ -254,7 +232,7 @@ public class AppState : INotifyPropertyChanged
 
     public void AddEditModeCatalog(string catalogId)
     {
-        _editModeCatalogMap.Add(catalogId, new Dictionary<EditModeItem, string?>());
+        _editModeCatalogMap.Add(catalogId, []);
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditModeCatalogMap)));
     }
 
@@ -280,7 +258,7 @@ public class AppState : INotifyPropertyChanged
                         resources = resourcesNode.AsArray();
 
                     else
-                        resources = new JsonArray();
+                        resources = [];
 
                     overrides["Resources"] = resources;
 
@@ -305,7 +283,7 @@ public class AppState : INotifyPropertyChanged
                             properties = propertiesNode.AsObject();
 
                         else
-                            properties = new JsonObject();
+                            properties = [];
 
                         resource["Properties"] = properties;
 
@@ -373,7 +351,7 @@ public class AppState : INotifyPropertyChanged
 
                 if (!success)
                 {
-                    group = new List<CatalogItemViewModel>();
+                    group = [];
                     catalogItemsMap[groupName] = group;
                 }
 
@@ -415,6 +393,4 @@ public class AppState : INotifyPropertyChanged
     {
         _jsRuntime.InvokeVoid("nexus.util.clearSetting", Constants.REQUEST_CONFIGURATION_KEY);
     }
-
-    #endregion
 }

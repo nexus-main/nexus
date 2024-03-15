@@ -8,21 +8,13 @@ namespace Nexus.UI.ViewModels;
 
 public class SettingsViewModel : INotifyPropertyChanged
 {
-    #region Events
-
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    #endregion
-
-    #region Fields
 
     private TimeSpan _samplePeriod = TimeSpan.FromSeconds(1);
     private readonly AppState _appState;
     private readonly INexusClient _client;
     private readonly IJSInProcessRuntime _jsRuntime;
-    private List<CatalogItemSelectionViewModel> _selectedCatalogItems = new();
-
-    #endregion
+    private List<CatalogItemSelectionViewModel> _selectedCatalogItems = [];
 
     public SettingsViewModel(AppState appState, IJSInProcessRuntime jsRuntime, INexusClient client)
     {
@@ -33,7 +25,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         InitializeTask = new Lazy<Task>(InitializeAsync);
     }
 
-    private string DefaultFileType { get; set; }
+    private string DefaultFileType { get; set; } = default!;
 
     public DateTime Begin
     {
@@ -217,7 +209,7 @@ public class SettingsViewModel : INotifyPropertyChanged
 
         if (reference is null)
         {
-            if (CanModifySamplePeriod && !_selectedCatalogItems.Any())
+            if (CanModifySamplePeriod && _selectedCatalogItems.Count == 0)
                 SamplePeriod = new Period(selection.BaseItem.Representation.SamplePeriod);
 
             EnsureDefaultRepresentationKind(selection);
@@ -252,7 +244,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         var baseItem = selectedItem.BaseItem;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
 
-        if (!selectedItem.Kinds.Any())
+        if (selectedItem.Kinds.Count == 0)
         {
             if (SamplePeriod.Value < baseSamplePeriod)
                 selectedItem.Kinds.Add(RepresentationKind.Resampled);
@@ -276,14 +268,14 @@ public class SettingsViewModel : INotifyPropertyChanged
                 .Where(description => description.AdditionalInformation.GetStringValue(Constants.DATA_WRITER_LABEL_KEY) is not null)
                 .ToList();
 
-            if (writerDescriptions.Any())
+            if (writerDescriptions.Count != 0)
             {
                 string? actualFileType = default;
 
                 // try restore saved file type
                 var expectedFileType = _jsRuntime.Invoke<string?>("nexus.util.loadSetting", Constants.UI_FILE_TYPE_KEY);
 
-                if (!string.IsNullOrWhiteSpace(expectedFileType) && 
+                if (!string.IsNullOrWhiteSpace(expectedFileType) &&
                     writerDescriptions.Any(writerDescription => writerDescription.Type == expectedFileType))
                     actualFileType = expectedFileType;
 

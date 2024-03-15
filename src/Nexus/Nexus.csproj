@@ -6,7 +6,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" Version="5.1.0" />
@@ -35,14 +34,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexus.UI\Nexus.UI.csproj" />
     <ProjectReference Include="..\extensibility\dotnet-extensibility\dotnet-extensibility.csproj" />
-	  
-    <!-- 
-      Probably because of the way how Blazor is compiled, when publishing, 
-      the folder artfifacts/bin/Nexus.Api/Release does not exist. 
-      As a workaround, add a direct reference to the Client project here.
-    -->
-	  <ProjectReference Include="..\clients\dotnet-client\dotnet-client.csproj" />
-
   </ItemGroup>
 
   <ItemGroup>

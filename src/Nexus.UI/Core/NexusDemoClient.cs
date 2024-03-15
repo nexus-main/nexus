@@ -35,12 +35,7 @@ public class NexusDemoClient : INexusClient
         throw new NotImplementedException();
     }
 
-    public void SignIn(string refreshToken)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task SignInAsync(string refreshToken, CancellationToken cancellationToken)
+    public void SignIn(string accessToken)
     {
         throw new NotImplementedException();
     }
@@ -77,7 +72,7 @@ public class CatalogsDemoClient : ICatalogsClient
             var resource1 = new Resource(
                 Id: "temperature",
                 Properties: properties1,
-                Representations: new List<Representation>() { new Representation(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
+                Representations: new List<Representation>() { new(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
             );
 
             var properties2 = new Dictionary<string, JsonElement>()
@@ -90,7 +85,7 @@ public class CatalogsDemoClient : ICatalogsClient
             var resource2 = new Resource(
                 Id: "wind_speed",
                 Properties: properties2,
-                Representations: new List<Representation>() { new Representation(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
+                Representations: new List<Representation>() { new(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
             );
 
             var resources = new List<Resource>() { resource1, resource2 };
@@ -193,12 +188,12 @@ We hope you enjoy it!
                 PackageReferenceId: Guid.NewGuid()
             );
 
-            return Task.FromResult((IReadOnlyList<CatalogInfo>)new List<CatalogInfo>() { catalogInfo });
+            return Task.FromResult((IReadOnlyList<CatalogInfo>)[catalogInfo]);
         }
 
         else
         {
-            return Task.FromResult((IReadOnlyList<CatalogInfo>)new List<CatalogInfo>() { });
+            return Task.FromResult((IReadOnlyList<CatalogInfo>)[]);
         }
     }
 
@@ -376,6 +371,16 @@ public class UsersDemoClient : IUsersClient
         throw new NotImplementedException();
     }
 
+    public string CreateToken(PersonalAccessToken token, string? userId = null)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<string> CreateTokenAsync(PersonalAccessToken token, string? userId = null, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
     public string CreateUser(NexusUser user)
     {
         throw new NotImplementedException();
@@ -396,12 +401,22 @@ public class UsersDemoClient : IUsersClient
         throw new NotImplementedException();
     }
 
-    public HttpResponseMessage DeleteRefreshToken(Guid tokenId)
+    public HttpResponseMessage DeleteToken(Guid tokenId)
     {
         throw new NotImplementedException();
     }
 
-    public Task<HttpResponseMessage> DeleteRefreshTokenAsync(Guid tokenId, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> DeleteTokenAsync(Guid tokenId, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public HttpResponseMessage DeleteTokenByValue(string value)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<HttpResponseMessage> DeleteTokenByValueAsync(string value, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }
@@ -414,26 +429,6 @@ public class UsersDemoClient : IUsersClient
     public Task<HttpResponseMessage> DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
-    }
-
-    public string GenerateRefreshToken(string description, string? userId = null)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<string> GenerateRefreshTokenAsync(string description, string? userId, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public IReadOnlyList<AuthenticationSchemeDescription> GetAuthenticationSchemes()
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<IReadOnlyList<AuthenticationSchemeDescription>> GetAuthenticationSchemesAsync(CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult((IReadOnlyList<AuthenticationSchemeDescription>)new List<AuthenticationSchemeDescription>());
     }
 
     public IReadOnlyDictionary<string, NexusClaim> GetClaims(string userId)
@@ -461,18 +456,18 @@ public class UsersDemoClient : IUsersClient
             UserId: "test@nexus",
             User: user,
             IsAdmin: false,
-            RefreshTokens: new Dictionary<string, RefreshToken>()
+            PersonalAccessTokens: new Dictionary<string, PersonalAccessToken>()
         );
 
         return Task.FromResult(meResponse);
     }
 
-    public IReadOnlyDictionary<string, RefreshToken> GetRefreshTokens(string userId)
+    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string userId)
     {
         throw new NotImplementedException();
     }
 
-    public Task<IReadOnlyDictionary<string, RefreshToken>> GetRefreshTokensAsync(string userId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string userId, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }
@@ -483,26 +478,6 @@ public class UsersDemoClient : IUsersClient
     }
 
     public Task<IReadOnlyDictionary<string, NexusUser>> GetUsersAsync(CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public TokenPair RefreshToken(RefreshTokenRequest request)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<TokenPair> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public HttpResponseMessage RevokeToken(RevokeTokenRequest request)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<HttpResponseMessage> RevokeTokenAsync(RevokeTokenRequest request, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }
@@ -564,6 +539,6 @@ public class WritersDemoClient : IWritersClient
             AdditionalInformation: additionalInformation
         );
 
-        return Task.FromResult((IReadOnlyList<ExtensionDescription>)new List<ExtensionDescription>() { description });
+        return Task.FromResult((IReadOnlyList<ExtensionDescription>)[description]);
     }
 }

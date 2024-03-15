@@ -39,8 +39,6 @@ else
     client = new NexusClient(httpClient);
 }
 
-var authenticationSchemes = await client.Users.GetAuthenticationSchemesAsync();
-
 builder.Services
     .AddCascadingAuthenticationState()
     .AddAuthorizationCore()
@@ -49,7 +47,7 @@ builder.Services
     .AddSingleton(serviceProvider =>
     {
         var jsRuntime = serviceProvider.GetRequiredService<IJSInProcessRuntime>();
-        var appState = new AppState(isDemo, authenticationSchemes, client, jsRuntime);
+        var appState = new AppState(isDemo, client, jsRuntime);
 
         return appState;
     })

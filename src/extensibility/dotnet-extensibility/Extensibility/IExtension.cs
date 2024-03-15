@@ -1,10 +1,9 @@
-﻿namespace Nexus.Extensibility
+﻿namespace Nexus.Extensibility;
+
+/// <summary>
+/// A base interface for extensions.
+/// </summary>
+public interface IExtension
 {
-    /// <summary>
-    /// A base interface for extensions.
-    /// </summary>
-    public interface IExtension
-    {
-        //
-    }
+    //
 }

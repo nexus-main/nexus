@@ -43,13 +43,6 @@ if (applicationName is not null)
 Log.Logger = loggerConfiguration
     .CreateLogger();
 
-// checks
-if (securityOptions.Base64JwtSigningKey == SecurityOptions.DefaultSigningKey)
-    Log.Logger.Warning("You are using the default key to sign JWT tokens. It is strongly advised to use a different key in production.");
-
-if (securityOptions.AccessTokenLifetime >= securityOptions.RefreshTokenLifetime)
-    Log.Logger.Warning("The refresh token life time should be greater than the access token lifetime.");
-
 // run
 try
 {
@@ -83,7 +76,7 @@ try
     ConfigurePipeline(app);
 
     // initialize app state
-    await InitializeAppAsync(app.Services, pathsOptions, securityOptions, app.Logger);
+    await InitializeAppAsync(app.Services, pathsOptions, app.Logger);
 
     // Run
     app.Run();
@@ -132,10 +125,6 @@ void AddServices(
             noContentFormatter.TreatNullValueAsNoContent = false;
     });
 
-    // razor components
-    services.AddRazorComponents()
-        .AddInteractiveWebAssemblyComponents();
-
     // authentication
     services.AddNexusAuth(pathsOptions, securityOptions);
 
@@ -145,6 +134,26 @@ void AddServices(
     // default Identity Provider
     if (!securityOptions.OidcProviders.Any())
         services.AddNexusIdentityProvider();
+
+    // razor components
+    services.AddRazorComponents()
+        .AddInteractiveWebAssemblyComponents();
+
+    /* 
+     * login view: We tried to use Blazor Webs ability to render pages
+     * on the server but it does not work properly. With the command
+     * dotnet new blazor --all-interactive --interactivity WebAssembly --no-https
+     * It is possible to simply define server side razor pages without
+     * any changes and because prerendering is enabled by default it is
+     * being displayed shortly but then Blazor starts and redirects
+     * the user to a "Not found" page.
+     * 
+     * Related issue:
+     * https://github.com/dotnet/aspnetcore/issues/51046
+     */
+
+    // razor pages (for login view)
+    services.AddRazorPages();
 
     // routing
     services.AddRouting(options => options.LowercaseUrls = true);
@@ -156,11 +165,11 @@ void AddServices(
     services.AddTransient<IDataService, DataService>();
 
     services.AddScoped<IDBService, DbService>();
-    services.AddScoped<INexusAuthenticationService, NexusAuthenticationService>();
     services.AddScoped(provider => provider.GetService<IHttpContextAccessor>()!.HttpContext!.User);
 
     services.AddSingleton<AppState>();
     services.AddSingleton<AppStateManager>();
+    services.AddSingleton<ITokenService, TokenService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();
     services.AddSingleton<IJobService, JobService>();
     services.AddSingleton<IDataControllerService, DataControllerService>();
@@ -229,19 +238,26 @@ void ConfigurePipeline(WebApplication app)
     app.UseAuthorization();
 
     // endpoints
+
+    /* REST API */
     app.MapControllers();
-    
+
+    /* Login view */
+    app.MapRazorPages();
+
+    /* Debugging (print all routes) */
+    app.MapGet("/debug/routes", (IEnumerable<EndpointDataSource> endpointSources) =>
+        string.Join("\n", endpointSources.SelectMany(source => source.Endpoints)));
+
     // razor components
     app.MapRazorComponents<App>()
         .AddInteractiveWebAssemblyRenderMode()
         .AddAdditionalAssemblies(typeof(MainLayout).Assembly);
-
 }
 
 async Task InitializeAppAsync(
     IServiceProvider serviceProvider,
     PathsOptions pathsOptions,
-    SecurityOptions securityOptions,
     ILogger logger)
 {
     var appState = serviceProvider.GetRequiredService<AppState>();

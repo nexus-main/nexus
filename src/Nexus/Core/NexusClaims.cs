@@ -1,10 +1,14 @@
-﻿namespace Nexus.Core
+﻿namespace Nexus.Core;
+
+internal static class NexusClaims
 {
-    internal static class NexusClaims
+    public const string CAN_READ_CATALOG = "CanReadCatalog";
+    public const string CAN_WRITE_CATALOG = "CanWriteCatalog";
+    public const string CAN_READ_CATALOG_GROUP = "CanReadCatalogGroup";
+    public const string CAN_WRITE_CATALOG_GROUP = "CanWriteCatalogGroup";
+
+    public static string ToPatUserClaimType(string claimType)
     {
-        public const string CAN_READ_CATALOG = "CanReadCatalog";
-        public const string CAN_WRITE_CATALOG = "CanWriteCatalog";
-        public const string CAN_READ_CATALOG_GROUP = "CanReadCatalogGroup";
-        public const string CAN_WRITE_CATALOG_GROUP = "CanWriteCatalogGroup";
+        return $"pat_user_{claimType}";
     }
 }
