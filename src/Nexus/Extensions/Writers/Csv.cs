@@ -69,7 +69,7 @@ internal class Csv : IDataWriter, IDisposable
     private double _excelStart;
     private DateTime _lastFileBegin;
     private TimeSpan _lastSamplePeriod;
-    private readonly Dictionary<string, CsvResource> _resourceMap = new();
+    private readonly Dictionary<string, CsvResource> _resourceMap = [];
 
     private DataWriterContext Context { get; set; } = default!;
 
@@ -123,7 +123,7 @@ internal class Csv : IDataWriter, IDisposable
 
                 var layout = new Layout()
                 {
-                    HeaderRows = new[] { 4 }
+                    HeaderRows = [4]
                 };
 
                 var fields = new[] { timestampField }.Concat(catalogItemGroup.Select(catalogItem =>
@@ -150,7 +150,7 @@ internal class Csv : IDataWriter, IDisposable
                     Name: resourceFileNameWithoutExtension.ToLower(),
                     Profile: "tabular-data-resource",
                     Scheme: "multipart",
-                    Path: new List<string>(),
+                    Path: [],
                     Layout: layout,
                     Schema: schema);
 

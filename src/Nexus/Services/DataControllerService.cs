@@ -19,38 +19,26 @@ internal interface IDataControllerService
         CancellationToken cancellationToken);
 }
 
-internal class DataControllerService : IDataControllerService
+internal class DataControllerService(
+    AppState appState,
+    IHttpContextAccessor httpContextAccessor,
+    IExtensionHive extensionHive,
+    IProcessingService processingService,
+    ICacheService cacheService,
+    IOptions<DataOptions> dataOptions,
+    ILogger<DataControllerService> logger,
+    ILoggerFactory loggerFactory) : IDataControllerService
 {
     public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
 
-    private readonly AppState _appState;
-    private readonly DataOptions _dataOptions;
-    private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IExtensionHive _extensionHive;
-    private readonly IProcessingService _processingService;
-    private readonly ICacheService _cacheService;
-    private readonly ILogger _logger;
-    private readonly ILoggerFactory _loggerFactory;
-
-    public DataControllerService(
-        AppState appState,
-        IHttpContextAccessor httpContextAccessor,
-        IExtensionHive extensionHive,
-        IProcessingService processingService,
-        ICacheService cacheService,
-        IOptions<DataOptions> dataOptions,
-        ILogger<DataControllerService> logger,
-        ILoggerFactory loggerFactory)
-    {
-        _appState = appState;
-        _httpContextAccessor = httpContextAccessor;
-        _extensionHive = extensionHive;
-        _processingService = processingService;
-        _cacheService = cacheService;
-        _dataOptions = dataOptions.Value;
-        _logger = logger;
-        _loggerFactory = loggerFactory;
-    }
+    private readonly AppState _appState = appState;
+    private readonly DataOptions _dataOptions = dataOptions.Value;
+    private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
+    private readonly IExtensionHive _extensionHive = extensionHive;
+    private readonly IProcessingService _processingService = processingService;
+    private readonly ICacheService _cacheService = cacheService;
+    private readonly ILogger _logger = logger;
+    private readonly ILoggerFactory _loggerFactory = loggerFactory;
 
     public async Task<IDataSourceController> GetDataSourceControllerAsync(
         InternalDataSourceRegistration registration,

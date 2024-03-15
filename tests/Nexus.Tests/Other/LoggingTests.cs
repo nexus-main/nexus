@@ -46,7 +46,7 @@ public class LoggingTests
         Environment.SetEnvironmentVariable("NEXUS_SERILOG__ENRICH__1", "WithMachineName");
 
         // 2. Build the configuration
-        var configuration = NexusOptionsBase.BuildConfiguration(Array.Empty<string>());
+        var configuration = NexusOptionsBase.BuildConfiguration([]);
 
         var serilogger = new LoggerConfiguration()
             .ReadFrom.Configuration(configuration)

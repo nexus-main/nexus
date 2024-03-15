@@ -11,7 +11,7 @@ namespace Nexus.DataModel;
 /// A catalog is a top level element and holds a list of resources.
 /// </summary>
 [DebuggerDisplay("{Id,nq}")]
-public record ResourceCatalog
+public partial record ResourceCatalog
 {
     private string _id = default!;
     private IReadOnlyList<Resource>? _resources;
@@ -38,7 +38,7 @@ public record ResourceCatalog
     /// </summary>
     [JsonIgnore]
 #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
-    public static Regex ValidIdExpression { get; } = new Regex(@"^(?:\/[a-zA-Z_][a-zA-Z_0-9]*)+$", RegexOptions.Compiled);
+    public static Regex ValidIdExpression { get; } = ValidIdExpressionRegex();
 
     [JsonIgnore]
 #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
@@ -202,4 +202,7 @@ public record ResourceCatalog
         if (uniqueIds.Count() != resources.Count)
             throw new ArgumentException("There are multiple resources with the same identifier.");
     }
+
+    [GeneratedRegex(@"^(?:\/[a-zA-Z_][a-zA-Z_0-9]*)+$", RegexOptions.Compiled)]
+    private static partial Regex ValidIdExpressionRegex();
 }

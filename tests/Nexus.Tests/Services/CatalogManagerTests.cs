@@ -44,10 +44,10 @@ public class CatalogManagerTests
 
                         return (type, path) switch
                         {
-                            ("A", "/") => Task.FromResult(new CatalogRegistration[] { new CatalogRegistration("/A", string.Empty), new CatalogRegistration("/B/A", string.Empty) }),
-                            ("A", "/A/") => Task.FromResult(new CatalogRegistration[] { new CatalogRegistration("/A/B", string.Empty), new CatalogRegistration("/A/B/C", string.Empty), new CatalogRegistration("/A/C/A", string.Empty) }),
-                            ("B", "/") => Task.FromResult(new CatalogRegistration[] { new CatalogRegistration("/A", string.Empty), new CatalogRegistration("/B/B", string.Empty), new CatalogRegistration("/B/B2", string.Empty) }),
-                            ("C", "/") => Task.FromResult(new CatalogRegistration[] { new CatalogRegistration("/C/A", string.Empty) }),
+                            ("A", "/") => Task.FromResult(new CatalogRegistration[] { new("/A", string.Empty), new("/B/A", string.Empty) }),
+                            ("A", "/A/") => Task.FromResult(new CatalogRegistration[] { new("/A/B", string.Empty), new("/A/B/C", string.Empty), new("/A/C/A", string.Empty) }),
+                            ("B", "/") => Task.FromResult(new CatalogRegistration[] { new("/A", string.Empty), new("/B/B", string.Empty), new("/B/B2", string.Empty) }),
+                            ("C", "/") => Task.FromResult(new CatalogRegistration[] { new("/C/A", string.Empty) }),
                             ("Nexus.Sources." + nameof(Sample), "/") => Task.FromResult(Array.Empty<CatalogRegistration>()),
                             _ => throw new Exception("Unsupported combination.")
                         };
@@ -119,8 +119,8 @@ public class CatalogManagerTests
 
         var userAClaims = new List<NexusClaim>
         {
-            new NexusClaim(Guid.NewGuid(), Claims.Name, usernameA),
-            new NexusClaim(Guid.NewGuid(), Claims.Role, NexusRoles.ADMINISTRATOR)
+            new(Guid.NewGuid(), Claims.Name, usernameA),
+            new(Guid.NewGuid(), Claims.Role, NexusRoles.ADMINISTRATOR)
         };
 
         var userA = new NexusUser(
@@ -135,7 +135,7 @@ public class CatalogManagerTests
 
         var userBClaims = new List<NexusClaim>
         {
-            new NexusClaim(Guid.NewGuid(), Claims.Name, usernameB),
+            new(Guid.NewGuid(), Claims.Name, usernameB),
         };
 
         var userB = new NexusUser(

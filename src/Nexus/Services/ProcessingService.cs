@@ -28,14 +28,10 @@ internal interface IProcessingService
         int blockSize);
 }
 
-internal class ProcessingService : IProcessingService
+internal class ProcessingService(IOptions<DataOptions> dataOptions) 
+    : IProcessingService
 {
-    private readonly double _nanThreshold;
-
-    public ProcessingService(IOptions<DataOptions> dataOptions)
-    {
-        _nanThreshold = dataOptions.Value.AggregationNaNThreshold;
-    }
+    private readonly double _nanThreshold = dataOptions.Value.AggregationNaNThreshold;
 
     public void Resample(
         NexusDataType dataType,
@@ -46,7 +42,7 @@ internal class ProcessingService : IProcessingService
         int offset)
     {
         using var memoryOwner = MemoryPool<double>.Shared.Rent(status.Length);
-        var doubleData = memoryOwner.Memory.Slice(0, status.Length);
+        var doubleData = memoryOwner.Memory[..status.Length];
 
         BufferUtilities.ApplyRepresentationStatusByDataType(
             dataType,
@@ -103,7 +99,7 @@ internal class ProcessingService : IProcessingService
 
                 using (var memoryOwner = MemoryPool<double>.Shared.Rent(Tdata.Length))
                 {
-                    var doubleData2 = memoryOwner.Memory.Slice(0, Tdata.Length);
+                    var doubleData2 = memoryOwner.Memory[..Tdata.Length];
 
                     BufferUtilities.ApplyRepresentationStatus<T>(Tdata, status, target: doubleData2);
                     ApplyAggregationFunction(kind, blockSize, doubleData2, targetBuffer);
@@ -152,8 +148,8 @@ internal class ProcessingService : IProcessingService
                 using (var memoryOwner_sin = MemoryPool<double>.Shared.Rent(targetBuffer.Length))
                 using (var memoryOwner_cos = MemoryPool<double>.Shared.Rent(targetBuffer.Length))
                 {
-                    var sinBuffer = memoryOwner_sin.Memory.Slice(0, targetBuffer.Length);
-                    var cosBuffer = memoryOwner_cos.Memory.Slice(0, targetBuffer.Length);
+                    var sinBuffer = memoryOwner_sin.Memory[..targetBuffer.Length];
+                    var cosBuffer = memoryOwner_cos.Memory[..targetBuffer.Length];
 
                     var limit = 360;
                     var factor = 2 * Math.PI / limit;

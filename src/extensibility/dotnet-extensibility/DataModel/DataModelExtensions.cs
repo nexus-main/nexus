@@ -6,7 +6,7 @@ namespace Nexus.DataModel;
 /// <summary>
 /// Contains extension methods to make life easier working with the data model types.
 /// </summary>
-public static class DataModelExtensions
+public static partial class DataModelExtensions
 {
     #region Fluent API
 
@@ -133,11 +133,11 @@ public static class DataModelExtensions
 
     // keep in sync with Nexus.UI.Utilities ...
     private const int NS_PER_TICK = 100;
-    private static readonly long[] _nanoseconds = new[] { (long)1e0, (long)1e3, (long)1e6, (long)1e9, (long)60e9, (long)3600e9, (long)86400e9 };
-    private static readonly int[] _quotients = new[] { 1000, 1000, 1000, 60, 60, 24, 1 };
-    private static readonly string[] _postFixes = new[] { "ns", "us", "ms", "s", "min", "h", "d" };
+    private static readonly long[] _nanoseconds = [(long)1e0, (long)1e3, (long)1e6, (long)1e9, (long)60e9, (long)3600e9, (long)86400e9];
+    private static readonly int[] _quotients = [1000, 1000, 1000, 60, 60, 24, 1];
+    private static readonly string[] _postFixes = ["ns", "us", "ms", "s", "min", "h", "d"];
     // ... except this line
-    private static readonly Regex _unitStringEvaluator = new(@"^([0-9]+)_([a-z]+)$", RegexOptions.Compiled);
+    private static readonly Regex _unitStringEvaluator = UnitStringEvaluator();
 
     /// <summary>
     /// Converts period into a human readable number string with unit.
@@ -184,6 +184,9 @@ public static class DataModelExtensions
 
         return new TimeSpan(ticks);
     }
+
+    [GeneratedRegex(@"^([0-9]+)_([a-z]+)$", RegexOptions.Compiled)]
+    private static partial Regex UnitStringEvaluator();
 
     #endregion
 }

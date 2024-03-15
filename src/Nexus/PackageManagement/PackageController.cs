@@ -12,7 +12,9 @@ using Nexus.Core;
 
 namespace Nexus.PackageManagement;
 
-internal partial class PackageController
+internal partial class PackageController(
+    InternalPackageReference packageReference, 
+    ILogger<PackageController> logger)
 {
     public static Guid BUILTIN_ID = new("97d297d2-df6f-4c85-9d07-86bc64a041a6");
     public const string BUILTIN_PROVIDER = "nexus";
@@ -22,16 +24,10 @@ internal partial class PackageController
 
     private static readonly HttpClient _httpClient = new();
 
-    private readonly ILogger _logger;
+    private readonly ILogger _logger = logger;
     private PackageLoadContext? _loadContext;
 
-    public PackageController(InternalPackageReference packageReference, ILogger<PackageController> logger)
-    {
-        PackageReference = packageReference;
-        _logger = logger;
-    }
-
-    public InternalPackageReference PackageReference { get; }
+    public InternalPackageReference PackageReference { get; } = packageReference;
 
     public async Task<string[]> DiscoverAsync(CancellationToken cancellationToken)
     {
@@ -73,16 +69,8 @@ internal partial class PackageController
 
             var depsJsonFilePath = Directory
                 .EnumerateFiles(restoreFolderPath, $"*{depsJsonExtension}", SearchOption.AllDirectories)
-                .SingleOrDefault();
-
-            if (depsJsonFilePath is null)
-                throw new Exception($"Could not determine the location of the .deps.json file in folder {restoreFolderPath}.");
-
-            var entryDllPath = depsJsonFilePath[..^depsJsonExtension.Length] + ".dll";
-
-            if (entryDllPath is null)
-                throw new Exception($"Could not determine the location of the entry DLL file in folder {restoreFolderPath}.");
-
+                .SingleOrDefault() ?? throw new Exception($"Could not determine the location of the .deps.json file in folder {restoreFolderPath}.");
+            var entryDllPath = depsJsonFilePath[..^depsJsonExtension.Length] + ".dll" ?? throw new Exception($"Could not determine the location of the entry DLL file in folder {restoreFolderPath}.");
             _loadContext = new PackageLoadContext(entryDllPath);
 
             var assemblyName = new AssemblyName(Path.GetFileNameWithoutExtension(entryDllPath));
@@ -280,11 +268,7 @@ internal partial class PackageController
             RedirectStandardError = true
         };
 
-        using var process = Process.Start(startInfo);
-
-        if (process is null)
-            throw new Exception("Process is null.");
-
+        using var process = Process.Start(startInfo) ?? throw new Exception("Process is null.");
         while (!process.StandardOutput.EndOfStream)
         {
             var refLine = await process.StandardOutput.ReadLineAsync(cancellationToken);
@@ -326,7 +310,7 @@ internal partial class PackageController
 
         result.Reverse();
 
-        return result.ToArray();
+        return [.. result];
     }
 
     private async Task<string> RestoreGitTagAsync(string restoreRoot, CancellationToken cancellationToken)
@@ -365,11 +349,7 @@ internal partial class PackageController
                     RedirectStandardError = true
                 };
 
-                using var process1 = Process.Start(startInfo1);
-
-                if (process1 is null)
-                    throw new Exception("Process is null.");
-
+                using var process1 = Process.Start(startInfo1) ?? throw new Exception("Process is null.");
                 await process1.WaitForExitAsync(cancellationToken);
 
                 if (process1.ExitCode != 0)
@@ -400,11 +380,7 @@ internal partial class PackageController
                     RedirectStandardError = true
                 };
 
-                using var process2 = Process.Start(startInfo2);
-
-                if (process2 is null)
-                    throw new Exception("Process is null.");
-
+                using var process2 = Process.Start(startInfo2) ?? throw new Exception("Process is null.");
                 await process2.WaitForExitAsync(cancellationToken);
 
                 if (process2.ExitCode != 0)
@@ -518,7 +494,7 @@ internal partial class PackageController
             continue;
         }
 
-        return result.ToArray();
+        return [.. result];
     }
 
     private async Task<string> RestoreGitHubReleasesAsync(string restoreRoot, CancellationToken cancellationToken)
@@ -633,7 +609,7 @@ internal partial class PackageController
 
         result.Reverse();
 
-        return result.ToArray();
+        return [.. result];
     }
 
     private async Task<string> RestoreGitLabPackagesGenericAsync(string restoreRoot, CancellationToken cancellationToken)

@@ -100,5 +100,5 @@ internal partial record SecurityOptions() : NexusOptionsBase
     public const string Section = "Security";
 
     public TimeSpan CookieLifetime { get; set; } = TimeSpan.FromDays(30);
-    public List<OpenIdConnectProvider> OidcProviders { get; set; } = new();
+    public List<OpenIdConnectProvider> OidcProviders { get; set; } = [];
 }

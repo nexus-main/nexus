@@ -2,14 +2,9 @@
 
 namespace Nexus.Core;
 
-internal class UserDbContext : DbContext
+internal class UserDbContext(DbContextOptions<UserDbContext> options) 
+    : DbContext(options)
 {
-    public UserDbContext(DbContextOptions<UserDbContext> options)
-        : base(options)
-    {
-        //
-    }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder

@@ -4,14 +4,10 @@ using Xunit;
 
 namespace Nexus.Extensibility.Tests;
 
-public class DataModelTests : IClassFixture<DataModelFixture>
+public class DataModelTests(DataModelFixture fixture) 
+    : IClassFixture<DataModelFixture>
 {
-    private readonly DataModelFixture _fixture;
-
-    public DataModelTests(DataModelFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly DataModelFixture _fixture = fixture;
 
     [Theory]
 
@@ -200,9 +196,9 @@ public class DataModelTests : IClassFixture<DataModelFixture>
                 id: "/C",
                 resources: new List<Resource>()
                 {
-                    new Resource(id: "R1"),
-                    new Resource(id: "R2"),
-                    new Resource(id: "R2")
+                    new(id: "R1"),
+                    new(id: "R2"),
+                    new(id: "R2")
                 });
         }
 
@@ -218,16 +214,16 @@ public class DataModelTests : IClassFixture<DataModelFixture>
             id: "myresource",
             representations: new List<Representation>()
             {
-                new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(1))
+                new(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(1))
             });
 
         var resource2 = new Resource(
             id: "myresource",
             representations: new List<Representation>()
             {
-                new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)),
-                new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(2)),
-                new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(3))
+                new(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)),
+                new(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(2)),
+                new(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(3))
             });
 
         // Act
@@ -262,8 +258,8 @@ public class DataModelTests : IClassFixture<DataModelFixture>
         var catalog = new ResourceCatalog(id: "/A/B/C", resources: new List<Resource>() { resource });
 
         var catalogItem = new CatalogItem(
-            catalog with { Resources = default },
-            resource with { Representations = default },
+            catalog,
+            resource,
             representation,
             Parameters: default);
 

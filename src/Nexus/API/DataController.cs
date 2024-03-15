@@ -14,17 +14,12 @@ namespace Nexus.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
-internal class DataController : ControllerBase
+internal class DataController(
+    IDataService dataService) : ControllerBase
 {
     // GET      /api/data
 
-    private readonly IDataService _dataService;
-
-    public DataController(
-        IDataService dataService)
-    {
-        _dataService = dataService;
-    }
+    private readonly IDataService _dataService = dataService;
 
     /// <summary>
     /// Gets the requested data.

@@ -9,7 +9,7 @@ namespace Nexus.DataModel;
 /// A resource is part of a resource catalog and holds a list of representations.
 /// </summary>
 [DebuggerDisplay("{Id,nq}")]
-public record Resource
+public partial record Resource
 {
     private string _id = default!;
     private IReadOnlyList<Representation>? _representations;
@@ -36,7 +36,7 @@ public record Resource
     /// </summary>
     [JsonIgnore]
 #warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
-    public static Regex ValidIdExpression { get; } = new Regex(@"^[a-zA-Z_][a-zA-Z_0-9]*$");
+    public static Regex ValidIdExpression { get; } = ValidExpression();
 
     /// <summary>
     /// Gets a regular expression to find invalid characters in a resource identifier.
@@ -129,4 +129,7 @@ public record Resource
         if (uniqueIds.Count() != representations.Count)
             throw new ArgumentException("There are multiple representations with the same identifier.");
     }
+
+    [GeneratedRegex(@"^[a-zA-Z_][a-zA-Z_0-9]*$")]
+    private static partial Regex ValidExpression();
 }

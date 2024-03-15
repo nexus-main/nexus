@@ -56,7 +56,7 @@ internal static class NexusAuthExtensions
 
         var providers = securityOptions.OidcProviders.Any()
             ? securityOptions.OidcProviders
-            : new List<OpenIdConnectProvider>() { DefaultProvider };
+            : [DefaultProvider];
 
         foreach (var provider in providers)
         {
@@ -131,11 +131,8 @@ internal static class NexusAuthExtensions
                         // scopes
                         // https://openid.net/specs/openid-connect-basic-1_0.html#Scopes
 
-                        var principal = context.Principal;
-
-                        if (principal is null)
-                            throw new Exception("The principal is null. This should never happen.");
-
+                        var principal = context.Principal 
+                            ?? throw new Exception("The principal is null. This should never happen.");
                         var userId = principal.FindFirstValue(Claims.Subject)
                             ?? throw new Exception("The subject claim is missing. This should never happen.");
 
@@ -208,19 +205,15 @@ internal static class NexusAuthExtensions
             PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme
         };
 
-        services.AddAuthorization(options =>
-        {
-            options.DefaultPolicy = new AuthorizationPolicyBuilder()
+        services.AddAuthorizationBuilder()
+            .SetDefaultPolicy(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .RequireRole(NexusRoles.USER)
                 .AddAuthenticationSchemes(authenticationSchemes)
-                .Build();
-
-            options
-                .AddPolicy(NexusPolicies.RequireAdmin, policy => policy
+                .Build())
+            .AddPolicy(NexusPolicies.RequireAdmin, policy => policy
                 .RequireRole(NexusRoles.ADMINISTRATOR)
                 .AddAuthenticationSchemes(authenticationSchemes));
-        });
 
         return services;
     }

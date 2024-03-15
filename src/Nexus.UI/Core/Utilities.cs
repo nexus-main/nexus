@@ -16,7 +16,7 @@ public record ResourcePathParseResult(
     TimeSpan? BasePeriod
 );
 
-public static class Utilities
+public static partial class Utilities
 {
     public static string ToSpaceFilledCatalogId(string catalogId)
         => catalogId.TrimStart('/').Replace("/", " / ");
@@ -26,11 +26,11 @@ public static class Utilities
 
     // keep in sync with DataModelExtensions ...
     private const int NS_PER_TICK = 100;
-    private static readonly long[] _nanoseconds = new[] { (long)1e0, (long)1e3, (long)1e6, (long)1e9, (long)60e9, (long)3600e9, (long)86400e9 };
-    private static readonly int[] _quotients = new[] { 1000, 1000, 1000, 60, 60, 24, 1 };
-    private static readonly string[] _postFixes = new[] { "ns", "us", "ms", "s", "min", "h", "d" };
+    private static readonly long[] _nanoseconds = [(long)1e0, (long)1e3, (long)1e6, (long)1e9, (long)60e9, (long)3600e9, (long)86400e9];
+    private static readonly int[] _quotients = [1000, 1000, 1000, 60, 60, 24, 1];
+    private static readonly string[] _postFixes = ["ns", "us", "ms", "s", "min", "h", "d"];
     // ... except this line
-    private static readonly Regex _unitStringEvaluator = new(@"^\s*([0-9]+)[\s_]*([a-zA-Z]+)\s*$", RegexOptions.Compiled);
+    private static readonly Regex _unitStringEvaluator = UnitStringEvaluator();
 
     public static string ToUnitString(this TimeSpan samplePeriod, bool withUnderScore = false)
     {
@@ -155,7 +155,7 @@ public static class Utilities
             var matches = _matchSingleParametersExpression
                 .Matches(parseResult.Parameters);
 
-            if (matches.Any())
+            if (matches.Count != 0)
             {
                 parameters = new ReadOnlyDictionary<string, string>(matches
                     .Select(match => (match.Groups[1].Value, match.Groups[2].Value))
@@ -331,4 +331,7 @@ public static class Utilities
 
         return default;
     }
+
+    [GeneratedRegex(@"^\s*([0-9]+)[\s_]*([a-zA-Z]+)\s*$", RegexOptions.Compiled)]
+    private static partial Regex UnitStringEvaluator();
 }

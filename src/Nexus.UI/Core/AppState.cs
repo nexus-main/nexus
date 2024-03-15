@@ -17,8 +17,8 @@ public class AppState : INotifyPropertyChanged
     private ViewState _viewState = ViewState.Normal;
     private ExportParameters _exportParameters = default!;
     private readonly INexusClient _client;
-    private readonly List<(DateTime, Exception)> _errors = new();
-    private readonly Dictionary<string, Dictionary<EditModeItem, string?>> _editModeCatalogMap = new();
+    private readonly List<(DateTime, Exception)> _errors = [];
+    private readonly Dictionary<string, Dictionary<EditModeItem, string?>> _editModeCatalogMap = [];
     private bool _beginAtZero;
     private string? _searchString;
     private const string GROUP_KEY = "groups";
@@ -176,7 +176,7 @@ public class AppState : INotifyPropertyChanged
         }
     }
 
-    public ObservableCollection<JobViewModel> Jobs { get; set; } = new ObservableCollection<JobViewModel>();
+    public ObservableCollection<JobViewModel> Jobs { get; set; } = [];
 
     public void AddJob(JobViewModel job)
     {
@@ -232,7 +232,7 @@ public class AppState : INotifyPropertyChanged
 
     public void AddEditModeCatalog(string catalogId)
     {
-        _editModeCatalogMap.Add(catalogId, new Dictionary<EditModeItem, string?>());
+        _editModeCatalogMap.Add(catalogId, []);
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditModeCatalogMap)));
     }
 
@@ -258,7 +258,7 @@ public class AppState : INotifyPropertyChanged
                         resources = resourcesNode.AsArray();
 
                     else
-                        resources = new JsonArray();
+                        resources = [];
 
                     overrides["Resources"] = resources;
 
@@ -283,7 +283,7 @@ public class AppState : INotifyPropertyChanged
                             properties = propertiesNode.AsObject();
 
                         else
-                            properties = new JsonObject();
+                            properties = [];
 
                         resource["Properties"] = properties;
 
@@ -351,7 +351,7 @@ public class AppState : INotifyPropertyChanged
 
                 if (!success)
                 {
-                    group = new List<CatalogItemViewModel>();
+                    group = [];
                     catalogItemsMap[groupName] = group;
                 }
 

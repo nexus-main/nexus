@@ -22,7 +22,10 @@ namespace Nexus.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
-internal class CatalogsController : ControllerBase
+internal class CatalogsController(
+    AppState appState,
+    IDatabaseService databaseService,
+    IDataControllerService dataControllerService) : ControllerBase
 {
     // POST     /api/catalogs/search-items
     // GET      /api/catalogs/{catalogId}
@@ -38,19 +41,9 @@ internal class CatalogsController : ControllerBase
     // GET      /api/catalogs/{catalogId}/metadata
     // PUT      /api/catalogs/{catalogId}/metadata
 
-    private readonly AppState _appState;
-    private readonly IDatabaseService _databaseService;
-    private readonly IDataControllerService _dataControllerService;
-
-    public CatalogsController(
-        AppState appState,
-        IDatabaseService databaseService,
-        IDataControllerService dataControllerService)
-    {
-        _appState = appState;
-        _databaseService = databaseService;
-        _dataControllerService = dataControllerService;
-    }
+    private readonly AppState _appState = appState;
+    private readonly IDatabaseService _databaseService = databaseService;
+    private readonly IDataControllerService _dataControllerService = dataControllerService;
 
     /// <summary>
     /// Searches for the given resource paths and returns the corresponding catalog items.

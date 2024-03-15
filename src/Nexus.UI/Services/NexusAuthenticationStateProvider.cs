@@ -4,14 +4,9 @@ using System.Security.Claims;
 
 namespace Nexus.UI.Services;
 
-public class NexusAuthenticationStateProvider : AuthenticationStateProvider
+public class NexusAuthenticationStateProvider(INexusClient client) : AuthenticationStateProvider
 {
-    private readonly INexusClient _client;
-
-    public NexusAuthenticationStateProvider(INexusClient client)
-    {
-        _client = client;
-    }
+    private readonly INexusClient _client = client;
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
@@ -26,7 +21,7 @@ public class NexusAuthenticationStateProvider : AuthenticationStateProvider
 
             var claims = new List<Claim>
             {
-                new Claim(NAME_CLAIM, meResponse.User.Name)
+                new(NAME_CLAIM, meResponse.User.Name)
             };
 
             if (meResponse.IsAdmin)

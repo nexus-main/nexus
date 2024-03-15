@@ -11,17 +11,12 @@ namespace Nexus.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
-internal class ArtifactsController : ControllerBase
+internal class ArtifactsController(
+    IDatabaseService databaseService) : ControllerBase
 {
     // GET      /api/artifacts/{artifactId}
 
-    public IDatabaseService _databaseService;
-
-    public ArtifactsController(
-        IDatabaseService databaseService)
-    {
-        _databaseService = databaseService;
-    }
+    public IDatabaseService _databaseService = databaseService;
 
     /// <summary>
     /// Gets the specified artifact.

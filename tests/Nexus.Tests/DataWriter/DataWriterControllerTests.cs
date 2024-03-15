@@ -8,14 +8,10 @@ using Xunit;
 
 namespace DataWriter;
 
-public class DataWriterControllerTests : IClassFixture<DataWriterFixture>
+public class DataWriterControllerTests(DataWriterFixture fixture) 
+    : IClassFixture<DataWriterFixture>
 {
-    private readonly DataWriterFixture _fixture;
-
-    public DataWriterControllerTests(DataWriterFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly DataWriterFixture _fixture = fixture;
 
     [Fact]
     public async Task CanWrite()

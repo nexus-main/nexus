@@ -15,7 +15,12 @@ namespace Nexus.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
-internal class JobsController : ControllerBase
+internal class JobsController(
+    AppStateManager appStateManager,
+    IJobService jobService,
+    IServiceProvider serviceProvider,
+    Serilog.IDiagnosticContext diagnosticContext,
+    ILogger<JobsController> logger) : ControllerBase
 {
     // GET      /jobs
     // DELETE   /jobs{jobId}
@@ -24,25 +29,11 @@ internal class JobsController : ControllerBase
     // POST     /jobs/load-packages
     // POST     /jobs/clear-cache
 
-    private readonly AppStateManager _appStateManager;
-    private readonly ILogger _logger;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly Serilog.IDiagnosticContext _diagnosticContext;
-    private readonly IJobService _jobService;
-
-    public JobsController(
-        AppStateManager appStateManager,
-        IJobService jobService,
-        IServiceProvider serviceProvider,
-        Serilog.IDiagnosticContext diagnosticContext,
-        ILogger<JobsController> logger)
-    {
-        _appStateManager = appStateManager;
-        _jobService = jobService;
-        _serviceProvider = serviceProvider;
-        _diagnosticContext = diagnosticContext;
-        _logger = logger;
-    }
+    private readonly AppStateManager _appStateManager = appStateManager;
+    private readonly ILogger _logger = logger;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly Serilog.IDiagnosticContext _diagnosticContext = diagnosticContext;
+    private readonly IJobService _jobService = jobService;
 
     #region Jobs Management
 
@@ -54,11 +45,7 @@ internal class JobsController : ControllerBase
     public ActionResult<List<Job>> GetJobs()
     {
         var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
-        var username = User.Identity?.Name;
-
-        if (username is null)
-            throw new Exception("This should never happen.");
-
+        var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
         var result = _jobService
             .GetJobs()
             .Select(jobControl => jobControl.Job)
@@ -79,11 +66,7 @@ internal class JobsController : ControllerBase
         if (_jobService.TryGetJob(jobId, out var jobControl))
         {
             var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
-            var username = User.Identity?.Name;
-
-            if (username is null)
-                throw new Exception("This should never happen.");
-
+            var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
             if (jobControl.Job.Owner == username || isAdmin)
             {
                 jobControl.CancellationTokenSource.Cancel();
@@ -113,11 +96,7 @@ internal class JobsController : ControllerBase
         if (_jobService.TryGetJob(jobId, out var jobControl))
         {
             var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
-            var username = User.Identity?.Name;
-
-            if (username is null)
-                throw new Exception("This should never happen.");
-
+            var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
             if (jobControl.Job.Owner == username || isAdmin)
             {
                 var status = new JobStatus(
@@ -180,11 +159,7 @@ internal class JobsController : ControllerBase
         {
             catalogItemRequests = await Task.WhenAll(parameters.ResourcePaths.Select(async resourcePath =>
             {
-                var catalogItemRequest = await root.TryFindAsync(resourcePath, cancellationToken);
-
-                if (catalogItemRequest is null)
-                    throw new ValidationException($"Could not find resource path {resourcePath}.");
-
+                var catalogItemRequest = await root.TryFindAsync(resourcePath, cancellationToken) ?? throw new ValidationException($"Could not find resource path {resourcePath}.");
                 return catalogItemRequest;
             }));
         }

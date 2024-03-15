@@ -103,8 +103,8 @@ internal class Sample : IDataSource
         if (path == "/")
             return Task.FromResult(new CatalogRegistration[]
                 {
-                    new CatalogRegistration(LocalCatalogId, LocalCatalogTitle),
-                    new CatalogRegistration(RemoteCatalogId, RemoteCatalogTitle),
+                    new(LocalCatalogId, LocalCatalogTitle),
+                    new(RemoteCatalogId, RemoteCatalogTitle),
                 });
 
         else
@@ -200,7 +200,7 @@ internal class Sample : IDataSource
 
         var finishedTasks = 0;
 
-        while (tasks.Any())
+        while (tasks.Count != 0)
         {
             var task = await Task.WhenAny(tasks);
             cancellationToken.ThrowIfCancellationRequested();

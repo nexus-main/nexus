@@ -75,7 +75,8 @@ public class ClientTests
             headers =>
             {
                 Assert.NotNull(headers);
-                Assert.Collection(headers, header => Assert.Equal(encodedJson, header));
+                var header = Assert.Single(headers);
+                Assert.Equal(encodedJson, header);
             },
             Assert.Null);
     }

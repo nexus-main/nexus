@@ -29,23 +29,16 @@ internal interface IExtensionHive
         CancellationToken cancellationToken);
 }
 
-internal class ExtensionHive : IExtensionHive
+internal class ExtensionHive(
+    IOptions<PathsOptions> pathsOptions,
+    ILogger<ExtensionHive> logger,
+    ILoggerFactory loggerFactory) : IExtensionHive
 {
-    private readonly ILogger<ExtensionHive> _logger;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly PathsOptions _pathsOptions;
+    private readonly ILogger<ExtensionHive> _logger = logger;
+    private readonly ILoggerFactory _loggerFactory = loggerFactory;
+    private readonly PathsOptions _pathsOptions = pathsOptions.Value;
 
     private Dictionary<PackageController, ReadOnlyCollection<Type>>? _packageControllerMap = default!;
-
-    public ExtensionHive(
-        IOptions<PathsOptions> pathsOptions,
-        ILogger<ExtensionHive> logger,
-        ILoggerFactory loggerFactory)
-    {
-        _logger = logger;
-        _loggerFactory = loggerFactory;
-        _pathsOptions = pathsOptions.Value;
-    }
 
     public async Task LoadPackagesAsync(
         IEnumerable<InternalPackageReference> packageReferences,
@@ -68,7 +61,7 @@ internal class ExtensionHive : IExtensionHive
         var nexusPackageReference = new InternalPackageReference(
             Id: PackageController.BUILTIN_ID,
             Provider: PackageController.BUILTIN_PROVIDER,
-            Configuration: new Dictionary<string, string>()
+            Configuration: []
         );
 
         packageReferences = new List<InternalPackageReference>() { nexusPackageReference }.Concat(packageReferences);

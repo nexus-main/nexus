@@ -8,35 +8,24 @@ namespace Nexus.Core;
 /// <summary>
 /// Represents a user.
 /// </summary>
-public class NexusUser
+public class NexusUser(
+    string id,
+    string name)
 {
-#pragma warning disable CS1591
-
-    public NexusUser(
-        string id,
-        string name)
-    {
-        Id = id;
-        Name = name;
-
-        Claims = new();
-    }
-
+    /// <inheritdoc/>
     [JsonIgnore]
     [ValidateNever]
-    public string Id { get; set; } = default!;
-
-#pragma warning restore CS1591
+    public string Id { get; set; } = id;
 
     /// <summary>
     /// The user name.
     /// </summary>
-    public string Name { get; set; } = default!;
+    public string Name { get; set; } = name;
 
 #pragma warning disable CS1591
 
     [JsonIgnore]
-    public List<NexusClaim> Claims { get; set; } = default!;
+    public List<NexusClaim> Claims { get; set; } = [];
 
 #pragma warning restore CS1591
 
@@ -45,32 +34,22 @@ public class NexusUser
 /// <summary>
 /// Represents a claim.
 /// </summary>
-public class NexusClaim
+public class NexusClaim(Guid id, string type, string value)
 {
-#pragma warning disable CS1591
-
-    public NexusClaim(Guid id, string type, string value)
-    {
-        Id = id;
-        Type = type;
-        Value = value;
-    }
-
+    /// <inheritdoc/>
     [JsonIgnore]
     [ValidateNever]
-    public Guid Id { get; set; }
-
-#pragma warning restore CS1591
+    public Guid Id { get; set; } = id;
 
     /// <summary>
     /// The claim type.
     /// </summary>
-    public string Type { get; init; }
+    public string Type { get; init; } = type;
 
     /// <summary>
     /// The claim value.
     /// </summary>
-    public string Value { get; init; }
+    public string Value { get; init; } = value;
 
 #pragma warning disable CS1591
 

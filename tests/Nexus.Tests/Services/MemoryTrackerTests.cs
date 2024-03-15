@@ -32,8 +32,8 @@ public class MemoryTrackerTests
             var firstWaitingTask = memoryTracker.RegisterAllocationAsync(minimumByteCount: 70, maximumByteCount: 70, CancellationToken.None);
             var secondWaitingTask = memoryTracker.RegisterAllocationAsync(minimumByteCount: 80, maximumByteCount: 80, CancellationToken.None);
 
-            Assert.True(firstWaitingTask.Status != TaskStatus.RanToCompletion);
-            Assert.True(secondWaitingTask.Status != TaskStatus.RanToCompletion);
+            Assert.NotEqual(TaskStatus.RanToCompletion, firstWaitingTask.Status);
+            Assert.NotEqual(TaskStatus.RanToCompletion, secondWaitingTask.Status);
 
             // dispose first registration
             weAreWaiting.Set();

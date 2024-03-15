@@ -14,7 +14,7 @@ public class SettingsViewModel : INotifyPropertyChanged
     private readonly AppState _appState;
     private readonly INexusClient _client;
     private readonly IJSInProcessRuntime _jsRuntime;
-    private List<CatalogItemSelectionViewModel> _selectedCatalogItems = new();
+    private List<CatalogItemSelectionViewModel> _selectedCatalogItems = [];
 
     public SettingsViewModel(AppState appState, IJSInProcessRuntime jsRuntime, INexusClient client)
     {
@@ -209,7 +209,7 @@ public class SettingsViewModel : INotifyPropertyChanged
 
         if (reference is null)
         {
-            if (CanModifySamplePeriod && !_selectedCatalogItems.Any())
+            if (CanModifySamplePeriod && _selectedCatalogItems.Count == 0)
                 SamplePeriod = new Period(selection.BaseItem.Representation.SamplePeriod);
 
             EnsureDefaultRepresentationKind(selection);
@@ -244,7 +244,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         var baseItem = selectedItem.BaseItem;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
 
-        if (!selectedItem.Kinds.Any())
+        if (selectedItem.Kinds.Count == 0)
         {
             if (SamplePeriod.Value < baseSamplePeriod)
                 selectedItem.Kinds.Add(RepresentationKind.Resampled);
@@ -268,7 +268,7 @@ public class SettingsViewModel : INotifyPropertyChanged
                 .Where(description => description.AdditionalInformation.GetStringValue(Constants.DATA_WRITER_LABEL_KEY) is not null)
                 .ToList();
 
-            if (writerDescriptions.Any())
+            if (writerDescriptions.Count != 0)
             {
                 string? actualFileType = default;
 

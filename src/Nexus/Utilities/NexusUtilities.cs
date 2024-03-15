@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace Nexus.Utilities;
 
-internal static class NexusUtilities
+internal static partial class NexusUtilities
 {
     private static string? _defaultBaseUrl;
 
@@ -21,7 +21,7 @@ internal static class NexusUtilities
 
                 if (aspnetcoreEnvVar is not null)
                 {
-                    var match = Regex.Match(aspnetcoreEnvVar, ":([0-9]+)");
+                    var match = AspNetCoreEnvVarRegex().Match(aspnetcoreEnvVar);
 
                     if (match.Success && int.TryParse(match.Groups[1].Value, out var parsedPort))
                         port = parsedPort;
@@ -105,7 +105,7 @@ internal static class NexusUtilities
 
     public static async Task WhenAllFailFastAsync(List<Task> tasks, CancellationToken cancellationToken)
     {
-        while (tasks.Any())
+        while (tasks.Count != 0)
         {
             var task = await Task
                 .WhenAny(tasks)
@@ -148,4 +148,7 @@ internal static class NexusUtilities
     {
         return type.GetCustomAttributes(false).OfType<T>();
     }
+
+    [GeneratedRegex(":([0-9]+)")]
+    private static partial Regex AspNetCoreEnvVarRegex();
 }

@@ -130,8 +130,8 @@ public class CacheServiceTests
 
         var expected = new DateTime[]
         {
-            new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-            new DateTime(2020, 01, 02, 0, 0, 0, DateTimeKind.Utc)
+            new(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+            new(2020, 01, 02, 0, 0, 0, DateTimeKind.Utc)
         };
 
         var databaseService = Mock.Of<IDatabaseService>();
@@ -167,7 +167,7 @@ public class CacheServiceTests
 
         var uncachedIntervals = new List<Interval>
         {
-            new Interval(new DateTime(2020, 01, 01, 15, 0, 0, DateTimeKind.Utc), new DateTime(2020, 01, 02, 03, 0, 0, DateTimeKind.Utc))
+            new(new DateTime(2020, 01, 01, 15, 0, 0, DateTimeKind.Utc), new DateTime(2020, 01, 02, 03, 0, 0, DateTimeKind.Utc))
         };
 
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);

@@ -9,9 +9,9 @@ namespace Nexus.DataModel;
 /// A representation is part of a resource.
 /// </summary>
 [DebuggerDisplay("{Id,nq}")]
-public record Representation
+public partial record Representation
 {
-    private static readonly Regex _snakeCaseEvaluator = new("(?<=[a-z])([A-Z])", RegexOptions.Compiled);
+    private static readonly Regex _snakeCaseEvaluator = SnakeCaseEvaluator();
     private static readonly HashSet<NexusDataType> _nexusDataTypeValues = new(Enum.GetValues<NexusDataType>());
 
     private IReadOnlyDictionary<string, JsonElement>? _parameters;
@@ -136,4 +136,7 @@ public record Representation
                 throw new Exception("The representation argument identifier is not valid.");
         }
     }
+
+    [GeneratedRegex("(?<=[a-z])([A-Z])", RegexOptions.Compiled)]
+    private static partial Regex SnakeCaseEvaluator();
 }

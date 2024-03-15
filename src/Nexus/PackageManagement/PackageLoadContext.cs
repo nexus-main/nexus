@@ -3,14 +3,10 @@ using System.Runtime.Loader;
 
 namespace Nexus.PackageManagement;
 
-internal class PackageLoadContext : AssemblyLoadContext
+internal class PackageLoadContext(string entryDllPath) 
+    : AssemblyLoadContext(isCollectible: true)
 {
-    private readonly AssemblyDependencyResolver _resolver;
-
-    public PackageLoadContext(string entryDllPath) : base(isCollectible: true)
-    {
-        _resolver = new AssemblyDependencyResolver(entryDllPath);
-    }
+    private readonly AssemblyDependencyResolver _resolver = new(entryDllPath);
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {

@@ -54,8 +54,8 @@ public partial class Chart : IDisposable
     {
         _dotNetHelper = DotNetObjectReference.Create(this);
 
-        _timeAxisConfigs = new[]
-        {
+        _timeAxisConfigs =
+        [
             /* nanoseconds */
             new TimeAxisConfig(TimeSpan.FromSeconds(100e-9), ".fffffff", TriggerPeriod.Second, "HH:mm.ss", "yyyy-MM-dd", "yyyy-MM-dd HH:mm:ss.fffffff"),
 
@@ -101,11 +101,11 @@ public partial class Chart : IDisposable
 
             /* years */
             new TimeAxisConfig(TimeSpan.FromDays(365), "yyyy", TriggerPeriod.Year, default, default, "yyyy-MM-dd"),
-        };
+        ];
 
         _timeAxisConfig = _timeAxisConfigs.First();
 
-        _colors = new[] {
+        _colors = [
             new SKColor(0, 114, 189),
             new SKColor(217, 83, 25),
             new SKColor(237, 177, 32),
@@ -113,7 +113,7 @@ public partial class Chart : IDisposable
             new SKColor(119, 172, 48),
             new SKColor(77, 190, 238),
             new SKColor(162, 20, 47)
-        };
+        ];
     }
 
     [Inject]

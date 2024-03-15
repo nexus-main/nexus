@@ -2,20 +2,14 @@
 
 namespace Nexus.Extensibility;
 
-internal class DataSourceDoubleStream : Stream
+internal class DataSourceDoubleStream(long length, PipeReader reader) 
+    : Stream
 {
     private readonly CancellationTokenSource _cts = new();
     private long _position;
-    private readonly long _length;
-    private readonly PipeReader _reader;
-    private readonly Stream _stream;
-
-    public DataSourceDoubleStream(long length, PipeReader reader)
-    {
-        _length = length;
-        _reader = reader;
-        _stream = reader.AsStream();
-    }
+    private readonly long _length = length;
+    private readonly PipeReader _reader = reader;
+    private readonly Stream _stream = reader.AsStream();
 
     public override bool CanRead => true;
 

@@ -29,7 +29,7 @@ public class SampleDataSourceTests
         // assert
         var actualIds = actual.Resources!.Select(resource => resource.Id).ToList();
         var actualUnits = actual.Resources!.Select(resource => resource.Properties?.GetStringValue("unit")).ToList();
-        var actualGroups = actual.Resources!.SelectMany(resource => resource.Properties?.GetStringArray("groups") ?? Array.Empty<string>());
+        var actualGroups = actual.Resources!.SelectMany(resource => resource.Properties?.GetStringArray("groups") ?? []);
         var actualDataTypes = actual.Resources!.SelectMany(resource => resource.Representations!.Select(representation => representation.DataType)).ToList();
 
         var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2" };
@@ -110,7 +110,7 @@ public class SampleDataSourceTests
         await dataSource.ReadAsync(
             begin,
             end,
-            new[] { request },
+            [request],
             default!,
             new Progress<double>(),
             CancellationToken.None);

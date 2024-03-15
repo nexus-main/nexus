@@ -14,15 +14,10 @@ internal interface IDBService
     Task SaveChangesAsync();
 }
 
-internal class DbService : IDBService
+internal class DbService(
+    UserDbContext context) : IDBService
 {
-    private readonly UserDbContext _context;
-
-    public DbService(
-        UserDbContext context)
-    {
-        _context = context;
-    }
+    private readonly UserDbContext _context = context;
 
     public IQueryable<NexusUser> GetUsers()
     {

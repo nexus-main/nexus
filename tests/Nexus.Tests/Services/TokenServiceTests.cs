@@ -16,7 +16,7 @@ public class TokenServiceTests
     {
         // Arrange
         var filePath = Path.GetTempFileName();
-        var tokenService = GetTokenService(filePath, new());
+        var tokenService = GetTokenService(filePath, []);
         var description = "The description.";
         var expires = new DateTime(2020, 01, 01);
         var claim1Type = "claim1";
@@ -31,8 +31,8 @@ public class TokenServiceTests
             expires,
             new List<TokenClaim>
             {
-                new TokenClaim(claim1Type, claim1Value),
-                new TokenClaim(claim2Type, claim2Value),
+                new(claim1Type, claim1Value),
+                new(claim2Type, claim2Value),
             }
         );
 
@@ -40,24 +40,20 @@ public class TokenServiceTests
         var jsonString = File.ReadAllText(filePath);
         var actualTokenMap = JsonSerializer.Deserialize<Dictionary<string, InternalPersonalAccessToken>>(jsonString)!;
 
-        Assert.Collection(
-            actualTokenMap,
-            entry1 =>
-            {
-                Assert.Equal(description, entry1.Value.Description);
-                Assert.Equal(expires, entry1.Value.Expires);
+        var entry1 = Assert.Single(actualTokenMap);
+        Assert.Equal(description, entry1.Value.Description);
+        Assert.Equal(expires, entry1.Value.Expires);
 
-                Assert.Collection(entry1.Value.Claims,
-                    entry1_1 =>
-                    {
-                        Assert.Equal(claim1Type, entry1_1.Type);
-                        Assert.Equal(claim1Value, entry1_1.Value);
-                    },
-                    entry1_2 =>
-                    {
-                        Assert.Equal(claim2Type, entry1_2.Type);
-                        Assert.Equal(claim2Value, entry1_2.Value);
-                    });
+        Assert.Collection(entry1.Value.Claims,
+            entry1_1 =>
+            {
+                Assert.Equal(claim1Type, entry1_1.Type);
+                Assert.Equal(claim1Value, entry1_1.Value);
+            },
+            entry1_2 =>
+            {
+                Assert.Equal(claim2Type, entry1_2.Type);
+                Assert.Equal(claim2Value, entry1_2.Value);
             });
     }
 
@@ -202,7 +198,7 @@ public class TokenServiceTests
         Assert.Equal(expected, actual);
     }
 
-    private ITokenService GetTokenService(string filePath, Dictionary<string, InternalPersonalAccessToken> tokenMap)
+    private static ITokenService GetTokenService(string filePath, Dictionary<string, InternalPersonalAccessToken> tokenMap)
     {
         var databaseService = Mock.Of<IDatabaseService>();
 

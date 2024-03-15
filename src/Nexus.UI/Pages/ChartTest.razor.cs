@@ -15,19 +15,19 @@ public partial class ChartTest
 
         var lineSeries = new LineSeries[]
         {
-            new LineSeries(
+            new(
                 "Wind speed",
                 "m/s",
                 TimeSpan.FromMilliseconds(500),
                 Enumerable.Range(0, 60*2).Select(value => value / 4.0).ToArray()),
 
-            new LineSeries(
+            new(
                 "Temperature",
                 "°C",
                 TimeSpan.FromSeconds(1),
                 Enumerable.Range(0, 60).Select(value => random.NextDouble() * 10 - 5).ToArray()),
 
-            new LineSeries(
+            new(
                 "Pressure",
                 "mbar",
                 TimeSpan.FromSeconds(1),

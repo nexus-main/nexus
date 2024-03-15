@@ -33,8 +33,7 @@ internal static class CustomExtensions
 
     public static byte[] Hash(this string value)
     {
-        var md5 = MD5.Create(); // compute hash is not thread safe!
-        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(value)); // 
+        var hash = MD5.HashData(Encoding.UTF8.GetBytes(value));
         return hash;
     }
 

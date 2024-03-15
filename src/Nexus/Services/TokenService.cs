@@ -27,20 +27,16 @@ internal interface ITokenService
     Task<IReadOnlyDictionary<string, InternalPersonalAccessToken>> GetAllAsync(string userId);
 }
 
-internal class TokenService : ITokenService
+internal class TokenService(IDatabaseService databaseService) 
+    : ITokenService
 {
     private static readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();
 
-    private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, InternalPersonalAccessToken>> _cache = new();
 
-    private readonly IDatabaseService _databaseService;
-
-    public TokenService(IDatabaseService databaseService)
-    {
-        _databaseService = databaseService;
-    }
+    private readonly IDatabaseService _databaseService = databaseService;
 
     public Task<string> CreateAsync(
         string userId,

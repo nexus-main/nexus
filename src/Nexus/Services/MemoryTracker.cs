@@ -3,18 +3,14 @@ using Nexus.Core;
 
 namespace Nexus.Services;
 
-internal class AllocationRegistration : IDisposable
+internal class AllocationRegistration(
+    IMemoryTracker tracker, 
+    long actualByteCount) : IDisposable
 {
     private bool _disposedValue;
-    private readonly IMemoryTracker _tracker;
+    private readonly IMemoryTracker _tracker = tracker;
 
-    public AllocationRegistration(IMemoryTracker tracker, long actualByteCount)
-    {
-        _tracker = tracker;
-        ActualByteCount = actualByteCount;
-    }
-
-    public long ActualByteCount { get; }
+    public long ActualByteCount { get; } = actualByteCount;
 
     public void Dispose()
     {
@@ -36,7 +32,7 @@ internal class MemoryTracker : IMemoryTracker
 {
     private long _consumedBytes;
     private readonly DataOptions _dataOptions;
-    private readonly List<SemaphoreSlim> _retrySemaphores = new();
+    private readonly List<SemaphoreSlim> _retrySemaphores = [];
     private readonly ILogger<IMemoryTracker> _logger;
 
     public MemoryTracker(IOptions<DataOptions> dataOptions, ILogger<IMemoryTracker> logger)

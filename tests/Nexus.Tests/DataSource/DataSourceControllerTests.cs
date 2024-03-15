@@ -12,14 +12,10 @@ using Xunit;
 
 namespace DataSource;
 
-public class DataSourceControllerTests : IClassFixture<DataSourceControllerFixture>
+public class DataSourceControllerTests(DataSourceControllerFixture fixture) 
+    : IClassFixture<DataSourceControllerFixture>
 {
-    private readonly DataSourceControllerFixture _fixture;
-
-    public DataSourceControllerTests(DataSourceControllerFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly DataSourceControllerFixture _fixture = fixture;
 
     [Fact]
     internal async Task CanGetAvailability()
@@ -132,13 +128,13 @@ public class DataSourceControllerTests : IClassFixture<DataSourceControllerFixtu
         // combine
         var catalogItemRequestPipeWriters = new CatalogItemRequestPipeWriter[]
         {
-            new CatalogItemRequestPipeWriter(catalogItemRequest1, dataWriter1),
-            new CatalogItemRequestPipeWriter(catalogItemRequest2, dataWriter2)
+            new(catalogItemRequest1, dataWriter1),
+            new(catalogItemRequest2, dataWriter2)
         };
 
         var readingGroups = new DataReadingGroup[]
         {
-            new DataReadingGroup(controller, catalogItemRequestPipeWriters)
+            new(controller, catalogItemRequestPipeWriters)
         };
 
         var result1 = new double[86401];
@@ -458,8 +454,8 @@ public class DataSourceControllerTests : IClassFixture<DataSourceControllerFixtu
         /* ICacheService */
         var uncachedIntervals = new List<Interval>
         {
-            new Interval(begin, new DateTime(2020, 01, 02, 0, 0, 0, DateTimeKind.Utc)),
-            new Interval(new DateTime(2020, 01, 03, 0, 0, 0, DateTimeKind.Utc), end)
+            new(begin, new DateTime(2020, 01, 02, 0, 0, 0, DateTimeKind.Utc)),
+            new(new DateTime(2020, 01, 03, 0, 0, 0, DateTimeKind.Utc), end)
         };
 
         var cacheService = new Mock<ICacheService>();

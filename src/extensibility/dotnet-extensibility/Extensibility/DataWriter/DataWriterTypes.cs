@@ -26,17 +26,10 @@ public record WriteRequest(
 /// <summary>
 /// An attribute to provide additional information about the data writer.
 /// </summary>
+/// <param name="description">The data writer description including the data writer format label and UI options.</param>
 [AttributeUsage(AttributeTargets.Class)]
-public class DataWriterDescriptionAttribute : Attribute
+public class DataWriterDescriptionAttribute(string description) : Attribute
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="DataWriterDescriptionAttribute"/>.
-    /// </summary>
-    /// <param name="description">The data writer description including the data writer format label and UI options.</param>
-    public DataWriterDescriptionAttribute(string description)
-    {
-        Description = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(description);
-    }
-
-    internal IReadOnlyDictionary<string, JsonElement>? Description { get; }
+    internal IReadOnlyDictionary<string, JsonElement>? Description { get; } 
+        = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(description);
 }

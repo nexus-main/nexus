@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Nexus.DataModel;
 
-internal static class DataModelUtilities
+internal static partial class DataModelUtilities
 {
     /* Example resource paths:
      * 
@@ -18,7 +18,7 @@ internal static class DataModelUtilities
      * /a/b/c/T1/600_s_mean(abc=456)#base=1s
      */
     // keep in sync with Nexus.UI.Core.Utilities
-    private static readonly Regex _resourcePathEvaluator = new(@"^(?'catalog'.*)\/(?'resource'.*)\/(?'sample_period'[0-9]+_[a-zA-Z]+)(?:_(?'kind'[^\(#\s]+))?(?:\((?'parameters'.*)\))?(?:#(?'fragment'.*))?$", RegexOptions.Compiled);
+    private static readonly Regex _resourcePathEvaluator = ResourcePathEvaluator();
 
     private static string ToPascalCase(string input)
     {
@@ -285,4 +285,7 @@ internal static class DataModelUtilities
             _ => JsonValue.Create(element)
         };
     }
+
+    [GeneratedRegex(@"^(?'catalog'.*)\/(?'resource'.*)\/(?'sample_period'[0-9]+_[a-zA-Z]+)(?:_(?'kind'[^\(#\s]+))?(?:\((?'parameters'.*)\))?(?:#(?'fragment'.*))?$", RegexOptions.Compiled)]
+    private static partial Regex ResourcePathEvaluator();
 }

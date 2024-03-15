@@ -72,7 +72,7 @@ public class CatalogsDemoClient : ICatalogsClient
             var resource1 = new Resource(
                 Id: "temperature",
                 Properties: properties1,
-                Representations: new List<Representation>() { new Representation(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
+                Representations: new List<Representation>() { new(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
             );
 
             var properties2 = new Dictionary<string, JsonElement>()
@@ -85,7 +85,7 @@ public class CatalogsDemoClient : ICatalogsClient
             var resource2 = new Resource(
                 Id: "wind_speed",
                 Properties: properties2,
-                Representations: new List<Representation>() { new Representation(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
+                Representations: new List<Representation>() { new(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
             );
 
             var resources = new List<Resource>() { resource1, resource2 };
@@ -188,12 +188,12 @@ We hope you enjoy it!
                 PackageReferenceId: Guid.NewGuid()
             );
 
-            return Task.FromResult((IReadOnlyList<CatalogInfo>)new List<CatalogInfo>() { catalogInfo });
+            return Task.FromResult((IReadOnlyList<CatalogInfo>)[catalogInfo]);
         }
 
         else
         {
-            return Task.FromResult((IReadOnlyList<CatalogInfo>)new List<CatalogInfo>() { });
+            return Task.FromResult((IReadOnlyList<CatalogInfo>)[]);
         }
     }
 
@@ -539,6 +539,6 @@ public class WritersDemoClient : IWritersClient
             AdditionalInformation: additionalInformation
         );
 
-        return Task.FromResult((IReadOnlyList<ExtensionDescription>)new List<ExtensionDescription>() { description });
+        return Task.FromResult((IReadOnlyList<ExtensionDescription>)[description]);
     }
 }

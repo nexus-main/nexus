@@ -22,7 +22,11 @@ namespace Nexus.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
-internal class UsersController : ControllerBase
+internal class UsersController(
+    IDBService dBService,
+    ITokenService tokenService,
+    IOptions<SecurityOptions> securityOptions,
+    ILogger<UsersController> logger) : ControllerBase
 {
     // [anonymous]
     // GET      /api/users/authenticate
@@ -46,22 +50,10 @@ internal class UsersController : ControllerBase
 
     // GET      /api/users/{userId}/tokens
 
-    private readonly IDBService _dbService;
-    private readonly ITokenService _tokenService;
-    private readonly SecurityOptions _securityOptions;
-    private readonly ILogger<UsersController> _logger;
-
-    public UsersController(
-        IDBService dBService,
-        ITokenService tokenService,
-        IOptions<SecurityOptions> securityOptions,
-        ILogger<UsersController> logger)
-    {
-        _dbService = dBService;
-        _tokenService = tokenService;
-        _securityOptions = securityOptions.Value;
-        _logger = logger;
-    }
+    private readonly IDBService _dbService = dBService;
+    private readonly ITokenService _tokenService = tokenService;
+    private readonly SecurityOptions _securityOptions = securityOptions.Value;
+    private readonly ILogger<UsersController> _logger = logger;
 
     #region Anonymous
 

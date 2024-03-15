@@ -7,30 +7,21 @@ using System.Text.Json;
 
 namespace Nexus.Services;
 
-internal class AppStateManager
+internal class AppStateManager(
+    AppState appState,
+    IExtensionHive extensionHive,
+    ICatalogManager catalogManager,
+    IDatabaseService databaseService,
+    ILogger<AppStateManager> logger)
 {
-    private readonly IExtensionHive _extensionHive;
-    private readonly ICatalogManager _catalogManager;
-    private readonly IDatabaseService _databaseService;
-    private readonly ILogger<AppStateManager> _logger;
+    private readonly IExtensionHive _extensionHive = extensionHive;
+    private readonly ICatalogManager _catalogManager = catalogManager;
+    private readonly IDatabaseService _databaseService = databaseService;
+    private readonly ILogger<AppStateManager> _logger = logger;
     private readonly SemaphoreSlim _refreshDatabaseSemaphore = new(initialCount: 1, maxCount: 1);
     private readonly SemaphoreSlim _projectSemaphore = new(initialCount: 1, maxCount: 1);
 
-    public AppStateManager(
-        AppState appState,
-        IExtensionHive extensionHive,
-        ICatalogManager catalogManager,
-        IDatabaseService databaseService,
-        ILogger<AppStateManager> logger)
-    {
-        AppState = appState;
-        _extensionHive = extensionHive;
-        _catalogManager = catalogManager;
-        _databaseService = databaseService;
-        _logger = logger;
-    }
-
-    public AppState AppState { get; }
+    public AppState AppState { get; } = appState;
 
     public async Task RefreshDatabaseAsync(
         IProgress<double> progress,
@@ -250,11 +241,7 @@ internal class AppStateManager
             }
 
             var additionalInformation = attribute.Description;
-            var label = additionalInformation?.GetStringValue(Nexus.UI.Core.Constants.DATA_WRITER_LABEL_KEY);
-
-            if (label is null)
-                throw new Exception($"The description of data writer {fullName} has no label property");
-
+            var label = (additionalInformation?.GetStringValue(Nexus.UI.Core.Constants.DATA_WRITER_LABEL_KEY)) ?? throw new Exception($"The description of data writer {fullName} has no label property");
             var version = dataWriterType.Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
                 .InformationalVersion;

@@ -34,40 +34,26 @@ internal interface IDataService
         CancellationToken cancellationToken);
 }
 
-internal class DataService : IDataService
+internal class DataService(
+    AppState appState,
+    ClaimsPrincipal user,
+    IDataControllerService dataControllerService,
+    IDatabaseService databaseService,
+    IMemoryTracker memoryTracker,
+    ILogger<DataService> logger,
+    ILoggerFactory loggerFactory) : IDataService
 {
-    private readonly AppState _appState;
-    private readonly IMemoryTracker _memoryTracker;
-    private readonly ClaimsPrincipal _user;
-    private readonly ILogger _logger;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly IDatabaseService _databaseService;
-    private readonly IDataControllerService _dataControllerService;
+    private readonly AppState _appState = appState;
+    private readonly IMemoryTracker _memoryTracker = memoryTracker;
+    private readonly ClaimsPrincipal _user = user;
+    private readonly ILogger _logger = logger;
+    private readonly ILoggerFactory _loggerFactory = loggerFactory;
+    private readonly IDatabaseService _databaseService = databaseService;
+    private readonly IDataControllerService _dataControllerService = dataControllerService;
 
-    public DataService(
-        AppState appState,
-        ClaimsPrincipal user,
-        IDataControllerService dataControllerService,
-        IDatabaseService databaseService,
-        IMemoryTracker memoryTracker,
-        ILogger<DataService> logger,
-        ILoggerFactory loggerFactory)
-    {
-        _user = user;
-        _appState = appState;
-        _dataControllerService = dataControllerService;
-        _databaseService = databaseService;
-        _memoryTracker = memoryTracker;
-        _logger = logger;
-        _loggerFactory = loggerFactory;
+    public Progress<double> ReadProgress { get; } = new Progress<double>();
 
-        ReadProgress = new Progress<double>();
-        WriteProgress = new Progress<double>();
-    }
-
-    public Progress<double> ReadProgress { get; }
-
-    public Progress<double> WriteProgress { get; }
+    public Progress<double> WriteProgress { get; } = new Progress<double>();
 
     public async Task<Stream> ReadAsStreamAsync(
        string resourcePath,
@@ -80,11 +66,7 @@ internal class DataService : IDataService
 
         // find representation
         var root = _appState.CatalogState.Root;
-        var catalogItemRequest = await root.TryFindAsync(resourcePath, cancellationToken);
-
-        if (catalogItemRequest is null)
-            throw new Exception($"Could not find resource path {resourcePath}.");
-
+        var catalogItemRequest = await root.TryFindAsync(resourcePath, cancellationToken) ?? throw new Exception($"Could not find resource path {resourcePath}.");
         var catalogContainer = catalogItemRequest.Container;
 
         // security check

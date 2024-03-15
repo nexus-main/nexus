@@ -30,7 +30,7 @@ public record ResourceBuilder
     /// <returns>The resource builder.</returns>
     public ResourceBuilder WithProperty(string key, object value)
     {
-        _properties ??= new();
+        _properties ??= [];
 
         _properties[key] = JsonSerializer.SerializeToElement(value);
 
@@ -44,7 +44,7 @@ public record ResourceBuilder
     /// <returns>The resource builder.</returns>
     public ResourceBuilder AddRepresentation(Representation representation)
     {
-        _representations ??= new List<Representation>();
+        _representations ??= [];
 
         _representations.Add(representation);
 
@@ -68,7 +68,7 @@ public record ResourceBuilder
     /// <returns>The resource builder.</returns>
     public ResourceBuilder AddRepresentations(IEnumerable<Representation> representations)
     {
-        _representations ??= new List<Representation>();
+        _representations ??= [];
 
         _representations.AddRange(representations);
 

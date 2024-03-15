@@ -28,7 +28,7 @@ public record ResourceCatalogBuilder
     /// <returns>The resource catalog builder.</returns>
     public ResourceCatalogBuilder WithProperty(string key, JsonElement value)
     {
-        _properties ??= new();
+        _properties ??= [];
 
         _properties[key] = value;
 
@@ -43,7 +43,7 @@ public record ResourceCatalogBuilder
     /// <returns>The resource catalog builder.</returns>
     public ResourceCatalogBuilder WithProperty(string key, object value)
     {
-        _properties ??= new();
+        _properties ??= [];
 
         _properties[key] = JsonSerializer.SerializeToElement(value);
 
@@ -57,7 +57,7 @@ public record ResourceCatalogBuilder
     /// <returns>The resource catalog builder.</returns>
     public ResourceCatalogBuilder AddResource(Resource resource)
     {
-        _resources ??= new List<Resource>();
+        _resources ??= [];
 
         _resources.Add(resource);
 
@@ -81,7 +81,7 @@ public record ResourceCatalogBuilder
     /// <returns>The resource catalog builder.</returns>
     public ResourceCatalogBuilder AddResources(IEnumerable<Resource> resources)
     {
-        _resources ??= new List<Resource>();
+        _resources ??= [];
 
         _resources.AddRange(resources);
 

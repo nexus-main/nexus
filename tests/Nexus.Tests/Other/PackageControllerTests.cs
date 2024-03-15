@@ -195,10 +195,8 @@ public class PackageControllerTests
 
         var dataSourceType = assembly
             .ExportedTypes
-            .First(type => typeof(IDataSource).IsAssignableFrom(type));
-
-        if (dataSourceType is null)
-            throw new Exception("data source type is null");
+            .First(type => typeof(IDataSource).IsAssignableFrom(type)) 
+                ?? throw new Exception("data source type is null");
 
         // run
 

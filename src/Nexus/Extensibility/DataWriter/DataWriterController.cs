@@ -24,31 +24,22 @@ internal interface IDataWriterController : IDisposable
 
 // TODO: Add "CheckFileSize" method (e.g. for Famos).
 
-internal class DataWriterController : IDataWriterController
+internal class DataWriterController(
+    IDataWriter dataWriter,
+    Uri resourceLocator,
+    IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
+    IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
+    ILogger<DataWriterController> logger) : IDataWriterController
 {
-    public DataWriterController(
-        IDataWriter dataWriter,
-        Uri resourceLocator,
-        IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
-        IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
-        ILogger<DataWriterController> logger)
-    {
-        DataWriter = dataWriter;
-        ResourceLocator = resourceLocator;
-        SystemConfiguration = systemConfiguration;
-        RequestConfiguration = requestConfiguration;
-        Logger = logger;
-    }
+    private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; } = systemConfiguration;
 
-    private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; }
+    private IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; } = requestConfiguration;
 
-    private IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; }
+    private IDataWriter DataWriter { get; } = dataWriter;
 
-    private IDataWriter DataWriter { get; }
+    private Uri ResourceLocator { get; } = resourceLocator;
 
-    private Uri ResourceLocator { get; }
-
-    private ILogger Logger { get; }
+    private ILogger Logger { get; } = logger;
 
     public async Task InitializeAsync(
         ILogger logger,

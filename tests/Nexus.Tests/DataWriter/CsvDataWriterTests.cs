@@ -10,14 +10,10 @@ using Xunit;
 
 namespace DataWriter;
 
-public class CsvDataWriterTests : IClassFixture<DataWriterFixture>
+public class CsvDataWriterTests(DataWriterFixture fixture) 
+    : IClassFixture<DataWriterFixture>
 {
-    private readonly DataWriterFixture _fixture;
-
-    public CsvDataWriterTests(DataWriterFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly DataWriterFixture _fixture = fixture;
 
     [Theory]
     [InlineData("index")]

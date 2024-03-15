@@ -41,7 +41,8 @@ internal interface IDatabaseService
         string userId);
 }
 
-internal class DatabaseService : IDatabaseService
+internal class DatabaseService(IOptions<PathsOptions> pathsOptions) 
+    : IDatabaseService
 {
     // generated, small files:
     //
@@ -57,12 +58,7 @@ internal class DatabaseService : IDatabaseService
     // <application data>/export
     // <user profile>/.nexus/packages
 
-    private readonly PathsOptions _pathsOptions;
-
-    public DatabaseService(IOptions<PathsOptions> pathsOptions)
-    {
-        _pathsOptions = pathsOptions.Value;
-    }
+    private readonly PathsOptions _pathsOptions = pathsOptions.Value;
 
     /* /config/catalogs/catalog_id.json */
     public bool TryReadCatalogMetadata(string catalogId, [NotNullWhen(true)] out string? catalogMetadata)

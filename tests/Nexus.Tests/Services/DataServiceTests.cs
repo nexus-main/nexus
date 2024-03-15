@@ -125,7 +125,7 @@ public class DataServiceTests
             End: end,
             FilePeriod: TimeSpan.FromSeconds(10),
             Type: "A",
-            ResourcePaths: new[] { catalogItem1.ToPath(), catalogItem2.ToPath() },
+            ResourcePaths: [catalogItem1.ToPath(), catalogItem2.ToPath()],
             Configuration: default);
 
         // data service

@@ -75,16 +75,16 @@ internal static class DataSourceControllerExtensions
     {
         var samplePeriod = request.Item.Representation.SamplePeriod;
 
-        var readingGroup = new DataReadingGroup(controller, new CatalogItemRequestPipeWriter[]
-        {
+        var readingGroup = new DataReadingGroup(controller,
+        [
             new CatalogItemRequestPipeWriter(request, dataWriter)
-        });
+        ]);
 
         return DataSourceController.ReadAsync(
             begin,
             end,
             samplePeriod,
-            new DataReadingGroup[] { readingGroup },
+            [readingGroup],
             readDataHandler,
             memoryTracker,
             progress,

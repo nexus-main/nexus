@@ -4,15 +4,15 @@ namespace DataWriter;
 
 public class DataWriterFixture : IDisposable
 {
-    readonly List<string> _targetFolders = new();
+    readonly List<string> _targetFolders = [];
 
     public DataWriterFixture()
     {
         // catalog 1
         var representations1 = new List<Representation>()
         {
-            new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(1)),
-            new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(10)),
+            new(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(1)),
+            new(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(10)),
         };
 
         var resourceBuilder1 = new ResourceBuilder(id: "resource1")
@@ -37,7 +37,7 @@ public class DataWriterFixture : IDisposable
             .WithProperty("my-custom-parameter3", "my-custom-value3")
             .AddResource(resourceBuilder2.Build());
 
-        Catalogs = new[] { catalogBuilder1.Build(), catalogBuilder2.Build() };
+        Catalogs = [catalogBuilder1.Build(), catalogBuilder2.Build()];
     }
 
     public ResourceCatalog[] Catalogs { get; }

@@ -28,16 +28,11 @@ internal interface ICacheService
         CancellationToken cancellationToken);
 }
 
-internal class CacheService : ICacheService
+internal class CacheService(
+    IDatabaseService databaseService) : ICacheService
 {
-    private readonly IDatabaseService _databaseService;
+    private readonly IDatabaseService _databaseService = databaseService;
     private readonly TimeSpan _largestSamplePeriod = TimeSpan.FromDays(1);
-
-    public CacheService(
-        IDatabaseService databaseService)
-    {
-        _databaseService = databaseService;
-    }
 
     public async Task<List<Interval>> ReadAsync(
         CatalogItem catalogItem,

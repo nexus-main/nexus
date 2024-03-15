@@ -53,43 +53,30 @@ internal interface IDataSourceController : IDisposable
         CancellationToken cancellationToken);
 }
 
-internal class DataSourceController : IDataSourceController
+internal class DataSourceController(
+    IDataSource dataSource,
+    InternalDataSourceRegistration registration,
+    IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
+    IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
+    IProcessingService processingService,
+    ICacheService cacheService,
+    DataOptions dataOptions,
+    ILogger<DataSourceController> logger) : IDataSourceController
 {
-    private readonly IProcessingService _processingService;
-    private readonly ICacheService _cacheService;
-    private readonly DataOptions _dataOptions;
+    private readonly IProcessingService _processingService = processingService;
+    private readonly ICacheService _cacheService = cacheService;
+    private readonly DataOptions _dataOptions = dataOptions;
     private ConcurrentDictionary<string, ResourceCatalog> _catalogCache = default!;
 
-    public DataSourceController(
-        IDataSource dataSource,
-        InternalDataSourceRegistration registration,
-        IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
-        IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
-        IProcessingService processingService,
-        ICacheService cacheService,
-        DataOptions dataOptions,
-        ILogger<DataSourceController> logger)
-    {
-        DataSource = dataSource;
-        DataSourceRegistration = registration;
-        SystemConfiguration = systemConfiguration;
-        RequestConfiguration = requestConfiguration;
-        Logger = logger;
+    private IDataSource DataSource { get; } = dataSource;
 
-        _processingService = processingService;
-        _cacheService = cacheService;
-        _dataOptions = dataOptions;
-    }
+    private InternalDataSourceRegistration DataSourceRegistration { get; } = registration;
 
-    private IDataSource DataSource { get; }
+    private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; } = systemConfiguration;
 
-    private InternalDataSourceRegistration DataSourceRegistration { get; }
+    internal IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; } = requestConfiguration;
 
-    private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; }
-
-    internal IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; }
-
-    private ILogger Logger { get; }
+    private ILogger Logger { get; } = logger;
 
     public async Task InitializeAsync(
         ConcurrentDictionary<string, ResourceCatalog> catalogCache,
@@ -239,7 +226,7 @@ internal class DataSourceController : IDataSourceController
                 .RepositoryUrl;
 
             var newResourceProperties = catalogProperties is null
-                ? new Dictionary<string, JsonElement>()
+                ? []
                 : catalogProperties.ToDictionary(entry => entry.Key, entry => entry.Value);
 
             var originJsonObject = new JsonObject()
@@ -564,7 +551,7 @@ internal class DataSourceController : IDataSourceController
 
             if (disableCache)
             {
-                uncachedIntervals = new List<Interval> { new Interval(begin, end) };
+                uncachedIntervals = [new Interval(begin, end)];
             }
 
             else
@@ -607,7 +594,7 @@ internal class DataSourceController : IDataSourceController
                 await DataSource.ReadAsync(
                     interval.Begin,
                     interval.End,
-                    new[] { slicedReadRequest },
+                    [slicedReadRequest],
                     readDataHandler,
                     progress,
                     cancellationToken);
@@ -721,7 +708,7 @@ internal class DataSourceController : IDataSourceController
             await DataSource.ReadAsync(
                 roundedBegin,
                 roundedEnd,
-                new[] { readRequest },
+                [readRequest],
                 readDataHandler,
                 progress,
                 cancellationToken);
@@ -779,7 +766,7 @@ internal class DataSourceController : IDataSourceController
             }
         }
 
-        return readUnits.ToArray();
+        return [.. readUnits];
     }
 
     public static async Task ReadAsync(

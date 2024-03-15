@@ -12,26 +12,19 @@ namespace Nexus.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
-internal class PackageReferencesController : ControllerBase
+internal class PackageReferencesController(
+    AppState appState,
+    AppStateManager appStateManager,
+    IExtensionHive extensionHive) : ControllerBase
 {
     // GET      /api/packagereferences
     // POST     /api/packagereferences
     // DELETE   /api/packagereferences/{packageReferenceId}
     // GET      /api/packagereferences/{packageReferenceId}/versions
 
-    private readonly AppState _appState;
-    private readonly AppStateManager _appStateManager;
-    private readonly IExtensionHive _extensionHive;
-
-    public PackageReferencesController(
-        AppState appState,
-        AppStateManager appStateManager,
-        IExtensionHive extensionHive)
-    {
-        _appState = appState;
-        _appStateManager = appStateManager;
-        _extensionHive = extensionHive;
-    }
+    private readonly AppState _appState = appState;
+    private readonly AppStateManager _appStateManager = appStateManager;
+    private readonly IExtensionHive _extensionHive = extensionHive;
 
     /// <summary>
     /// Gets the list of package references.

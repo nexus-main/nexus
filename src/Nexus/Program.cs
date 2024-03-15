@@ -238,7 +238,7 @@ void ConfigurePipeline(WebApplication app)
     app.UseAuthorization();
 
     // endpoints
-    
+
     /* REST API */
     app.MapControllers();
 

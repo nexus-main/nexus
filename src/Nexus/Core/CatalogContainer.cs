@@ -99,11 +99,8 @@ internal class CatalogContainer
         {
             await EnsureLazyCatalogInfoAsync(cancellationToken);
 
-            var lazyCatalogInfo = _lazyCatalogInfo;
-
-            if (lazyCatalogInfo is null)
-                throw new Exception("this should never happen");
-
+            var lazyCatalogInfo = _lazyCatalogInfo 
+                ?? throw new Exception("this should never happen");
             return lazyCatalogInfo;
         }
         finally

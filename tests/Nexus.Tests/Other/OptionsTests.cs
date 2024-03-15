@@ -16,7 +16,7 @@ public class OptionsTests
     public void CanBindOptions<T>(string section, Type optionsType)
     {
         var configuration = NexusOptionsBase
-            .BuildConfiguration(Array.Empty<string>());
+            .BuildConfiguration([]);
 
         var options = (NexusOptionsBase)configuration
             .GetSection(section)
@@ -29,7 +29,7 @@ public class OptionsTests
     public void CanReadAppsettingsJson()
     {
         var configuration = NexusOptionsBase
-            .BuildConfiguration(Array.Empty<string>());
+            .BuildConfiguration([]);
 
         var options = configuration
             .GetSection(DataOptions.Section)
@@ -46,7 +46,7 @@ public class OptionsTests
             Environment.SetEnvironmentVariable("NEXUS_PATHS__SETTINGS", "myappsettings.json");
 
             var configuration = NexusOptionsBase
-                .BuildConfiguration(Array.Empty<string>());
+                .BuildConfiguration([]);
 
             var options = configuration
                 .GetSection(DataOptions.Section)
@@ -66,7 +66,7 @@ public class OptionsTests
             Environment.SetEnvironmentVariable("NEXUS_PATHS__SETTINGS", "myappsettings.ini");
 
             var configuration1 = NexusOptionsBase
-               .BuildConfiguration(Array.Empty<string>());
+               .BuildConfiguration([]);
 
             var options1 = configuration1
                 .GetSection(DataOptions.Section)
@@ -75,7 +75,7 @@ public class OptionsTests
             Environment.SetEnvironmentVariable("NEXUS_DATA__AGGREGATIONNANTHRESHOLD", "0.90");
 
             var configuration2 = NexusOptionsBase
-               .BuildConfiguration(Array.Empty<string>());
+               .BuildConfiguration([]);
 
             var options2 = configuration2
                 .GetSection(DataOptions.Section)
@@ -105,7 +105,7 @@ public class OptionsTests
             Environment.SetEnvironmentVariable("NEXUS_DATA__AGGREGATIONNANTHRESHOLD", "0.90");
 
             var configuration = NexusOptionsBase
-                .BuildConfiguration(new string[] { arg });
+                .BuildConfiguration([arg]);
 
             var options = configuration
                 .GetSection(DataOptions.Section)

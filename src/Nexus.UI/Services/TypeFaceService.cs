@@ -8,12 +8,12 @@ namespace Nexus.UI.Services;
 
 public class TypeFaceService
 {
-    private readonly Dictionary<string, SKTypeface> _typeFaces = new();
+    private readonly Dictionary<string, SKTypeface> _typeFaces = [];
 
     public SKTypeface GetTTF(string ttfName)
     {
-        if (_typeFaces.ContainsKey(ttfName))
-            return _typeFaces[ttfName];
+        if (_typeFaces.TryGetValue(ttfName, out var value))
+            return value;
 
         else if (LoadTypeFace(ttfName))
             return _typeFaces[ttfName];

@@ -14,7 +14,10 @@ namespace Nexus.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
-internal class SystemController : ControllerBase
+internal class SystemController(
+    AppState appState,
+    AppStateManager appStateManager,
+    IOptions<GeneralOptions> generalOptions) : ControllerBase
 {
     // [authenticated]
     // GET      /api/system/configuration
@@ -24,19 +27,9 @@ internal class SystemController : ControllerBase
     // [privileged]
     // PUT      /api/system/configuration
 
-    private readonly AppState _appState;
-    private readonly AppStateManager _appStateManager;
-    private readonly GeneralOptions _generalOptions;
-
-    public SystemController(
-        AppState appState,
-        AppStateManager appStateManager,
-        IOptions<GeneralOptions> generalOptions)
-    {
-        _generalOptions = generalOptions.Value;
-        _appState = appState;
-        _appStateManager = appStateManager;
-    }
+    private readonly AppState _appState = appState;
+    private readonly AppStateManager _appStateManager = appStateManager;
+    private readonly GeneralOptions _generalOptions = generalOptions.Value;
 
     /// <summary>
     /// Gets the default file type.

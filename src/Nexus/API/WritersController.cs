@@ -11,17 +11,12 @@ namespace Nexus.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
-internal class WritersController : ControllerBase
+internal class WritersController(
+    AppState appState) : ControllerBase
 {
     // GET      /api/writers/descriptions
 
-    private readonly AppState _appState;
-
-    public WritersController(
-        AppState appState)
-    {
-        _appState = appState;
-    }
+    private readonly AppState _appState = appState;
 
     /// <summary>
     /// Gets the list of writer descriptions.

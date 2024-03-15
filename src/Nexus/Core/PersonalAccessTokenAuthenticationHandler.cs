@@ -13,22 +13,16 @@ internal static class PersonalAccessTokenAuthenticationDefaults
     public const string AuthenticationScheme = "pat";
 }
 
-internal class PersonalAccessTokenAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+internal class PersonalAccessTokenAuthHandler(
+    ITokenService tokenService,
+    IDBService dbService,
+    IOptionsMonitor<AuthenticationSchemeOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
-    private readonly ITokenService _tokenService;
+    private readonly ITokenService _tokenService = tokenService;
 
-    private readonly IDBService _dbService;
-
-    public PersonalAccessTokenAuthHandler(
-        ITokenService tokenService,
-        IDBService dbService,
-        IOptionsMonitor<AuthenticationSchemeOptions> options,
-        ILoggerFactory logger,
-        UrlEncoder encoder) : base(options, logger, encoder)
-    {
-        _tokenService = tokenService;
-        _dbService = dbService;
-    }
+    private readonly IDBService _dbService = dbService;
 
     protected async override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -79,8 +73,7 @@ internal class PersonalAccessTokenAuthHandler : AuthenticationHandler<Authentica
                         nameType: Claims.Name,
                         roleType: Claims.Role);
 
-                    if (principal is null)
-                        principal = new ClaimsPrincipal();
+                    principal ??= new ClaimsPrincipal();
 
                     principal.AddIdentity(identity);
                 }

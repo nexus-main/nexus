@@ -16,7 +16,13 @@ internal interface ICatalogManager
         CancellationToken cancellationToken);
 }
 
-internal class CatalogManager : ICatalogManager
+internal class CatalogManager(
+    AppState appState,
+    IDataControllerService dataControllerService,
+    IDatabaseService databaseService,
+    IServiceProvider serviceProvider,
+    IExtensionHive extensionHive,
+    ILogger<CatalogManager> logger) : ICatalogManager
 {
     record CatalogPrototype(
         CatalogRegistration Registration,
@@ -25,28 +31,12 @@ internal class CatalogManager : ICatalogManager
         CatalogMetadata Metadata,
         ClaimsPrincipal? Owner);
 
-    private readonly AppState _appState;
-    private readonly IDataControllerService _dataControllerService;
-    private readonly IDatabaseService _databaseService;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IExtensionHive _extensionHive;
-    private readonly ILogger<CatalogManager> _logger;
-
-    public CatalogManager(
-        AppState appState,
-        IDataControllerService dataControllerService,
-        IDatabaseService databaseService,
-        IServiceProvider serviceProvider,
-        IExtensionHive extensionHive,
-        ILogger<CatalogManager> logger)
-    {
-        _appState = appState;
-        _dataControllerService = dataControllerService;
-        _databaseService = databaseService;
-        _serviceProvider = serviceProvider;
-        _extensionHive = extensionHive;
-        _logger = logger;
-    }
+    private readonly AppState _appState = appState;
+    private readonly IDataControllerService _dataControllerService = dataControllerService;
+    private readonly IDatabaseService _databaseService = databaseService;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly IExtensionHive _extensionHive = extensionHive;
+    private readonly ILogger<CatalogManager> _logger = logger;
 
     public async Task<CatalogContainer[]> GetCatalogContainersAsync(
         CatalogContainer parent,
@@ -65,7 +55,7 @@ internal class CatalogManager : ICatalogManager
             /* load builtin data source */
             var builtinDataSourceRegistrations = new InternalDataSourceRegistration[]
             {
-                new InternalDataSourceRegistration(
+                new(
                     Id: Sample.RegistrationId,
                     Type: typeof(Sample).FullName!,
                     ResourceLocator: default,
@@ -195,7 +185,7 @@ internal class CatalogManager : ICatalogManager
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Unable to get or process child data source registrations");
-                catalogContainers = Array.Empty<CatalogContainer>();
+                catalogContainers = [];
             }
         }
 
@@ -301,6 +291,6 @@ internal class CatalogManager : ICatalogManager
             }
         }
 
-        return catalogPrototypesToKeep.ToArray();
+        return [.. catalogPrototypesToKeep];
     }
 }
