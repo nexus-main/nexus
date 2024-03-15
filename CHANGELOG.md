@@ -1,3 +1,8 @@
+## v2.0.0-beta.24 - 2024-03-15
+
+### Bugs fixed:
+- Writer addons did not write all resources to the file(s).
+
 ## v2.0.0-beta.23 - 2024-02-29
 
 ### Bugs fixed:
