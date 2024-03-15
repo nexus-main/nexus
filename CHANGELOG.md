@@ -1,3 +1,8 @@
+## v2.0.0-beta.25 - 2024-03-15
+
+### Bugs fixed:
+- Fixed wrong Docker base image.
+
 ## v2.0.0-beta.24 - 2024-03-15
 
 ### Bugs fixed:
