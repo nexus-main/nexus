@@ -94,12 +94,12 @@ internal class Csv : IDataWriter, IDisposable
         _unixStart = (fileBegin - _unixEpoch).TotalSeconds;
         _excelStart = fileBegin.ToOADate();
 
-        foreach (var catalogItemGroup in catalogItems.GroupBy(catalogItem => catalogItem.Catalog))
+        foreach (var catalogItemGroup in catalogItems.GroupBy(catalogItem => catalogItem.Catalog.Id))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var catalog = catalogItemGroup.Key;
-            var physicalId = catalog.Id.TrimStart('/').Replace('/', '_');
+            var catalogId = catalogItemGroup.Key;
+            var physicalId = catalogId.TrimStart('/').Replace('/', '_');
             var root = Context.ResourceLocator.ToPath();
 
             /* metadata */
@@ -140,7 +140,7 @@ internal class Csv : IDataWriter, IDisposable
                 var schema = new Schema(
                     PrimaryKey: timestampField.Name,
                     Fields: fields,
-                    Properties: catalog.Properties
+                    Properties: catalogItemGroup.First().Catalog.Properties
                 );
 
                 resource = new CsvResource(
@@ -175,7 +175,7 @@ internal class Csv : IDataWriter, IDisposable
                 stringBuilder.Append($"# sample_period: {samplePeriod.ToUnitString()}");
                 AppendWindowsNewLine(stringBuilder);
 
-                stringBuilder.Append($"# catalog_id: {catalog.Id}");
+                stringBuilder.Append($"# catalog_id: {catalogId}");
                 AppendWindowsNewLine(stringBuilder);
 
                 /* field name */

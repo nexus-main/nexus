@@ -1,3 +1,9 @@
+## v2.0.0-beta.26 - 2024-03-16
+- Fix equality handling of `CatalogItem`.
+
+### Bugs fixed:
+- Fixed wrong Docker base image.
+
 ## v2.0.0-beta.25 - 2024-03-15
 
 ### Bugs fixed:

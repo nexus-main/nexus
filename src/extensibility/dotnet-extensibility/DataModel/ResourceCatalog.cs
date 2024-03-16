@@ -169,8 +169,8 @@ public partial record ResourceCatalog
             return false;
 
         catalogItem = new CatalogItem(
-            this,
-            resource,
+            this with { Resources = default },
+            resource with { Representations = default },
             representation,
             parameters);
 
