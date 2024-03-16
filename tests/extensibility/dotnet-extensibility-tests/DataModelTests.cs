@@ -258,8 +258,8 @@ public class DataModelTests(DataModelFixture fixture)
         var catalog = new ResourceCatalog(id: "/A/B/C", resources: new List<Resource>() { resource });
 
         var catalogItem = new CatalogItem(
-            catalog,
-            resource,
+            catalog with { Resources = default },
+            resource with { Representations = default },
             representation,
             Parameters: default);
 
@@ -279,8 +279,8 @@ public class DataModelTests(DataModelFixture fixture)
         var catalog = new ResourceCatalog(id: "/A/B/C", resources: new List<Resource>() { resource });
 
         var catalogItem = new CatalogItem(
-            catalog,
-            resource,
+            catalog with { Resources = default },
+            resource with { Representations = default },
             representation,
             Parameters: default);
 
