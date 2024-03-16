@@ -1,3 +1,6 @@
+## v2.0.0-beta.27 - 2024-03-16
+- Fix faulty personal access token creation.
+
 ## v2.0.0-beta.26 - 2024-03-16
 - Fix equality handling of `CatalogItem`.
 

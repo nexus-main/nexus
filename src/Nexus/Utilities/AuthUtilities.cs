@@ -8,7 +8,7 @@ namespace Nexus.Utilities;
 
 internal static class AuthUtilities
 {
-    public static string ComponentsToTokenValue(string secret, string userId)
+    public static string ComponentsToTokenValue(string userId, string secret)
     {
         return $"{secret}_{userId}";
     }
