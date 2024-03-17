@@ -91,7 +91,7 @@ internal static class NexusAuthExtensions
                     OnTokenResponseReceived = context =>
                     {
                         /* OIDC spec RECOMMENDS id_token_hint (= id_token) to be added when
-                         * post_logout_redirect_url is specified 
+                         * post_logout_redirect_uri is specified 
                          * (https://openid.net/specs/openid-connect-rpinitiated-1_0.html)
                          * 
                          * To be able to provide that parameter the ID token must become
