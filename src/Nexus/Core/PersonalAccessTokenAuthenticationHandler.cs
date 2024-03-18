@@ -62,6 +62,7 @@ internal class PersonalAccessTokenAuthHandler(
 
                     var claims = Enumerable.Empty<Claim>()
                         .Append(new Claim(Claims.Subject, userId))
+                        .Append(new Claim(Claims.Name, user.Name))
                         .Append(new Claim(Claims.Role, NexusRoles.USER))
                         .Concat(userClaims)
                         .Concat(tokenClaimsRead)

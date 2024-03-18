@@ -45,7 +45,7 @@ const string T1_MEAN    = "/SAMPLE/LOCAL/T1/5_s_mean";
 var data = await client.LoadAsync(
     begin,
     end,
-    resourcePaths: new string[] { T1, T1_MEAN },
+    resourcePaths: [T1, T1_MEAN],
     onProgress: progress => Console.WriteLine($"{progress * 100,3:##0} %: Loading")
 );
 
