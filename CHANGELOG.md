@@ -1,3 +1,6 @@
+## v2.0.0-beta.28 - 2024-03-16
+- Fixed a bug where applications could not access the `/api/v1/jobs` endpoint using the new personal access tokens.
+
 ## v2.0.0-beta.27 - 2024-03-16
 - Fix faulty personal access token creation.
 

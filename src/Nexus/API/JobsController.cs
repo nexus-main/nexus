@@ -97,6 +97,7 @@ internal class JobsController(
         {
             var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
             var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
+            
             if (jobControl.Job.Owner == username || isAdmin)
             {
                 var status = new JobStatus(
