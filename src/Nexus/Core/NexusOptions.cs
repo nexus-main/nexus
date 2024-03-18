@@ -66,7 +66,6 @@ internal record PathsOptions() : NexusOptionsBase
     public string Cache { get; set; } = Path.Combine(PlatformSpecificRoot, "cache");
     public string Catalogs { get; set; } = Path.Combine(PlatformSpecificRoot, "catalogs");
     public string Artifacts { get; set; } = Path.Combine(PlatformSpecificRoot, "artifacts");
-    public string Users { get; set; } = Path.Combine(PlatformSpecificRoot, "users");
     public string Packages { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nexus", "packages");
     // GetGlobalPackagesFolder: https://github.com/NuGet/NuGet.Client/blob/0fc58e13683565e7bdf30e706d49e58fc497bbed/src/NuGet.Core/NuGet.Configuration/Utility/SettingsUtility.cs#L225-L254
     // GetFolderPath: https://github.com/NuGet/NuGet.Client/blob/1d75910076b2ecfbe5f142227cfb4fb45c093a1e/src/NuGet.Core/NuGet.Common/PathUtil/NuGetEnvironment.cs#L54-L57
