@@ -15,6 +15,14 @@ internal interface IDatabaseService
     bool TryReadProject([NotNullWhen(true)] out string? project);
     Stream WriteProject();
 
+    /* /config/users */
+    bool TryReadTokenMap(
+        string userId,
+        [NotNullWhen(true)] out string? tokenMap);
+
+    Stream WriteTokenMap(
+        string userId);
+
     /* /catalogs/catalog_id/... */
     bool AttachmentExists(string catalogId, string attachmentId);
     IEnumerable<string> EnumerateAttachments(string catalogId);
@@ -31,14 +39,6 @@ internal interface IDatabaseService
     bool TryReadCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry);
     bool TryWriteCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry);
     Task ClearCacheEntriesAsync(string catalogId, DateOnly day, TimeSpan timeout, Predicate<string> predicate);
-
-    /* /users */
-    bool TryReadTokenMap(
-        string userId,
-        [NotNullWhen(true)] out string? tokenMap);
-
-    Stream WriteTokenMap(
-        string userId);
 }
 
 internal class DatabaseService(IOptions<PathsOptions> pathsOptions) 
@@ -112,6 +112,36 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
         var filePath = Path.Combine(_pathsOptions.Config, "project.json");
         return File.Open(filePath, FileMode.Create, FileAccess.Write);
+    }
+
+    /* /config/users */
+    public bool TryReadTokenMap(
+        string userId,
+        [NotNullWhen(true)] out string? tokenMap)
+    {
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
+        var tokenFilePath = Path.Combine(folderPath, "tokens.json");
+
+        tokenMap = default;
+
+        if (File.Exists(tokenFilePath))
+        {
+            tokenMap = File.ReadAllText(tokenFilePath);
+            return true;
+        }
+
+        return false;
+    }
+
+    public Stream WriteTokenMap(
+        string userId)
+    {
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
+        var tokenFilePath = Path.Combine(folderPath, "tokens.json");
+
+        Directory.CreateDirectory(folderPath);
+
+        return File.Open(tokenFilePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /catalogs/catalog_id/... */
@@ -330,36 +360,6 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
         if (File.Exists(cacheEntry))
             throw new Exception($"Cannot delete cache entry {cacheEntry}.");
-    }
-
-    /* /users */
-    public bool TryReadTokenMap(
-        string userId,
-        [NotNullWhen(true)] out string? tokenMap)
-    {
-        var folderPath = SafePathCombine(_pathsOptions.Users, userId);
-        var tokenFilePath = Path.Combine(folderPath, "tokens.json");
-
-        tokenMap = default;
-
-        if (File.Exists(tokenFilePath))
-        {
-            tokenMap = File.ReadAllText(tokenFilePath);
-            return true;
-        }
-
-        return false;
-    }
-
-    public Stream WriteTokenMap(
-        string userId)
-    {
-        var folderPath = SafePathCombine(_pathsOptions.Users, userId);
-        var tokenFilePath = Path.Combine(folderPath, "tokens.json");
-
-        Directory.CreateDirectory(folderPath);
-
-        return File.Open(tokenFilePath, FileMode.Create, FileAccess.Write);
     }
 
     //
