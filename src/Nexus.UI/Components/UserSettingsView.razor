@@ -1,4 +1,5 @@
 ﻿@using System.Net
+@using System.Security.Claims
 @using System.Text.Encodings.Web
 
 @inject AppState AppState
@@ -8,12 +9,12 @@
 @inject NavigationManager NavigationManager
 
 <div class="mx-3 w-9 h-9 flex justify-center items-center rounded-full text-white bg-cyan-900 hover:bg-cyan-700 cursor-pointer select-none"
-    @onclick="OpenUserSettingsModal">
+    @onclick="ShowUserSettingsDialog">
     @GetInitials(_authenticationState.User.Identity!.Name!)
 </div>
 
 <UIDialog 
-    @bind-IsVisible="_isUserSettingsDialogOpen" 
+    @bind-IsVisible="_showUserSettingsDialog" 
     MaxWidth="MaxWidth.Medium">
 
     <TitleContent>
@@ -122,6 +123,16 @@
 
                                     </div>
 
+                                    @if (IsAdmin(_authenticationState.User))
+                                    {
+                                        <div class="flex gap-5">
+                                            <MudSwitch
+                                                Color="Color.Primary"
+                                                Label="Privileged"
+                                                @bind-Value="_newAccessTokenIsAdmin" />
+                                        </div>
+                                    }
+
                                     <div class="flex flex-col gap-2">
 
                                         @for (int i = 0; i < _newAccessTokenClaims.Count; i++)
@@ -139,7 +150,7 @@
                                                 <MudSwitch
                                                     Color="Color.Primary"
                                                     Label="Write Access"
-                                                    @bind-Value="@_newAccessTokenClaims[local].WriteAccess" />
+                                                    @bind-Value="_newAccessTokenClaims[local].WriteAccess" />
 
                                                 <div>
                                                     <MudIconButton 
@@ -286,13 +297,14 @@
     private string? _jsonString;
     private string? _newAccessToken;
     private DateTime? _newAccessTokenExpiration;
+    private bool _newAccessTokenIsAdmin;
     private string? _newAccessTokenDescription;
     private List<ClaimData> _newAccessTokenClaims = [new ClaimData(default, default)];
     private IReadOnlyDictionary<string, PersonalAccessToken>? _accessTokenMap;
 
     private bool _isRefreshingToken;
 
-    private bool _isUserSettingsDialogOpen;
+    private bool _showUserSettingsDialog;
 
     private AuthenticationState _authenticationState = default!;
 
@@ -318,9 +330,15 @@
         }
     }
 
-    private void OpenUserSettingsModal()
+    private bool IsAdmin(ClaimsPrincipal user)
     {
-        _isUserSettingsDialogOpen = true;
+        return user
+            .IsInRole("Administrator");
+    }
+
+    private void ShowUserSettingsDialog()
+    {
+        _showUserSettingsDialog = true;
         _newAccessToken = default;
     }
 
@@ -351,6 +369,9 @@
 
                 .ToList();
 
+            if (_newAccessTokenIsAdmin)
+                claims.Add(new TokenClaim("role", "Administrator"));
+
             var token = new PersonalAccessToken(
                 _newAccessTokenDescription,
                 _newAccessTokenExpiration.HasValue 
@@ -363,6 +384,7 @@
 
             _newAccessTokenDescription = default;
             _newAccessTokenExpiration = default;
+            _newAccessTokenIsAdmin = false;
             _newAccessTokenClaims.Clear();
             _newAccessTokenClaims.Add(new ClaimData(default, default));
             _accessTokenMap = (await Client.Users.GetMeAsync()).PersonalAccessTokens;

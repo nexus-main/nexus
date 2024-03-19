@@ -60,13 +60,20 @@ internal class PersonalAccessTokenAuthHandler(
                         .Where(claim => claim.Type == NexusClaims.CAN_WRITE_CATALOG)
                         .Select(claim => new Claim(NexusClaims.CAN_WRITE_CATALOG, claim.Value));
 
+                    var tokenClaimsRole = token.Claims
+                        .Where(tokenClaim => 
+                            tokenClaim.Type == Claims.Role && 
+                            user.Claims.Any(userClaim => userClaim.Type == Claims.Role && userClaim.Value == tokenClaim.Value))
+                        .Select(claim => new Claim(Claims.Role, claim.Value));
+
                     var claims = Enumerable.Empty<Claim>()
                         .Append(new Claim(Claims.Subject, userId))
                         .Append(new Claim(Claims.Name, user.Name))
                         .Append(new Claim(Claims.Role, NexusRoles.USER))
                         .Concat(userClaims)
                         .Concat(tokenClaimsRead)
-                        .Concat(tokenClaimsWrite);
+                        .Concat(tokenClaimsWrite)
+                        .Concat(tokenClaimsRole);
 
                     var identity = new ClaimsIdentity(
                         claims,
