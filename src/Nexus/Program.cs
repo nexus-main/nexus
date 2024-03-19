@@ -179,6 +179,7 @@ void AddServices(
     services.AddSingleton<IDatabaseService, DatabaseService>();
     services.AddSingleton<IExtensionHive, ExtensionHive>();
 
+    // options
     services.Configure<GeneralOptions>(configuration.GetSection(GeneralOptions.Section));
     services.Configure<DataOptions>(configuration.GetSection(DataOptions.Section));
     services.Configure<PathsOptions>(configuration.GetSection(PathsOptions.Section));
@@ -192,17 +193,7 @@ void ConfigurePipeline(WebApplication app)
     app.UseForwardedHeaders();
 
     if (app.Environment.IsDevelopment())
-    {
         app.UseWebAssemblyDebugging();
-    }
-
-    else
-    {
-        // TODO: write error page HTML here without razor page (example: app.UseExceptionHandler)
-
-        // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-        app.UseHsts();
-    }
 
     // static files
     app.UseStaticFiles();
