@@ -325,7 +325,7 @@ public class SystemDemoClient : ISystemClient
 
     public Task<string> GetHelpLinkAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult("https://github.com/malstroem-labs/nexus");
+        return Task.FromResult("https://github.com/nexus-main/nexus");
     }
 
     public void SetConfiguration(IReadOnlyDictionary<string, JsonElement>? configuration)
@@ -534,8 +534,8 @@ public class WritersDemoClient : IWritersClient
             Type: "Nexus.Writers.Csv",
             Version: "1.0.0",
             Description: "Exports comma-separated values following the frictionless data standard",
-            ProjectUrl: "https://github.com/malstroem-labs/nexus",
-            RepositoryUrl: "https://github.com/malstroem-labs/nexus/blob/master/src/Nexus/Extensions/Writers/Csv.cs",
+            ProjectUrl: "https://github.com/nexus-main/nexus",
+            RepositoryUrl: "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Writers/Csv.cs",
             AdditionalInformation: additionalInformation
         );
 

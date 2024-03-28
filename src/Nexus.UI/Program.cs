@@ -19,7 +19,7 @@ builder.RootComponents.Add<LoadingScreen>("#loading-screen");
 
 // TODO: Very large attachment upload is first loading into memory and only then to server (https://stackoverflow.com/questions/66770670/streaming-large-files-from-blazor-webassembly)
 
-var isDemo = builder.HostEnvironment.BaseAddress.StartsWith("https://malstroem-labs.github.io/");
+var isDemo = builder.HostEnvironment.BaseAddress.StartsWith("https://nexus-main.github.io/");
 
 INexusClient client;
 

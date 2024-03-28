@@ -1,7 +1,7 @@
 %% load Nexus client
 connectorFolderPath = fullfile(tempdir, 'nexus');
 [~, ~]              = mkdir(connectorFolderPath);
-url                 = 'https://raw.githubusercontent.com/malstroem-labs/nexus/master/src/clients/matlab-client/NexusClient.m';
+url                 = 'https://raw.githubusercontent.com/nexus-main/nexus/master/src/clients/matlab-client/NexusClient.m';
 websave(fullfile(connectorFolderPath, 'NexusClient.m'), url);
 addpath(connectorFolderPath)
 

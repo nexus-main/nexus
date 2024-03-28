@@ -6,8 +6,8 @@ namespace Nexus.Sources;
 
 [ExtensionDescription(
     "Provides catalogs with sample data.",
-    "https://github.com/malstroem-labs/nexus",
-    "https://github.com/malstroem-labs/nexus/blob/master/src/Nexus/Extensions/Sources/Sample.cs")]
+    "https://github.com/nexus-main/nexus",
+    "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Sources/Sample.cs")]
 internal class Sample : IDataSource
 {
     public static Guid RegistrationId = new("c2c724ab-9002-4879-9cd9-2147844bee96");

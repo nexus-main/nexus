@@ -1,4 +1,4 @@
-Nexus relies on [Serilog](https://serilog.net/) to produce logs. Serilog completely replaces the standard logging mechanism, which means that the `Logging` configuration section is being ignored and the `Serilog` section is used instead. Therefore, the default `Logging` section has been removed from the [appsettings.json file](https://github.com/malstroem-labs/Nexus/blob/master/src/Nexus/appsettings.json).
+Nexus relies on [Serilog](https://serilog.net/) to produce logs. Serilog completely replaces the standard logging mechanism, which means that the `Logging` configuration section is being ignored and the `Serilog` section is used instead. Therefore, the default `Logging` section has been removed from the [appsettings.json file](https://github.com/nexus-main/Nexus/blob/master/src/Nexus/appsettings.json).
 
 Currently, the following sinks and enrichers are supported by Nexus:
 
@@ -16,12 +16,12 @@ Currently, the following sinks and enrichers are supported by Nexus:
 
 The default log level is `Information`, which can be easily modified using one of the methods shown in [Configuration](configuration.md). For example, you could set the environment variable `NEXUS_SERILOG__MINIMUMLEVEL__OVERRIDE__Nexus` to `Verbose` to also receive `Trace` and `Debug` message.
 
-[Here](https://github.com/malstroem-labs/Nexus/blob/master/tests/Nexus.Core.Tests/Other/LoggingTests.cs) you can find some more examples to enable the `File`, `GrafanaLoki` or `Seq` using environment variables. You can do the same using your own configuration file or command line args as shown in [Configuration](configuration.md).
+[Here](https://github.com/nexus-main/Nexus/blob/master/tests/Nexus.Core.Tests/Other/LoggingTests.cs) you can find some more examples to enable the `File`, `GrafanaLoki` or `Seq` using environment variables. You can do the same using your own configuration file or command line args as shown in [Configuration](configuration.md).
 
 Logging follows the [best practices guide](https://benfoster.io/blog/serilog-best-practices/).
 
 # Change Log Level at Runtime
-To change the log level at runtime, make sure you have an `settings.json` file created before the application starts. The location of the file can be defined by the environment variable `NEXUS_PATHS__SETTINGS`, otherwise the [default path](https://github.com/malstroem-labs/Nexus/blob/c69425659927956cb12efcd0749ca64d00464509/src/Nexus.Core/Core/NexusOptions.cs#L67) is used. The contents of the file should look like:
+To change the log level at runtime, make sure you have an `settings.json` file created before the application starts. The location of the file can be defined by the environment variable `NEXUS_PATHS__SETTINGS`, otherwise the [default path](https://github.com/nexus-main/Nexus/blob/c69425659927956cb12efcd0749ca64d00464509/src/Nexus.Core/Core/NexusOptions.cs#L67) is used. The contents of the file should look like:
 
 ```json
 {
