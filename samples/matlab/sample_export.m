@@ -1,7 +1,7 @@
 %% load Nexus client
 connectorFolderPath = fullfile(tempdir, 'nexus');
 [~, ~]              = mkdir(connectorFolderPath);
-url                 = 'https://raw.githubusercontent.com/malstroem-labs/nexus/master/src/clients/matlab-client/NexusClient.m';
+url                 = 'https://raw.githubusercontent.com/nexus-main/nexus/master/src/clients/matlab-client/NexusClient.m';
 websave(fullfile(connectorFolderPath, 'NexusClient.m'), url);
 addpath(connectorFolderPath)
 
@@ -33,7 +33,7 @@ filePeriod = duration(0, 0, 0);
 fileFormat = 'Nexus.Writers.Csv';
 
 % Nexus.Writers.Csv supports the following optional request configuration parameters:
-% https://github.com/malstroem-labs/nexus/blob/master/src/Nexus/Extensions/Writers/README.md
+% https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Writers/README.md
 configuration = containers.Map;
 configuration('significant-figures') = '4';
 configuration('row-index-format') = 'iso-8601';

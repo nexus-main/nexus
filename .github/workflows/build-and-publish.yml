@@ -75,8 +75,8 @@ jobs:
 
       - name: Docker Build
         run: |
-          docker build -t malstroem-labs/nexus:v_next .
-          docker save --output artifacts/images/nexus_image.tar malstroem-labs/nexus:v_next
+          docker build -t nexus-main/nexus:v_next .
+          docker save --output artifacts/images/nexus_image.tar nexus-main/nexus:v_next
 
       - name: CSS
         run: |
@@ -151,8 +151,8 @@ jobs:
 
       - name: Docker Push
         run: |
-          docker tag malstroem-labs/nexus:v_next ghcr.io/malstroem-labs/nexus:${{ needs.build.outputs.version }}
-          docker push ghcr.io/malstroem-labs/nexus:${{ needs.build.outputs.version }}
+          docker tag nexus-main/nexus:v_next ghcr.io/nexus-main/nexus:${{ needs.build.outputs.version }}
+          docker push ghcr.io/nexus-main/nexus:${{ needs.build.outputs.version }}
 
   publish_release:
 
@@ -195,10 +195,10 @@ jobs:
       - name: Docker Login (Docker Hub)
         uses: docker/login-action@v1
         with:
-          username: malstroemlabs
+          username: nexusmain
           password: ${{ secrets.DOCKER_API_KEY }}
 
       - name: Docker Push
         run: |
-          docker tag malstroem-labs/nexus:v_next malstroemlabs/nexus:${{ needs.build.outputs.version }}
-          docker push malstroemlabs/nexus:${{ needs.build.outputs.version }}
+          docker tag nexus-main/nexus:v_next nexusmain/nexus:${{ needs.build.outputs.version }}
+          docker push nexusmain/nexus:${{ needs.build.outputs.version }}

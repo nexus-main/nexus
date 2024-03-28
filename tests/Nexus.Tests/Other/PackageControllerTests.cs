@@ -352,7 +352,7 @@ public class PackageControllerTests
             Configuration: new Dictionary<string, string>
             {
                 // required
-                ["repository"] = $"https://{Encoding.ASCII.GetString(_token)}@github.com/malstroem-labs/git-tag-provider-test-project"
+                ["repository"] = $"https://{Encoding.ASCII.GetString(_token)}@github.com/nexus-main/git-tag-provider-test-project"
             }
         );
 
@@ -378,7 +378,7 @@ public class PackageControllerTests
 
         // create restore folder
         var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var restoreFolderPath = Path.Combine(restoreRoot, "git-tag", "github.com_malstroem-labs_git-tag-provider-test-project", version);
+        var restoreFolderPath = Path.Combine(restoreRoot, "git-tag", "github.com_nexus-main_git-tag-provider-test-project", version);
         Directory.CreateDirectory(restoreRoot);
 
         try
@@ -389,7 +389,7 @@ public class PackageControllerTests
                 Configuration: new Dictionary<string, string>
                 {
                     // required
-                    ["repository"] = $"https://{Encoding.ASCII.GetString(_token)}@github.com/malstroem-labs/git-tag-provider-test-project",
+                    ["repository"] = $"https://{Encoding.ASCII.GetString(_token)}@github.com/nexus-main/git-tag-provider-test-project",
                     ["tag"] = version,
                     ["csproj"] = "git-tags-provider-test-project.csproj"
                 }
@@ -432,7 +432,7 @@ public class PackageControllerTests
             Configuration: new Dictionary<string, string>
             {
                 // required
-                ["project-path"] = "malstroem-labs/github-releases-provider-test-project",
+                ["project-path"] = "nexus-main/github-releases-provider-test-project",
 
                 // optional token with scope(s): repo
                 ["token"] = Encoding.ASCII.GetString(_token)
@@ -462,7 +462,7 @@ public class PackageControllerTests
 
         // create restore folder
         var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var restoreFolderPath = Path.Combine(restoreRoot, "github-releases", "malstroem-labs_github-releases-provider-test-project", version);
+        var restoreFolderPath = Path.Combine(restoreRoot, "github-releases", "nexus-main_github-releases-provider-test-project", version);
         Directory.CreateDirectory(restoreRoot);
 
         try
@@ -473,7 +473,7 @@ public class PackageControllerTests
                 Configuration: new Dictionary<string, string>
                 {
                     // required
-                    ["project-path"] = "malstroem-labs/github-releases-provider-test-project",
+                    ["project-path"] = "nexus-main/github-releases-provider-test-project",
                     ["tag"] = "v1.0.1",
                     ["asset-selector"] = assetSelector,
 
@@ -521,7 +521,7 @@ public class PackageControllerTests
             {
                 // required
                 ["server"] = "https://gitlab.com",
-                ["project-path"] = "malstroem-labs/Test-Group/my-awesome-test-project",
+                ["project-path"] = "nexus-main/Test-Group/my-awesome-test-project",
 
                 // optional token with scope(s): read_api
                 ["token"] = "doQyXYqgmFxS1LUsupue"
@@ -551,7 +551,7 @@ public class PackageControllerTests
 
         // create restore folder
         var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var restoreFolderPath = Path.Combine(restoreRoot, "gitlab-releases-v4", $"malstroem-labs_test-group_my-awesome-test-project", version);
+        var restoreFolderPath = Path.Combine(restoreRoot, "gitlab-releases-v4", $"nexus-main_test-group_my-awesome-test-project", version);
         Directory.CreateDirectory(restoreRoot);
 
         try
@@ -563,7 +563,7 @@ public class PackageControllerTests
                 {
                     // required
                     ["server"] = "https://gitlab.com",
-                    ["project-path"] = "malstroem-labs/Test-Group/my-awesome-test-project",
+                    ["project-path"] = "nexus-main/Test-Group/my-awesome-test-project",
                     ["tag"] = "v1.0.1",
                     ["asset-selector"] = assetSelector,
 
@@ -611,7 +611,7 @@ public class PackageControllerTests
             {
                 // required
                 ["server"] = "https://gitlab.com",
-                ["project-path"] = "malstroem-labs/Test-Group/my-awesome-test-project",
+                ["project-path"] = "nexus-main/Test-Group/my-awesome-test-project",
                 ["package"] = "test-package",
 
                 // optional token with scope(s): read_api
@@ -642,7 +642,7 @@ public class PackageControllerTests
 
         // create restore folder
         var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var restoreFolderPath = Path.Combine(restoreRoot, "gitlab-packages-generic-v4", $"malstroem-labs_test-group_my-awesome-test-project", version);
+        var restoreFolderPath = Path.Combine(restoreRoot, "gitlab-packages-generic-v4", $"nexus-main_test-group_my-awesome-test-project", version);
         Directory.CreateDirectory(restoreRoot);
 
         try
@@ -654,7 +654,7 @@ public class PackageControllerTests
                 {
                     // required
                     ["server"] = "https://gitlab.com",
-                    ["project-path"] = "malstroem-labs/Test-Group/my-awesome-test-project",
+                    ["project-path"] = "nexus-main/Test-Group/my-awesome-test-project",
                     ["package"] = "test-package",
                     ["version"] = "v1.0.1",
                     ["asset-selector"] = assetSelector,

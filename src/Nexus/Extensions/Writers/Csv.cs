@@ -19,8 +19,8 @@ namespace Nexus.Writers;
 
 [ExtensionDescription(
     "Exports comma-separated values following the frictionless data standard",
-    "https://github.com/malstroem-labs/nexus",
-    "https://github.com/malstroem-labs/nexus/blob/master/src/Nexus/Extensions/Writers/Csv.cs")]
+    "https://github.com/nexus-main/nexus",
+    "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Writers/Csv.cs")]
 internal class Csv : IDataWriter, IDisposable
 {
     private const string DESCRIPTION = """

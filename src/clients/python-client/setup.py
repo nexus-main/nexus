@@ -24,7 +24,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     author=str(os.getenv("AUTHORS")),
-    url="https://github.com/malstroem-labs/nexus",
+    url="https://github.com/nexus-main/nexus",
     packages=[
         "nexus_api"
     ],

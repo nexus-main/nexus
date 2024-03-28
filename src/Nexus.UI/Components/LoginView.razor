@@ -6,13 +6,13 @@
     <div class="
         flex flex-col items-center w-72 rounded-md border border-gray-300 
         drop-shadow-2xl bg-white p-10 gap-7">
-        <MudText Align="Align.Center" Typo="Typo.h5">Sie sind nicht eingeloggt.</MudText>
+        <MudText Align="Align.Center" Typo="Typo.h5">You are not logged in.</MudText>
         <MudButton
             Href="@($"/login?ReturnUrl={WebUtility.UrlEncode(NavigationManager.Uri)}")"
             Color="Color.Primary"
             StartIcon="@Icons.Material.Filled.Login"
             Variant="Variant.Text">
-            Einloggen
+            Log in
         </MudButton>
     </div>
 </div>

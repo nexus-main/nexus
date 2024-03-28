@@ -6,7 +6,7 @@
 [FTL] MyCustomValue Critical
 [ERR] MyCustomValue Error
 System.Exception: Something went wrong?!
-   at Other.LoggingTests.CanSerilog() in D:\Git\GitHub\malstroem-labs\Nexus\tests\Nexus.Core.Tests\Other\LoggingTests.cs:line 72
+   at Other.LoggingTests.CanSerilog() in D:\Git\GitHub\nexus-main\Nexus\tests\Nexus.Core.Tests\Other\LoggingTests.cs:line 72
 [INF] MyCustomValue Log with template with parameters "A", 2.59 and "{ Amount = 108, Message = Hello }"
 [INF] MyCustomValue Log with scope with template with parameters "A", 2.59 and "{ Amount = 108, Message = Hello }"
 [INF] MyCustomValue Log with double scope with template with parameters "A", 2.59 and "{ Amount = 108, Message = Hello }"
