@@ -1,4 +1,4 @@
-## vnext
+## v2.0.0-beta.30 - 2024-03-28
 - Personal Access Tokens can now also be granted administator privileges.
 
 ## v2.0.0-beta.29 - 2024-03-18
