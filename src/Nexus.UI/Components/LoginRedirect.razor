@@ -1,0 +1,10 @@
+@using System.Net
+
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo($"/login?ReturnUrl={WebUtility.UrlEncode(NavigationManager.Uri)}", forceLoad: true);
+    }
+}
