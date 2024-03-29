@@ -80,7 +80,7 @@ jobs:
 
       - name: CSS
         run: |
-          npx tailwindcss -i src/Nexus/Styles/app.css -o app_new.css
+          npx tailwindcss -i src/Nexus/app.css -o app_new.css
           diff src/Nexus/wwwroot/css/app.css app_new.css
 
       - name: API

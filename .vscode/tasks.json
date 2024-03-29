@@ -35,7 +35,7 @@
             "type": "process",
             "args": [
                 "-i",
-                "src/Nexus/Styles/app.css",
+                "src/Nexus/app.css",
                 "-o",
                 "src/Nexus/wwwroot/css/app.css",
                 "--watch"
