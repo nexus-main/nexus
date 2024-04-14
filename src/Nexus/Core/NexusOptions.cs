@@ -83,16 +83,13 @@ internal record PathsOptions() : NexusOptionsBase
     #endregion
 }
 
-internal record OpenIdConnectProvider
-{
-#pragma warning disable CS8618 // Ein Non-Nullable-Feld muss beim Beenden des Konstruktors einen Wert ungleich NULL enthalten. Erwägen Sie die Deklaration als Nullable.
-    public string Scheme { get; init; }
-    public string DisplayName { get; init; }
-    public string Authority { get; init; }
-    public string ClientId { get; init; }
-    public string ClientSecret { get; init; }
-#pragma warning restore CS8618 // Ein Non-Nullable-Feld muss beim Beenden des Konstruktors einen Wert ungleich NULL enthalten. Erwägen Sie die Deklaration als Nullable.
-}
+internal record OpenIdConnectProvider(
+    string Scheme,
+    string DisplayName,
+    string Authority,
+    string ClientId,
+    string ClientSecret
+);
 
 internal partial record SecurityOptions() : NexusOptionsBase
 {

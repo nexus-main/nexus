@@ -15,14 +15,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 internal static class NexusAuthExtensions
 {
-    public static OpenIdConnectProvider DefaultProvider { get; } = new OpenIdConnectProvider()
-    {
-        Scheme = "nexus",
-        DisplayName = "Nexus",
-        Authority = NexusUtilities.DefaultBaseUrl,
-        ClientId = "nexus",
-        ClientSecret = "nexus-secret"
-    };
+    public static OpenIdConnectProvider DefaultProvider { get; } = new OpenIdConnectProvider
+    (
+        Scheme: "nexus",
+        DisplayName: "Nexus",
+        Authority: NexusUtilities.DefaultBaseUrl,
+        ClientId: "nexus",
+        ClientSecret: "nexus-secret"
+    );
 
     public static IServiceCollection AddNexusAuth(
         this IServiceCollection services,
