@@ -52,7 +52,7 @@ jobs:
         run: |
           npm install -g pyright
           python -m pip install frictionless==4.40.9 build wheel httpx pytest pytest-asyncio
-          npm install -g tailwindcss@3.3.2
+          npm install -g tailwindcss@3.4.3
           dotnet tool install -g Microsoft.Web.LibraryManager.Cli
           dotnet workload install --temp-dir tmp wasm-tools
 
