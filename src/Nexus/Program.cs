@@ -23,16 +23,16 @@ CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 var configuration = NexusOptionsBase.BuildConfiguration(args);
 
 var generalOptions = configuration
-    .GetSection(GeneralOptions.Section)
+    .GetRequiredSection(GeneralOptions.Section)
     .Get<GeneralOptions>() ?? throw new Exception("Unable to instantiate general options");
 
 var securityOptions = configuration
-    .GetSection(SecurityOptions.Section)
+    .GetRequiredSection(SecurityOptions.Section)
     .Get<SecurityOptions>() ?? throw new Exception("Unable to instantiate security options");
 
 var pathsOptions = configuration
-    .GetSection(PathsOptions.Section)
-    .Get<PathsOptions>() ?? throw new Exception("Unable to instantiate path options");
+    .GetRequiredSection(PathsOptions.Section)
+    .Get<PathsOptions>()?? throw new Exception("Unable to instantiate path options");
 
 // logging (https://nblumhardt.com/2019/10/serilog-in-aspnetcore-3/)
 var applicationName = generalOptions.ApplicationName;
