@@ -1,4 +1,7 @@
-﻿using Nexus.UI.Charts;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Nexus.UI.Charts;
 
 namespace Nexus.UI.Pages;
 

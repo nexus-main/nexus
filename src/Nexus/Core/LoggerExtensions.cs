@@ -1,4 +1,7 @@
-﻿namespace Nexus.Core;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+namespace Nexus.Core;
 
 internal static class LoggerExtensions
 {

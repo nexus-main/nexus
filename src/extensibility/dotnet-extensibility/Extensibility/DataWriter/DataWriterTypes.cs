@@ -1,4 +1,7 @@
-﻿using Nexus.DataModel;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Nexus.DataModel;
 using System.Text.Json;
 
 namespace Nexus.Extensibility;
@@ -30,6 +33,6 @@ public record WriteRequest(
 [AttributeUsage(AttributeTargets.Class)]
 public class DataWriterDescriptionAttribute(string description) : Attribute
 {
-    internal IReadOnlyDictionary<string, JsonElement>? Description { get; } 
+    internal IReadOnlyDictionary<string, JsonElement>? Description { get; }
         = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(description);
 }

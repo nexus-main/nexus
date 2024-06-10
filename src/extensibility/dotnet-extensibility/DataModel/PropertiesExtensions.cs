@@ -1,4 +1,7 @@
-﻿using System.Text.Json;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Text.Json;
 
 namespace Nexus.DataModel;
 
@@ -134,7 +137,7 @@ public static class PropertiesExtensions
             if (current.ValueKind == JsonValueKind.Object &&
                 current.TryGetProperty(pathSegement, out current))
             {
-                // do nothing   
+                // do nothing
             }
             else
             {

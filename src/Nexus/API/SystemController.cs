@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
@@ -21,7 +24,7 @@ internal class SystemController(
 {
     // [authenticated]
     // GET      /api/system/configuration
-    // GET      /api/system/file-type 
+    // GET      /api/system/file-type
     // GET      /api/system/help-link
 
     // [privileged]

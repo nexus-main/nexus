@@ -1,8 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.EntityFrameworkCore;
 
 namespace Nexus.Core;
 
-internal class UserDbContext(DbContextOptions<UserDbContext> options) 
+internal class UserDbContext(DbContextOptions<UserDbContext> options)
     : DbContext(options)
 {
     protected override void OnModelCreating(ModelBuilder modelBuilder)

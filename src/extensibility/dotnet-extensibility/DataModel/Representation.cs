@@ -1,4 +1,7 @@
-﻿using System.Diagnostics;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;

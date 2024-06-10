@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Nexus.Core;
@@ -97,7 +100,7 @@ internal class JobsController(
         {
             var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
             var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
-            
+
             if (jobControl.Job.Owner == username || isAdmin)
             {
                 var status = new JobStatus(

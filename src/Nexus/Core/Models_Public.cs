@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Nexus.DataModel;
 using System.Text.Json;

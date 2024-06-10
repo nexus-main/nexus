@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using Microsoft.Extensions.Configuration;
 using Nexus.Core;
 using Xunit;

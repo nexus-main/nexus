@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.Extensions.Logging.Abstractions;
 using Nexus.Core;
 using Nexus.Extensibility;
 using Nexus.PackageManagement;
@@ -195,7 +198,7 @@ public class PackageControllerTests
 
         var dataSourceType = assembly
             .ExportedTypes
-            .First(type => typeof(IDataSource).IsAssignableFrom(type)) 
+            .First(type => typeof(IDataSource).IsAssignableFrom(type))
                 ?? throw new Exception("data source type is null");
 
         // run
@@ -568,7 +571,7 @@ public class PackageControllerTests
                     ["asset-selector"] = assetSelector,
 
                     // optional token with scope(s): read_api
-                    ["token"] = "doQyXYqgmFxS1LUsupue"
+                    ["token"] = "glpat-sQVhisTwk56oJyGJhzx1"
                 }
             );
 
@@ -615,7 +618,7 @@ public class PackageControllerTests
                 ["package"] = "test-package",
 
                 // optional token with scope(s): read_api
-                ["token"] = "zNSQJjP6eWpQ8k-zpvDs",
+                ["token"] = "glpat-sQVhisTwk56oJyGJhzx1",
             }
         );
 
@@ -660,7 +663,7 @@ public class PackageControllerTests
                     ["asset-selector"] = assetSelector,
 
                     // optional token with scope(s): read_api
-                    ["token"] = "zNSQJjP6eWpQ8k-zpvDs",
+                    ["token"] = "glpat-sQVhisTwk56oJyGJhzx1",
                 }
             );
 

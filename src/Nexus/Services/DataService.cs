@@ -1,4 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.ComponentModel.DataAnnotations;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
@@ -75,8 +78,8 @@ internal class DataService(
 
         // controller
 
-        /* IMPORTANT: controller cannot be disposed here because it needs to 
-         * stay alive until the stream has finished. Therefore it will be dipose 
+        /* IMPORTANT: controller cannot be disposed here because it needs to
+         * stay alive until the stream has finished. Therefore it will be dipose
          * in the DataSourceControllerExtensions.ReadAsStream method which monitors that.
          */
         var controller = await _dataControllerService.GetDataSourceControllerAsync(

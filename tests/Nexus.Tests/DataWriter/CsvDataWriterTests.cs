@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Nexus.DataModel;
 using Nexus.Extensibility;
@@ -10,7 +13,7 @@ using Xunit;
 
 namespace DataWriter;
 
-public class CsvDataWriterTests(DataWriterFixture fixture) 
+public class CsvDataWriterTests(DataWriterFixture fixture)
     : IClassFixture<DataWriterFixture>
 {
     private readonly DataWriterFixture _fixture = fixture;

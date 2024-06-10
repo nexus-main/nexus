@@ -1,4 +1,7 @@
-﻿using Nexus.Core;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Nexus.Core;
 using Nexus.DataModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;

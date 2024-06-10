@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -210,7 +213,7 @@ internal class HostedService(IServiceProvider serviceProvider) : IHostedService
                     Permissions.Endpoints.Authorization,
                     Permissions.Endpoints.Token,
                     Permissions.Endpoints.Logout,
-                    
+
                     // grant types
                     Permissions.GrantTypes.AuthorizationCode,
 

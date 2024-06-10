@@ -1,4 +1,7 @@
-﻿namespace Nexus.DataModel;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+namespace Nexus.DataModel;
 
 internal enum RepresentationKind
 {

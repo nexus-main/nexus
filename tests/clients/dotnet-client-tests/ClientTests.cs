@@ -1,4 +1,7 @@
-﻿using System.Net;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using Moq;

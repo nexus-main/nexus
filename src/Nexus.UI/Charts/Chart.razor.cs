@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using Nexus.UI.Services;
@@ -629,12 +632,12 @@ public partial class Chart : IDisposable
     private static void GetYLimits(double min, double max, out float minLimit, out float maxLimit, out float step)
     {
         /* There are a minimum of 10 ticks and a maximum of 40 ticks with the following approach:
-         * 
-         *          Min   Max   Range   Significant   Min-Rounded   Max-Rounded  Start Step_1  ...   End  Count  
-         *          
+         *
+         *          Min   Max   Range   Significant   Min-Rounded   Max-Rounded  Start Step_1  ...   End  Count
+         *
          *   Min      0    32      32             2             0           100      0     10  ...   100     10
          *          968  1000      32             2           900          1000    900    910  ...  1000     10
-         * 
+         *
          *   Max     0     31      31             1             0            40      0      1  ...    40     40
          *         969   1000      31             1           960          1000    960    961  ...  1000     40
          */

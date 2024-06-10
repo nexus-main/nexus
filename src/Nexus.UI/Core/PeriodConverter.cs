@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using MudBlazor;
 
 namespace Nexus.UI.Core;

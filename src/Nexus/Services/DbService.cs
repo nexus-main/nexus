@@ -1,4 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.EntityFrameworkCore;
 using Nexus.Core;
 
 namespace Nexus.Services;
@@ -34,14 +37,14 @@ internal class DbService(
         /* .AsSingleQuery() avoids the following:
          *
          *   WRN: Microsoft.EntityFrameworkCore.Query
-         *     Compiling a query which loads related collections for more 
-         *     than one collection navigation, either via 'Include' or through 
-         *     projection, but no 'QuerySplittingBehavior' has been configured. 
-         *     By default, Entity Framework will use 'QuerySplittingBehavior.SingleQuery', 
-         *     which can potentially result in slow query performance. See 
-         *     https:*go.microsoft.com/fwlink/?linkid=2134277 for more information. 
-         *     To identify the query that's triggering this warning call 
-         *     'ConfigureWarnings(w => w.Throw(RelationalEventId.MultipleCollectionIncludeWarning))'. 
+         *     Compiling a query which loads related collections for more
+         *     than one collection navigation, either via 'Include' or through
+         *     projection, but no 'QuerySplittingBehavior' has been configured.
+         *     By default, Entity Framework will use 'QuerySplittingBehavior.SingleQuery',
+         *     which can potentially result in slow query performance. See
+         *     https:*go.microsoft.com/fwlink/?linkid=2134277 for more information.
+         *     To identify the query that's triggering this warning call
+         *     'ConfigureWarnings(w => w.Throw(RelationalEventId.MultipleCollectionIncludeWarning))'.
          */
 
     }

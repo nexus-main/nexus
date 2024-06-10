@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using Nexus.UI.Core;
 
 namespace Nexus.UI.ViewModels;

@@ -1,9 +1,12 @@
-﻿using System.Buffers;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Buffers;
 using System.Runtime.InteropServices;
 
 namespace Nexus.Utilities;
 
-// TODO: Validate against this: https://github.com/windows-toolkit/WindowsCommunityToolkit/pull/3520/files 
+// TODO: Validate against this: https://github.com/windows-toolkit/WindowsCommunityToolkit/pull/3520/files
 
 internal class CastMemoryManager<TFrom, TTo>(Memory<TFrom> from) : MemoryManager<TTo>
     where TFrom : struct

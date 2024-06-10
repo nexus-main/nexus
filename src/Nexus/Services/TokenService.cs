@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
@@ -27,7 +30,7 @@ internal interface ITokenService
     Task<IReadOnlyDictionary<string, InternalPersonalAccessToken>> GetAllAsync(string userId);
 }
 
-internal class TokenService(IDatabaseService databaseService) 
+internal class TokenService(IDatabaseService databaseService)
     : ITokenService
 {
     private static readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();

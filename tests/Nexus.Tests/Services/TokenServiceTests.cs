@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using System.Text.Json;
 using Moq;
 using Nexus.Core;

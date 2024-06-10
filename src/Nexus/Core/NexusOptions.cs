@@ -1,4 +1,7 @@
-﻿using System.Runtime.InteropServices;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Runtime.InteropServices;
 
 namespace Nexus.Core;
 

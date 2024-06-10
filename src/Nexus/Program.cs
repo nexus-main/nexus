@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -69,7 +72,7 @@ try
     // Add services to the container.
     AddServices(builder.Services, configuration, pathsOptions, securityOptions);
 
-    // Build 
+    // Build
     var app = builder.Build();
 
     // Configure the HTTP request pipeline.
@@ -139,7 +142,7 @@ void AddServices(
     services.AddRazorComponents()
         .AddInteractiveWebAssemblyComponents();
 
-    /* 
+    /*
      * login view: We tried to use Blazor Webs ability to render pages
      * on the server but it does not work properly. With the command
      * dotnet new blazor --all-interactive --interactivity WebAssembly --no-https
@@ -147,7 +150,7 @@ void AddServices(
      * any changes and because prerendering is enabled by default it is
      * being displayed shortly but then Blazor starts and redirects
      * the user to a "Not found" page.
-     * 
+     *
      * Related issue:
      * https://github.com/dotnet/aspnetcore/issues/51046
      */

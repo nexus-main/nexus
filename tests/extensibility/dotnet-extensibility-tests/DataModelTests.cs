@@ -1,10 +1,13 @@
-﻿using Nexus.DataModel;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Nexus.DataModel;
 using System.Text.Json;
 using Xunit;
 
 namespace Nexus.Extensibility.Tests;
 
-public class DataModelTests(DataModelFixture fixture) 
+public class DataModelTests(DataModelFixture fixture)
     : IClassFixture<DataModelFixture>
 {
     private readonly DataModelFixture _fixture = fixture;

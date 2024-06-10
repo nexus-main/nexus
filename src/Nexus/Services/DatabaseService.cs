@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Options;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.DataModel;
 using System.Diagnostics.CodeAnalysis;
@@ -41,7 +44,7 @@ internal interface IDatabaseService
     Task ClearCacheEntriesAsync(string catalogId, DateOnly day, TimeSpan timeout, Predicate<string> predicate);
 }
 
-internal class DatabaseService(IOptions<PathsOptions> pathsOptions) 
+internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     : IDatabaseService
 {
     // generated, small files:
