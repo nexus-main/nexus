@@ -5,7 +5,7 @@
 
     @* Why onchange? With @bind-value there was an issue similar to this one https://github.com/dotnet/aspnetcore/issues/38471 *@
     <input value="@GetDate()" @onchange="StoreDate" @onfocus="OnFocus" @onblur="OnBlur"
-        class="w-full pt-2 focus:outline-none text-gray-200 placeholder-gray-400 bg-transparent" 
+        class="w-full pt-2 focus:outline-none text-gray-200 placeholder-gray-400 bg-transparent"
         type="datetime-local"
         placeholder="@Label"
         step="1">
@@ -20,20 +20,17 @@
 
     private DateTime _tmp;
 
-    private DateTime _value;
-
     [Parameter]
-    public DateTime Value
+    public DateTime Value {get; set;}
+
+    protected override void OnParametersSet()
     {
-        get => _value;
-        set
+        if(Value.Kind != DateTimeKind.Utc)
         {
-            if (value != _value) {
-                _value = DateTime.SpecifyKind(value, DateTimeKind.Utc);
+            Value = DateTime.SpecifyKind(Value, DateTimeKind.Utc);
 
                 if (ValueChanged.HasDelegate)
-                    ValueChanged.InvokeAsync(value);
-            }
+                    ValueChanged.InvokeAsync(Value);
         }
     }
 
@@ -45,8 +42,8 @@
 
     private string GetDate()
     {
-        // To prevent warning: 
-        // > The specified value "2020-01-01T00:00:00" does not conform to the required format. 
+        // To prevent warning:
+        // > The specified value "2020-01-01T00:00:00" does not conform to the required format.
         // > The format is "yyyy-MM-ddThh:mm" followed by optional ":ss" or ":ss.SSS".
         if (Value.Second != 0)
             return Value.ToString("yyyy-MM-ddTHH:mm:ss");

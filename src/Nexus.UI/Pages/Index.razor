@@ -31,7 +31,7 @@
             @if (_isLoading)
             {
                 <div class="h-full flex justify-center items-center mx-auto">
-                    <MudProgressCircular 
+                    <MudProgressCircular
                         Color="Color.Primary"
                         Indeterminate=true />
                     <span class="ml-3 text-gray-400">Loading catalog ...</span>
@@ -50,7 +50,7 @@
                     @if (_license is null)
                     {
                         <div class="flex-1 flex justify-center items-center">
-                            You do not have access to this catalog. 
+                            You do not have access to this catalog.
                             @if (!string.IsNullOrWhiteSpace(AppState.SelectedCatalog.Info.Contact))
                             {
                                 @: Please contact @(AppState.SelectedCatalog.Info.Contact) to request permission.
@@ -65,7 +65,7 @@
                         </div>
                         <div class="flex justify-center m-3">
                             <form action="/api/v1/users/accept-license">
-                                <input type="hidden" name="catalogId" value="@AppState.SelectedCatalog.Id" /> 
+                                <input type="hidden" name="catalogId" value="@AppState.SelectedCatalog.Id" />
                                 <input class="w-20 p-1 rounded bg-cyan-700 flex justify-center items-center text-gray-200 cursor-pointer hover:bg-cyan-600" type="submit" value="Accept" />
                             </form>
                         </div>
@@ -113,15 +113,6 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-#warning: Remove this when 8.0.3 is released
-        /* 
-         * WORKAROUND for https://github.com/dotnet/aspnetcore/issues/53138#issuecomment-1904651766 
-         * See also changes in ResourceCatalogView (Utilities.EscapeDataString(Catalog.Id.Substring(1))
-         */
-        CatalogId = CatalogId is null
-            ? default
-            : CatalogId.Replace("__", "/");
-
         _isLoading = true;
         StateHasChanged();
 

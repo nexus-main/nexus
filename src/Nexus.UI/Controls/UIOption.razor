@@ -2,7 +2,7 @@
 
 @ChildContent(this)
 
-@code 
+@code
 {
     private T _value = default!;
 
@@ -28,7 +28,7 @@
         set
         {
             _value = value;
-            Store[Key] = value.ToString()!;
+            Store[Key] = value!.ToString()!;
         }
     }
 
@@ -37,7 +37,7 @@
         // ensure there is some value to assign
         if (!Store.TryGetValue(Key, out var value))
         {
-            value = DefaultValue.ToString()!;
+            value = DefaultValue!.ToString()!;
             Store[Key] = value;
         }
 
