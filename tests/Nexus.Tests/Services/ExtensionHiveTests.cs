@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;

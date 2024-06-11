@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using Microsoft.Extensions.Logging;
 using Nexus.Core;
 using Nexus.Services;
@@ -14,7 +17,7 @@ namespace Other;
 // Best practices:
 // https://blog.rsuter.com/logging-with-ilogger-recommendations-and-best-practices/
 
-// Attaching a large state might lead to very large logs. Nicholas Blumhardt recommends to 
+// Attaching a large state might lead to very large logs. Nicholas Blumhardt recommends to
 // simply send a single verbose message with identifier and all other messages should contain
 // that identifier, too, so they can be correlated later ("log once, correlate later").
 

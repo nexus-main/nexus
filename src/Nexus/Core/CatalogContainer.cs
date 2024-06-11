@@ -1,4 +1,7 @@
-﻿using Nexus.DataModel;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Nexus.DataModel;
 using Nexus.Services;
 using Nexus.Utilities;
 using System.Diagnostics;
@@ -99,7 +102,7 @@ internal class CatalogContainer
         {
             await EnsureLazyCatalogInfoAsync(cancellationToken);
 
-            var lazyCatalogInfo = _lazyCatalogInfo 
+            var lazyCatalogInfo = _lazyCatalogInfo
                 ?? throw new Exception("this should never happen");
             return lazyCatalogInfo;
         }
@@ -161,7 +164,7 @@ internal class CatalogContainer
             if (Metadata?.Overrides is not null)
                 catalog = catalog.Merge(Metadata.Overrides);
 
-            // 
+            //
             _lazyCatalogInfo = new LazyCatalogInfo(catalogBegin, catalogEnd, catalog);
         }
     }

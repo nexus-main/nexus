@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using Nexus.Utilities;
 
 namespace Nexus.Core;
@@ -56,7 +59,7 @@ internal class CacheEntryWrapper : IDisposable
          * |___|__ begin    _________________
          * |   |
          * |___|__ file begin
-         * 
+         *
          */
 
         var index = 0;

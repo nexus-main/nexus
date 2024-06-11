@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using Nexus.Core;
 using Nexus.DataModel;
 using Nexus.Extensibility;
@@ -157,7 +160,7 @@ internal class CatalogManager(
             using var controller = await _dataControllerService
                 .GetDataSourceControllerAsync(parent.DataSourceRegistration, cancellationToken);
 
-            /* Why trailing slash? 
+            /* Why trailing slash?
              * Because we want the "directory content" (see the "ls /home/karl/" example here:
              * https://stackoverflow.com/questions/980255/should-a-directory-path-variable-end-with-a-trailing-slash)
              */
@@ -235,11 +238,11 @@ internal class CatalogManager(
         // Nexus allows catalogs to have child catalogs like folders in a file system. To simplify things,
         // it is required that a catalog that comes from a certain data source can only have child
         // catalogs of the very same data source.
-        // 
+        //
         // In general, child catalogs will be loaded lazily. Therefore, for any catalog of the provided array that
         // appears to be a child catalog, it can be assumed it comes from a data source other than the one
         // from the parent catalog. Depending on the user's rights, this method decides which one will survive.
-        // 
+        //
         //
         // Example:
         //

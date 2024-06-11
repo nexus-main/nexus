@@ -1,4 +1,7 @@
-﻿using Nexus.DataModel;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Nexus.DataModel;
 
 namespace Nexus.Core;
 

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
@@ -317,13 +320,13 @@ internal class DataSourceController(
     {
         /* This method reads data from the data source or from the cache and optionally
          * processes the data (aggregation, resampling).
-         * 
-         * Normally, all data would be loaded at once using a single call to 
+         *
+         * Normally, all data would be loaded at once using a single call to
          * DataSource.ReadAsync(). But with caching involved, it is not uncommon
          * to have only parts of the requested data available in cache. The rest needs to
          * be loaded and processed as usual. This leads to fragmented read periods and thus
          * often more than a single call to DataSource.ReadAsync() is necessary.
-         * 
+         *
          * However, during the first request the cache is filled and subsequent identical
          * requests will from now on be served from the cache only.
          */
@@ -339,7 +342,7 @@ internal class DataSourceController(
         // TODO: access to totalProgress (see below) is not thread safe
         var totalProgress = 0.0;
 
-        /* 'Original' branch 
+        /* 'Original' branch
             *  - Read data into readUnit.ReadRequest (rented buffer)
             *  - Merge data / status and copy result into readUnit.DataWriter
             */
@@ -373,7 +376,7 @@ internal class DataSourceController(
 
         readingTasks.Add(originalTask);
 
-        /* 'Processing' branch 
+        /* 'Processing' branch
             *  - Read cached data into readUnit.DataWriter
             *  - Read remaining data into readUnit.ReadRequest
             *  - Process readUnit.ReadRequest data and copy result into readUnit.DataWriter
@@ -663,19 +666,19 @@ internal class DataSourceController(
 
         /* Calculate rounded begin and end values.
          *
-         * Example: 
+         * Example:
          *
          * - sample period = 1 s
          * - extract data from 00:00:00.200 to 00:00:01:700 @ sample period = 100 ms
-         * 
+         *
          *  _    ___ <- roundedBegin
-         * |      | 
+         * |      |
          * | 1 s  x  <- offset: 200 ms
-         * |      | 
+         * |      |
          * |_    ___ <- roundedEnd
-         * |      | 
-         * | 1 s  x  <- end: length: 1500 ms 
-         * |      | 
+         * |      |
+         * | 1 s  x  <- end: length: 1500 ms
+         * |      |
          * |_    ___
          *
          * roundedBegin = 00:00:00
@@ -752,7 +755,7 @@ internal class DataSourceController(
                 ? catalogItemRequest.Item
                 : catalogItemRequest.BaseItem;
 
-            /* _catalogMap is guaranteed to contain the current catalog 
+            /* _catalogMap is guaranteed to contain the current catalog
              * because GetCatalogAsync is called before ReadAsync */
             if (_catalogCache.TryGetValue(item.Catalog.Id, out var catalog))
             {
@@ -791,12 +794,12 @@ internal class DataSourceController(
         foreach (var catalogItemRequestPipeWriter in catalogItemRequestPipeWriters)
         {
             /* All frequencies are required to be multiples of each other, namely these are:
-             * 
+             *
              * - begin
              * - end
              * - item -> representation -> sample period
              * - base item -> representation -> sample period
-             * 
+             *
              * This makes aggregation and caching much easier.
              */
 
@@ -838,8 +841,8 @@ internal class DataSourceController(
 
         /* bytes per row */
 
-        // If the user requests /xxx/10_min_mean#base=10_ms, then the algorithm below will assume a period 
-        // of 10 minutes and a sample period of 10 ms, which leads to an estimated row size of 8 * 60000 = 480000 bytes. 
+        // If the user requests /xxx/10_min_mean#base=10_ms, then the algorithm below will assume a period
+        // of 10 minutes and a sample period of 10 ms, which leads to an estimated row size of 8 * 60000 = 480000 bytes.
         // The algorithm works this way because it cannot know if the data are already cached. It also does not know
         // if the data source will request more data which further increases the memory consumption.
 
@@ -1025,18 +1028,18 @@ internal class DataSourceController(
         TimeSpan samplePeriod)
     {
         /* When the user requests two time series of the same frequency, they will be aligned to the sample
-         * period. With the current implementation, it simply not possible for one data source to provide an 
-         * offset which is smaller than the sample period. In future a solution could be to have time series 
+         * period. With the current implementation, it simply not possible for one data source to provide an
+         * offset which is smaller than the sample period. In future a solution could be to have time series
          * data with associated time stamps, which is not yet implemented.
          */
 
         /* Examples
-         * 
+         *
          *   OK: from 2020-01-01 00:00:01.000 to 2020-01-01 00:00:03.000 @ 1 s
-         * 
+         *
          * FAIL: from 2020-01-01 00:00:00.000 to 2020-01-02 00:00:00.000 @ 130 ms
          *   OK: from 2020-01-01 00:00:00.050 to 2020-01-02 00:00:00.000 @ 130 ms
-         *   
+         *
          */
 
 

@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nexus.Core;
 using Nexus.DataModel;
@@ -8,7 +11,7 @@ using Xunit;
 
 namespace DataWriter;
 
-public class DataWriterControllerTests(DataWriterFixture fixture) 
+public class DataWriterControllerTests(DataWriterFixture fixture)
     : IClassFixture<DataWriterFixture>
 {
     private readonly DataWriterFixture _fixture = fixture;

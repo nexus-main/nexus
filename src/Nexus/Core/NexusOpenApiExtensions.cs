@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc.ApiExplorer;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Nexus.Core;
 using NJsonSchema.Generation;
 using NSwag.AspNetCore;

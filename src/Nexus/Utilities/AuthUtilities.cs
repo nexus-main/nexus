@@ -1,4 +1,7 @@
-﻿using Nexus.Core;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Nexus.Core;
 using Nexus.Sources;
 using System.Security.Claims;
 using System.Text.RegularExpressions;

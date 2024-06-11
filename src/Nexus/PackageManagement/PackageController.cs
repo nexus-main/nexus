@@ -1,4 +1,7 @@
-﻿using System.Diagnostics;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
 using System.Reflection;
@@ -13,7 +16,7 @@ using Nexus.Core;
 namespace Nexus.PackageManagement;
 
 internal partial class PackageController(
-    InternalPackageReference packageReference, 
+    InternalPackageReference packageReference,
     ILogger<PackageController> logger)
 {
     public static Guid BUILTIN_ID = new("97d297d2-df6f-4c85-9d07-86bc64a041a6");

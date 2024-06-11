@@ -1,9 +1,12 @@
-﻿using System.Reflection;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Reflection;
 using System.Runtime.Loader;
 
 namespace Nexus.PackageManagement;
 
-internal class PackageLoadContext(string entryDllPath) 
+internal class PackageLoadContext(string entryDllPath)
     : AssemblyLoadContext(isCollectible: true)
 {
     private readonly AssemblyDependencyResolver _resolver = new(entryDllPath);

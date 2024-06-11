@@ -1,4 +1,7 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -8,7 +11,7 @@ namespace Nexus.DataModel;
 internal static partial class DataModelUtilities
 {
     /* Example resource paths:
-     * 
+     *
      * /a/b/c/T1/10_ms
      * /a/b/c/T1/10_ms(abc=456)
      * /a/b/c/T1/10_ms(abc=456)#base=1s

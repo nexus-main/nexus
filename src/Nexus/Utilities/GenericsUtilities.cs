@@ -1,4 +1,7 @@
-﻿using System.Linq.Expressions;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Linq.Expressions;
 using System.Reflection.Emit;
 
 namespace Nexus.Utilities;

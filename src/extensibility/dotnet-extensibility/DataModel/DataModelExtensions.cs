@@ -1,4 +1,7 @@
-﻿using System.Text.Json.Nodes;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace Nexus.DataModel;

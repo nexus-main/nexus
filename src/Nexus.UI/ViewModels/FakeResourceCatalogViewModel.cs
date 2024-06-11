@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using Nexus.Api;
 using Nexus.UI.Core;
 
@@ -28,7 +31,7 @@ public class FakeResourceCatalogViewModel : ResourceCatalogViewModel
         INexusClient client,
         AppState appState)
     {
-        /* This methods creates intermediate fake catalogs (marked with a *) 
+        /* This methods creates intermediate fake catalogs (marked with a *)
          * to group child catalogs. Example:
          *
          *   /A/A/A

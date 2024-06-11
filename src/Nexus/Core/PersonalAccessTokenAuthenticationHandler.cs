@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -61,8 +64,8 @@ internal class PersonalAccessTokenAuthHandler(
                         .Select(claim => new Claim(NexusClaims.CAN_WRITE_CATALOG, claim.Value));
 
                     var tokenClaimsRole = token.Claims
-                        .Where(tokenClaim => 
-                            tokenClaim.Type == Claims.Role && 
+                        .Where(tokenClaim =>
+                            tokenClaim.Type == Claims.Role &&
                             user.Claims.Any(userClaim => userClaim.Type == Claims.Role && userClaim.Value == tokenClaim.Value))
                         .Select(claim => new Claim(Claims.Role, claim.Value));
 

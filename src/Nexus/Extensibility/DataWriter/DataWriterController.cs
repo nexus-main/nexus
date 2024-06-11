@@ -1,4 +1,7 @@
-﻿using Nexus.Core;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Nexus.Core;
 using Nexus.DataModel;
 using Nexus.Utilities;
 using System.ComponentModel.DataAnnotations;
@@ -104,12 +107,12 @@ internal class DataWriterController(
         await NexusUtilities.FileLoopAsync(begin, end, filePeriod,
             async (fileBegin, fileOffset, duration) =>
         {
-            /* Concept: It never happens that the data of a read operation is spreaded over 
-             * multiple buffers. However, it may happen that the data of multiple read 
-             * operations are copied into a single buffer (important to ensure that multiple 
+            /* Concept: It never happens that the data of a read operation is spreaded over
+             * multiple buffers. However, it may happen that the data of multiple read
+             * operations are copied into a single buffer (important to ensure that multiple
              * bytes of a single value are always copied together). When the first buffer
              * is (partially) read, call the "PipeReader.Advance" function to tell the pipe
-             * the number of bytes we have consumed. This way we slice our way through 
+             * the number of bytes we have consumed. This way we slice our way through
              * the buffers so it is OK to only ever read the first buffer of a read result.
              */
 

@@ -1,8 +1,11 @@
-﻿using System.IO.Pipelines;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.IO.Pipelines;
 
 namespace Nexus.Extensibility;
 
-internal class DataSourceDoubleStream(long length, PipeReader reader) 
+internal class DataSourceDoubleStream(long length, PipeReader reader)
     : Stream
 {
     private readonly CancellationTokenSource _cts = new();

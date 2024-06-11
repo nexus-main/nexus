@@ -1,4 +1,7 @@
-﻿using SkiaSharp;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using SkiaSharp;
 using System.Reflection;
 
 namespace Nexus.UI.Services;

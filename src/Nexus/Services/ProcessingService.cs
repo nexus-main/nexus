@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Options;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.Extensions.Options;
 using MudBlazor;
 using Nexus.Core;
 using Nexus.DataModel;
@@ -28,7 +31,7 @@ internal interface IProcessingService
         int blockSize);
 }
 
-internal class ProcessingService(IOptions<DataOptions> dataOptions) 
+internal class ProcessingService(IOptions<DataOptions> dataOptions)
     : IProcessingService
 {
     private readonly double _nanThreshold = dataOptions.Value.AggregationNaNThreshold;

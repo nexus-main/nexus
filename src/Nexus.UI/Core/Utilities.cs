@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
@@ -308,7 +311,7 @@ public static partial class Utilities
             if (current.ValueKind == JsonValueKind.Object &&
                 current.TryGetProperty(pathSegement, out current))
             {
-                // do nothing   
+                // do nothing
             }
             else
             {

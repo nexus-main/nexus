@@ -1,10 +1,13 @@
-﻿using Microsoft.Extensions.Options;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.Extensions.Options;
 using Nexus.Core;
 
 namespace Nexus.Services;
 
 internal class AllocationRegistration(
-    IMemoryTracker tracker, 
+    IMemoryTracker tracker,
     long actualByteCount) : IDisposable
 {
     private bool _disposedValue;

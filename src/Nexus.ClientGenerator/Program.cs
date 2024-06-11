@@ -1,4 +1,7 @@
-﻿using System.Reflection;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Reflection;
 using Apollo3zehn.OpenApiClientGenerator;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;

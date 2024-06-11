@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nexus.Core;
 using Nexus.DataModel;
@@ -12,7 +15,7 @@ using Xunit;
 
 namespace DataSource;
 
-public class DataSourceControllerTests(DataSourceControllerFixture fixture) 
+public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     : IClassFixture<DataSourceControllerFixture>
 {
     private readonly DataSourceControllerFixture _fixture = fixture;

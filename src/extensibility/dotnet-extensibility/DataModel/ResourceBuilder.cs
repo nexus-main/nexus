@@ -1,4 +1,7 @@
-﻿using System.Diagnostics;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace Nexus.DataModel;

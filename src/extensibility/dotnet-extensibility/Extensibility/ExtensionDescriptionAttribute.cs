@@ -1,4 +1,7 @@
-﻿namespace Nexus.Extensibility;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+namespace Nexus.Extensibility;
 
 /// <summary>
 /// An attribute to identify the extension.

@@ -1,4 +1,7 @@
-﻿using System.Text.Encodings.Web;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 

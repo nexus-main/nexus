@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc.Formatters;
+﻿// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using Microsoft.AspNetCore.Mvc.Formatters;
 
 namespace Nexus.Core;
 
