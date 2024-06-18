@@ -19,7 +19,10 @@
     {
         await base.UpdateValuePropertyAsync(updateText);
         var value = Converter.Get(Text);
-        await SetValueAsync(value, updateText: false);
+        if (value != null)
+        {
+            await SetValueAsync(value, updateText: false);
+        }
     }
 
     protected override async Task SetValueAsync(T value, bool updateText = true, bool force = false)
