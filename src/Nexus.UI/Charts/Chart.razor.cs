@@ -50,7 +50,6 @@ public partial class Chart : IDisposable
     private readonly TimeAxisConfig[] _timeAxisConfigs;
 
     /* Others */
-    private bool _beginAtZero;
     private readonly SKColor[] _colors;
 
     public Chart()
@@ -133,9 +132,8 @@ public partial class Chart : IDisposable
 
     protected override void OnParametersSet()
     {
-        if (BeginAtZero != _beginAtZero)
+        if (BeginAtZero)
         {
-            _beginAtZero = BeginAtZero;
             Task.Run(() =>
             {
                 _axesMap = LineSeriesData.Series
