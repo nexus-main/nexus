@@ -1,8 +1,8 @@
 ﻿@if (IsOpen)
 {
     <div class="absolute rounded border border-gray-100 bg-white" style="top: @(Top)px; left: @(Left)px;">
-        @ChildContent
-    </div>
+    @ChildContent
+</div>
 }
 
 @code {
@@ -18,7 +18,7 @@
     public IJSInProcessRuntime JSRuntime { get; set; } = default!;
 
     [Parameter]
-    public bool IsOpen {get; set;}
+    public bool IsOpen { get; set; }
 
     [Parameter]
     public EventCallback<bool> IsOpenChanged { get; set; }
@@ -37,12 +37,6 @@
     {
         _ = CloseAsync();
     }
-
-    private async Task CloseAsync()
-    {
-        await IsOpenChanged.InvokeAsync(false);
-    }
-
     protected override void OnParametersSet()
     {
         if (IsOpen)
@@ -50,4 +44,9 @@
             JSRuntime.InvokeVoid("nexus.util.addClickEvent", _dotNetHelper);
         }
     }
+    private async Task CloseAsync()
+    {
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
 }

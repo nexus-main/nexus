@@ -129,7 +129,7 @@ public partial class Chart : IDisposable
     public LineSeriesData LineSeriesData { get; set; } = default!;
 
     [Parameter]
-    public bool BeginAtZero{get; set;}
+    public bool BeginAtZero { get; set; }
 
     protected override void OnParametersSet()
     {

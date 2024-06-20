@@ -41,9 +41,6 @@ public partial record ResourceCatalog
     /// </summary>
     public static Regex ValidIdExpression { get; } = ValidIdExpressionRegex();
 
-    /// <summary>
-    /// Gets a regular expression to valudate a single parameter.
-    /// </summary>
     private static Regex _matchSingleParametersExpression { get; } = new Regex(@"\s*(.+?)\s*=\s*([^,\)]+)\s*,?", RegexOptions.Compiled);
 
     /// <summary>
