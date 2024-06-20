@@ -129,27 +129,21 @@ public partial class Chart : IDisposable
     public LineSeriesData LineSeriesData { get; set; } = default!;
 
     [Parameter]
-    public bool BeginAtZero
+    public bool BeginAtZero { get; set; }
+
+    protected override void OnParametersSet()
     {
-        get
+        if (BeginAtZero != _beginAtZero)
         {
-            return _beginAtZero;
-        }
-        set
-        {
-            if (value != _beginAtZero)
+            _beginAtZero = BeginAtZero;
+            Task.Run(() =>
             {
-                _beginAtZero = value;
+                _axesMap = LineSeriesData.Series
+                    .GroupBy(lineSeries => lineSeries.Unit)
+                    .ToDictionary(group => GetAxisInfo(group.Key, group), group => group.ToArray());
 
-                Task.Run(() =>
-                {
-                    _axesMap = LineSeriesData.Series
-                        .GroupBy(lineSeries => lineSeries.Unit)
-                        .ToDictionary(group => GetAxisInfo(group.Key, group), group => group.ToArray());
-
-                    _skiaView.Invalidate();
-                });
-            }
+                _skiaView.Invalidate();
+            });
         }
     }
 

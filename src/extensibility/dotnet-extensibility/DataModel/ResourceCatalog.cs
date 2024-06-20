@@ -39,12 +39,8 @@ public partial record ResourceCatalog
     /// <summary>
     /// Gets a regular expression to validate a resource catalog identifier.
     /// </summary>
-    [JsonIgnore]
-#warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
     public static Regex ValidIdExpression { get; } = ValidIdExpressionRegex();
 
-    [JsonIgnore]
-#warning Remove this when https://github.com/RicoSuter/NSwag/issues/4681 is solved
     private static Regex _matchSingleParametersExpression { get; } = new Regex(@"\s*(.+?)\s*=\s*([^,\)]+)\s*,?", RegexOptions.Compiled);
 
     /// <summary>

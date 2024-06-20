@@ -28,12 +28,15 @@ public static class PeriodHelper
 {
     public static readonly Converter<Period> Converter = new()
     {
-        SetFunc = value => value.ToString(),
+        SetFunc = value => value != null ? value.ToString() : "",
         GetFunc = GetFunc
     };
 
-    private static Period GetFunc(string text)
+    private static Period? GetFunc(string? text)
     {
+        if (text is null)
+            return default;
+
         try
         {
             return text == Period.SINGLE_FILE_LABEL

@@ -8,5 +8,5 @@
         "src/clients/python-client"
     ],
     "dotnet.defaultSolution": "Nexus.sln",
-    "editor.formatOnSave": false
+    "editor.formatOnSave": true
 }
