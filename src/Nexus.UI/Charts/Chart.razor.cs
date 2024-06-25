@@ -28,6 +28,8 @@ public partial class Chart : IDisposable
     private DateTime _zoomedBegin;
     private DateTime _zoomedEnd;
 
+    private readonly SKRect _defaultZoomBox = new SKRect(0, 0, 1, 1);
+
     /* Common */
     private const float TICK_SIZE = 10;
 
@@ -132,7 +134,7 @@ public partial class Chart : IDisposable
 
     protected override void OnParametersSet()
     {
-        if (BeginAtZero)
+        if (BeginAtZero || _zoomBox == _defaultZoomBox)
         {
             Task.Run(() =>
             {
@@ -521,8 +523,8 @@ public partial class Chart : IDisposable
     private void ResetZoom()
     {
         /* zoom box */
-        _oldZoomBox = new SKRect(0, 0, 1, 1);
-        _zoomBox = new SKRect(0, 0, 1, 1);
+        _oldZoomBox = _defaultZoomBox;
+        _zoomBox = _defaultZoomBox;
 
         /* time range */
         _zoomedBegin = LineSeriesData.Begin;
