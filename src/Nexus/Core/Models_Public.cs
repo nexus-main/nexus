@@ -157,7 +157,7 @@ public record ExtensionDescription(
 /// <param name="IsVisible">A boolean which indicates if the catalog is visible.</param>
 /// <param name="IsOwner">A boolean which indicates if the catalog is owned by the current user.</param>
 /// <param name="PackageReferenceIds">The package reference identifiers.</param>
-/// <param name="PipelineInfo">A structure with pipeline info.</param>
+/// <param name="PipelineInfo">A structure for pipeline info.</param>
 public record CatalogInfo(
     string Id,
     string? Title,
