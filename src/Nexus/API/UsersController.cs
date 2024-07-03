@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Services;
 using Nexus.Utilities;
@@ -28,7 +27,6 @@ namespace Nexus.Controllers;
 internal class UsersController(
     IDBService dBService,
     ITokenService tokenService,
-    IOptions<SecurityOptions> securityOptions,
     ILogger<UsersController> logger) : ControllerBase
 {
     // [anonymous]
@@ -54,8 +52,9 @@ internal class UsersController(
     // GET      /api/users/{userId}/tokens
 
     private readonly IDBService _dbService = dBService;
+
     private readonly ITokenService _tokenService = tokenService;
-    private readonly SecurityOptions _securityOptions = securityOptions.Value;
+
     private readonly ILogger<UsersController> _logger = logger;
 
     #region Anonymous
