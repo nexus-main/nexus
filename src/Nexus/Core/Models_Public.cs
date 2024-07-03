@@ -156,10 +156,8 @@ public record ExtensionDescription(
 /// <param name="IsReleased">A boolean which indicates if the catalog is released.</param>
 /// <param name="IsVisible">A boolean which indicates if the catalog is visible.</param>
 /// <param name="IsOwner">A boolean which indicates if the catalog is owned by the current user.</param>
-/// <param name="DataSourceInfoUrl">A nullable info URL of the data source.</param>
-/// <param name="DataSourceType">The data source type.</param>
-/// <param name="DataSourceRegistrationId">The data source registration identifier.</param>
-/// <param name="PackageReferenceId">The package reference identifier.</param>
+/// <param name="PackageReferenceIds">The package reference identifiers.</param>
+/// <param name="PipelineInfo">A structure with pipeline info.</param>
 public record CatalogInfo(
     string Id,
     string? Title,
@@ -171,10 +169,19 @@ public record CatalogInfo(
     bool IsReleased,
     bool IsVisible,
     bool IsOwner,
-    string? DataSourceInfoUrl,
-    string DataSourceType,
-    Guid DataSourceRegistrationId,
-    Guid PackageReferenceId);
+    Guid[] PackageReferenceIds,
+    PipelineInfo PipelineInfo);
+
+/// <summary>
+/// A structure for pipeline information.
+/// </summary>
+/// <param name="Id">The pipeline identifier.</param>
+/// <param name="Types">An array of data source types.</param>
+/// <param name="InfoUrls">An array of data source info URLs.</param>
+public record PipelineInfo(
+    Guid Id,
+    string[] Types,
+    string?[] InfoUrls);
 
 /// <summary>
 /// A structure for catalog metadata.
@@ -204,31 +211,28 @@ public record CatalogAvailability(
     double[] Data);
 
 /// <summary>
+/// A data source pipeline.
+/// </summary>
+/// <param name="Registrations">The list of pipeline elements (data source registrations).</param>
+/// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
+/// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
+public record Pipeline(
+    DataSourceRegistration[] Registrations,
+    string? ReleasePattern = default,
+    string? VisibilityPattern = default);
+
+/// <summary>
 /// A data source registration.
 /// </summary>
 /// <param name="Type">The type of the data source.</param>
 /// <param name="ResourceLocator">An optional URL which points to the data.</param>
 /// <param name="Configuration">Configuration parameters for the instantiated source.</param>
 /// <param name="InfoUrl">An optional info URL.</param>
-/// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
-/// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
 public record DataSourceRegistration(
     string Type,
     Uri? ResourceLocator,
     IReadOnlyDictionary<string, JsonElement>? Configuration,
-    string? InfoUrl = default,
-    string? ReleasePattern = default,
-    string? VisibilityPattern = default);
-
-/* Required to workaround JsonIgnore problems with local serialization and OpenAPI. */
-internal record InternalDataSourceRegistration(
-    [property: JsonIgnore] Guid Id,
-    string Type,
-    Uri? ResourceLocator,
-    IReadOnlyDictionary<string, JsonElement>? Configuration,
-    string? InfoUrl = default,
-    string? ReleasePattern = default,
-    string? VisibilityPattern = default);
+    string? InfoUrl = default);
 
 /// <summary>
 /// Description of a job.

@@ -13,7 +13,7 @@ namespace Nexus.Services;
 internal interface IDataControllerService
 {
     Task<IDataSourceController> GetDataSourceControllerAsync(
-        InternalDataSourceRegistration registration,
+        Pipeline pipeline,
         CancellationToken cancellationToken);
 
     Task<IDataWriterController> GetDataWriterControllerAsync(
@@ -44,13 +44,15 @@ internal class DataControllerService(
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
 
     public async Task<IDataSourceController> GetDataSourceControllerAsync(
-        InternalDataSourceRegistration registration,
+        Pipeline pipeline,
         CancellationToken cancellationToken)
     {
-        var logger1 = _loggerFactory.CreateLogger<DataSourceController>();
-        var logger2 = _loggerFactory.CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
+        var logger = _loggerFactory.CreateLogger<DataSourceController>();
 
-        var dataSource = _extensionHive.GetInstance<IDataSource>(registration.Type);
+        var dataSources = pipeline.Registrations
+            .Select(registration => _extensionHive.GetInstance<IDataSource>(registration.Type))
+            .ToArray();
+
         var requestConfiguration = GetRequestConfiguration();
 
         var clonedSystemConfiguration = _appState.Project.SystemConfiguration is null
@@ -58,20 +60,20 @@ internal class DataControllerService(
             : _appState.Project.SystemConfiguration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
 
         var controller = new DataSourceController(
-            dataSource,
-            registration,
+            dataSources,
+            pipeline.Registrations,
             systemConfiguration: clonedSystemConfiguration,
             requestConfiguration: requestConfiguration,
             _processingService,
             _cacheService,
             _dataOptions,
-            logger1);
+            logger);
 
-        var actualCatalogCache = _appState.CatalogState.Cache.GetOrAdd(
-            registration,
+        var catalogCache = _appState.CatalogState.Cache.GetOrAdd(
+            pipeline,
             registration => new ConcurrentDictionary<string, ResourceCatalog>());
 
-        await controller.InitializeAsync(actualCatalogCache, logger2, cancellationToken);
+        await controller.InitializeAsync(catalogCache, _loggerFactory, cancellationToken);
 
         return controller;
     }

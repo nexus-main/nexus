@@ -11,18 +11,20 @@ namespace Nexus.Services;
 
 internal interface IPipelineService
 {
-    Task<Guid> CreateAsync(
+    Task<Guid> PutAsync(
         string userId,
-        DataSourceRegistration[] pipeline);
+        Pipeline pipeline);
 
     bool TryGet(
         string userId,
-        Guid pieplineId,
-        [NotNullWhen(true)] out DataSourceRegistration[]? token);
+        Guid pipelineId,
+        [NotNullWhen(true)] out Pipeline? token);
 
     Task DeleteAsync(string userId, Guid pipelineId);
 
-    Task<IReadOnlyDictionary<Guid, DataSourceRegistration[]>> GetAllAsync(string userId);
+    Task<List<(string, IReadOnlyDictionary<Guid, Pipeline>)>> GetAllAsync();
+
+    Task<IReadOnlyDictionary<Guid, Pipeline>> GetAllForUserAsync(string userId);
 }
 
 internal class PipelineService(IDatabaseService databaseService)
@@ -30,13 +32,13 @@ internal class PipelineService(IDatabaseService databaseService)
 {
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, DataSourceRegistration[]>> _cache = new();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, Pipeline>> _cache = new();
 
     private readonly IDatabaseService _databaseService = databaseService;
 
-    public Task<Guid> CreateAsync(
+    public Task<Guid> PutAsync(
         string userId,
-        DataSourceRegistration[] pipeline)
+        Pipeline pipeline)
     {
         return InteractWithPipelineMapAsync(userId, pipelineMap =>
         {
@@ -54,12 +56,12 @@ internal class PipelineService(IDatabaseService databaseService)
 
     public bool TryGet(
         string userId,
-        Guid pieplineId,
-        [NotNullWhen(true)] out DataSourceRegistration[]? pipeline)
+        Guid pipelineId,
+        [NotNullWhen(true)] out Pipeline? pipeline)
     {
         var pipelineMap = GetPipelineMap(userId);
 
-        return pipelineMap.TryGetValue(pieplineId, out pipeline);
+        return pipelineMap.TryGetValue(pipelineId, out pipeline);
     }
 
     public Task DeleteAsync(string userId, Guid pipelineId)
@@ -74,16 +76,29 @@ internal class PipelineService(IDatabaseService databaseService)
         }, saveChanges: true);
     }
 
-    public Task<IReadOnlyDictionary<Guid, DataSourceRegistration[]>> GetAllAsync(
+    public async Task<List<(string, IReadOnlyDictionary<Guid, Pipeline>)>> GetAllAsync()
+    {
+        var result = new List<(string, IReadOnlyDictionary<Guid, Pipeline>)>();
+
+        foreach (var userId in _databaseService.EnumerateUsers())
+        {
+            var pipeline = await GetAllForUserAsync(userId);
+            result.Add((userId, pipeline));
+        }
+
+        return result;
+    }
+
+    public Task<IReadOnlyDictionary<Guid, Pipeline>> GetAllForUserAsync(
         string userId)
     {
         return InteractWithPipelineMapAsync(
             userId,
-            pipelineMap => (IReadOnlyDictionary<Guid, DataSourceRegistration[]>)pipelineMap,
+            pipelineMap => (IReadOnlyDictionary<Guid, Pipeline>)pipelineMap,
             saveChanges: false);
     }
 
-    private ConcurrentDictionary<Guid, DataSourceRegistration[]> GetPipelineMap(
+    private ConcurrentDictionary<Guid, Pipeline> GetPipelineMap(
         string userId)
     {
         return _cache.GetOrAdd(
@@ -92,20 +107,20 @@ internal class PipelineService(IDatabaseService databaseService)
             {
                 if (_databaseService.TryReadPipelineMap(userId, out var jsonString))
                 {
-                    return JsonSerializer.Deserialize<ConcurrentDictionary<Guid, DataSourceRegistration[]>>(jsonString)
+                    return JsonSerializer.Deserialize<ConcurrentDictionary<Guid, Pipeline>>(jsonString)
                         ?? throw new Exception("pipelineMap is null");
                 }
 
                 else
                 {
-                    return new ConcurrentDictionary<Guid, DataSourceRegistration[]>();
+                    return new ConcurrentDictionary<Guid, Pipeline>();
                 }
             });
     }
 
     private async Task<T> InteractWithPipelineMapAsync<T>(
         string userId,
-        Func<ConcurrentDictionary<Guid, DataSourceRegistration[]>, T> func,
+        Func<ConcurrentDictionary<Guid, Pipeline>, T> func,
         bool saveChanges)
     {
         await _semaphoreSlim.WaitAsync().ConfigureAwait(false);

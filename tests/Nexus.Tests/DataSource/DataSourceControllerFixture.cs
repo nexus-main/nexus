@@ -13,7 +13,7 @@ public class DataSourceControllerFixture
     {
         DataSource = new Sample();
 
-        Registration = new InternalDataSourceRegistration(
+        Registration = new DataSourceRegistration(
             Id: Guid.NewGuid(),
             Type: typeof(Sample).FullName!,
             ResourceLocator: default,
@@ -22,5 +22,5 @@ public class DataSourceControllerFixture
 
     internal IDataSource DataSource { get; }
 
-    internal InternalDataSourceRegistration Registration { get; }
+    internal DataSourceRegistration Registration { get; }
 }

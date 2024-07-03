@@ -13,8 +13,7 @@ namespace Nexus.Sources;
     "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Sources/Sample.cs")]
 internal class Sample : IDataSource
 {
-    public static Guid RegistrationId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
-
+    public static Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
     private static readonly double[] DATA =
     [
         6.5,
@@ -114,11 +113,13 @@ internal class Sample : IDataSource
             return Task.FromResult(Array.Empty<CatalogRegistration>());
     }
 
-    public Task<ResourceCatalog> GetCatalogAsync(
-        string catalogId,
+    public Task<ResourceCatalog> EnrichCatalogAsync(
+        ResourceCatalog catalog,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Sample.LoadCatalog(catalogId));
+        throw new Exception();
+
+        // return Task.FromResult(LoadCatalog(catalogId));
     }
 
     public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(

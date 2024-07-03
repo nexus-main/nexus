@@ -19,7 +19,7 @@ internal interface IDataSourceController : IDisposable
 {
     Task InitializeAsync(
         ConcurrentDictionary<string, ResourceCatalog> catalogs,
-        ILogger logger,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken);
 
     Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(
@@ -41,11 +41,6 @@ internal interface IDataSourceController : IDisposable
         string catalogId,
         CancellationToken cancellationToken);
 
-    Task<bool> IsDataOfDayAvailableAsync(
-        string catalogId,
-        DateTime day,
-        CancellationToken cancellationToken);
-
     Task ReadAsync(
         DateTime begin,
         DateTime end,
@@ -57,8 +52,8 @@ internal interface IDataSourceController : IDisposable
 }
 
 internal class DataSourceController(
-    IDataSource dataSource,
-    InternalDataSourceRegistration registration,
+    IDataSource[] dataSources,
+    DataSourceRegistration[] registrations,
     IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
     IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
     IProcessingService processingService,
@@ -67,13 +62,16 @@ internal class DataSourceController(
     ILogger<DataSourceController> logger) : IDataSourceController
 {
     private readonly IProcessingService _processingService = processingService;
+
     private readonly ICacheService _cacheService = cacheService;
+
     private readonly DataOptions _dataOptions = dataOptions;
+
     private ConcurrentDictionary<string, ResourceCatalog> _catalogCache = default!;
 
-    private IDataSource DataSource { get; } = dataSource;
+    private IDataSource[] DataSources { get; } = dataSources;
 
-    private InternalDataSourceRegistration DataSourceRegistration { get; } = registration;
+    private DataSourceRegistration[] Registrations { get; } = registrations;
 
     private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; } = systemConfiguration;
 
@@ -83,32 +81,46 @@ internal class DataSourceController(
 
     public async Task InitializeAsync(
         ConcurrentDictionary<string, ResourceCatalog> catalogCache,
-        ILogger logger,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         _catalogCache = catalogCache;
 
-        var clonedSourceConfiguration = DataSourceRegistration.Configuration is null
-            ? default
-            : DataSourceRegistration.Configuration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
+        foreach (var (dataSource, registration) in DataSources
+            .Zip(Registrations))
+        {
+            var logger = loggerFactory
+                .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
 
-        var context = new DataSourceContext(
-            ResourceLocator: DataSourceRegistration.ResourceLocator,
-            SystemConfiguration: SystemConfiguration,
-            SourceConfiguration: clonedSourceConfiguration,
-            RequestConfiguration: RequestConfiguration);
+            var clonedSourceConfiguration = registration.Configuration is null
+                ? default
+                : registration.Configuration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
 
-        await DataSource.SetContextAsync(context, logger, cancellationToken);
+            var context = new DataSourceContext(
+                ResourceLocator: registration.ResourceLocator,
+                SystemConfiguration: SystemConfiguration,
+                SourceConfiguration: clonedSourceConfiguration,
+                RequestConfiguration: RequestConfiguration);
+
+            await dataSource.SetContextAsync(context, logger, cancellationToken);
+        }
     }
 
     public async Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(
         string path,
         CancellationToken cancellationToken)
     {
-        var catalogRegistrations = await DataSource
-            .GetCatalogRegistrationsAsync(path, cancellationToken);
+        // collect all catalog registrations
+        var catalogRegistrations = new List<CatalogRegistration>();
 
-        for (int i = 0; i < catalogRegistrations.Length; i++)
+        foreach (var dataSource in DataSources)
+        {
+            var newCatalogRegistrations = await dataSource.GetCatalogRegistrationsAsync(path, cancellationToken);
+            catalogRegistrations.AddRange(newCatalogRegistrations);
+        }
+
+        // validation and sanitization
+        for (int i = 0; i < catalogRegistrations.Count; i++)
         {
             // absolute
             if (catalogRegistrations[i].Path.StartsWith('/'))
@@ -130,7 +142,9 @@ internal class DataSourceController(
         if (catalogRegistrations.Any(catalogRegistration => !catalogRegistration.Path.StartsWith(path)))
             throw new Exception($"The returned catalog identifier is not a child of {path}.");
 
-        return catalogRegistrations;
+        return catalogRegistrations
+            .DistinctBy(catalogRegistration => catalogRegistration.Path)
+            .ToArray();
     }
 
     public async Task<ResourceCatalog> GetCatalogAsync(
@@ -139,7 +153,12 @@ internal class DataSourceController(
     {
         Logger.LogDebug("Load catalog {CatalogId}", catalogId);
 
-        var catalog = await DataSource.GetCatalogAsync(catalogId, cancellationToken);
+        var catalog = new ResourceCatalog(catalogId);
+
+        foreach (var dataSource in DataSources)
+        {
+            catalog = await dataSource.EnrichCatalogAsync(catalog, cancellationToken);
+        }
 
         if (catalog.Id != catalogId)
             throw new Exception("The id of the returned catalog does not match the requested catalog id.");
@@ -213,7 +232,7 @@ internal class DataSourceController(
 
         else
         {
-            var type = DataSource
+            var type = DataSources
                 .GetType();
 
             var nexusVersion = typeof(Program).Assembly
@@ -263,50 +282,95 @@ internal class DataSourceController(
         TimeSpan step,
         CancellationToken cancellationToken)
     {
+        var stepCount = (int)Math.Ceiling((end - begin).Ticks / (double)step.Ticks);
+        var availabilities = new double[DataSources.Length, stepCount];
 
-        var count = (int)Math.Ceiling((end - begin).Ticks / (double)step.Ticks);
-        var availabilities = new double[count];
-
-        var tasks = new List<Task>(capacity: count);
-        var currentBegin = begin;
-
-        for (int i = 0; i < count; i++)
+        for (int dataSourceIndex = 0; dataSourceIndex < DataSources.Length; dataSourceIndex++)
         {
-            var currentEnd = currentBegin + step;
-            var currentBegin_captured = currentBegin;
-            var i_captured = i;
+            var tasks = new List<Task>(capacity: stepCount);
+            var currentBegin = begin;
+            var dataSource = DataSources[dataSourceIndex];
 
-            tasks.Add(Task.Run(async () =>
+            for (int i = 0; i < stepCount; i++)
             {
-                var availability = await DataSource.GetAvailabilityAsync(catalogId, currentBegin_captured, currentEnd, cancellationToken);
-                availabilities[i_captured] = availability;
-            }, cancellationToken));
+                var currentEnd = currentBegin + step;
+                var currentBegin_captured = currentBegin;
+                var i_captured = i;
 
-            currentBegin = currentEnd;
+                tasks.Add(Task.Run(async () =>
+                {
+                    var availability = await dataSource.GetAvailabilityAsync(catalogId, currentBegin_captured, currentEnd, cancellationToken);
+                    availabilities[dataSourceIndex, i_captured] = availability;
+                }, cancellationToken));
+
+                currentBegin = currentEnd;
+            }
+
+            await Task.WhenAll(tasks);
+
         }
 
-        await Task.WhenAll(tasks);
+        // calculate average (but ignore double.NaN values)
+        var averagedAvailabilities = new double[DataSources.Length];
 
-        return new CatalogAvailability(Data: availabilities);
+        for (int i = 0; i < averagedAvailabilities.Length; i++)
+        {
+            var sum = double.NaN;
+            var count = 0;
+
+            for (int j = 0; i < stepCount; i++)
+            {
+                var value = availabilities[i, j];
+
+                sum = (sum, value) switch
+                {
+                    /* NaNs everywhere */
+                    (double.NaN, double.NaN) => double.NaN,
+
+                    /* Replace sum with value */
+                    (double.NaN, _) => value,
+
+                    /* Do not change sum */
+                    (_, double.NaN) => sum,
+
+                    /* Add value to sum */
+                    _ => sum + value
+                };
+
+                if (value != double.NaN)
+                    count++;
+            }
+
+            averagedAvailabilities[i] = count == 0
+                ? averagedAvailabilities[i] = sum
+                : averagedAvailabilities[i] = sum / count;
+        }
+
+        return new CatalogAvailability(Data: averagedAvailabilities);
     }
 
     public async Task<CatalogTimeRange> GetTimeRangeAsync(
         string catalogId,
         CancellationToken cancellationToken)
     {
-        (var begin, var end) = await DataSource.GetTimeRangeAsync(catalogId, cancellationToken);
+        var begin = DateTime.MaxValue;
+        var end = DateTime.MinValue;
+
+        foreach (var dataSource in DataSources)
+        {
+            (var currentBegin, var currentEnd) = await dataSource
+                .GetTimeRangeAsync(catalogId, cancellationToken);
+
+            if (currentBegin < begin)
+                begin = currentBegin;
+
+            if (currentEnd > end)
+                end = currentEnd;
+        }
 
         return new CatalogTimeRange(
             Begin: begin,
             End: end);
-    }
-
-    public async Task<bool> IsDataOfDayAvailableAsync(
-        string catalogId,
-        DateTime day,
-        CancellationToken cancellationToken)
-    {
-        return (await DataSource.GetAvailabilityAsync(catalogId, day, day.AddDays(1), cancellationToken)) > 0;
     }
 
     public async Task ReadAsync(
@@ -453,13 +517,16 @@ internal class DataSourceController(
 
             try
             {
-                await DataSource.ReadAsync(
-                    begin,
-                    end,
-                    readRequests,
-                    readDataHandler,
-                    progress,
-                    cancellationToken);
+                foreach (var dataSource in DataSources)
+                {
+                    await dataSource.ReadAsync(
+                        begin,
+                        end,
+                        readRequests,
+                        readDataHandler,
+                        progress,
+                        cancellationToken);
+                }
             }
             catch (OutOfMemoryException)
             {
@@ -594,13 +661,16 @@ internal class DataSourceController(
                 };
 
                 /* read */
-                await DataSource.ReadAsync(
-                    interval.Begin,
-                    interval.End,
-                    [slicedReadRequest],
-                    readDataHandler,
-                    progress,
-                    cancellationToken);
+                foreach (var dataSource in DataSources)
+                {
+                    await dataSource.ReadAsync(
+                        interval.Begin,
+                        interval.End,
+                        [slicedReadRequest],
+                        readDataHandler,
+                        progress,
+                        cancellationToken);
+                }
 
                 /* process */
                 var slicedTargetBuffer = targetBuffer.Slice(
@@ -708,13 +778,16 @@ internal class DataSourceController(
                 : (int)(targetSamplePeriod.Ticks / sourceSamplePeriod.Ticks);
 
             /* read */
-            await DataSource.ReadAsync(
-                roundedBegin,
-                roundedEnd,
-                [readRequest],
-                readDataHandler,
-                progress,
-                cancellationToken);
+            foreach (var dataSource in DataSources)
+            {
+                await dataSource.ReadAsync(
+                    roundedBegin,
+                    roundedEnd,
+                    [readRequest],
+                    readDataHandler,
+                    progress,
+                    cancellationToken);
+            }
 
             /* process */
             var offset = NexusUtilities.Scale(begin - roundedBegin, targetSamplePeriod);
@@ -1061,8 +1134,11 @@ internal class DataSourceController(
         {
             if (disposing)
             {
-                var disposable = DataSource as IDisposable;
-                disposable?.Dispose();
+                foreach (var dataSource in DataSources)
+                {
+                    var disposable = dataSource as IDisposable;
+                    disposable?.Dispose();
+                }
             }
 
             _disposedValue = true;

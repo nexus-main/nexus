@@ -28,7 +28,7 @@ public class DataControllerServiceTests
             .Setup(extensionHive => extensionHive.GetInstance<IDataSource>(It.IsAny<string>()))
             .Returns(new Sample());
 
-        var registration = new InternalDataSourceRegistration(
+        var registration = new DataSourceRegistration(
             Id: Guid.NewGuid(),
             Type: default!,
             new Uri("A", UriKind.Relative),
