@@ -39,8 +39,8 @@ public abstract class SimpleDataSource : IDataSource
         CancellationToken cancellationToken);
 
     /// <inheritdoc />
-    public abstract Task<ResourceCatalog> GetCatalogAsync(
-        string catalogId,
+    public abstract Task<ResourceCatalog> EnrichCatalogAsync(
+        ResourceCatalog catalog,
         CancellationToken cancellationToken);
 
     /// <inheritdoc />

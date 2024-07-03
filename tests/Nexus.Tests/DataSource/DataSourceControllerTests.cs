@@ -72,28 +72,6 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     }
 
     [Fact]
-    public async Task CanCheckIsDataOfDayAvailable()
-    {
-        using var controller = new DataSourceController(
-            _fixture.DataSource,
-            _fixture.Registration,
-            default!,
-            default!,
-            default!,
-            default!,
-            default!,
-            NullLogger<DataSourceController>.Instance);
-
-        await controller.InitializeAsync(default!, default!, CancellationToken.None);
-
-        var day = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
-        var catalogId = Sample.LocalCatalogId;
-        var actual = await controller.IsDataOfDayAvailableAsync(catalogId, day, CancellationToken.None);
-
-        Assert.True(actual);
-    }
-
-    [Fact]
     public async Task CanRead()
     {
         using var controller = new DataSourceController(
@@ -479,7 +457,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             .Returns(Task.FromResult(uncachedIntervals));
 
         /* DataSourceController */
-        var registration = new InternalDataSourceRegistration(
+        var registration = new DataSourceRegistration(
             Id: Guid.NewGuid(),
             "a",
             new Uri("http://xyz"),

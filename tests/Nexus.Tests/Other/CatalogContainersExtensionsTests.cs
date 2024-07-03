@@ -110,7 +110,7 @@ public class CatalogContainersExtensionsTests
 
         Mock.Get(dataControllerService)
            .Setup(dataControllerService => dataControllerService.GetDataSourceControllerAsync(
-               It.IsAny<InternalDataSourceRegistration>(),
+               It.IsAny<DataSourceRegistration>(),
                It.IsAny<CancellationToken>()))
            .ReturnsAsync(dataSourceController);
 

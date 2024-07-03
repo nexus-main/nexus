@@ -27,7 +27,7 @@ public class SampleDataSourceTests
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
         // act
-        var actual = await dataSource.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None);
+        var actual = await dataSource.EnrichCatalogAsync(Sample.LocalCatalogId, CancellationToken.None);
 
         // assert
         var actualIds = actual.Resources!.Select(resource => resource.Id).ToList();
@@ -99,7 +99,7 @@ public class SampleDataSourceTests
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
-        var catalog = await dataSource.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None);
+        var catalog = await dataSource.EnrichCatalogAsync(Sample.LocalCatalogId, CancellationToken.None);
         var resource = catalog.Resources![0];
         var representation = resource.Representations![0];
         var catalogItem = new CatalogItem(catalog, resource, representation, Parameters: default);

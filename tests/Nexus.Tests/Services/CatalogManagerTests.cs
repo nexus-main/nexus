@@ -34,8 +34,8 @@ public class CatalogManagerTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<InternalDataSourceRegistration>(), It.IsAny<CancellationToken>()))
-            .Returns<InternalDataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourceRegistration>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
             {
                 var dataSourceController = Mock.Of<IDataSourceController>();
 
@@ -60,19 +60,19 @@ public class CatalogManagerTests
             });
 
         /* appState */
-        var registrationA = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "A", new Uri("", UriKind.Relative), default);
-        var registrationB = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "B", new Uri("", UriKind.Relative), default);
-        var registrationC = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "C", new Uri("", UriKind.Relative), default);
+        var registrationA = new DataSourceRegistration(Id: Guid.NewGuid(), Type: "A", new Uri("", UriKind.Relative), default);
+        var registrationB = new DataSourceRegistration(Id: Guid.NewGuid(), Type: "B", new Uri("", UriKind.Relative), default);
+        var registrationC = new DataSourceRegistration(Id: Guid.NewGuid(), Type: "C", new Uri("", UriKind.Relative), default);
 
         var appState = new AppState()
         {
             Project = new NexusProject(default!, default!, new Dictionary<string, UserConfiguration>()
             {
-                ["UserA"] = new UserConfiguration(new Dictionary<Guid, InternalDataSourceRegistration>()
+                ["UserA"] = new UserConfiguration(new Dictionary<Guid, DataSourceRegistration>()
                 {
                     [Guid.NewGuid()] = registrationA
                 }),
-                ["UserB"] = new UserConfiguration(new Dictionary<Guid, InternalDataSourceRegistration>()
+                ["UserB"] = new UserConfiguration(new Dictionary<Guid, DataSourceRegistration>()
                 {
                     [Guid.NewGuid()] = registrationB,
                     [Guid.NewGuid()] = registrationC
@@ -184,34 +184,34 @@ public class CatalogManagerTests
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/A" && container.DataSourceRegistration == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A" && container.Pipeline == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/A" && container.DataSourceRegistration == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/B/A" && container.Pipeline == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/B" && container.DataSourceRegistration == registrationB && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/B/B" && container.Pipeline == registrationB && container.Owner!.Identity!.Name! == userB.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/B2" && container.DataSourceRegistration == registrationB && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/B/B2" && container.Pipeline == registrationB && container.Owner!.Identity!.Name! == userB.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/C/A" && container.DataSourceRegistration == registrationC && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/C/A" && container.Pipeline == registrationC && container.Owner!.Identity!.Name! == userB.Name);
 
         // assert 'A'
         Assert.Equal(2, ACatalogContainers.Length);
 
         Assert.Contains(
             ACatalogContainers,
-            container => container.Id == "/A/B" && container.DataSourceRegistration == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A/B" && container.Pipeline == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             ACatalogContainers,
-            container => container.Id == "/A/C/A" && container.DataSourceRegistration == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A/C/A" && container.Pipeline == registrationA && container.Owner!.Identity!.Name! == userA.Name);
     }
 
     [Fact]
@@ -232,8 +232,8 @@ public class CatalogManagerTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<InternalDataSourceRegistration>(), It.IsAny<CancellationToken>()))
-            .Returns<InternalDataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourceRegistration>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
             {
                 var dataSourceController = Mock.Of<IDataSourceController>();
 
@@ -257,7 +257,7 @@ public class CatalogManagerTests
                 .Build());
 
         /* data source registrations */
-        var registration = new InternalDataSourceRegistration(
+        var registration = new DataSourceRegistration(
             Id: Guid.NewGuid(),
             Type: "A",
             ResourceLocator: default,

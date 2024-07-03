@@ -22,8 +22,9 @@ namespace Nexus.Controllers;
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class SourcesController(
     AppState appState,
-    AppStateManager appStateManager,
-    IExtensionHive extensionHive) : ControllerBase
+    IExtensionHive extensionHive,
+    IPipelineService pipelineService
+) : ControllerBase
 {
     // GET      /api/sources/descriptions
     // GET      /api/sources/registrations
@@ -31,8 +32,10 @@ internal class SourcesController(
     // DELETE   /api/sources/registrations/{registrationId}
 
     private readonly AppState _appState = appState;
-    private readonly AppStateManager _appStateManager = appStateManager;
+
     private readonly IExtensionHive _extensionHive = extensionHive;
+
+    private readonly IPipelineService _pipelineService = pipelineService;
 
     /// <summary>
     /// Gets the list of source descriptions.
@@ -45,82 +48,51 @@ internal class SourcesController(
     }
 
     /// <summary>
-    /// Gets the list of data source registrations.
+    /// Gets the list of data source pipelines.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <returns></returns>
-    [HttpGet("registrations")]
-    public ActionResult<IDictionary<Guid, DataSourceRegistration[]>> GetRegistrations(
+    [HttpGet("pipelines")]
+    public async Task<ActionResult<IDictionary<Guid, Pipeline>>> GetPipelinesAsync(
         [FromQuery] string? userId = default)
     {
         if (TryAuthenticate(userId, out var actualUserId, out var response))
-        {
-            if (_appState.Project.UserConfigurations.TryGetValue(actualUserId, out var userConfiguration))
-                return Ok(userConfiguration.DataSourceRegistrations
-                    .ToDictionary(
-                        entry => entry.Key,
-                        entry => new DataSourceRegistration(
-                            entry.Value.Type,
-                            entry.Value.ResourceLocator,
-                            entry.Value.Configuration,
-                            entry.Value.InfoUrl,
-                            entry.Value.ReleasePattern,
-                            entry.Value.VisibilityPattern)));
-
-            else
-                return Ok(new Dictionary<Guid, DataSourceRegistration[]>());
-        }
+            return Ok(await _pipelineService.GetAllForUserAsync(actualUserId));
 
         else
-        {
             return response;
-        }
     }
 
     /// <summary>
-    /// Creates a data source registration.
+    /// Creates a data source pipeline.
     /// </summary>
-    /// <param name="registration">The registration to create.</param>
+    /// <param name="pipeline">The pipeline to create.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    [HttpPost("registrations")]
-    public async Task<ActionResult<Guid>> CreateRegistrationAsync(
-        DataSourceRegistration registration,
+    [HttpPost("pipelines")]
+    public async Task<ActionResult<Guid>> CreatePipelineAsync(
+        Pipeline pipeline,
         [FromQuery] string? userId = default)
     {
         if (TryAuthenticate(userId, out var actualUserId, out var response))
-        {
-            var internalRegistration = new InternalDataSourceRegistration(
-                Id: Guid.NewGuid(),
-                registration.Type,
-                registration.ResourceLocator,
-                registration.Configuration,
-                registration.InfoUrl,
-                registration.ReleasePattern,
-                registration.VisibilityPattern);
-
-            await _appStateManager.PutDataSourceRegistrationAsync(actualUserId, internalRegistration);
-            return Ok(internalRegistration.Id);
-        }
+            return Ok(await _pipelineService.PutAsync(actualUserId, pipeline));
 
         else
-        {
             return response;
-        }
     }
 
     /// <summary>
-    /// Deletes a data source registration.
+    /// Deletes a data source pipeline.
     /// </summary>
-    /// <param name="registrationId">The identifier of the registration.</param>
+    /// <param name="pipelineId">The identifier of the pipeline.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    [HttpDelete("registrations/{registrationId}")]
-    public async Task<ActionResult> DeleteRegistrationAsync(
-        Guid registrationId,
+    [HttpDelete("pipelines/{registrationId}")]
+    public async Task<ActionResult> DeletePipelineAsync(
+        Guid pipelineId,
         [FromQuery] string? userId = default)
     {
         if (TryAuthenticate(userId, out var actualUserId, out var response))
         {
-            await _appStateManager.DeleteDataSourceRegistrationAsync(actualUserId, registrationId);
+            await _pipelineService.DeleteAsync(actualUserId, pipelineId);
             return Ok();
         }
 

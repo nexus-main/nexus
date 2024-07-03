@@ -29,8 +29,8 @@ public class DataServiceTests
         var samplePeriod = TimeSpan.FromSeconds(1);
         var exportId = Guid.NewGuid();
 
-        var registration1 = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "A", new Uri("a", UriKind.Relative), default, default);
-        var registration2 = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "B", new Uri("a", UriKind.Relative), default, default);
+        var registration1 = new DataSourceRegistration(Id: Guid.NewGuid(), Type: "A", new Uri("a", UriKind.Relative), default, default);
+        var registration2 = new DataSourceRegistration(Id: Guid.NewGuid(), Type: "B", new Uri("a", UriKind.Relative), default, default);
 
         // DI services
         var dataSourceController1 = Mock.Of<IDataSourceController>();
@@ -55,8 +55,8 @@ public class DataServiceTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<InternalDataSourceRegistration>(), It.IsAny<CancellationToken>()))
-            .Returns<InternalDataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourceRegistration>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
             {
                 if (registration.Type == registration1.Type)
                     return Task.FromResult(dataSourceController1);

@@ -24,8 +24,9 @@ internal class CatalogContainer
     public CatalogContainer(
         CatalogRegistration catalogRegistration,
         ClaimsPrincipal? owner,
-        InternalDataSourceRegistration dataSourceRegistration,
-        InternalPackageReference packageReference,
+        Guid pipelineId,
+        Pipeline pipeline,
+        InternalPackageReference[] packageReferences,
         CatalogMetadata metadata,
         ICatalogManager catalogManager,
         IDatabaseService databaseService,
@@ -35,8 +36,9 @@ internal class CatalogContainer
         Title = catalogRegistration.Title;
         IsTransient = catalogRegistration.IsTransient;
         Owner = owner;
-        DataSourceRegistration = dataSourceRegistration;
-        PackageReference = packageReference;
+        PipelineId = pipelineId;
+        Pipeline = pipeline;
+        PackageReferences = packageReferences;
         Metadata = metadata;
 
         _catalogManager = catalogManager;
@@ -48,16 +50,20 @@ internal class CatalogContainer
     }
 
     public string Id { get; }
+
     public string? Title { get; }
+
     public bool IsTransient { get; }
 
     public ClaimsPrincipal? Owner { get; }
 
     public string PhysicalName => Id.TrimStart('/').Replace('/', '_');
 
-    public InternalDataSourceRegistration DataSourceRegistration { get; }
+    public Guid PipelineId { get; }
 
-    public InternalPackageReference PackageReference { get; }
+    public Pipeline Pipeline { get; }
+
+    public InternalPackageReference[] PackageReferences { get; }
 
     public CatalogMetadata Metadata { get; internal set; }
 
@@ -67,6 +73,7 @@ internal class CatalogContainer
     {
         return new CatalogContainer(
             new CatalogRegistration(RootCatalogId, string.Empty),
+            default!,
             default!,
             default!,
             default!,
@@ -141,7 +148,7 @@ internal class CatalogContainer
             var catalogBegin = default(DateTime);
             var catalogEnd = default(DateTime);
 
-            using var controller = await _dataControllerService.GetDataSourceControllerAsync(DataSourceRegistration, cancellationToken);
+            using var controller = await _dataControllerService.GetDataSourceControllerAsync(Pipeline, cancellationToken);
             var catalog = await controller.GetCatalogAsync(Id, cancellationToken);
 
             // get begin and end of project

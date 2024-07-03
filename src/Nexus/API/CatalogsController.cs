@@ -172,12 +172,22 @@ internal class CatalogsController(
                     var isWritable = AuthUtilities.IsCatalogWritable(childContainer.Id, childContainer.Metadata, User);
 
                     var isReleased = childContainer.Owner is null ||
-                        childContainer.IsReleasable && Regex.IsMatch(id, childContainer.DataSourceRegistration.ReleasePattern ?? "");
+                        childContainer.IsReleasable && Regex.IsMatch(id, childContainer.Pipeline.ReleasePattern ?? "");
 
                     var isVisible =
-                        isReadable || Regex.IsMatch(id, childContainer.DataSourceRegistration.VisibilityPattern ?? "");
+                        isReadable || Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
 
                     var isOwner = childContainer.Owner?.FindFirstValue(Claims.Subject) == User.FindFirstValue(Claims.Subject);
+
+                    var packageReferenceIds = childContainer.PackageReferences
+                        .Select(x => x.Id)
+                        .ToArray();
+
+                    var pipelineInfo = new PipelineInfo(
+                        childContainer.PipelineId,
+                        Types: childContainer.Pipeline.Registrations.Select(x => x.Type).ToArray(),
+                        InfoUrls: childContainer.Pipeline.Registrations.Select(x => x.InfoUrl).ToArray()
+                    );
 
                     return new CatalogInfo(
                         id,
@@ -190,10 +200,8 @@ internal class CatalogsController(
                         isReleased,
                         isVisible,
                         isOwner,
-                        childContainer.DataSourceRegistration.InfoUrl,
-                        childContainer.DataSourceRegistration.Type,
-                        childContainer.DataSourceRegistration.Id,
-                        childContainer.PackageReference.Id
+                        packageReferenceIds,
+                        pipelineInfo
                     );
                 })
                 .ToArray();
@@ -217,7 +225,7 @@ internal class CatalogsController(
 
         var response = ProtectCatalogAsync<CatalogTimeRange>(catalogId, ensureReadable: true, ensureWritable: false, async catalogContainer =>
         {
-            using var dataSource = await _dataControllerService.GetDataSourceControllerAsync(catalogContainer.DataSourceRegistration, cancellationToken);
+            using var dataSource = await _dataControllerService.GetDataSourceControllerAsync(catalogContainer.Pipeline, cancellationToken);
             return await dataSource.GetTimeRangeAsync(catalogContainer.Id, cancellationToken);
         }, cancellationToken);
 
@@ -256,7 +264,7 @@ internal class CatalogsController(
 
         var response = await ProtectCatalogAsync<CatalogAvailability>(catalogId, ensureReadable: true, ensureWritable: false, async catalogContainer =>
         {
-            using var dataSource = await _dataControllerService.GetDataSourceControllerAsync(catalogContainer.DataSourceRegistration, cancellationToken);
+            using var dataSource = await _dataControllerService.GetDataSourceControllerAsync(catalogContainer.Pipeline, cancellationToken);
             return await dataSource.GetAvailabilityAsync(catalogContainer.Id, begin, end, step, cancellationToken);
         }, cancellationToken);
 

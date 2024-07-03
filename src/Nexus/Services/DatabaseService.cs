@@ -19,6 +19,8 @@ internal interface IDatabaseService
     Stream WriteProject();
 
     /* /config/users */
+    IEnumerable<string> EnumerateUsers();
+
     bool TryReadTokenMap(
         string userId,
         [NotNullWhen(true)] out string? tokenMap);
@@ -125,6 +127,12 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     }
 
     /* /config/users */
+    public IEnumerable<string> EnumerateUsers()
+    {
+        return Directory
+            .EnumerateDirectories(Path.Combine(_pathsOptions.Config, "users"));
+    }
+
     public bool TryReadTokenMap(
         string userId,
         [NotNullWhen(true)] out string? tokenMap)
