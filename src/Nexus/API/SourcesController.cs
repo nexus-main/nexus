@@ -50,7 +50,7 @@ internal class SourcesController(
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <returns></returns>
     [HttpGet("registrations")]
-    public ActionResult<IDictionary<Guid, DataSourceRegistration>> GetRegistrations(
+    public ActionResult<IDictionary<Guid, DataSourceRegistration[]>> GetRegistrations(
         [FromQuery] string? userId = default)
     {
         if (TryAuthenticate(userId, out var actualUserId, out var response))
@@ -68,7 +68,7 @@ internal class SourcesController(
                             entry.Value.VisibilityPattern)));
 
             else
-                return Ok(new Dictionary<Guid, DataSourceRegistration>());
+                return Ok(new Dictionary<Guid, DataSourceRegistration[]>());
         }
 
         else

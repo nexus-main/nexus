@@ -26,6 +26,13 @@ internal interface IDatabaseService
     Stream WriteTokenMap(
         string userId);
 
+    bool TryReadPipelineMap(
+        string userId,
+        [NotNullWhen(true)] out string? tokenMap);
+
+    Stream WritePipelineMap(
+        string userId);
+
     /* /catalogs/catalog_id/... */
     bool AttachmentExists(string catalogId, string attachmentId);
     IEnumerable<string> EnumerateAttachments(string catalogId);
@@ -140,11 +147,40 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         string userId)
     {
         var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
-        var tokenFilePath = Path.Combine(folderPath, "tokens.json");
+        var tokensFilePath = Path.Combine(folderPath, "tokens.json");
 
         Directory.CreateDirectory(folderPath);
 
-        return File.Open(tokenFilePath, FileMode.Create, FileAccess.Write);
+        return File.Open(tokensFilePath, FileMode.Create, FileAccess.Write);
+    }
+
+    public bool TryReadPipelineMap(
+       string userId,
+       [NotNullWhen(true)] out string? pipelineMap)
+    {
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
+        var pipelinesFilePath = Path.Combine(folderPath, "pipelines.json");
+
+        pipelineMap = default;
+
+        if (File.Exists(pipelinesFilePath))
+        {
+            pipelineMap = File.ReadAllText(pipelinesFilePath);
+            return true;
+        }
+
+        return false;
+    }
+
+    public Stream WritePipelineMap(
+        string userId)
+    {
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
+        var pipelineFilePath = Path.Combine(folderPath, "pipelines.json");
+
+        Directory.CreateDirectory(folderPath);
+
+        return File.Open(pipelineFilePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /catalogs/catalog_id/... */
