@@ -5,7 +5,6 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace Nexus.DataModel;
@@ -17,6 +16,7 @@ namespace Nexus.DataModel;
 public partial record ResourceCatalog
 {
     private string _id = default!;
+
     private IReadOnlyList<Resource>? _resources;
 
     /// <summary>

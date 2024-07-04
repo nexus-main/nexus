@@ -9,17 +9,21 @@ namespace DataSource;
 
 public class DataSourceControllerFixture
 {
-    public DataSourceControllerFixture()
-    {
-        DataSource = new Sample();
+    internal IDataSource DataSource1 { get; } = new Sample();
 
-        Registration = new DataSourceRegistration(
-            Type: typeof(Sample).FullName!,
-            ResourceLocator: default,
-            Configuration: default);
-    }
+    internal IDataSource DataSource2 { get; } = new TestSource();
 
-    internal IDataSource DataSource { get; }
+    internal DataSourceRegistration Registration1 { get; } = new DataSourceRegistration
+    (
+        Type: typeof(Sample).FullName!,
+        ResourceLocator: default,
+        Configuration: default
+    );
 
-    internal DataSourceRegistration Registration { get; }
+    internal DataSourceRegistration Registration2 { get; } = new DataSourceRegistration
+    (
+        Type: typeof(TestSource).FullName!,
+        ResourceLocator: default,
+        Configuration: default
+    );
 }
