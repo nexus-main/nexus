@@ -30,10 +30,10 @@ public class DataServiceTests
         var exportId = Guid.NewGuid();
 
         var registration1 = new DataSourceRegistration(Type: "A", new Uri("a", UriKind.Relative), default, default);
-        var pipeline1 = new Pipeline([registration1]);
+        var pipeline1 = new DataSourcePipeline([registration1]);
 
         var registration2 = new DataSourceRegistration(Type: "B", new Uri("a", UriKind.Relative), default, default);
-        var pipeline2 = new Pipeline([registration2]);
+        var pipeline2 = new DataSourcePipeline([registration2]);
 
         // DI services
         var dataSourceController1 = Mock.Of<IDataSourceController>();
@@ -58,8 +58,8 @@ public class DataServiceTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<Pipeline>(), It.IsAny<CancellationToken>()))
-            .Returns<Pipeline, CancellationToken>((pipeline, cancellationToken) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourcePipeline>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourcePipeline, CancellationToken>((pipeline, cancellationToken) =>
             {
                 if (pipeline.Registrations[0].Type == registration1.Type)
                     return Task.FromResult(dataSourceController1);

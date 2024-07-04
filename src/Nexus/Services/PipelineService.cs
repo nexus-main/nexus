@@ -13,18 +13,18 @@ internal interface IPipelineService
 {
     Task<Guid> PutAsync(
         string userId,
-        Pipeline pipeline);
+        DataSourcePipeline pipeline);
 
     bool TryGet(
         string userId,
         Guid pipelineId,
-        [NotNullWhen(true)] out Pipeline? token);
+        [NotNullWhen(true)] out DataSourcePipeline? token);
 
     Task DeleteAsync(string userId, Guid pipelineId);
 
-    Task<IReadOnlyDictionary<string, IReadOnlyDictionary<Guid, Pipeline>>> GetAllAsync();
+    Task<IReadOnlyDictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>> GetAllAsync();
 
-    Task<IReadOnlyDictionary<Guid, Pipeline>> GetAllForUserAsync(string userId);
+    Task<IReadOnlyDictionary<Guid, DataSourcePipeline>> GetAllForUserAsync(string userId);
 }
 
 internal class PipelineService(IDatabaseService databaseService)
@@ -32,13 +32,13 @@ internal class PipelineService(IDatabaseService databaseService)
 {
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, Pipeline>> _cache = new();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, DataSourcePipeline>> _cache = new();
 
     private readonly IDatabaseService _databaseService = databaseService;
 
     public Task<Guid> PutAsync(
         string userId,
-        Pipeline pipeline)
+        DataSourcePipeline pipeline)
     {
         return InteractWithPipelineMapAsync(userId, pipelineMap =>
         {
@@ -57,7 +57,7 @@ internal class PipelineService(IDatabaseService databaseService)
     public bool TryGet(
         string userId,
         Guid pipelineId,
-        [NotNullWhen(true)] out Pipeline? pipeline)
+        [NotNullWhen(true)] out DataSourcePipeline? pipeline)
     {
         var pipelineMap = GetPipelineMap(userId);
 
@@ -76,9 +76,9 @@ internal class PipelineService(IDatabaseService databaseService)
         }, saveChanges: true);
     }
 
-    public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<Guid, Pipeline>>> GetAllAsync()
+    public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>> GetAllAsync()
     {
-        var result = new Dictionary<string, IReadOnlyDictionary<Guid, Pipeline>>();
+        var result = new Dictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>();
 
         foreach (var userId in _databaseService.EnumerateUsers())
         {
@@ -89,16 +89,16 @@ internal class PipelineService(IDatabaseService databaseService)
         return result;
     }
 
-    public Task<IReadOnlyDictionary<Guid, Pipeline>> GetAllForUserAsync(
+    public Task<IReadOnlyDictionary<Guid, DataSourcePipeline>> GetAllForUserAsync(
         string userId)
     {
         return InteractWithPipelineMapAsync(
             userId,
-            pipelineMap => (IReadOnlyDictionary<Guid, Pipeline>)pipelineMap,
+            pipelineMap => (IReadOnlyDictionary<Guid, DataSourcePipeline>)pipelineMap,
             saveChanges: false);
     }
 
-    private ConcurrentDictionary<Guid, Pipeline> GetPipelineMap(
+    private ConcurrentDictionary<Guid, DataSourcePipeline> GetPipelineMap(
         string userId)
     {
         return _cache.GetOrAdd(
@@ -107,20 +107,20 @@ internal class PipelineService(IDatabaseService databaseService)
             {
                 if (_databaseService.TryReadPipelineMap(userId, out var jsonString))
                 {
-                    return JsonSerializer.Deserialize<ConcurrentDictionary<Guid, Pipeline>>(jsonString)
+                    return JsonSerializer.Deserialize<ConcurrentDictionary<Guid, DataSourcePipeline>>(jsonString)
                         ?? throw new Exception("pipelineMap is null");
                 }
 
                 else
                 {
-                    return new ConcurrentDictionary<Guid, Pipeline>();
+                    return new ConcurrentDictionary<Guid, DataSourcePipeline>();
                 }
             });
     }
 
     private async Task<T> InteractWithPipelineMapAsync<T>(
         string userId,
-        Func<ConcurrentDictionary<Guid, Pipeline>, T> func,
+        Func<ConcurrentDictionary<Guid, DataSourcePipeline>, T> func,
         bool saveChanges)
     {
         await _semaphoreSlim.WaitAsync().ConfigureAwait(false);

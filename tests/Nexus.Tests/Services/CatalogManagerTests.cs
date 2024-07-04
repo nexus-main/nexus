@@ -34,8 +34,8 @@ public class CatalogManagerTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<Pipeline>(), It.IsAny<CancellationToken>()))
-            .Returns<Pipeline, CancellationToken>((pipeline, cancellationToken) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourcePipeline>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourcePipeline, CancellationToken>((pipeline, cancellationToken) =>
             {
                 var dataSourceController = Mock.Of<IDataSourceController>();
 
@@ -155,17 +155,17 @@ public class CatalogManagerTests
             .Setup(pipelineService => pipelineService.GetAllAsync())
             .ReturnsAsync(() =>
             {
-                return new Dictionary<string, IReadOnlyDictionary<Guid, Pipeline>>
+                return new Dictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>
                 {
-                    ["UserA"] = new Dictionary<Guid, Pipeline>()
+                    ["UserA"] = new Dictionary<Guid, DataSourcePipeline>()
                     {
-                        [Guid.NewGuid()] = new Pipeline([registrationA])
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationA])
                     },
 
-                    ["UserB"] = new Dictionary<Guid, Pipeline>()
+                    ["UserB"] = new Dictionary<Guid, DataSourcePipeline>()
                     {
-                        [Guid.NewGuid()] = new Pipeline([registrationB]),
-                        [Guid.NewGuid()] = new Pipeline([registrationC])
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationB]),
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationC])
                     }
                 };
             });
@@ -237,8 +237,8 @@ public class CatalogManagerTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<Pipeline>(), It.IsAny<CancellationToken>()))
-            .Returns<Pipeline, CancellationToken>((_, _) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourcePipeline>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourcePipeline, CancellationToken>((_, _) =>
             {
                 var dataSourceController = Mock.Of<IDataSourceController>();
 
@@ -267,7 +267,7 @@ public class CatalogManagerTests
             ResourceLocator: default,
             Configuration: default!);
 
-        var pipeline = new Pipeline([registration]);
+        var pipeline = new DataSourcePipeline([registration]);
 
         /* catalog container */
         var catalogContainer = new CatalogContainer(

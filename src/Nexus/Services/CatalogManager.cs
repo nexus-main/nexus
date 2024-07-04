@@ -30,7 +30,7 @@ internal class CatalogManager(
     record CatalogPrototype(
         CatalogRegistration Registration,
         Guid PipelineId,
-        Pipeline Pipeline,
+        DataSourcePipeline Pipeline,
         InternalPackageReference[] PackageReferences,
         CatalogMetadata Metadata,
         ClaimsPrincipal? Owner);
@@ -57,9 +57,9 @@ internal class CatalogManager(
         if (parent.Id == CatalogContainer.RootCatalogId)
         {
             /* load builtin data source */
-            var builtinPipelines = new (Guid, Pipeline)[]
+            var builtinPipelines = new (Guid, DataSourcePipeline)[]
             {
-                (Sample.PipelineId, new Pipeline(Registrations:
+                (Sample.PipelineId, new DataSourcePipeline(Registrations:
                     [
                         new(
                             Type: typeof(Sample).FullName!,

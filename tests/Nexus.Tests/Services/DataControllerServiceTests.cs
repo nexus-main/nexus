@@ -34,7 +34,7 @@ public class DataControllerServiceTests
             new Uri("A", UriKind.Relative),
             Configuration: default);
 
-        var pipeline = new Pipeline([registration]);
+        var pipeline = new DataSourcePipeline([registration]);
 
         var expectedCatalog = Sample.LoadCatalog("/A/B/C");
 

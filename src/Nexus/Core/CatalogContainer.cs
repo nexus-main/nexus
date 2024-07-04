@@ -25,7 +25,7 @@ internal class CatalogContainer
         CatalogRegistration catalogRegistration,
         ClaimsPrincipal? owner,
         Guid pipelineId,
-        Pipeline pipeline,
+        DataSourcePipeline pipeline,
         InternalPackageReference[] packageReferences,
         CatalogMetadata metadata,
         ICatalogManager catalogManager,
@@ -61,7 +61,7 @@ internal class CatalogContainer
 
     public Guid PipelineId { get; }
 
-    public Pipeline Pipeline { get; }
+    public DataSourcePipeline Pipeline { get; }
 
     public InternalPackageReference[] PackageReferences { get; }
 

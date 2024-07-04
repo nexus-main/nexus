@@ -53,7 +53,7 @@ internal class SourcesController(
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <returns></returns>
     [HttpGet("pipelines")]
-    public async Task<ActionResult<IDictionary<Guid, Pipeline>>> GetPipelinesAsync(
+    public async Task<ActionResult<IDictionary<Guid, DataSourcePipeline>>> GetPipelinesAsync(
         [FromQuery] string? userId = default)
     {
         if (TryAuthenticate(userId, out var actualUserId, out var response))
@@ -70,7 +70,7 @@ internal class SourcesController(
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     [HttpPost("pipelines")]
     public async Task<ActionResult<Guid>> CreatePipelineAsync(
-        Pipeline pipeline,
+        DataSourcePipeline pipeline,
         [FromQuery] string? userId = default)
     {
         if (TryAuthenticate(userId, out var actualUserId, out var response))

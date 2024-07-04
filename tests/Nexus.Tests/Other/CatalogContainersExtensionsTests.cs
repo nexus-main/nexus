@@ -110,7 +110,7 @@ public class CatalogContainersExtensionsTests
 
         Mock.Get(dataControllerService)
            .Setup(dataControllerService => dataControllerService.GetDataSourceControllerAsync(
-               It.IsAny<Pipeline>(),
+               It.IsAny<DataSourcePipeline>(),
                It.IsAny<CancellationToken>()))
            .ReturnsAsync(dataSourceController);
 

@@ -13,7 +13,7 @@ namespace Nexus.Services;
 internal interface IDataControllerService
 {
     Task<IDataSourceController> GetDataSourceControllerAsync(
-        Pipeline pipeline,
+        DataSourcePipeline pipeline,
         CancellationToken cancellationToken);
 
     Task<IDataWriterController> GetDataWriterControllerAsync(
@@ -44,7 +44,7 @@ internal class DataControllerService(
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
 
     public async Task<IDataSourceController> GetDataSourceControllerAsync(
-        Pipeline pipeline,
+        DataSourcePipeline pipeline,
         CancellationToken cancellationToken)
     {
         var logger = _loggerFactory.CreateLogger<DataSourceController>();
