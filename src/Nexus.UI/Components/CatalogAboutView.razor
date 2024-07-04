@@ -23,50 +23,53 @@
         else
         {
             <div class="flex flex-col gap-3">
-                @foreach(var description in _extensionDescriptions)
+                @foreach(var (infoUrl, description) in _extensionDescriptions)
                 {
-                    <h1 class="uppercase tracking-widest p-1 mt-2 border-b border-gray-200 text-cyan-700">@description.Type</h1>
+                    if (description is not null)
+                    {
+                        <h1 class="uppercase tracking-widest p-1 mt-2 border-b border-gray-200 text-cyan-700">@description.Type</h1>
 
-                    <div class="flex flex-col p-1 gap-2">
+                        <div class="flex flex-col p-1 gap-2">
 
-                        <div>@description.Version</div>
+                            <div>@description.Version</div>
 
-                        @if (!string.IsNullOrWhiteSpace(description.Description))
-                        {
-                            <span class="text-sm">@description.Description</span>
-                        }
-
-                        @* @if (!string.IsNullOrWhiteSpace(description.DataSourceInfoUrl))
-                        {
-                            <a class="text-gray-700 text-sm hover:text-orange-500 p-1" href="@description.DataSourceInfoUrl"
-                                target="_blank">
-                                <span class="mdi mdi-information-outline text-lg mr-1"></span>
-                                <span>Info Website</span>
-                            </a>
-                        } *@
-
-                        <div class="flex justify-between">
-
-                            @if (!string.IsNullOrWhiteSpace(description.ProjectUrl))
+                            @if (!string.IsNullOrWhiteSpace(description.Description))
                             {
-                                <a class="text-cyan-700 text-sm hover:text-orange-500" href="@description.ProjectUrl"
+                                <span class="text-sm">@description.Description</span>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(infoUrl))
+                            {
+                                <a class="text-cyan-700 text-sm hover:text-orange-500 pr-1" href="@infoUrl"
                                     target="_blank">
-                                    <span class="mdi mdi-web text-lg mr-1"></span>
-                                    <span>Project Website</span>
+                                    <span class="mdi mdi-information-outline text-lg mr-1"></span>
+                                    <span>Info Website</span>
                                 </a>
                             }
 
-                            @if (!string.IsNullOrWhiteSpace(description.RepositoryUrl))
-                            {
-                                <a class="text-cyan-700 text-sm hover:text-orange-500" href="@description.RepositoryUrl"
-                                    target="_blank">
-                                    <span class="mdi mdi-source-branch text-lg mr-1"></span>
-                                    <span>Source Repository</span>
-                                </a>
-                            }
+                            <div class="flex justify-between">
 
+                                @if (!string.IsNullOrWhiteSpace(description.ProjectUrl))
+                                {
+                                    <a class="text-cyan-700 text-sm hover:text-orange-500" href="@description.ProjectUrl"
+                                        target="_blank">
+                                        <span class="mdi mdi-web text-lg mr-1"></span>
+                                        <span>Project Website</span>
+                                    </a>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(description.RepositoryUrl))
+                                {
+                                    <a class="text-cyan-700 text-sm hover:text-orange-500" href="@description.RepositoryUrl"
+                                        target="_blank">
+                                        <span class="mdi mdi-source-branch text-lg mr-1"></span>
+                                        <span>Source Repository</span>
+                                    </a>
+                                }
+
+                            </div>
                         </div>
-                    </div>
+                    }
                 }
             </div>
         }
@@ -75,7 +78,7 @@
 
 @code {
     private bool _isCatalogAboutDialogOpen;
-    private IReadOnlyList<ExtensionDescription>? _extensionDescriptions;
+    private IReadOnlyList<(string?, ExtensionDescription?)>? _extensionDescriptions;
 
     [Parameter]
     public ResourceCatalogViewModel Catalog { get; set; } = default!;
@@ -97,11 +100,13 @@
                 var dataSourceTypes = Catalog.Info.PipelineInfo.Types;
                 var extensionDescriptions = await Client.Sources.GetDescriptionsAsync();
 
-                _extensionDescriptions = extensionDescriptions
-                    .Where(current => dataSourceTypes.Contains(current.Type))
-                    .ToArray();
+                _extensionDescriptions = Catalog.Info.PipelineInfo.Types.Select((type, i) =>
+                {
+                    var infoUrl = Catalog.Info.PipelineInfo.InfoUrls[i];
+                    var extensionDescription = extensionDescriptions.FirstOrDefault(description => description.Type == type);
 
-                _extensionDescriptions = [_extensionDescriptions[0], _extensionDescriptions[0]];
+                    return (infoUrl, extensionDescription);
+                }).ToArray();
             }
             catch (Exception ex)
             {
