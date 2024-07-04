@@ -76,10 +76,8 @@ public class FakeResourceCatalogViewModel : ResourceCatalogViewModel
                     IsReleased: true,
                     IsVisible: true,
                     IsOwner: false,
-                    DataSourceInfoUrl: default,
-                    DataSourceType: "Nexus.FakeSource",
-                    DataSourceRegistrationId: default,
-                    PackageReferenceId: default);
+                    PackageReferenceIds: default!,
+                    PipelineInfo: default!);
 
                 var childCatalogInfosTask = Task.FromResult((IReadOnlyList<CatalogInfo>)group.ToList());
                 result.Add(new FakeResourceCatalogViewModel(childInfo, id, client, appState, childCatalogInfosTask));

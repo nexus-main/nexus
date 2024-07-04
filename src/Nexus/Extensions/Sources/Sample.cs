@@ -117,9 +117,7 @@ internal class Sample : IDataSource
         ResourceCatalog catalog,
         CancellationToken cancellationToken)
     {
-        throw new Exception();
-
-        // return Task.FromResult(LoadCatalog(catalogId));
+        return Task.FromResult(LoadCatalog(catalog.Id));
     }
 
     public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(

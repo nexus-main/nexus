@@ -232,34 +232,45 @@ internal class DataSourceController(
 
         else
         {
-            var type = DataSources
-                .GetType();
-
             var nexusVersion = typeof(Program).Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
                 .InformationalVersion;
 
-            var dataSourceVersion = type.Assembly
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
-                .InformationalVersion;
+            var jsonPipeline = new JsonArray();
 
-            var repositoryUrl = type
-                .GetCustomAttribute<ExtensionDescriptionAttribute>(inherit: false)!
-                .RepositoryUrl;
+            foreach (var dataSource in DataSources)
+            {
+                var type = dataSource.GetType();
 
-            var newResourceProperties = catalogProperties is null
-                ? []
-                : catalogProperties.ToDictionary(entry => entry.Key, entry => entry.Value);
+                var dataSourceVersion = type.Assembly
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+                    .InformationalVersion;
+
+                var repositoryUrl = type
+                    .GetCustomAttribute<ExtensionDescriptionAttribute>(inherit: false)!
+                    .RepositoryUrl;
+
+                var jsonPipelineElement = new JsonObject()
+                {
+                    ["data-source-repository-url"] = repositoryUrl,
+                    ["data-source-version"] = dataSourceVersion
+                };
+
+                jsonPipeline.Add(jsonPipelineElement);
+            }
 
             var originJsonObject = new JsonObject()
             {
                 ["origin"] = new JsonObject()
                 {
                     ["nexus-version"] = nexusVersion,
-                    ["data-source-repository-url"] = repositoryUrl,
-                    ["data-source-version"] = dataSourceVersion,
+                    ["pipeline"] = jsonPipeline
                 }
             };
+
+            var newResourceProperties = catalogProperties is null
+                ? []
+                : catalogProperties.ToDictionary(entry => entry.Key, entry => entry.Value);
 
             newResourceProperties[DATA_SOURCE_KEY] = JsonSerializer.SerializeToElement(originJsonObject);
 
