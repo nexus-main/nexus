@@ -11,6 +11,7 @@ using Nexus.Extensibility;
 using Nexus.Services;
 using Nexus.Sources;
 using Nexus.Writers;
+using System.IO.Pipelines;
 using System.Text.Json;
 using Xunit;
 
@@ -29,10 +30,11 @@ public class DataControllerServiceTests
             .Returns(new Sample());
 
         var registration = new DataSourceRegistration(
-            Id: Guid.NewGuid(),
             Type: default!,
             new Uri("A", UriKind.Relative),
             Configuration: default);
+
+        var pipeline = new Pipeline([registration]);
 
         var expectedCatalog = Sample.LoadCatalog("/A/B/C");
 
@@ -43,7 +45,7 @@ public class DataControllerServiceTests
 
         var appState = new AppState()
         {
-            Project = new NexusProject(default, default!, default!),
+            Project = new NexusProject(default, default!),
             CatalogState = catalogState
         };
 
@@ -81,7 +83,7 @@ public class DataControllerServiceTests
             loggerFactory);
 
         // Act
-        var actual = await dataControllerService.GetDataSourceControllerAsync(registration, CancellationToken.None);
+        var actual = await dataControllerService.GetDataSourceControllerAsync(pipeline, CancellationToken.None);
 
         // Assert
         var actualCatalog = await actual.GetCatalogAsync("/A/B/C", CancellationToken.None);
@@ -100,7 +102,7 @@ public class DataControllerServiceTests
         // Arrange
         var appState = new AppState()
         {
-            Project = new NexusProject(default, default!, default!)
+            Project = new NexusProject(default, default!)
         };
 
         var extensionHive = Mock.Of<IExtensionHive>();

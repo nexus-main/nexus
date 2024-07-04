@@ -22,7 +22,7 @@ internal interface IPipelineService
 
     Task DeleteAsync(string userId, Guid pipelineId);
 
-    Task<List<(string, IReadOnlyDictionary<Guid, Pipeline>)>> GetAllAsync();
+    Task<IReadOnlyDictionary<string, IReadOnlyDictionary<Guid, Pipeline>>> GetAllAsync();
 
     Task<IReadOnlyDictionary<Guid, Pipeline>> GetAllForUserAsync(string userId);
 }
@@ -76,14 +76,14 @@ internal class PipelineService(IDatabaseService databaseService)
         }, saveChanges: true);
     }
 
-    public async Task<List<(string, IReadOnlyDictionary<Guid, Pipeline>)>> GetAllAsync()
+    public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<Guid, Pipeline>>> GetAllAsync()
     {
-        var result = new List<(string, IReadOnlyDictionary<Guid, Pipeline>)>();
+        var result = new Dictionary<string, IReadOnlyDictionary<Guid, Pipeline>>();
 
         foreach (var userId in _databaseService.EnumerateUsers())
         {
-            var pipeline = await GetAllForUserAsync(userId);
-            result.Add((userId, pipeline));
+            var pipelines = await GetAllForUserAsync(userId);
+            result[userId] = pipelines;
         }
 
         return result;

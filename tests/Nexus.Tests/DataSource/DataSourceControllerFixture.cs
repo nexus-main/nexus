@@ -14,7 +14,6 @@ public class DataSourceControllerFixture
         DataSource = new Sample();
 
         Registration = new DataSourceRegistration(
-            Id: Guid.NewGuid(),
             Type: typeof(Sample).FullName!,
             ResourceLocator: default,
             Configuration: default);

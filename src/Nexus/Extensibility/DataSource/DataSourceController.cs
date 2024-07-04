@@ -294,7 +294,7 @@ internal class DataSourceController(
         CancellationToken cancellationToken)
     {
         var stepCount = (int)Math.Ceiling((end - begin).Ticks / (double)step.Ticks);
-        var availabilities = new double[DataSources.Length, stepCount];
+        var availabilities = new double[stepCount, DataSources.Length];
 
         for (int dataSourceIndex = 0; dataSourceIndex < DataSources.Length; dataSourceIndex++)
         {
@@ -311,7 +311,7 @@ internal class DataSourceController(
                 tasks.Add(Task.Run(async () =>
                 {
                     var availability = await dataSource.GetAvailabilityAsync(catalogId, currentBegin_captured, currentEnd, cancellationToken);
-                    availabilities[dataSourceIndex, i_captured] = availability;
+                    availabilities[i_captured, dataSourceIndex] = availability;
                 }, cancellationToken));
 
                 currentBegin = currentEnd;
@@ -322,14 +322,14 @@ internal class DataSourceController(
         }
 
         // calculate average (but ignore double.NaN values)
-        var averagedAvailabilities = new double[DataSources.Length];
+        var averagedAvailabilities = new double[stepCount];
 
         for (int i = 0; i < averagedAvailabilities.Length; i++)
         {
             var sum = double.NaN;
             var count = 0;
 
-            for (int j = 0; i < stepCount; i++)
+            for (int j = 0; j < DataSources.Length; j++)
             {
                 var value = availabilities[i, j];
 

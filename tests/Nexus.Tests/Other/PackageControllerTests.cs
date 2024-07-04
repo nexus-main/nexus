@@ -206,7 +206,7 @@ public class PackageControllerTests
         if (Activator.CreateInstance(dataSourceType) is not IDataSource dataSource)
             throw new Exception("data source is null");
 
-        var exception = await Assert.ThrowsAsync<NotImplementedException>(() => dataSource.EnrichCatalogAsync(string.Empty, CancellationToken.None));
+        var exception = await Assert.ThrowsAsync<NotImplementedException>(() => dataSource.EnrichCatalogAsync(default!, CancellationToken.None));
 
         Assert.Equal(nameof(IDataSource.EnrichCatalogAsync), exception.Message);
 

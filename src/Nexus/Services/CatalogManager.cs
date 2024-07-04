@@ -20,7 +20,6 @@ internal interface ICatalogManager
 }
 
 internal class CatalogManager(
-    AppState appState,
     IDataControllerService dataControllerService,
     IDatabaseService databaseService,
     IServiceProvider serviceProvider,
@@ -36,7 +35,6 @@ internal class CatalogManager(
         CatalogMetadata Metadata,
         ClaimsPrincipal? Owner);
 
-    private readonly AppState _appState = appState;
     private readonly IDataControllerService _dataControllerService = dataControllerService;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly IServiceProvider _serviceProvider = serviceProvider;
