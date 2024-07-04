@@ -30,7 +30,7 @@ internal interface IDatabaseService
 
     bool TryReadPipelineMap(
         string userId,
-        [NotNullWhen(true)] out string? tokenMap);
+        [NotNullWhen(true)] out string? pipelineMap);
 
     Stream WritePipelineMap(
         string userId);
