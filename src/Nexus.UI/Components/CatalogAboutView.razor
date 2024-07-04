@@ -1,14 +1,10 @@
 ﻿@inject ISnackbar Snackbar
 
 <MudTooltip Text="About">
-    <MudIconButton 
-        OnClick="OpenCatalogAboutModal"
-        Icon="@Icons.Material.Outlined.Info" />
+    <MudIconButton OnClick="OpenCatalogAboutModal" Icon="@Icons.Material.Outlined.Info" />
 </MudTooltip>
 
-<UIDialog 
-    @bind-IsVisible="_isCatalogAboutDialogOpen"
-    MaxWidth="MaxWidth.ExtraSmall">
+<UIDialog @bind-IsVisible="_isCatalogAboutDialogOpen" MaxWidth="MaxWidth.ExtraSmall">
 
     <TitleContent>
         <MudText Typo="Typo.h6">
@@ -17,7 +13,7 @@
     </TitleContent>
 
     <DialogContent>
-        @if (_extensionDescription is null)
+        @if (_extensionDescriptions is null || !_extensionDescriptions.Any())
         {
             <div class="h-full flex justify-center items-center text-gray-300">
                 <span class="mr-3 text-4xl mdi mdi-pac-man"></span>
@@ -26,42 +22,51 @@
         }
         else
         {
-            <h1 class="uppercase tracking-widest p-1 my-2 border-b border-gray-200 text-cyan-700">data source</h1>
-            <div class="flex flex-col">
-
-                <div class="p-1">
-                    <span>@Catalog.Info.DataSourceType</span>
-                    &nbsp;<span class="text-cyan-700">@@</span>&nbsp;
-                    <span>@_extensionDescription.Version</span>
-                </div>
-
-                @if (!string.IsNullOrWhiteSpace(_extensionDescription.Description))
+            <div class="flex flex-col gap-3">
+                @foreach(var description in _extensionDescriptions)
                 {
-                    <span class="p-1 text-sm">@_extensionDescription.Description</span>
-                }
+                    <h1 class="uppercase tracking-widest p-1 mt-2 border-b border-gray-200 text-cyan-700">@description.Type</h1>
 
-                @if (!string.IsNullOrWhiteSpace(Catalog.Info.DataSourceInfoUrl))
-                {
-                    <a class="text-gray-700 text-sm hover:text-orange-500 p-1" href="@Catalog.Info.DataSourceInfoUrl" target="_blank">
-                        <span class="mdi mdi-information-outline text-lg mr-1"></span>
-                        <span>Info Website</span>
-                    </a>
-                }
+                    <div class="flex flex-col p-1 gap-2">
 
-                @if (!string.IsNullOrWhiteSpace(_extensionDescription.ProjectUrl))
-                {
-                    <a class="text-cyan-700 text-sm hover:text-orange-500 p-1" href="@_extensionDescription.ProjectUrl" target="_blank">
-                        <span class="mdi mdi-web text-lg mr-1"></span>
-                        <span>Project Website</span>
-                    </a>
-                }
+                        <div>@description.Version</div>
 
-                @if (!string.IsNullOrWhiteSpace(_extensionDescription.RepositoryUrl))
-                {
-                    <a class="text-cyan-700 text-sm hover:text-orange-500 p-1" href="@_extensionDescription.RepositoryUrl" target="_blank">
-                        <span class="mdi mdi-source-branch text-lg mr-1"></span>
-                        <span>Source Repository</span>
-                    </a>
+                        @if (!string.IsNullOrWhiteSpace(description.Description))
+                        {
+                            <span class="text-sm">@description.Description</span>
+                        }
+
+                        @* @if (!string.IsNullOrWhiteSpace(description.DataSourceInfoUrl))
+                        {
+                            <a class="text-gray-700 text-sm hover:text-orange-500 p-1" href="@description.DataSourceInfoUrl"
+                                target="_blank">
+                                <span class="mdi mdi-information-outline text-lg mr-1"></span>
+                                <span>Info Website</span>
+                            </a>
+                        } *@
+
+                        <div class="flex justify-between">
+
+                            @if (!string.IsNullOrWhiteSpace(description.ProjectUrl))
+                            {
+                                <a class="text-cyan-700 text-sm hover:text-orange-500" href="@description.ProjectUrl"
+                                    target="_blank">
+                                    <span class="mdi mdi-web text-lg mr-1"></span>
+                                    <span>Project Website</span>
+                                </a>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(description.RepositoryUrl))
+                            {
+                                <a class="text-cyan-700 text-sm hover:text-orange-500" href="@description.RepositoryUrl"
+                                    target="_blank">
+                                    <span class="mdi mdi-source-branch text-lg mr-1"></span>
+                                    <span>Source Repository</span>
+                                </a>
+                            }
+
+                        </div>
+                    </div>
                 }
             </div>
         }
@@ -70,7 +75,6 @@
 
 @code {
     private bool _isCatalogAboutDialogOpen;
-    private ExtensionDescription? _extensionDescription;
     private IReadOnlyList<ExtensionDescription>? _extensionDescriptions;
 
     [Parameter]
@@ -90,14 +94,20 @@
         {
             try
             {
-                _extensionDescriptions = await Client.Sources.GetDescriptionsAsync();
-                _extensionDescription = _extensionDescriptions.FirstOrDefault(current => current.Type == Catalog.Info.DataSourceType);
+                var dataSourceTypes = Catalog.Info.PipelineInfo.Types;
+                var extensionDescriptions = await Client.Sources.GetDescriptionsAsync();
+
+                _extensionDescriptions = extensionDescriptions
+                    .Where(current => dataSourceTypes.Contains(current.Type))
+                    .ToArray();
+
+                _extensionDescriptions = [_extensionDescriptions[0], _extensionDescriptions[0]];
             }
             catch (Exception ex)
             {
                 AppState.AddError(ex, Snackbar);
             }
-            
+
             StateHasChanged();
         });
     }

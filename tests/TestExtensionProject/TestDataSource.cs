@@ -20,7 +20,7 @@ public class TestDataSource : IDataSource
         throw new NotImplementedException(nameof(EnrichCatalogAsync));
     }
 
-    public Task<ResourceCatalog> EnrichCatalogAsync(string catalogId, CancellationToken cancellationToken)
+    public Task<ResourceCatalog> EnrichCatalogAsync(ResourceCatalog catalog, CancellationToken cancellationToken)
     {
         throw new NotImplementedException(nameof(EnrichCatalogAsync));
     }
