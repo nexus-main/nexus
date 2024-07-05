@@ -380,8 +380,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
         // update immutable catalog and resources with mandatory properties
         catalog = catalog
-            .EnsureMandatoryResourceProperties1(pipelinePosition: 0)
-            .EnsureMandatoryResourceProperties2();
+            .EnsureAndSanitizeMandatoryProperties(pipelinePosition: 0, dataSources: Array.Empty<IDataSource>());
 
         resource1 = catalog.Resources![0];
         resource2 = catalog.Resources![1];

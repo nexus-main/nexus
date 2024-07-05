@@ -162,7 +162,7 @@ internal class AppStateManager(
             }
 
             var additionalInformation = attribute.Description;
-            var label = (additionalInformation?.GetStringValue(Nexus.UI.Core.Constants.DATA_WRITER_LABEL_KEY)) ?? throw new Exception($"The description of data writer {fullName} has no label property");
+            var label = (additionalInformation?.GetStringValue([UI.Core.Constants.DATA_WRITER_LABEL_KEY])) ?? throw new Exception($"The description of data writer {fullName} has no label property");
             var version = dataWriterType.Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
                 .InformationalVersion;
@@ -171,6 +171,7 @@ internal class AppStateManager(
                 .GetCustomAttribute<ExtensionDescriptionAttribute>(inherit: false);
 
             if (attribute2 is null)
+            {
                 labelsAndDescriptions.Add((label, new ExtensionDescription(
                     fullName,
                     version,
@@ -178,8 +179,10 @@ internal class AppStateManager(
                     default,
                     default,
                     additionalInformation)));
+            }
 
             else
+            {
                 labelsAndDescriptions.Add((label, new ExtensionDescription(
                     fullName,
                     version,
@@ -187,6 +190,7 @@ internal class AppStateManager(
                     attribute2.ProjectUrl,
                     attribute2.RepositoryUrl,
                     additionalInformation)));
+            }
         }
 
         var dataWriterDescriptions = labelsAndDescriptions

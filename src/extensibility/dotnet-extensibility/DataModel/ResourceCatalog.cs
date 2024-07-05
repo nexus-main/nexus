@@ -152,6 +152,8 @@ public partial record ResourceCatalog
             }
         }
 
+        string[] typePath = ["type"];
+
         var parametersAreOK =
 
             (representation.Parameters is null && parameters is null) ||
@@ -161,8 +163,8 @@ public partial record ResourceCatalog
 
                 parameters.ContainsKey(current.Key) &&
 
-                (current.Value.GetStringValue("type") == "input-integer" && long.TryParse(parameters[current.Key], out var _) ||
-                 current.Value.GetStringValue("type") == "select" && true /* no validation here */)));
+                (current.Value.GetStringValue(typePath) == "input-integer" && long.TryParse(parameters[current.Key], out var _) ||
+                 current.Value.GetStringValue(typePath) == "select" && true /* no validation here */)));
 
         if (!parametersAreOK)
             return false;

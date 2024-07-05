@@ -90,7 +90,7 @@ public class DataControllerServiceTests
         Assert.Equal(expectedCatalog.Id, actualCatalog.Id);
 
         var expectedConfig = JsonSerializer.Serialize(requestConfiguration);
-        var actualConfig = JsonSerializer.Serialize(((DataSourceController)actual).RequestConfiguration);
+        var actualConfig = JsonSerializer.Serialize(((DataSourceController)actual)._requestConfiguration);
 
         Assert.Equal(expectedConfig, actualConfig);
     }

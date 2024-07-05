@@ -4,9 +4,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
-using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Nexus.Core;
 using Nexus.DataModel;
@@ -61,23 +59,25 @@ internal class DataSourceController(
     DataOptions dataOptions,
     ILogger<DataSourceController> logger) : IDataSourceController
 {
+    private static readonly string[] _pipelinePositionPath = [DataModelExtensions.NEXUS_KEY, DataModelExtensions.PIPELINE_POSITION_KEY];
+
+    internal readonly IReadOnlyDictionary<string, JsonElement>? _requestConfiguration = requestConfiguration;
+
     private readonly IProcessingService _processingService = processingService;
 
     private readonly ICacheService _cacheService = cacheService;
 
     private readonly DataOptions _dataOptions = dataOptions;
 
+    private readonly IDataSource[] _dataSources = dataSources;
+
+    private readonly DataSourceRegistration[] _registrations = registrations;
+
+    private readonly IReadOnlyDictionary<string, JsonElement>? _systemConfiguration = systemConfiguration;
+
     private ConcurrentDictionary<string, ResourceCatalog> _catalogCache = default!;
 
-    private IDataSource[] DataSources { get; } = dataSources;
-
-    private DataSourceRegistration[] Registrations { get; } = registrations;
-
-    private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; } = systemConfiguration;
-
-    internal IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; } = requestConfiguration;
-
-    private ILogger Logger { get; } = logger;
+    private readonly ILogger _logger = logger;
 
     public async Task InitializeAsync(
         ConcurrentDictionary<string, ResourceCatalog> catalogCache,
@@ -86,8 +86,8 @@ internal class DataSourceController(
     {
         _catalogCache = catalogCache;
 
-        foreach (var (dataSource, registration) in DataSources
-            .Zip(Registrations))
+        foreach (var (dataSource, registration) in _dataSources
+            .Zip(_registrations))
         {
             var logger = loggerFactory
                 .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
@@ -98,9 +98,9 @@ internal class DataSourceController(
 
             var context = new DataSourceContext(
                 ResourceLocator: registration.ResourceLocator,
-                SystemConfiguration: SystemConfiguration,
+                SystemConfiguration: _systemConfiguration,
                 SourceConfiguration: clonedSourceConfiguration,
-                RequestConfiguration: RequestConfiguration);
+                RequestConfiguration: _requestConfiguration);
 
             await dataSource.SetContextAsync(context, logger, cancellationToken);
         }
@@ -113,7 +113,7 @@ internal class DataSourceController(
         // collect all catalog registrations
         var catalogRegistrations = new List<CatalogRegistration>();
 
-        foreach (var dataSource in DataSources)
+        foreach (var dataSource in _dataSources)
         {
             var newCatalogRegistrations = await dataSource.GetCatalogRegistrationsAsync(path, cancellationToken);
             catalogRegistrations.AddRange(newCatalogRegistrations);
@@ -151,17 +151,17 @@ internal class DataSourceController(
         string catalogId,
         CancellationToken cancellationToken)
     {
-        Logger.LogDebug("Load catalog {CatalogId}", catalogId);
+        _logger.LogDebug("Load catalog {CatalogId}", catalogId);
 
         var catalog = new ResourceCatalog(catalogId);
         var pipelinePosition = 0;
 
-        foreach (var dataSource in DataSources)
+        foreach (var dataSource in _dataSources)
         {
             catalog = await dataSource.EnrichCatalogAsync(catalog, cancellationToken);
 
             // TODO: Is it the best solution to inject these additional properties here? Similar code exists in SourcesController.GetExtensionDescriptions()
-            catalog = catalog.EnsureMandatoryResourceProperties1(pipelinePosition);
+            catalog = catalog.EnsureAndSanitizeMandatoryProperties(pipelinePosition, _dataSources);
 
             pipelinePosition++;
         }
@@ -173,12 +173,6 @@ internal class DataSourceController(
         {
             Resources = catalog.Resources?.OrderBy(resource => resource.Id).ToList()
         };
-
-        // clean up "groups" property so it contains only unique groups
-        catalog = catalog.EnsureMandatoryResourceProperties2();
-
-        // TODO: Is it the best solution to inject these additional properties here? Similar code exists in SourcesController.GetExtensionDescriptions()
-        catalog = catalog.EnsureMandatoryCatalogProperties(DataSources);
 
         /* GetOrAdd is not working because it requires a synchronous delegate */
         _catalogCache.TryAdd(catalogId, catalog);
@@ -194,13 +188,13 @@ internal class DataSourceController(
         CancellationToken cancellationToken)
     {
         var stepCount = (int)Math.Ceiling((end - begin).Ticks / (double)step.Ticks);
-        var availabilities = new double[stepCount, DataSources.Length];
+        var availabilities = new double[stepCount, _dataSources.Length];
 
-        for (int dataSourceIndex = 0; dataSourceIndex < DataSources.Length; dataSourceIndex++)
+        for (int dataSourceIndex = 0; dataSourceIndex < _dataSources.Length; dataSourceIndex++)
         {
             var tasks = new List<Task>(capacity: stepCount);
             var currentBegin = begin;
-            var dataSource = DataSources[dataSourceIndex];
+            var dataSource = _dataSources[dataSourceIndex];
 
             for (int i = 0; i < stepCount; i++)
             {
@@ -229,7 +223,7 @@ internal class DataSourceController(
             var sum = double.NaN;
             var count = 0;
 
-            for (int j = 0; j < DataSources.Length; j++)
+            for (int j = 0; j < _dataSources.Length; j++)
             {
                 var value = availabilities[i, j];
 
@@ -267,7 +261,7 @@ internal class DataSourceController(
         var begin = DateTime.MaxValue;
         var end = DateTime.MinValue;
 
-        foreach (var dataSource in DataSources)
+        foreach (var dataSource in _dataSources)
         {
             (var currentBegin, var currentEnd) = await dataSource
                 .GetTimeRangeAsync(catalogId, cancellationToken);
@@ -325,7 +319,7 @@ internal class DataSourceController(
             .Where(readUnit => readUnit.CatalogItemRequest.BaseItem is null)
             .ToArray();
 
-        Logger.LogTrace("Load {RepresentationCount} original representations", originalReadUnits.Length);
+        _logger.LogTrace("Load {RepresentationCount} original representations", originalReadUnits.Length);
 
         var originalProgress = new Progress<double>();
         var originalProgressFactor = originalReadUnits.Length / (double)readUnits.Length;
@@ -360,7 +354,7 @@ internal class DataSourceController(
             .Where(readUnit => readUnit.CatalogItemRequest.BaseItem is not null)
             .ToArray();
 
-        Logger.LogTrace("Load {RepresentationCount} processing representations", processingReadUnits.Length);
+        _logger.LogTrace("Load {RepresentationCount} processing representations", processingReadUnits.Length);
 
         var processingProgressFactor = 1 / (double)readUnits.Length;
 
@@ -429,14 +423,13 @@ internal class DataSourceController(
             try
             {
                 var pipelinePosition = 0;
-                var path = $"{DataModelExtensions.NEXUS_KEY}/{DataModelExtensions.PIPELINE_POSITION_KEY}";
 
-                foreach (var dataSource in DataSources)
+                foreach (var dataSource in _dataSources)
                 {
                     var currentReadRequests = readRequests
                         .Where(request =>
                             request.CatalogItem.Resource.Properties is null ||
-                            request.CatalogItem.Resource.Properties.GetIntValue(path) == pipelinePosition
+                            request.CatalogItem.Resource.Properties.GetIntValue(_pipelinePositionPath) == pipelinePosition
                         )
                         .ToArray();
 
@@ -457,7 +450,7 @@ internal class DataSourceController(
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
+                _logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
             }
 
             var readingTasks = new List<Task>(capacity: originalUnits.Length);
@@ -467,7 +460,7 @@ internal class DataSourceController(
                 var (catalogItemRequest, dataWriter) = readUnit;
                 var (_, _, data, status) = readRequestManager.Request;
 
-                using var scope = Logger.BeginScope(new Dictionary<string, object>()
+                using var scope = _logger.BeginScope(new Dictionary<string, object>()
                 {
                     ["ResourcePath"] = catalogItemRequest.Item.ToPath()
                 });
@@ -488,7 +481,7 @@ internal class DataSourceController(
                         target: targetBuffer);
 
                     /* update progress */
-                    Logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+                    _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
                     dataWriter.Advance(targetByteCount);
                     await dataWriter.FlushAsync();
                 }, cancellationToken));
@@ -536,7 +529,7 @@ internal class DataSourceController(
         try
         {
             /* load data from cache */
-            Logger.LogTrace("Load data from cache");
+            _logger.LogTrace("Load data from cache");
 
             List<Interval> uncachedIntervals;
 
@@ -557,7 +550,7 @@ internal class DataSourceController(
             }
 
             /* load and process remaining data from source */
-            Logger.LogTrace("Load and process {PeriodCount} uncached periods from source", uncachedIntervals.Count);
+            _logger.LogTrace("Load and process {PeriodCount} uncached periods from source", uncachedIntervals.Count);
 
             var elementSize = baseItem.Representation.ElementSize;
             var sourceSamplePeriod = baseSamplePeriod;
@@ -584,7 +577,7 @@ internal class DataSourceController(
                 };
 
                 /* read */
-                foreach (var dataSource in DataSources)
+                foreach (var dataSource in _dataSources)
                 {
                     await dataSource.ReadAsync(
                         interval.Begin,
@@ -626,12 +619,12 @@ internal class DataSourceController(
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
+            _logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
         }
         finally
         {
             /* update progress */
-            Logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+            _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
             readUnit.DataWriter.Advance(targetByteCount);
             await readUnit.DataWriter.FlushAsync(cancellationToken);
         }
@@ -701,7 +694,7 @@ internal class DataSourceController(
                 : (int)(targetSamplePeriod.Ticks / sourceSamplePeriod.Ticks);
 
             /* read */
-            foreach (var dataSource in DataSources)
+            foreach (var dataSource in _dataSources)
             {
                 await dataSource.ReadAsync(
                     roundedBegin,
@@ -729,11 +722,11 @@ internal class DataSourceController(
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
+            _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
         }
 
         /* update progress */
-        Logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+        _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
         readUnit.DataWriter.Advance(targetByteCount);
         await readUnit.DataWriter.FlushAsync(cancellationToken);
     }
@@ -1057,7 +1050,7 @@ internal class DataSourceController(
         {
             if (disposing)
             {
-                foreach (var dataSource in DataSources)
+                foreach (var dataSource in _dataSources)
                 {
                     var disposable = dataSource as IDisposable;
                     disposable?.Dispose();

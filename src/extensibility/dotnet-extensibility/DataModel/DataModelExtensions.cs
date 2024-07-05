@@ -218,33 +218,49 @@ public static partial class DataModelExtensions
     [GeneratedRegex(@"^([0-9]+)_([a-z]+)$", RegexOptions.Compiled)]
     private static partial Regex UnitStringEvaluator();
 
-    internal static ResourceCatalog EnsureMandatoryResourceProperties1(
-    this ResourceCatalog catalog,
-    int pipelinePosition
-)
+    internal static ResourceCatalog EnsureAndSanitizeMandatoryProperties(
+        this ResourceCatalog catalog,
+        int pipelinePosition,
+        IDataSource[] dataSources
+    )
     {
+        // catalog resources
         if (catalog.Resources is not null)
         {
             var isModified = false;
             var newResources = new List<Resource>();
-            var pipelinePositionPath = $"{NEXUS_KEY}/{PIPELINE_POSITION_KEY}";
+
+            string[] originalNamePath = [OriginalNameKey];
+            string[] pipelinePositionPath = [NEXUS_KEY, PIPELINE_POSITION_KEY];
+            string[] groupsPath = [GroupsKey];
 
             foreach (var resource in catalog.Resources)
             {
                 var resourceProperties = resource.Properties;
                 var newResource = resource;
-                var originalName = resourceProperties?.GetIntValue(DataModelExtensions.OriginalNameKey);
-                var currentPipelinePosition = resourceProperties?.GetIntValue(pipelinePositionPath);
 
-                if (originalName is null || currentPipelinePosition is null)
+                var originalName = resourceProperties?.GetStringValue(originalNamePath);
+                var currentPipelinePosition = resourceProperties?.GetIntValue(pipelinePositionPath);
+                var groups = resourceProperties?.GetStringArray(groupsPath);
+
+                var distinctGroups = groups is null
+                    ? default
+                    : groups
+                        .Where(group => group is not null)
+                        .Distinct()
+                        .ToList();
+
+                if (originalName is null ||
+                    currentPipelinePosition is null ||
+                    (distinctGroups is not null && distinctGroups.Count != groups!.Length))
                 {
                     var newResourceProperties = resourceProperties is null
                         ? []
                         : resourceProperties!.ToDictionary(entry => entry.Key, entry => entry.Value);
 
                     // original name
-                    if (originalName is null || currentPipelinePosition is null)
-                        newResourceProperties[DataModelExtensions.OriginalNameKey] = JsonSerializer.SerializeToElement(resource.Id);
+                    if (originalName is null)
+                        newResourceProperties[OriginalNameKey] = JsonSerializer.SerializeToElement(resource.Id);
 
                     // pipeline position
                     if (currentPipelinePosition is null)
@@ -255,6 +271,19 @@ public static partial class DataModelExtensions
                         };
 
                         newResourceProperties[NEXUS_KEY] = JsonSerializer.SerializeToElement(nexusJsonObject);
+                    }
+
+                    // groups
+                    if (distinctGroups is not null && distinctGroups.Count != groups!.Length)
+                    {
+                        var groupJsonArray = new JsonArray();
+
+                        foreach (var group in distinctGroups)
+                        {
+                            groupJsonArray.Add(group);
+                        }
+
+                        newResourceProperties[GroupsKey] = JsonSerializer.SerializeToElement(groupJsonArray);
                     }
 
                     newResource = resource with
@@ -277,81 +306,15 @@ public static partial class DataModelExtensions
             }
         }
 
-        return catalog;
-    }
-
-    internal static ResourceCatalog EnsureMandatoryResourceProperties2(
-        this ResourceCatalog catalog
-    )
-    {
-        if (catalog.Resources is not null)
-        {
-            var isModified = false;
-            var newResources = new List<Resource>();
-
-            foreach (var resource in catalog.Resources)
-            {
-                var resourceProperties = resource.Properties;
-                var groups = resourceProperties?.GetStringArray(GroupsKey);
-                var newResource = resource;
-
-                if (groups is not null)
-                {
-                    var distinctGroups = groups
-                        .Where(group => group is not null)
-                        .Distinct();
-
-                    if (!distinctGroups.SequenceEqual(groups))
-                    {
-                        var jsonArray = new JsonArray();
-
-                        foreach (var group in distinctGroups)
-                        {
-                            jsonArray.Add(group);
-                        }
-
-                        var newResourceProperties = resourceProperties!.ToDictionary(entry => entry.Key, entry => entry.Value);
-                        newResourceProperties[GroupsKey] = JsonSerializer.SerializeToElement(jsonArray);
-
-                        newResource = resource with
-                        {
-                            Properties = newResourceProperties
-                        };
-
-                        isModified = true;
-                    }
-                }
-
-                newResources.Add(newResource);
-            }
-
-            if (isModified)
-            {
-                catalog = catalog with
-                {
-                    Resources = newResources
-                };
-            }
-        }
-
-        return catalog;
-    }
-
-    internal static ResourceCatalog EnsureMandatoryCatalogProperties(
-        this ResourceCatalog catalog,
-        IDataSource[] dataSources
-    )
-    {
-        var nexusVersion = typeof(DataModelExtensions).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
-            .InformationalVersion;
-
-        var catalogProperties = catalog.Properties;
-
-        if (catalogProperties is null ||
-            !catalogProperties.TryGetValue(NEXUS_KEY, out var _)
+        // catalog
+        if (catalog.Properties is null ||
+            !catalog.Properties.TryGetValue(NEXUS_KEY, out var _)
         )
         {
+            var nexusVersion = typeof(DataModelExtensions).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+                .InformationalVersion;
+
             var jsonPipeline = new JsonArray();
 
             foreach (var dataSource in dataSources)
@@ -381,9 +344,9 @@ public static partial class DataModelExtensions
                 ["pipeline"] = jsonPipeline
             };
 
-            var newResourceProperties = catalogProperties is null
+            var newResourceProperties = catalog.Properties is null
                 ? []
-                : catalogProperties.ToDictionary(entry => entry.Key, entry => entry.Value);
+                : catalog.Properties.ToDictionary(entry => entry.Key, entry => entry.Value);
 
             newResourceProperties[NEXUS_KEY] = JsonSerializer.SerializeToElement(nexusJsonObject);
 
