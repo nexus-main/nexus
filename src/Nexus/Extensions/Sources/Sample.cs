@@ -146,7 +146,7 @@ internal class Sample : IDataSource
     {
         var tasks = requests.Select(request =>
         {
-            var (catalogItem, data, status) = request;
+            var (originalResourceName, catalogItem, data, status) = request;
 
             return Task.Run(() =>
             {

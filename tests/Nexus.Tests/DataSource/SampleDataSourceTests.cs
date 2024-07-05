@@ -108,7 +108,7 @@ public class SampleDataSourceTests
         var end = new DateTime(2020, 01, 02, 0, 0, 0, DateTimeKind.Utc);
         var (data, status) = ExtensibilityUtilities.CreateBuffers(representation, begin, end);
 
-        var request = new ReadRequest(catalogItem, data, status);
+        var request = new ReadRequest(resource.Id, catalogItem, data, status);
 
         await dataSource.ReadAsync(
             begin,

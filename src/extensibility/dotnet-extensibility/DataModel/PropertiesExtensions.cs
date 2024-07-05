@@ -166,7 +166,6 @@ public static class PropertiesExtensions
         return default;
     }
 
-
     private static JsonElement GetJsonObjectFromPath(this JsonElement root, Span<string> pathSegements)
     {
         if (pathSegements.Length == 0)

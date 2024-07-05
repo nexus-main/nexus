@@ -1,8 +1,11 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Nexus.Extensibility;
 
 namespace Nexus.DataModel;
 
@@ -42,6 +45,11 @@ public static partial class DataModelExtensions
     /// A constant with the key for a groups property.
     /// </summary>
     public const string GroupsKey = "groups";
+
+    /// <summary>
+    /// A constant with the key for a original name property.
+    /// </summary>
+    public const string OriginalNameKey = "original-name";
 
     internal const string BasePathKey = "base-path";
 
@@ -111,6 +119,17 @@ public static partial class DataModelExtensions
         return resourceBuilder.WithProperty(GroupsKey, new JsonArray(groups.Select(group => (JsonNode)group!).ToArray()));
     }
 
+    /// <summary>
+    /// Adds an original name property.
+    /// </summary>
+    /// <param name="resourceBuilder">The resource builder.</param>
+    /// <param name="originalName">The original name to add.</param>
+    /// <returns>A resource catalog builder.</returns>
+    public static ResourceBuilder WithOriginalName(this ResourceBuilder resourceBuilder, string originalName)
+    {
+        return resourceBuilder.WithProperty(OriginalNameKey, originalName);
+    }
+
     #endregion
 
     #region Misc
@@ -136,11 +155,19 @@ public static partial class DataModelExtensions
 
     // keep in sync with Nexus.UI.Utilities ...
     private const int NS_PER_TICK = 100;
+
     private static readonly long[] _nanoseconds = [(long)1e0, (long)1e3, (long)1e6, (long)1e9, (long)60e9, (long)3600e9, (long)86400e9];
+
     private static readonly int[] _quotients = [1000, 1000, 1000, 60, 60, 24, 1];
+
     private static readonly string[] _postFixes = ["ns", "us", "ms", "s", "min", "h", "d"];
-    // ... except this line
+
+    // ... except these lines
     private static readonly Regex _unitStringEvaluator = UnitStringEvaluator();
+
+    internal const string NEXUS_KEY = "nexus";
+
+    internal const string PIPELINE_POSITION_KEY = "pipeline-position";
 
     /// <summary>
     /// Converts period into a human readable number string with unit.
@@ -190,6 +217,184 @@ public static partial class DataModelExtensions
 
     [GeneratedRegex(@"^([0-9]+)_([a-z]+)$", RegexOptions.Compiled)]
     private static partial Regex UnitStringEvaluator();
+
+    internal static ResourceCatalog EnsureMandatoryResourceProperties1(
+    this ResourceCatalog catalog,
+    int pipelinePosition
+)
+    {
+        if (catalog.Resources is not null)
+        {
+            var isModified = false;
+            var newResources = new List<Resource>();
+            var pipelinePositionPath = $"{NEXUS_KEY}/{PIPELINE_POSITION_KEY}";
+
+            foreach (var resource in catalog.Resources)
+            {
+                var resourceProperties = resource.Properties;
+                var newResource = resource;
+                var originalName = resourceProperties?.GetIntValue(DataModelExtensions.OriginalNameKey);
+                var currentPipelinePosition = resourceProperties?.GetIntValue(pipelinePositionPath);
+
+                if (originalName is null || currentPipelinePosition is null)
+                {
+                    var newResourceProperties = resourceProperties is null
+                        ? []
+                        : resourceProperties!.ToDictionary(entry => entry.Key, entry => entry.Value);
+
+                    // original name
+                    if (originalName is null || currentPipelinePosition is null)
+                        newResourceProperties[DataModelExtensions.OriginalNameKey] = JsonSerializer.SerializeToElement(resource.Id);
+
+                    // pipeline position
+                    if (currentPipelinePosition is null)
+                    {
+                        var nexusJsonObject = new JsonObject()
+                        {
+                            [PIPELINE_POSITION_KEY] = pipelinePosition,
+                        };
+
+                        newResourceProperties[NEXUS_KEY] = JsonSerializer.SerializeToElement(nexusJsonObject);
+                    }
+
+                    newResource = resource with
+                    {
+                        Properties = newResourceProperties
+                    };
+
+                    isModified = true;
+                }
+
+                newResources.Add(newResource);
+            }
+
+            if (isModified)
+            {
+                catalog = catalog with
+                {
+                    Resources = newResources
+                };
+            }
+        }
+
+        return catalog;
+    }
+
+    internal static ResourceCatalog EnsureMandatoryResourceProperties2(
+        this ResourceCatalog catalog
+    )
+    {
+        if (catalog.Resources is not null)
+        {
+            var isModified = false;
+            var newResources = new List<Resource>();
+
+            foreach (var resource in catalog.Resources)
+            {
+                var resourceProperties = resource.Properties;
+                var groups = resourceProperties?.GetStringArray(GroupsKey);
+                var newResource = resource;
+
+                if (groups is not null)
+                {
+                    var distinctGroups = groups
+                        .Where(group => group is not null)
+                        .Distinct();
+
+                    if (!distinctGroups.SequenceEqual(groups))
+                    {
+                        var jsonArray = new JsonArray();
+
+                        foreach (var group in distinctGroups)
+                        {
+                            jsonArray.Add(group);
+                        }
+
+                        var newResourceProperties = resourceProperties!.ToDictionary(entry => entry.Key, entry => entry.Value);
+                        newResourceProperties[GroupsKey] = JsonSerializer.SerializeToElement(jsonArray);
+
+                        newResource = resource with
+                        {
+                            Properties = newResourceProperties
+                        };
+
+                        isModified = true;
+                    }
+                }
+
+                newResources.Add(newResource);
+            }
+
+            if (isModified)
+            {
+                catalog = catalog with
+                {
+                    Resources = newResources
+                };
+            }
+        }
+
+        return catalog;
+    }
+
+    internal static ResourceCatalog EnsureMandatoryCatalogProperties(
+        this ResourceCatalog catalog,
+        IDataSource[] dataSources
+    )
+    {
+        var nexusVersion = typeof(DataModelExtensions).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+            .InformationalVersion;
+
+        var catalogProperties = catalog.Properties;
+
+        if (catalogProperties is null ||
+            !catalogProperties.TryGetValue(NEXUS_KEY, out var _)
+        )
+        {
+            var jsonPipeline = new JsonArray();
+
+            foreach (var dataSource in dataSources)
+            {
+                var type = dataSource.GetType();
+
+                var dataSourceVersion = type.Assembly
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+                    .InformationalVersion;
+
+                var repositoryUrl = type
+                    .GetCustomAttribute<ExtensionDescriptionAttribute>(inherit: false)!
+                    .RepositoryUrl;
+
+                var jsonPipelineElement = new JsonObject()
+                {
+                    ["repository-url"] = repositoryUrl,
+                    ["version"] = dataSourceVersion
+                };
+
+                jsonPipeline.Add(jsonPipelineElement);
+            }
+
+            var nexusJsonObject = new JsonObject()
+            {
+                ["version"] = nexusVersion,
+                ["pipeline"] = jsonPipeline
+            };
+
+            var newResourceProperties = catalogProperties is null
+                ? []
+                : catalogProperties.ToDictionary(entry => entry.Key, entry => entry.Value);
+
+            newResourceProperties[NEXUS_KEY] = JsonSerializer.SerializeToElement(nexusJsonObject);
+
+            catalog = catalog with
+            {
+                Properties = newResourceProperties
+            };
+        }
+
+        return catalog;
+    }
 
     #endregion
 }

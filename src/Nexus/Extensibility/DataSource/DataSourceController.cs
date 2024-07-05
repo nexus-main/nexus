@@ -61,10 +61,6 @@ internal class DataSourceController(
     DataOptions dataOptions,
     ILogger<DataSourceController> logger) : IDataSourceController
 {
-    const string NEXUS_KEY = "nexus";
-
-    const string PIPELINE_POSITION_KEY = "pipeline-position";
-
     private readonly IProcessingService _processingService = processingService;
 
     private readonly ICacheService _cacheService = cacheService;
@@ -165,7 +161,7 @@ internal class DataSourceController(
             catalog = await dataSource.EnrichCatalogAsync(catalog, cancellationToken);
 
             // TODO: Is it the best solution to inject these additional properties here? Similar code exists in SourcesController.GetExtensionDescriptions()
-            AddMandatoryResourceProperties(ref catalog, pipelinePosition);
+            catalog = catalog.EnsureMandatoryResourceProperties1(pipelinePosition);
 
             pipelinePosition++;
         }
@@ -179,58 +175,10 @@ internal class DataSourceController(
         };
 
         // clean up "groups" property so it contains only unique groups
-        if (catalog.Resources is not null)
-        {
-            var isModified = false;
-            var newResources = new List<Resource>();
-
-            foreach (var resource in catalog.Resources)
-            {
-                var resourceProperties = resource.Properties;
-                var groups = resourceProperties?.GetStringArray(DataModelExtensions.GroupsKey);
-                var newResource = resource;
-
-                if (groups is not null)
-                {
-                    var distinctGroups = groups
-                        .Where(group => group is not null)
-                        .Distinct();
-
-                    if (!distinctGroups.SequenceEqual(groups))
-                    {
-                        var jsonArray = new JsonArray();
-
-                        foreach (var group in distinctGroups)
-                        {
-                            jsonArray.Add(group);
-                        }
-
-                        var newResourceProperties = resourceProperties!.ToDictionary(entry => entry.Key, entry => entry.Value);
-                        newResourceProperties[DataModelExtensions.GroupsKey] = JsonSerializer.SerializeToElement(jsonArray);
-
-                        newResource = resource with
-                        {
-                            Properties = newResourceProperties
-                        };
-
-                        isModified = true;
-                    }
-                }
-
-                newResources.Add(newResource);
-            }
-
-            if (isModified)
-            {
-                catalog = catalog with
-                {
-                    Resources = newResources
-                };
-            }
-        }
+        catalog = catalog.EnsureMandatoryResourceProperties2();
 
         // TODO: Is it the best solution to inject these additional properties here? Similar code exists in SourcesController.GetExtensionDescriptions()
-        AddMandatoryCatalogProperties(ref catalog);
+        catalog = catalog.EnsureMandatoryCatalogProperties(DataSources);
 
         /* GetOrAdd is not working because it requires a synchronous delegate */
         _catalogCache.TryAdd(catalogId, catalog);
@@ -481,14 +429,14 @@ internal class DataSourceController(
             try
             {
                 var pipelinePosition = 0;
-                var path = $"{NEXUS_KEY}/{PIPELINE_POSITION_KEY}";
+                var path = $"{DataModelExtensions.NEXUS_KEY}/{DataModelExtensions.PIPELINE_POSITION_KEY}";
 
                 foreach (var dataSource in DataSources)
                 {
                     var currentReadRequests = readRequests
                         .Where(request =>
                             request.CatalogItem.Resource.Properties is null ||
-                            request.CatalogItem.Resource.Properties.GetIntValue(path)!.Value == pipelinePosition
+                            request.CatalogItem.Resource.Properties.GetIntValue(path) == pipelinePosition
                         )
                         .ToArray();
 
@@ -517,7 +465,7 @@ internal class DataSourceController(
             foreach (var (readUnit, readRequestManager) in tuples)
             {
                 var (catalogItemRequest, dataWriter) = readUnit;
-                var (_, data, status) = readRequestManager.Request;
+                var (_, _, data, status) = readRequestManager.Request;
 
                 using var scope = Logger.BeginScope(new Dictionary<string, object>()
                 {
@@ -818,108 +766,6 @@ internal class DataSourceController(
         }
 
         return [.. readUnits];
-    }
-
-    private static void AddMandatoryResourceProperties(ref ResourceCatalog catalog, int pipelinePosition)
-    {
-        if (catalog.Resources is not null)
-        {
-            var isModified = false;
-            var newResources = new List<Resource>();
-            var path = $"{NEXUS_KEY}/{PIPELINE_POSITION_KEY}";
-
-            foreach (var resource in catalog.Resources)
-            {
-                var resourceProperties = resource.Properties;
-                var newResource = resource;
-                var currentPipelinePosition = resourceProperties?.GetIntValue(path);
-
-                if (currentPipelinePosition is null)
-                {
-                    var nexusJsonObject = new JsonObject()
-                    {
-                        [PIPELINE_POSITION_KEY] = pipelinePosition,
-                    };
-
-                    var newResourceProperties = resourceProperties is null
-                        ? []
-                        : resourceProperties!.ToDictionary(entry => entry.Key, entry => entry.Value);
-
-                    newResourceProperties[NEXUS_KEY] = JsonSerializer.SerializeToElement(nexusJsonObject);
-
-                    newResource = resource with
-                    {
-                        Properties = newResourceProperties
-                    };
-
-                    isModified = true;
-                }
-
-                newResources.Add(newResource);
-            }
-
-            if (isModified)
-            {
-                catalog = catalog with
-                {
-                    Resources = newResources
-                };
-            }
-        }
-    }
-
-    private void AddMandatoryCatalogProperties(ref ResourceCatalog catalog)
-    {
-        var catalogProperties = catalog.Properties;
-
-        if (catalogProperties is null ||
-            !catalogProperties.TryGetValue(NEXUS_KEY, out var _)
-        )
-        {
-            var nexusVersion = typeof(Program).Assembly
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
-                .InformationalVersion;
-
-            var jsonPipeline = new JsonArray();
-
-            foreach (var dataSource in DataSources)
-            {
-                var type = dataSource.GetType();
-
-                var dataSourceVersion = type.Assembly
-                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
-                    .InformationalVersion;
-
-                var repositoryUrl = type
-                    .GetCustomAttribute<ExtensionDescriptionAttribute>(inherit: false)!
-                    .RepositoryUrl;
-
-                var jsonPipelineElement = new JsonObject()
-                {
-                    ["repository-url"] = repositoryUrl,
-                    ["version"] = dataSourceVersion
-                };
-
-                jsonPipeline.Add(jsonPipelineElement);
-            }
-
-            var nexusJsonObject = new JsonObject()
-            {
-                ["version"] = nexusVersion,
-                ["pipeline"] = jsonPipeline
-            };
-
-            var newResourceProperties = catalogProperties is null
-                ? []
-                : catalogProperties.ToDictionary(entry => entry.Key, entry => entry.Value);
-
-            newResourceProperties[NEXUS_KEY] = JsonSerializer.SerializeToElement(nexusJsonObject);
-
-            catalog = catalog with
-            {
-                Properties = newResourceProperties
-            };
-        }
     }
 
     public static async Task ReadAsync(

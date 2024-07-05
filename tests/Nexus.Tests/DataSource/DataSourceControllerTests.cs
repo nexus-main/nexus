@@ -92,7 +92,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var samplePeriod = TimeSpan.FromSeconds(1);
 
         // resource 1
-        var resourcePath1 = $"{Sample.LocalCatalogId}/V1/1_s";
+        var resourcePath1 = $"{Sample.LocalCatalogId}/V1_renamed/1_s";
         var catalogItem1 = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath1);
         var catalogItemRequest1 = new CatalogItemRequest(catalogItem1, default, default!);
 
@@ -378,6 +378,15 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             .AddResource(resource2)
             .Build();
 
+        // update immutable catalog and resources with mandatory properties
+        catalog = catalog
+            .EnsureMandatoryResourceProperties1(pipelinePosition: 0)
+            .EnsureMandatoryResourceProperties2();
+
+        resource1 = catalog.Resources![0];
+        resource2 = catalog.Resources![1];
+
+        // continue
         var baseItem1 = new CatalogItem(catalog, resource1, representationBase1, Parameters: default);
         var catalogItem1 = new CatalogItem(catalog, resource1, representation1, Parameters: default);
         var catalogItem2 = new CatalogItem(catalog, resource2, representation2, Parameters: default);
