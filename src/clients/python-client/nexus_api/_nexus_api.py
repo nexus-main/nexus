@@ -677,7 +677,7 @@ class ExtensionDescription:
 
 
 @dataclass(frozen=True)
-class Pipeline:
+class DataSourcePipeline:
     """
     A data source pipeline.
 
@@ -1224,7 +1224,7 @@ class SourcesAsyncClient:
 
         return self.___client._invoke(list[ExtensionDescription], "GET", __url, "application/json", None, None)
 
-    def get_pipelines(self, user_id: Optional[str] = None) -> Awaitable[dict[str, Pipeline]]:
+    def get_pipelines(self, user_id: Optional[str] = None) -> Awaitable[dict[str, DataSourcePipeline]]:
         """
         Gets the list of data source pipelines.
 
@@ -1242,9 +1242,9 @@ class SourcesAsyncClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(dict[str, Pipeline], "GET", __url, "application/json", None, None)
+        return self.___client._invoke(dict[str, DataSourcePipeline], "GET", __url, "application/json", None, None)
 
-    def create_pipeline(self, pipeline: Pipeline, user_id: Optional[str] = None) -> Awaitable[UUID]:
+    def create_pipeline(self, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> Awaitable[UUID]:
         """
         Creates a data source pipeline.
 
@@ -1992,7 +1992,7 @@ class SourcesClient:
 
         return self.___client._invoke(list[ExtensionDescription], "GET", __url, "application/json", None, None)
 
-    def get_pipelines(self, user_id: Optional[str] = None) -> dict[str, Pipeline]:
+    def get_pipelines(self, user_id: Optional[str] = None) -> dict[str, DataSourcePipeline]:
         """
         Gets the list of data source pipelines.
 
@@ -2010,9 +2010,9 @@ class SourcesClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(dict[str, Pipeline], "GET", __url, "application/json", None, None)
+        return self.___client._invoke(dict[str, DataSourcePipeline], "GET", __url, "application/json", None, None)
 
-    def create_pipeline(self, pipeline: Pipeline, user_id: Optional[str] = None) -> UUID:
+    def create_pipeline(self, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> UUID:
         """
         Creates a data source pipeline.
 

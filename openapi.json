@@ -968,7 +968,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "#/components/schemas/Pipeline"
+                    "$ref": "#/components/schemas/DataSourcePipeline"
                   }
                 }
               }
@@ -1000,7 +1000,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Pipeline"
+                "$ref": "#/components/schemas/DataSourcePipeline"
               }
             }
           },
@@ -2147,7 +2147,7 @@
           }
         }
       },
-      "Pipeline": {
+      "DataSourcePipeline": {
         "type": "object",
         "description": "A data source pipeline.",
         "additionalProperties": false,

@@ -1831,21 +1831,21 @@ public interface ISourcesClient
     /// Gets the list of data source pipelines.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    IReadOnlyDictionary<string, Pipeline> GetPipelines(string? userId = default);
+    IReadOnlyDictionary<string, DataSourcePipeline> GetPipelines(string? userId = default);
 
     /// <summary>
     /// Gets the list of data source pipelines.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, Pipeline>> GetPipelinesAsync(string? userId = default, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, DataSourcePipeline>> GetPipelinesAsync(string? userId = default, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a data source pipeline.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="pipeline">The pipeline to create.</param>
-    Guid CreatePipeline(Pipeline pipeline, string? userId = default);
+    Guid CreatePipeline(DataSourcePipeline pipeline, string? userId = default);
 
     /// <summary>
     /// Creates a data source pipeline.
@@ -1853,7 +1853,7 @@ public interface ISourcesClient
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="pipeline">The pipeline to create.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<Guid> CreatePipelineAsync(Pipeline pipeline, string? userId = default, CancellationToken cancellationToken = default);
+    Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a data source pipeline.
@@ -1905,7 +1905,7 @@ public class SourcesClient : ISourcesClient
     }
 
     /// <inheritdoc />
-    public IReadOnlyDictionary<string, Pipeline> GetPipelines(string? userId = default)
+    public IReadOnlyDictionary<string, DataSourcePipeline> GetPipelines(string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines");
@@ -1919,11 +1919,11 @@ public class SourcesClient : ISourcesClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyDictionary<string, Pipeline>>("GET", __url, "application/json", default, default);
+        return ___client.Invoke<IReadOnlyDictionary<string, DataSourcePipeline>>("GET", __url, "application/json", default, default);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, Pipeline>> GetPipelinesAsync(string? userId = default, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<string, DataSourcePipeline>> GetPipelinesAsync(string? userId = default, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines");
@@ -1937,11 +1937,11 @@ public class SourcesClient : ISourcesClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyDictionary<string, Pipeline>>("GET", __url, "application/json", default, default, cancellationToken);
+        return ___client.InvokeAsync<IReadOnlyDictionary<string, DataSourcePipeline>>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Guid CreatePipeline(Pipeline pipeline, string? userId = default)
+    public Guid CreatePipeline(DataSourcePipeline pipeline, string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines");
@@ -1959,7 +1959,7 @@ public class SourcesClient : ISourcesClient
     }
 
     /// <inheritdoc />
-    public Task<Guid> CreatePipelineAsync(Pipeline pipeline, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines");
@@ -3083,7 +3083,7 @@ public record ExtensionDescription(string Type, string Version, string? Descript
 /// <param name="Registrations">The list of pipeline elements (data source registrations).</param>
 /// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
 /// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
-public record Pipeline(IReadOnlyList<DataSourceRegistration> Registrations, string? ReleasePattern, string? VisibilityPattern);
+public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrations, string? ReleasePattern, string? VisibilityPattern);
 
 /// <summary>
 /// A data source registration.
