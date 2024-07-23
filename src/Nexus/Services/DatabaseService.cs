@@ -129,8 +129,13 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     /* /config/users */
     public IEnumerable<string> EnumerateUsers()
     {
-        return Directory
-            .EnumerateDirectories(Path.Combine(_pathsOptions.Config, "users"));
+        var usersPath = Path.Combine(_pathsOptions.Config, "users");
+
+        if (Directory.Exists(usersPath))
+            return Directory.EnumerateDirectories(usersPath);
+
+        else
+            return Enumerable.Empty<string>();
     }
 
     public bool TryReadTokenMap(
