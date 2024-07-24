@@ -89,7 +89,7 @@ internal class DataSourceController(
         foreach (var (dataSource, registration) in _dataSources
             .Zip(_registrations))
         {
-            var logger = loggerFactory
+            var dataSourceLogger = loggerFactory
                 .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
 
             var clonedSourceConfiguration = registration.Configuration is null
@@ -102,7 +102,7 @@ internal class DataSourceController(
                 SourceConfiguration: clonedSourceConfiguration,
                 RequestConfiguration: _requestConfiguration);
 
-            await dataSource.SetContextAsync(context, logger, cancellationToken);
+            await dataSource.SetContextAsync(context, dataSourceLogger, cancellationToken);
         }
     }
 
@@ -154,16 +154,13 @@ internal class DataSourceController(
         _logger.LogDebug("Load catalog {CatalogId}", catalogId);
 
         var catalog = new ResourceCatalog(catalogId);
-        var pipelinePosition = 0;
 
-        foreach (var dataSource in _dataSources)
+        for (var pipelinePosition = 0; pipelinePosition < _dataSources.Length; pipelinePosition++)
         {
-            catalog = await dataSource.EnrichCatalogAsync(catalog, cancellationToken);
+            catalog = await _dataSources[pipelinePosition].EnrichCatalogAsync(catalog, cancellationToken);
 
             // TODO: Is it the best solution to inject these additional properties here? Similar code exists in SourcesController.GetExtensionDescriptions()
             catalog = catalog.EnsureAndSanitizeMandatoryProperties(pipelinePosition, _dataSources);
-
-            pipelinePosition++;
         }
 
         if (catalog.Id != catalogId)
@@ -247,8 +244,8 @@ internal class DataSourceController(
             }
 
             averagedAvailabilities[i] = count == 0
-                ? averagedAvailabilities[i] = sum
-                : averagedAvailabilities[i] = sum / count;
+                ? sum
+                : sum / count;
         }
 
         return new CatalogAvailability(Data: averagedAvailabilities);
@@ -301,9 +298,7 @@ internal class DataSourceController(
          */
 
         /* preparation */
-        var readUnits = PrepareReadUnits(
-            catalogItemRequestPipeWriters);
-
+        var readUnits = PrepareReadUnits(catalogItemRequestPipeWriters);
         var readingTasks = new List<Task>(capacity: readUnits.Length);
         var targetElementCount = ExtensibilityUtilities.CalculateElementCount(begin, end, samplePeriod);
         var targetByteCount = sizeof(double) * targetElementCount;
@@ -323,13 +318,13 @@ internal class DataSourceController(
 
         var originalProgress = new Progress<double>();
         var originalProgressFactor = originalReadUnits.Length / (double)readUnits.Length;
-        var originalProgress_old = 0.0;
+        var originalProgressValue_old = 0.0;
 
-        originalProgress.ProgressChanged += (sender, progressValue) =>
+        originalProgress.ProgressChanged += (sender, originalProgressValue) =>
         {
-            var actualProgress = progressValue - originalProgress_old;
-            originalProgress_old = progressValue;
-            totalProgress += actualProgress;
+            var actualProgress = originalProgressValue - originalProgressValue_old;
+            originalProgressValue_old = originalProgressValue;
+            totalProgress += actualProgress * originalProgressFactor;
             progress.Report(totalProgress);
         };
 
@@ -361,13 +356,13 @@ internal class DataSourceController(
         foreach (var processingReadUnit in processingReadUnits)
         {
             var processingProgress = new Progress<double>();
-            var processingProgress_old = 0.0;
+            var processingProgressValue_old = 0.0;
 
             processingProgress.ProgressChanged += (sender, progressValue) =>
             {
-                var actualProgress = progressValue - processingProgress_old;
-                processingProgress_old = progressValue;
-                totalProgress += actualProgress;
+                var actualProgress = progressValue - processingProgressValue_old;
+                processingProgressValue_old = progressValue;
+                totalProgress += actualProgress * processingProgressFactor;
                 progress.Report(totalProgress);
             };
 

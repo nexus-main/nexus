@@ -29,7 +29,6 @@ internal class DataControllerService(
     IProcessingService processingService,
     ICacheService cacheService,
     IOptions<DataOptions> dataOptions,
-    ILogger<DataControllerService> logger,
     ILoggerFactory loggerFactory) : IDataControllerService
 {
     public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
@@ -40,7 +39,6 @@ internal class DataControllerService(
     private readonly IExtensionHive _extensionHive = extensionHive;
     private readonly IProcessingService _processingService = processingService;
     private readonly ICacheService _cacheService = cacheService;
-    private readonly ILogger _logger = logger;
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
 
     public async Task<IDataSourceController> GetDataSourceControllerAsync(

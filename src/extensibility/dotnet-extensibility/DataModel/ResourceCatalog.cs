@@ -164,7 +164,7 @@ public partial record ResourceCatalog
                 parameters.ContainsKey(current.Key) &&
 
                 (current.Value.GetStringValue(typePath) == "input-integer" && long.TryParse(parameters[current.Key], out var _) ||
-                 current.Value.GetStringValue(typePath) == "select" && true /* no validation here */)));
+                 current.Value.GetStringValue(typePath) == "select" /* no validation here */)));
 
         if (!parametersAreOK)
             return false;

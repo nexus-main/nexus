@@ -18,7 +18,7 @@ internal interface IPipelineService
     bool TryGet(
         string userId,
         Guid pipelineId,
-        [NotNullWhen(true)] out DataSourcePipeline? token);
+        [NotNullWhen(true)] out DataSourcePipeline? pipeline);
 
     Task DeleteAsync(string userId, Guid pipelineId);
 
@@ -103,7 +103,7 @@ internal class PipelineService(IDatabaseService databaseService)
     {
         return _cache.GetOrAdd(
             userId,
-            key =>
+            userId =>
             {
                 if (_databaseService.TryReadPipelineMap(userId, out var jsonString))
                 {

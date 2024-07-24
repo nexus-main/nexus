@@ -27,7 +27,6 @@ public class DataServiceTests
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2020, 01, 03, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
-        var exportId = Guid.NewGuid();
 
         var registration1 = new DataSourceRegistration(Type: "A", new Uri("a", UriKind.Relative), default, default);
         var pipeline1 = new DataSourcePipeline([registration1]);

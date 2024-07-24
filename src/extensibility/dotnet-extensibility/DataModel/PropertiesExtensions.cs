@@ -25,16 +25,14 @@ public static class PropertiesExtensions
         {
             pathSegments = pathSegments[1..];
 
-            if (pathSegments.Length == 0)
-            {
-                if (element.ValueKind == JsonValueKind.String || element.ValueKind == JsonValueKind.Null)
-                    return element.GetString();
-            }
+            if (
+                pathSegments.Length == 0 &&
+                (element.ValueKind == JsonValueKind.String || element.ValueKind == JsonValueKind.Null)
+            )
+                return element.GetString();
 
             else
-            {
                 return element.GetStringValue(pathSegments);
-            }
         }
 
         return default;
@@ -74,16 +72,13 @@ public static class PropertiesExtensions
         {
             pathSegments = pathSegments[1..];
 
-            if (pathSegments.Length == 0)
+            if (pathSegments.Length == 0 && element.ValueKind == JsonValueKind.Array)
             {
-                if (element.ValueKind == JsonValueKind.Array)
-                {
-                    return element
-                        .EnumerateArray()
-                        .Where(current => current.ValueKind == JsonValueKind.String || current.ValueKind == JsonValueKind.Null)
-                        .Select(current => current.GetString())
-                        .ToArray();
-                }
+                return element
+                    .EnumerateArray()
+                    .Where(current => current.ValueKind == JsonValueKind.String || current.ValueKind == JsonValueKind.Null)
+                    .Select(current => current.GetString())
+                    .ToArray();
             }
 
             else
@@ -127,16 +122,11 @@ public static class PropertiesExtensions
         {
             pathSegments = pathSegments[1..];
 
-            if (pathSegments.Length == 0)
-            {
-                if (element.ValueKind == JsonValueKind.Number)
-                    return element.GetInt32();
-            }
+            if (pathSegments.Length == 0 && element.ValueKind == JsonValueKind.Number)
+                return element.GetInt32();
 
             else
-            {
                 return element.GetIntValue(pathSegments);
-            }
         }
 
         return default;

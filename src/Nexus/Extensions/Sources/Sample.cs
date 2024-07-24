@@ -167,7 +167,6 @@ internal class Sample : IDataSource
                 double[] dataDouble;
 
                 var beginTime = ToUnixTimeStamp(begin);
-                var endTime = ToUnixTimeStamp(end);
                 var elementCount = data.Length / representation.ElementSize;
 
                 // unit time

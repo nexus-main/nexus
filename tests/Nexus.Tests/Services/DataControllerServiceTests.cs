@@ -78,7 +78,6 @@ public class DataControllerServiceTests
             default!,
             default!,
             Options.Create(new DataOptions()),
-            default!,
             loggerFactory);
 
         // Act
@@ -122,7 +121,6 @@ public class DataControllerServiceTests
             default!,
             default!,
             Options.Create(new DataOptions()),
-            default!,
             loggerFactory);
 
         var actual = await dataControllerService.GetDataWriterControllerAsync(

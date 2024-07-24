@@ -26,8 +26,7 @@ namespace Nexus.Controllers;
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class UsersController(
     IDBService dBService,
-    ITokenService tokenService,
-    ILogger<UsersController> logger) : ControllerBase
+    ITokenService tokenService) : ControllerBase
 {
     // [anonymous]
     // GET      /api/users/authenticate
@@ -54,8 +53,6 @@ internal class UsersController(
     private readonly IDBService _dbService = dBService;
 
     private readonly ITokenService _tokenService = tokenService;
-
-    private readonly ILogger<UsersController> _logger = logger;
 
     #region Anonymous
 

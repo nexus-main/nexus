@@ -21,7 +21,6 @@ namespace Nexus.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class SourcesController(
-    AppState appState,
     IExtensionHive extensionHive,
     IPipelineService pipelineService
 ) : ControllerBase
@@ -30,8 +29,6 @@ internal class SourcesController(
     // GET      /api/sources/registrations
     // POST     /api/sources/registrations
     // DELETE   /api/sources/registrations/{registrationId}
-
-    private readonly AppState _appState = appState;
 
     private readonly IExtensionHive _extensionHive = extensionHive;
 
