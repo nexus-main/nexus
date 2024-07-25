@@ -134,6 +134,6 @@ public class DataControllerServiceTests
         var actual = await Record.ExceptionAsync(action);
 
         // Assert
-        Assert.NotNull(actual);
+        Assert.Null(actual);
     }
 }
