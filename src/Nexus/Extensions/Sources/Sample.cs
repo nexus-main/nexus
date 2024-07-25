@@ -13,7 +13,8 @@ namespace Nexus.Sources;
     "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Sources/Sample.cs")]
 internal class Sample : IDataSource
 {
-    public static Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
+    public static readonly Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
+
     private static readonly double[] DATA =
     [
         6.5,
@@ -146,7 +147,7 @@ internal class Sample : IDataSource
     {
         var tasks = requests.Select(request =>
         {
-            var (originalResourceName, catalogItem, data, status) = request;
+            var (_, catalogItem, data, status) = request;
 
             return Task.Run(() =>
             {

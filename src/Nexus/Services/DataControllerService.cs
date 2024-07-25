@@ -45,8 +45,6 @@ internal class DataControllerService(
         DataSourcePipeline pipeline,
         CancellationToken cancellationToken)
     {
-        var logger = _loggerFactory.CreateLogger<DataSourceController>();
-
         var dataSources = pipeline.Registrations
             .Select(registration => _extensionHive.GetInstance<IDataSource>(registration.Type))
             .ToArray();
@@ -60,12 +58,13 @@ internal class DataControllerService(
         var controller = new DataSourceController(
             dataSources,
             pipeline.Registrations,
-            systemConfiguration: clonedSystemConfiguration,
-            requestConfiguration: requestConfiguration,
+            clonedSystemConfiguration,
+            requestConfiguration,
             _processingService,
             _cacheService,
             _dataOptions,
-            logger);
+            _loggerFactory.CreateLogger<DataSourceController>()
+        );
 
         var catalogCache = _appState.CatalogState.Cache.GetOrAdd(
             pipeline,

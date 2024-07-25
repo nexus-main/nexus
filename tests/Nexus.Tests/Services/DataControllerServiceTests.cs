@@ -123,12 +123,17 @@ public class DataControllerServiceTests
             Options.Create(new DataOptions()),
             loggerFactory);
 
-        var actual = await dataControllerService.GetDataWriterControllerAsync(
-            resourceLocator,
-            exportParameters,
-            CancellationToken.None);
+        async Task action()
+        {
+            var _ = await dataControllerService.GetDataWriterControllerAsync(
+                resourceLocator,
+                exportParameters,
+                CancellationToken.None);
+        };
+
+        var actual = await Record.ExceptionAsync(action);
 
         // Assert
-        /* nothing to assert */
+        Assert.NotNull(actual);
     }
 }

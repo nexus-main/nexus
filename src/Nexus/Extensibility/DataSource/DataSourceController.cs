@@ -417,9 +417,7 @@ internal class DataSourceController(
 
             try
             {
-                var pipelinePosition = 0;
-
-                foreach (var dataSource in _dataSources)
+                for (int pipelinePosition = 0; pipelinePosition < _dataSources.Length; pipelinePosition++)
                 {
                     var currentReadRequests = readRequests
                         .Where(request =>
@@ -428,15 +426,13 @@ internal class DataSourceController(
                         )
                         .ToArray();
 
-                    await dataSource.ReadAsync(
+                    await _dataSources[pipelinePosition].ReadAsync(
                         begin,
                         end,
                         currentReadRequests,
                         readDataHandler,
                         progress,
                         cancellationToken);
-
-                    pipelinePosition++;
                 }
             }
             catch (OutOfMemoryException)
@@ -680,7 +676,6 @@ internal class DataSourceController(
         try
         {
             /* load and process data from source */
-            var elementSize = baseItem.Representation.ElementSize;
             var sourceSamplePeriod = baseSamplePeriod;
             var targetSamplePeriod = samplePeriod;
 
