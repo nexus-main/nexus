@@ -153,7 +153,7 @@ internal class Sample : IDataSource
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var (catalog, resource, representation, parameters) = catalogItem;
+                var (catalog, resource, representation, _) = catalogItem;
 
                 // check credentials
                 if (catalog.Id == RemoteCatalogId)
@@ -253,19 +253,20 @@ internal class Sample : IDataSource
 
         if (catalogId == RemoteCatalogId)
             catalogBuilder.WithReadme(
-@"This catalog demonstrates how to access data sources that require additional credentials. These can be appended in the user settings menu (on the top right). In case of this example catalog, the JSON string to be added would look like the following:
+"""
+This catalog demonstrates how to access data sources that require additional credentials. These can be appended in the user settings menu (on the top right). In case of this example catalog, the JSON string to be added would look like the following:
 
 ```json
 {
-    ""Nexus.Sources.Sample"": {
-        ""user"": ""test"",
-        ""password"": ""1234""
+    "Nexus.Sources.Sample": {
+        "user": "test",
+        "password": "1234"
     }
 }
 ```
 
 As soon as these credentials have been added, you should be granted full access to the data.
-");
+""");
 
         return catalogBuilder.Build();
     }
