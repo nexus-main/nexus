@@ -163,7 +163,9 @@ public static partial class DataModelExtensions
     private static readonly string[] _postFixes = ["ns", "us", "ms", "s", "min", "h", "d"];
 
     // ... except these lines
-    private static readonly Regex _unitStringEvaluator = UnitStringEvaluator();
+
+    [GeneratedRegex(@"^([0-9]+)_([a-z]+)$")]
+    private static partial Regex _unitStringEvaluator { get; }
 
     internal const string NEXUS_KEY = "nexus";
 
@@ -214,9 +216,6 @@ public static partial class DataModelExtensions
 
         return new TimeSpan(ticks);
     }
-
-    [GeneratedRegex(@"^([0-9]+)_([a-z]+)$", RegexOptions.Compiled)]
-    private static partial Regex UnitStringEvaluator();
 
     internal static ResourceCatalog EnsureAndSanitizeMandatoryProperties(
         this ResourceCatalog catalog,

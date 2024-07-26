@@ -39,7 +39,8 @@ public partial record ResourceCatalog
     /// <summary>
     /// Gets a regular expression to validate a resource catalog identifier.
     /// </summary>
-    public static Regex ValidIdExpression { get; } = ValidIdExpressionRegex();
+    [GeneratedRegex(@"^(?:\/[a-zA-Z_][a-zA-Z_0-9]*)+$")]
+    public static partial Regex ValidIdExpression { get; }
 
     private static Regex _matchSingleParametersExpression { get; } = new Regex(@"\s*(.+?)\s*=\s*([^,\)]+)\s*,?", RegexOptions.Compiled);
 
@@ -203,7 +204,4 @@ public partial record ResourceCatalog
         if (uniqueIds.Count() != resources.Count)
             throw new ArgumentException("There are multiple resources with the same identifier.");
     }
-
-    [GeneratedRegex(@"^(?:\/[a-zA-Z_][a-zA-Z_0-9]*)+$", RegexOptions.Compiled)]
-    private static partial Regex ValidIdExpressionRegex();
 }

@@ -488,7 +488,7 @@ internal partial class PackageController(
                 .First()
                 .Split(",")
                 .Where(current => current.Contains("rel=\"next\""))
-                .Select(current => GitHubRegex().Match(current).Groups[1].Value)
+                .Select(current => GitHubRegex.Match(current).Groups[1].Value)
                 .FirstOrDefault();
 
             if (requestUrl == default)
@@ -497,7 +497,7 @@ internal partial class PackageController(
             continue;
         }
 
-        return [.. result];
+        return result.ToArray();
     }
 
     private async Task<string> RestoreGitHubReleasesAsync(string restoreRoot, CancellationToken cancellationToken)
@@ -749,7 +749,7 @@ internal partial class PackageController(
                 .First()
                 .Split(",")
                 .Where(current => current.Contains("rel=\"next\""))
-                .Select(current => GitlabRegex().Match(current).Groups[1].Value)
+                .Select(current => GitlabRegex.Match(current).Groups[1].Value)
                 .FirstOrDefault();
 
             if (requestUrl == default)
@@ -760,10 +760,10 @@ internal partial class PackageController(
     }
 
     [GeneratedRegex("\\<(https:.*)\\>; rel=\"next\"")]
-    private static partial Regex GitHubRegex();
+    private static partial Regex GitHubRegex { get; }
 
     [GeneratedRegex("\\<(https:.*)\\>; rel=\"next\"")]
-    private static partial Regex GitlabRegex();
+    private static partial Regex GitlabRegex { get; }
 
     #endregion
 
