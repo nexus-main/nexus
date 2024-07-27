@@ -26,8 +26,6 @@ namespace Nexus.Writers;
     "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Writers/Csv.cs")]
 internal class Csv : IDataWriter, IDisposable
 {
-    private static readonly string[] _unitPath = [DataModelExtensions.UnitKey];
-
     private const string DESCRIPTION = """
     {
         "label":"CSV + Schema (*.csv)",
@@ -307,7 +305,7 @@ internal class Csv : IDataWriter, IDisposable
     private static string GetFieldName(CatalogItem catalogItem)
     {
         var unit = catalogItem.Resource.Properties?
-            .GetStringValue(_unitPath);
+            .GetStringValue([DataModelExtensions.UnitKey]);
 
         var fieldName = $"{catalogItem.Resource.Id}_{catalogItem.Representation.Id}{DataModelUtilities.GetRepresentationParameterString(catalogItem.Parameters)}";
 

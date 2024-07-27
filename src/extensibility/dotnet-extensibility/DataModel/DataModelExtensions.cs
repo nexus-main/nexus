@@ -230,9 +230,9 @@ public static partial class DataModelExtensions
             var isModified = false;
             var newResources = new List<Resource>();
 
-            string[] originalNamePath = [OriginalNameKey];
-            string[] pipelinePositionPath = [NEXUS_KEY, PIPELINE_POSITION_KEY];
-            string[] groupsPath = [GroupsKey];
+            Span<string> originalNamePath = [OriginalNameKey];
+            Span<string> pipelinePositionPath = [NEXUS_KEY, PIPELINE_POSITION_KEY];
+            Span<string> groupsPath = [GroupsKey];
 
             foreach (var resource in catalog.Resources)
             {
