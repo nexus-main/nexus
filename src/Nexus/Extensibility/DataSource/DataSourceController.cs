@@ -422,10 +422,10 @@ internal class DataSourceController(
                         .Where(request =>
                             request.CatalogItem.Resource.Properties is null ||
                             request.CatalogItem.Resource.Properties
-                                .GetIntValue([
+                                .GetIntValue(
                                     DataModelExtensions.NEXUS_KEY,
                                     DataModelExtensions.PIPELINE_POSITION_KEY
-                                ]) == pipelinePosition
+                                ) == pipelinePosition
                         )
                         .ToArray();
 

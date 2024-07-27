@@ -112,7 +112,7 @@ internal class Csv : IDataWriter, IDisposable
 
             if (!_resourceMap.TryGetValue(resourceFilePath, out var resource))
             {
-                var rowIndexFormat = Context.RequestConfiguration?.GetStringValue(["row-index-format"]) ?? "index";
+                var rowIndexFormat = Context.RequestConfiguration?.GetStringValue("row-index-format") ?? "index";
                 var constraints = new Constraints(Required: true);
 
                 var timestampField = rowIndexFormat switch
@@ -209,9 +209,9 @@ internal class Csv : IDataWriter, IDisposable
             .GroupBy(request => request.CatalogItem.Catalog.Id)
             .ToList();
 
-        var rowIndexFormat = Context.RequestConfiguration?.GetStringValue(["row-index-format"]) ?? "index";
+        var rowIndexFormat = Context.RequestConfiguration?.GetStringValue("row-index-format") ?? "index";
 
-        var significantFigures = int.Parse(Context.RequestConfiguration?.GetStringValue(["significant-figures"]) ?? "4");
+        var significantFigures = int.Parse(Context.RequestConfiguration?.GetStringValue("significant-figures") ?? "4");
         significantFigures = Math.Clamp(significantFigures, 0, 30);
 
         var groupIndex = 0;
@@ -305,7 +305,7 @@ internal class Csv : IDataWriter, IDisposable
     private static string GetFieldName(CatalogItem catalogItem)
     {
         var unit = catalogItem.Resource.Properties?
-            .GetStringValue([DataModelExtensions.UnitKey]);
+            .GetStringValue(DataModelExtensions.UnitKey);
 
         var fieldName = $"{catalogItem.Resource.Id}_{catalogItem.Representation.Id}{DataModelUtilities.GetRepresentationParameterString(catalogItem.Parameters)}";
 
