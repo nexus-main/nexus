@@ -8,9 +8,9 @@
         Icon="@Icons.Material.Filled.Attachment" />
 </MudTooltip>
 
-<UIDialog 
-    @bind-IsVisible="_isAttachmentDialogOpen" 
-    Title="Attachments" 
+<UIDialog
+    @bind-IsVisible="_isAttachmentDialogOpen"
+    Title="Attachments"
     MaxWidth="MaxWidth.ExtraSmall">
     <TitleContent>
         <MudText Typo="Typo.h6">
@@ -21,10 +21,16 @@
         @if (_attachments is null)
         {
             <div class="h-full flex justify-center items-center mx-auto">
-                <MudProgressCircular 
+                <MudProgressCircular
                     Color="Color.Primary"
                     Indeterminate=true />
                 <span class="ml-3 text-gray-400">Loading attachments ...</span>
+            </div>
+        }
+        else if (_attachments.Count == 0)
+        {
+            <div class="h-full flex justify-center items-center mx-auto">
+                <span class="ml-3 text-gray-400">There are no attachments yet!</span>
             </div>
         }
         else
@@ -51,7 +57,7 @@
             {
                 <div class="group flex items-center">
                     <div class="group-hover:hidden">
-                        <MudProgressCircular 
+                        <MudProgressCircular
                             Color="Color.Primary"
                             Value="_progress"
                             Max="1" />
@@ -62,13 +68,13 @@
                     <span class="ml-2 text-sm">Uploading ...</span>
                 </div>
             }
-        
-            <MudFileUpload 
-                T="IReadOnlyList<IBrowserFile>" 
+
+            <MudFileUpload
+                T="IReadOnlyList<IBrowserFile>"
                 FilesChanged="UploadAttachmentsAsync"
                 MaximumFileCount="100">
                 <ButtonTemplate>
-                    <MudButton 
+                    <MudButton
                         HtmlTag="label"
                         Variant="Variant.Outlined"
                         Color="Color.Primary"
@@ -107,7 +113,7 @@
         try
         {
             await Client.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
-            await GetAttachmentsAsync();    
+            await GetAttachmentsAsync();
         }
         catch (Exception ex)
         {
