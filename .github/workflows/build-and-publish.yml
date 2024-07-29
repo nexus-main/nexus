@@ -29,7 +29,7 @@ jobs:
 
       - name: Metadata
         run: echo "IS_RELEASE=${{ startsWith(github.ref, 'refs/tags/') }}" >> $GITHUB_ENV
-          
+
       - name: Environment
         run: |
           echo "VERSION=$(python build/print_version.py ${{ github.run_number }} ${{ env.IS_RELEASE }} false)" >> $GITHUB_ENV
@@ -40,7 +40,7 @@ jobs:
         if: ${{ env.IS_RELEASE == 'true' }}
         run: python build/create_tag_body.py
 
-      - name: Set up Python 
+      - name: Set up Python
         uses: actions/setup-python@v3
         with:
           python-version: '3.9'
@@ -50,7 +50,7 @@ jobs:
 
       - name: Install
         run: |
-          npm install -g pyright
+          npm install -g pyright@1.1.369
           python -m pip install frictionless==4.40.9 build wheel httpx pytest pytest-asyncio
           npm install -g tailwindcss@3.4.3
           dotnet tool install -g Microsoft.Web.LibraryManager.Cli
