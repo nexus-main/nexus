@@ -206,9 +206,9 @@ public class PackageControllerTests
         if (Activator.CreateInstance(dataSourceType) is not IDataSource dataSource)
             throw new Exception("data source is null");
 
-        var exception = await Assert.ThrowsAsync<NotImplementedException>(() => dataSource.GetCatalogAsync(string.Empty, CancellationToken.None));
+        var exception = await Assert.ThrowsAsync<NotImplementedException>(() => dataSource.EnrichCatalogAsync(default!, CancellationToken.None));
 
-        Assert.Equal(nameof(IDataSource.GetCatalogAsync), exception.Message);
+        Assert.Equal(nameof(IDataSource.EnrichCatalogAsync), exception.Message);
 
         // delete should fail
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

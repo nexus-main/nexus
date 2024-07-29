@@ -20,25 +20,26 @@ internal interface ICatalogManager
 }
 
 internal class CatalogManager(
-    AppState appState,
     IDataControllerService dataControllerService,
     IDatabaseService databaseService,
     IServiceProvider serviceProvider,
     IExtensionHive extensionHive,
+    IPipelineService pipelineService,
     ILogger<CatalogManager> logger) : ICatalogManager
 {
     record CatalogPrototype(
         CatalogRegistration Registration,
-        InternalDataSourceRegistration DataSourceRegistration,
-        InternalPackageReference PackageReference,
+        Guid PipelineId,
+        DataSourcePipeline Pipeline,
+        InternalPackageReference[] PackageReferences,
         CatalogMetadata Metadata,
         ClaimsPrincipal? Owner);
 
-    private readonly AppState _appState = appState;
     private readonly IDataControllerService _dataControllerService = dataControllerService;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly IExtensionHive _extensionHive = extensionHive;
+    private readonly IPipelineService _pipelineService = pipelineService;
     private readonly ILogger<CatalogManager> _logger = logger;
 
     public async Task<CatalogContainer[]> GetCatalogContainersAsync(
@@ -56,41 +57,52 @@ internal class CatalogManager(
         if (parent.Id == CatalogContainer.RootCatalogId)
         {
             /* load builtin data source */
-            var builtinDataSourceRegistrations = new InternalDataSourceRegistration[]
+            var builtinPipelines = new (Guid, DataSourcePipeline)[]
             {
-                new(
-                    Id: Sample.RegistrationId,
-                    Type: typeof(Sample).FullName!,
-                    ResourceLocator: default,
-                    Configuration: default)
+                (Sample.PipelineId, new DataSourcePipeline(Registrations:
+                    [
+                        new(
+                            Type: typeof(Sample).FullName!,
+                            ResourceLocator: default,
+                            Configuration: default
+                        )
+                    ]
+                ))
             };
 
             /* load all catalog identifiers */
             var path = CatalogContainer.RootCatalogId;
             var catalogPrototypes = new List<CatalogPrototype>();
 
-            /* => for the built-in data source registrations */
+            /* => for the built-in pipelines */
 
             // TODO: Load Parallel?
-            /* for each data source registration */
-            foreach (var registration in builtinDataSourceRegistrations)
+            /* for each pipeline */
+            foreach (var (pipelineId, pipeline) in builtinPipelines)
             {
-                using var controller = await _dataControllerService.GetDataSourceControllerAsync(registration, cancellationToken);
+                using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
                 var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
-                var packageReference = _extensionHive.GetPackageReference<IDataSource>(registration.Type);
 
-                foreach (var catalogRegistration in catalogRegistrations)
+                foreach (var registration in pipeline.Registrations)
                 {
-                    var metadata = LoadMetadata(catalogRegistration.Path);
+                    var packageReferences = pipeline.Registrations
+                        .Select(registration => _extensionHive.GetPackageReference<IDataSource>(registration.Type))
+                        .ToArray();
 
-                    var catalogPrototype = new CatalogPrototype(
-                        catalogRegistration,
-                        registration,
-                        packageReference,
-                        metadata,
-                        null);
+                    foreach (var catalogRegistration in catalogRegistrations)
+                    {
+                        var metadata = LoadMetadata(catalogRegistration.Path);
 
-                    catalogPrototypes.Add(catalogPrototype);
+                        var catalogPrototype = new CatalogPrototype(
+                            catalogRegistration,
+                            pipelineId,
+                            pipeline,
+                            packageReferences,
+                            metadata,
+                            null);
+
+                        catalogPrototypes.Add(catalogPrototype);
+                    }
                 }
             }
 
@@ -98,7 +110,9 @@ internal class CatalogManager(
             var dbService = scope.ServiceProvider.GetRequiredService<IDBService>();
 
             /* => for each user with existing config */
-            foreach (var (userId, userConfiguration) in _appState.Project.UserConfigurations)
+            var userToPipelinesMap = await _pipelineService.GetAllAsync();
+
+            foreach (var (userId, pipelines) in userToPipelinesMap)
             {
                 // get owner
                 var user = await dbService.FindUserAsync(userId);
@@ -120,14 +134,17 @@ internal class CatalogManager(
                         nameType: Claims.Name,
                         roleType: Claims.Role));
 
-                /* for each data source registration */
-                foreach (var registration in userConfiguration.DataSourceRegistrations.Values)
+                /* for each pipeline */
+                foreach (var (pipelineId, pipeline) in pipelines)
                 {
                     try
                     {
-                        using var controller = await _dataControllerService.GetDataSourceControllerAsync(registration, cancellationToken);
+                        using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
                         var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
-                        var packageReference = _extensionHive.GetPackageReference<IDataSource>(registration.Type);
+
+                        var packageReferences = pipeline.Registrations
+                            .Select(registration => _extensionHive.GetPackageReference<IDataSource>(registration.Type))
+                            .ToArray();
 
                         foreach (var catalogRegistration in catalogRegistrations)
                         {
@@ -135,8 +152,9 @@ internal class CatalogManager(
 
                             var prototype = new CatalogPrototype(
                                 catalogRegistration,
-                                registration,
-                                packageReference,
+                                pipelineId,
+                                pipeline,
+                                packageReferences,
                                 metadata,
                                 owner);
 
@@ -158,7 +176,7 @@ internal class CatalogManager(
         else
         {
             using var controller = await _dataControllerService
-                .GetDataSourceControllerAsync(parent.DataSourceRegistration, cancellationToken);
+                .GetDataSourceControllerAsync(parent.Pipeline, cancellationToken);
 
             /* Why trailing slash?
              * Because we want the "directory content" (see the "ls /home/karl/" example here:
@@ -177,8 +195,9 @@ internal class CatalogManager(
 
                     return new CatalogPrototype(
                         catalogRegistration,
-                        parent.DataSourceRegistration,
-                        parent.PackageReference,
+                        parent.PipelineId,
+                        parent.Pipeline,
+                        parent.PackageReferences,
                         metadata,
                         parent.Owner);
                 });
@@ -208,8 +227,9 @@ internal class CatalogManager(
             var catalogContainer = new CatalogContainer(
                 prototype.Registration,
                 prototype.Owner,
-                prototype.DataSourceRegistration,
-                prototype.PackageReference,
+                prototype.PipelineId,
+                prototype.Pipeline,
+                prototype.PackageReferences,
                 prototype.Metadata,
                 this,
                 _databaseService,

@@ -12,7 +12,7 @@ namespace Services;
 
 public class TokenServiceTests
 {
-    delegate bool GobbleReturns(string userId, out string tokenMap);
+    delegate bool GobbleReturns(string userId, out string? tokenMap);
 
     [Fact]
     public async Task CanCreateToken()
@@ -87,6 +87,7 @@ public class TokenServiceTests
         // Act
         var actual = tokenService.TryGet("starlord", "def", out var actualToken);
 
+        // Assert
         Assert.True(actual);
         Assert.Equal(expectedDescription, actualToken!.Description);
     }
@@ -207,7 +208,7 @@ public class TokenServiceTests
 
         Mock.Get(databaseService)
             .Setup(databaseService => databaseService.TryReadTokenMap(It.IsAny<string>(), out It.Ref<string?>.IsAny))
-            .Returns(new GobbleReturns((string userId, out string tokenMapString) =>
+            .Returns(new GobbleReturns((string userId, out string? tokenMapString) =>
             {
                 tokenMapString = JsonSerializer.Serialize(tokenMap);
                 return true;

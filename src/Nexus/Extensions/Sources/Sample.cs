@@ -13,7 +13,7 @@ namespace Nexus.Sources;
     "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Sources/Sample.cs")]
 internal class Sample : IDataSource
 {
-    public static Guid RegistrationId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
+    public static readonly Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
 
     private static readonly double[] DATA =
     [
@@ -114,11 +114,11 @@ internal class Sample : IDataSource
             return Task.FromResult(Array.Empty<CatalogRegistration>());
     }
 
-    public Task<ResourceCatalog> GetCatalogAsync(
-        string catalogId,
+    public Task<ResourceCatalog> EnrichCatalogAsync(
+        ResourceCatalog catalog,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Sample.LoadCatalog(catalogId));
+        return Task.FromResult(catalog.Merge(LoadCatalog(catalog.Id)));
     }
 
     public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
@@ -147,19 +147,19 @@ internal class Sample : IDataSource
     {
         var tasks = requests.Select(request =>
         {
-            var (catalogItem, data, status) = request;
+            var (_, catalogItem, data, status) = request;
 
             return Task.Run(() =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var (catalog, resource, representation, parameters) = catalogItem;
+                var (catalog, resource, representation, _) = catalogItem;
 
                 // check credentials
                 if (catalog.Id == RemoteCatalogId)
                 {
-                    var user = Context.RequestConfiguration?.GetStringValue($"{typeof(Sample).FullName}/user");
-                    var password = Context.RequestConfiguration?.GetStringValue($"{typeof(Sample).FullName}/password");
+                    var user = Context.RequestConfiguration?.GetStringValue([typeof(Sample).FullName!, "user"]);
+                    var password = Context.RequestConfiguration?.GetStringValue([typeof(Sample).FullName!, "password"]);
 
                     if (user != RemoteUsername || password != RemotePassword)
                         throw new Exception("The provided credentials are invalid.");
@@ -168,7 +168,6 @@ internal class Sample : IDataSource
                 double[] dataDouble;
 
                 var beginTime = ToUnixTimeStamp(begin);
-                var endTime = ToUnixTimeStamp(end);
                 var elementCount = data.Length / representation.ElementSize;
 
                 // unit time
@@ -254,19 +253,20 @@ internal class Sample : IDataSource
 
         if (catalogId == RemoteCatalogId)
             catalogBuilder.WithReadme(
-@"This catalog demonstrates how to access data sources that require additional credentials. These can be appended in the user settings menu (on the top right). In case of this example catalog, the JSON string to be added would look like the following:
+"""
+This catalog demonstrates how to access data sources that require additional credentials. These can be appended in the user settings menu (on the top right). In case of this example catalog, the JSON string to be added would look like the following:
 
 ```json
 {
-    ""Nexus.Sources.Sample"": {
-        ""user"": ""test"",
-        ""password"": ""1234""
+    "Nexus.Sources.Sample": {
+        "user": "test",
+        "password": "1234"
     }
 }
 ```
 
 As soon as these credentials have been added, you should be granted full access to the data.
-");
+""");
 
         return catalogBuilder.Build();
     }

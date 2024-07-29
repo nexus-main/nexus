@@ -7,6 +7,8 @@
     "python.analysis.extraPaths": [
         "src/clients/python-client"
     ],
-    "dotnet.defaultSolution": "Nexus.sln",
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "[aspnetcorerazor]": {
+        "editor.formatOnSave": false
+    }
 }

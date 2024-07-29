@@ -4,9 +4,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
-using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Nexus.Core;
 using Nexus.DataModel;
@@ -19,7 +17,7 @@ internal interface IDataSourceController : IDisposable
 {
     Task InitializeAsync(
         ConcurrentDictionary<string, ResourceCatalog> catalogs,
-        ILogger logger,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken);
 
     Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(
@@ -41,11 +39,6 @@ internal interface IDataSourceController : IDisposable
         string catalogId,
         CancellationToken cancellationToken);
 
-    Task<bool> IsDataOfDayAvailableAsync(
-        string catalogId,
-        DateTime day,
-        CancellationToken cancellationToken);
-
     Task ReadAsync(
         DateTime begin,
         DateTime end,
@@ -57,8 +50,8 @@ internal interface IDataSourceController : IDisposable
 }
 
 internal class DataSourceController(
-    IDataSource dataSource,
-    InternalDataSourceRegistration registration,
+    IDataSource[] dataSources,
+    DataSourceRegistration[] registrations,
     IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
     IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
     IProcessingService processingService,
@@ -66,49 +59,68 @@ internal class DataSourceController(
     DataOptions dataOptions,
     ILogger<DataSourceController> logger) : IDataSourceController
 {
+    private static readonly string[] _pipelinePositionPath = [DataModelExtensions.NEXUS_KEY, DataModelExtensions.PIPELINE_POSITION_KEY];
+
+    internal readonly IReadOnlyDictionary<string, JsonElement>? _requestConfiguration = requestConfiguration;
+
     private readonly IProcessingService _processingService = processingService;
+
     private readonly ICacheService _cacheService = cacheService;
+
     private readonly DataOptions _dataOptions = dataOptions;
+
+    private readonly IDataSource[] _dataSources = dataSources;
+
+    private readonly DataSourceRegistration[] _registrations = registrations;
+
+    private readonly IReadOnlyDictionary<string, JsonElement>? _systemConfiguration = systemConfiguration;
+
     private ConcurrentDictionary<string, ResourceCatalog> _catalogCache = default!;
 
-    private IDataSource DataSource { get; } = dataSource;
-
-    private InternalDataSourceRegistration DataSourceRegistration { get; } = registration;
-
-    private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; } = systemConfiguration;
-
-    internal IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; } = requestConfiguration;
-
-    private ILogger Logger { get; } = logger;
+    private readonly ILogger _logger = logger;
 
     public async Task InitializeAsync(
         ConcurrentDictionary<string, ResourceCatalog> catalogCache,
-        ILogger logger,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         _catalogCache = catalogCache;
 
-        var clonedSourceConfiguration = DataSourceRegistration.Configuration is null
-            ? default
-            : DataSourceRegistration.Configuration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
+        foreach (var (dataSource, registration) in _dataSources
+            .Zip(_registrations))
+        {
+            var dataSourceLogger = loggerFactory
+                .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
 
-        var context = new DataSourceContext(
-            ResourceLocator: DataSourceRegistration.ResourceLocator,
-            SystemConfiguration: SystemConfiguration,
-            SourceConfiguration: clonedSourceConfiguration,
-            RequestConfiguration: RequestConfiguration);
+            var clonedSourceConfiguration = registration.Configuration is null
+                ? default
+                : registration.Configuration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
 
-        await DataSource.SetContextAsync(context, logger, cancellationToken);
+            var context = new DataSourceContext(
+                ResourceLocator: registration.ResourceLocator,
+                SystemConfiguration: _systemConfiguration,
+                SourceConfiguration: clonedSourceConfiguration,
+                RequestConfiguration: _requestConfiguration);
+
+            await dataSource.SetContextAsync(context, dataSourceLogger, cancellationToken);
+        }
     }
 
     public async Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(
         string path,
         CancellationToken cancellationToken)
     {
-        var catalogRegistrations = await DataSource
-            .GetCatalogRegistrationsAsync(path, cancellationToken);
+        // collect all catalog registrations
+        var catalogRegistrations = new List<CatalogRegistration>();
 
-        for (int i = 0; i < catalogRegistrations.Length; i++)
+        foreach (var dataSource in _dataSources)
+        {
+            var newCatalogRegistrations = await dataSource.GetCatalogRegistrationsAsync(path, cancellationToken);
+            catalogRegistrations.AddRange(newCatalogRegistrations);
+        }
+
+        // validation and sanitization
+        for (int i = 0; i < catalogRegistrations.Count; i++)
         {
             // absolute
             if (catalogRegistrations[i].Path.StartsWith('/'))
@@ -130,16 +142,26 @@ internal class DataSourceController(
         if (catalogRegistrations.Any(catalogRegistration => !catalogRegistration.Path.StartsWith(path)))
             throw new Exception($"The returned catalog identifier is not a child of {path}.");
 
-        return catalogRegistrations;
+        return catalogRegistrations
+            .DistinctBy(catalogRegistration => catalogRegistration.Path)
+            .ToArray();
     }
 
     public async Task<ResourceCatalog> GetCatalogAsync(
         string catalogId,
         CancellationToken cancellationToken)
     {
-        Logger.LogDebug("Load catalog {CatalogId}", catalogId);
+        _logger.LogDebug("Load catalog {CatalogId}", catalogId);
 
-        var catalog = await DataSource.GetCatalogAsync(catalogId, cancellationToken);
+        var catalog = new ResourceCatalog(catalogId);
+
+        for (var pipelinePosition = 0; pipelinePosition < _dataSources.Length; pipelinePosition++)
+        {
+            catalog = await _dataSources[pipelinePosition].EnrichCatalogAsync(catalog, cancellationToken);
+
+            // TODO: Is it the best solution to inject these additional properties here? Similar code exists in SourcesController.GetExtensionDescriptions()
+            catalog = catalog.EnsureAndSanitizeMandatoryProperties(pipelinePosition, _dataSources);
+        }
 
         if (catalog.Id != catalogId)
             throw new Exception("The id of the returned catalog does not match the requested catalog id.");
@@ -148,107 +170,6 @@ internal class DataSourceController(
         {
             Resources = catalog.Resources?.OrderBy(resource => resource.Id).ToList()
         };
-
-        // clean up "groups" property so it contains only unique groups
-        if (catalog.Resources is not null)
-        {
-            var isModified = false;
-            var newResources = new List<Resource>();
-
-            foreach (var resource in catalog.Resources)
-            {
-                var resourceProperties = resource.Properties;
-                var groups = resourceProperties?.GetStringArray(DataModelExtensions.GroupsKey);
-                var newResource = resource;
-
-                if (groups is not null)
-                {
-                    var distinctGroups = groups
-                        .Where(group => group is not null)
-                        .Distinct();
-
-                    if (!distinctGroups.SequenceEqual(groups))
-                    {
-                        var jsonArray = new JsonArray();
-
-                        foreach (var group in distinctGroups)
-                        {
-                            jsonArray.Add(group);
-                        }
-
-                        var newResourceProperties = resourceProperties!.ToDictionary(entry => entry.Key, entry => entry.Value);
-                        newResourceProperties[DataModelExtensions.GroupsKey] = JsonSerializer.SerializeToElement(jsonArray);
-
-                        newResource = resource with
-                        {
-                            Properties = newResourceProperties
-                        };
-
-                        isModified = true;
-                    }
-                }
-
-                newResources.Add(newResource);
-            }
-
-            if (isModified)
-            {
-                catalog = catalog with
-                {
-                    Resources = newResources
-                };
-            }
-        }
-
-        // TODO: Is it the best solution to inject these additional properties here? Similar code exists in SourcesController.GetExtensionDescriptions()
-        // add additional catalog properties
-        const string DATA_SOURCE_KEY = "data-source";
-        var catalogProperties = catalog.Properties;
-
-        if (catalogProperties is not null &&
-            catalogProperties.TryGetValue(DATA_SOURCE_KEY, out var _))
-        {
-            // do nothing
-        }
-
-        else
-        {
-            var type = DataSource
-                .GetType();
-
-            var nexusVersion = typeof(Program).Assembly
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
-                .InformationalVersion;
-
-            var dataSourceVersion = type.Assembly
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
-                .InformationalVersion;
-
-            var repositoryUrl = type
-                .GetCustomAttribute<ExtensionDescriptionAttribute>(inherit: false)!
-                .RepositoryUrl;
-
-            var newResourceProperties = catalogProperties is null
-                ? []
-                : catalogProperties.ToDictionary(entry => entry.Key, entry => entry.Value);
-
-            var originJsonObject = new JsonObject()
-            {
-                ["origin"] = new JsonObject()
-                {
-                    ["nexus-version"] = nexusVersion,
-                    ["data-source-repository-url"] = repositoryUrl,
-                    ["data-source-version"] = dataSourceVersion,
-                }
-            };
-
-            newResourceProperties[DATA_SOURCE_KEY] = JsonSerializer.SerializeToElement(originJsonObject);
-
-            catalog = catalog with
-            {
-                Properties = newResourceProperties
-            };
-        }
 
         /* GetOrAdd is not working because it requires a synchronous delegate */
         _catalogCache.TryAdd(catalogId, catalog);
@@ -263,50 +184,95 @@ internal class DataSourceController(
         TimeSpan step,
         CancellationToken cancellationToken)
     {
+        var stepCount = (int)Math.Ceiling((end - begin).Ticks / (double)step.Ticks);
+        var availabilities = new double[stepCount, _dataSources.Length];
 
-        var count = (int)Math.Ceiling((end - begin).Ticks / (double)step.Ticks);
-        var availabilities = new double[count];
-
-        var tasks = new List<Task>(capacity: count);
-        var currentBegin = begin;
-
-        for (int i = 0; i < count; i++)
+        for (int dataSourceIndex = 0; dataSourceIndex < _dataSources.Length; dataSourceIndex++)
         {
-            var currentEnd = currentBegin + step;
-            var currentBegin_captured = currentBegin;
-            var i_captured = i;
+            var tasks = new List<Task>(capacity: stepCount);
+            var currentBegin = begin;
+            var dataSource = _dataSources[dataSourceIndex];
 
-            tasks.Add(Task.Run(async () =>
+            for (int i = 0; i < stepCount; i++)
             {
-                var availability = await DataSource.GetAvailabilityAsync(catalogId, currentBegin_captured, currentEnd, cancellationToken);
-                availabilities[i_captured] = availability;
-            }, cancellationToken));
+                var currentEnd = currentBegin + step;
+                var currentBegin_captured = currentBegin;
+                var i_captured = i;
 
-            currentBegin = currentEnd;
+                tasks.Add(Task.Run(async () =>
+                {
+                    var availability = await dataSource.GetAvailabilityAsync(catalogId, currentBegin_captured, currentEnd, cancellationToken);
+                    availabilities[i_captured, dataSourceIndex] = availability;
+                }, cancellationToken));
+
+                currentBegin = currentEnd;
+            }
+
+            await Task.WhenAll(tasks);
+
         }
 
-        await Task.WhenAll(tasks);
+        // calculate average (but ignore double.NaN values)
+        var averagedAvailabilities = new double[stepCount];
 
-        return new CatalogAvailability(Data: availabilities);
+        for (int i = 0; i < averagedAvailabilities.Length; i++)
+        {
+            var sum = double.NaN;
+            var count = 0;
+
+            for (int j = 0; j < _dataSources.Length; j++)
+            {
+                var value = availabilities[i, j];
+
+                sum = (sum, value) switch
+                {
+                    /* NaNs everywhere */
+                    (double.NaN, double.NaN) => double.NaN,
+
+                    /* Replace sum with value */
+                    (double.NaN, _) => value,
+
+                    /* Do not change sum */
+                    (_, double.NaN) => sum,
+
+                    /* Add value to sum */
+                    _ => sum + value
+                };
+
+                if (!double.IsNaN(value))
+                    count++;
+            }
+
+            averagedAvailabilities[i] = count == 0
+                ? sum
+                : sum / count;
+        }
+
+        return new CatalogAvailability(Data: averagedAvailabilities);
     }
 
     public async Task<CatalogTimeRange> GetTimeRangeAsync(
         string catalogId,
         CancellationToken cancellationToken)
     {
-        (var begin, var end) = await DataSource.GetTimeRangeAsync(catalogId, cancellationToken);
+        var begin = DateTime.MaxValue;
+        var end = DateTime.MinValue;
+
+        foreach (var dataSource in _dataSources)
+        {
+            (var currentBegin, var currentEnd) = await dataSource
+                .GetTimeRangeAsync(catalogId, cancellationToken);
+
+            if (currentBegin < begin)
+                begin = currentBegin;
+
+            if (currentEnd > end)
+                end = currentEnd;
+        }
 
         return new CatalogTimeRange(
             Begin: begin,
             End: end);
-    }
-
-    public async Task<bool> IsDataOfDayAvailableAsync(
-        string catalogId,
-        DateTime day,
-        CancellationToken cancellationToken)
-    {
-        return (await DataSource.GetAvailabilityAsync(catalogId, day, day.AddDays(1), cancellationToken)) > 0;
     }
 
     public async Task ReadAsync(
@@ -332,9 +298,7 @@ internal class DataSourceController(
          */
 
         /* preparation */
-        var readUnits = PrepareReadUnits(
-            catalogItemRequestPipeWriters);
-
+        var readUnits = PrepareReadUnits(catalogItemRequestPipeWriters);
         var readingTasks = new List<Task>(capacity: readUnits.Length);
         var targetElementCount = ExtensibilityUtilities.CalculateElementCount(begin, end, samplePeriod);
         var targetByteCount = sizeof(double) * targetElementCount;
@@ -350,17 +314,17 @@ internal class DataSourceController(
             .Where(readUnit => readUnit.CatalogItemRequest.BaseItem is null)
             .ToArray();
 
-        Logger.LogTrace("Load {RepresentationCount} original representations", originalReadUnits.Length);
+        _logger.LogTrace("Load {RepresentationCount} original representations", originalReadUnits.Length);
 
         var originalProgress = new Progress<double>();
         var originalProgressFactor = originalReadUnits.Length / (double)readUnits.Length;
-        var originalProgress_old = 0.0;
+        var originalProgressValue_old = 0.0;
 
-        originalProgress.ProgressChanged += (sender, progressValue) =>
+        originalProgress.ProgressChanged += (sender, originalProgressValue) =>
         {
-            var actualProgress = progressValue - originalProgress_old;
-            originalProgress_old = progressValue;
-            totalProgress += actualProgress;
+            var actualProgress = originalProgressValue - originalProgressValue_old;
+            originalProgressValue_old = originalProgressValue;
+            totalProgress += actualProgress * originalProgressFactor;
             progress.Report(totalProgress);
         };
 
@@ -385,20 +349,20 @@ internal class DataSourceController(
             .Where(readUnit => readUnit.CatalogItemRequest.BaseItem is not null)
             .ToArray();
 
-        Logger.LogTrace("Load {RepresentationCount} processing representations", processingReadUnits.Length);
+        _logger.LogTrace("Load {RepresentationCount} processing representations", processingReadUnits.Length);
 
         var processingProgressFactor = 1 / (double)readUnits.Length;
 
         foreach (var processingReadUnit in processingReadUnits)
         {
             var processingProgress = new Progress<double>();
-            var processingProgress_old = 0.0;
+            var processingProgressValue_old = 0.0;
 
             processingProgress.ProgressChanged += (sender, progressValue) =>
             {
-                var actualProgress = progressValue - processingProgress_old;
-                processingProgress_old = progressValue;
-                totalProgress += actualProgress;
+                var actualProgress = progressValue - processingProgressValue_old;
+                processingProgressValue_old = progressValue;
+                totalProgress += actualProgress * processingProgressFactor;
                 progress.Report(totalProgress);
             };
 
@@ -453,13 +417,23 @@ internal class DataSourceController(
 
             try
             {
-                await DataSource.ReadAsync(
-                    begin,
-                    end,
-                    readRequests,
-                    readDataHandler,
-                    progress,
-                    cancellationToken);
+                for (int pipelinePosition = 0; pipelinePosition < _dataSources.Length; pipelinePosition++)
+                {
+                    var currentReadRequests = readRequests
+                        .Where(request =>
+                            request.CatalogItem.Resource.Properties is null ||
+                            request.CatalogItem.Resource.Properties.GetIntValue(_pipelinePositionPath) == pipelinePosition
+                        )
+                        .ToArray();
+
+                    await _dataSources[pipelinePosition].ReadAsync(
+                        begin,
+                        end,
+                        currentReadRequests,
+                        readDataHandler,
+                        progress,
+                        cancellationToken);
+                }
             }
             catch (OutOfMemoryException)
             {
@@ -467,7 +441,7 @@ internal class DataSourceController(
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
+                _logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
             }
 
             var readingTasks = new List<Task>(capacity: originalUnits.Length);
@@ -475,9 +449,9 @@ internal class DataSourceController(
             foreach (var (readUnit, readRequestManager) in tuples)
             {
                 var (catalogItemRequest, dataWriter) = readUnit;
-                var (_, data, status) = readRequestManager.Request;
+                var (_, _, data, status) = readRequestManager.Request;
 
-                using var scope = Logger.BeginScope(new Dictionary<string, object>()
+                using var scope = _logger.BeginScope(new Dictionary<string, object>()
                 {
                     ["ResourcePath"] = catalogItemRequest.Item.ToPath()
                 });
@@ -498,7 +472,7 @@ internal class DataSourceController(
                         target: targetBuffer);
 
                     /* update progress */
-                    Logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+                    _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
                     dataWriter.Advance(targetByteCount);
                     await dataWriter.FlushAsync();
                 }, cancellationToken));
@@ -546,7 +520,7 @@ internal class DataSourceController(
         try
         {
             /* load data from cache */
-            Logger.LogTrace("Load data from cache");
+            _logger.LogTrace("Load data from cache");
 
             List<Interval> uncachedIntervals;
 
@@ -567,7 +541,7 @@ internal class DataSourceController(
             }
 
             /* load and process remaining data from source */
-            Logger.LogTrace("Load and process {PeriodCount} uncached periods from source", uncachedIntervals.Count);
+            _logger.LogTrace("Load and process {PeriodCount} uncached periods from source", uncachedIntervals.Count);
 
             var elementSize = baseItem.Representation.ElementSize;
             var sourceSamplePeriod = baseSamplePeriod;
@@ -594,13 +568,16 @@ internal class DataSourceController(
                 };
 
                 /* read */
-                await DataSource.ReadAsync(
-                    interval.Begin,
-                    interval.End,
-                    [slicedReadRequest],
-                    readDataHandler,
-                    progress,
-                    cancellationToken);
+                foreach (var dataSource in _dataSources)
+                {
+                    await dataSource.ReadAsync(
+                        interval.Begin,
+                        interval.End,
+                        [slicedReadRequest],
+                        readDataHandler,
+                        progress,
+                        cancellationToken);
+                }
 
                 /* process */
                 var slicedTargetBuffer = targetBuffer.Slice(
@@ -633,12 +610,12 @@ internal class DataSourceController(
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
+            _logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
         }
         finally
         {
             /* update progress */
-            Logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+            _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
             readUnit.DataWriter.Advance(targetByteCount);
             await readUnit.DataWriter.FlushAsync(cancellationToken);
         }
@@ -699,7 +676,6 @@ internal class DataSourceController(
         try
         {
             /* load and process data from source */
-            var elementSize = baseItem.Representation.ElementSize;
             var sourceSamplePeriod = baseSamplePeriod;
             var targetSamplePeriod = samplePeriod;
 
@@ -708,13 +684,16 @@ internal class DataSourceController(
                 : (int)(targetSamplePeriod.Ticks / sourceSamplePeriod.Ticks);
 
             /* read */
-            await DataSource.ReadAsync(
-                roundedBegin,
-                roundedEnd,
-                [readRequest],
-                readDataHandler,
-                progress,
-                cancellationToken);
+            foreach (var dataSource in _dataSources)
+            {
+                await dataSource.ReadAsync(
+                    roundedBegin,
+                    roundedEnd,
+                    [readRequest],
+                    readDataHandler,
+                    progress,
+                    cancellationToken);
+            }
 
             /* process */
             var offset = NexusUtilities.Scale(begin - roundedBegin, targetSamplePeriod);
@@ -733,11 +712,11 @@ internal class DataSourceController(
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
+            _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
         }
 
         /* update progress */
-        Logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+        _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
         readUnit.DataWriter.Advance(targetByteCount);
         await readUnit.DataWriter.FlushAsync(cancellationToken);
     }
@@ -1061,8 +1040,11 @@ internal class DataSourceController(
         {
             if (disposing)
             {
-                var disposable = DataSource as IDisposable;
-                disposable?.Dispose();
+                foreach (var dataSource in _dataSources)
+                {
+                    var disposable = dataSource as IDisposable;
+                    disposable?.Dispose();
+                }
             }
 
             _disposedValue = true;

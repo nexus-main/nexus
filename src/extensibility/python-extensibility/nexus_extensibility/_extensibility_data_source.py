@@ -68,10 +68,14 @@ class ReadRequest:
     A read request.
 
     Args:
+        original_resource_name: The original resource name.
         catalog_item: The CatalogItem to be read.
         data: The data buffer.
         status: The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN").
     """
+
+    original_resource_name: str
+    """The original resource name."""
 
     catalog_item: CatalogItem
     """The CatalogItem to be read."""

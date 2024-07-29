@@ -13,7 +13,9 @@ namespace Nexus.DataModel;
 public record ResourceBuilder
 {
     private readonly string _id;
+
     private Dictionary<string, JsonElement>? _properties;
+
     private List<Representation>? _representations;
 
     /// <summary>

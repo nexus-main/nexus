@@ -27,12 +27,12 @@ public class SampleDataSourceTests
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
         // act
-        var actual = await dataSource.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None);
+        var actual = await dataSource.EnrichCatalogAsync(new ResourceCatalog(Sample.LocalCatalogId), CancellationToken.None);
 
         // assert
         var actualIds = actual.Resources!.Select(resource => resource.Id).ToList();
-        var actualUnits = actual.Resources!.Select(resource => resource.Properties?.GetStringValue("unit")).ToList();
-        var actualGroups = actual.Resources!.SelectMany(resource => resource.Properties?.GetStringArray("groups") ?? []);
+        var actualUnits = actual.Resources!.Select(resource => resource.Properties?.GetStringValue(["unit"])).ToList();
+        var actualGroups = actual.Resources!.SelectMany(resource => resource.Properties?.GetStringArray(["groups"]) ?? []);
         var actualDataTypes = actual.Resources!.SelectMany(resource => resource.Representations!.Select(representation => representation.DataType)).ToList();
 
         var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2" };
@@ -99,7 +99,7 @@ public class SampleDataSourceTests
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
-        var catalog = await dataSource.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None);
+        var catalog = await dataSource.EnrichCatalogAsync(new ResourceCatalog(Sample.LocalCatalogId), CancellationToken.None);
         var resource = catalog.Resources![0];
         var representation = resource.Representations![0];
         var catalogItem = new CatalogItem(catalog, resource, representation, Parameters: default);
@@ -108,7 +108,7 @@ public class SampleDataSourceTests
         var end = new DateTime(2020, 01, 02, 0, 0, 0, DateTimeKind.Utc);
         var (data, status) = ExtensibilityUtilities.CreateBuffers(representation, begin, end);
 
-        var request = new ReadRequest(catalogItem, data, status);
+        var request = new ReadRequest(resource.Id, catalogItem, data, status);
 
         await dataSource.ReadAsync(
             begin,

@@ -398,10 +398,8 @@ class CatalogInfo:
         is_released: A boolean which indicates if the catalog is released.
         is_visible: A boolean which indicates if the catalog is visible.
         is_owner: A boolean which indicates if the catalog is owned by the current user.
-        data_source_info_url: A nullable info URL of the data source.
-        data_source_type: The data source type.
-        data_source_registration_id: The data source registration identifier.
-        package_reference_id: The package reference identifier.
+        package_reference_ids: The package reference identifiers.
+        pipeline_info: A structure for pipeline info.
     """
 
     id: str
@@ -434,17 +432,32 @@ class CatalogInfo:
     is_owner: bool
     """A boolean which indicates if the catalog is owned by the current user."""
 
-    data_source_info_url: Optional[str]
-    """A nullable info URL of the data source."""
+    package_reference_ids: list[UUID]
+    """The package reference identifiers."""
 
-    data_source_type: str
-    """The data source type."""
+    pipeline_info: PipelineInfo
+    """A structure for pipeline info."""
 
-    data_source_registration_id: UUID
-    """The data source registration identifier."""
 
-    package_reference_id: UUID
-    """The package reference identifier."""
+@dataclass(frozen=True)
+class PipelineInfo:
+    """
+    A structure for pipeline information.
+
+    Args:
+        id: The pipeline identifier.
+        types: An array of data source types.
+        info_urls: An array of data source info URLs.
+    """
+
+    id: UUID
+    """The pipeline identifier."""
+
+    types: list[str]
+    """An array of data source types."""
+
+    info_urls: list[Optional[str]]
+    """An array of data source info URLs."""
 
 
 @dataclass(frozen=True)
@@ -664,6 +677,27 @@ class ExtensionDescription:
 
 
 @dataclass(frozen=True)
+class DataSourcePipeline:
+    """
+    A data source pipeline.
+
+    Args:
+        registrations: The list of pipeline elements (data source registrations).
+        release_pattern: An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.
+        visibility_pattern: An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.
+    """
+
+    registrations: list[DataSourceRegistration]
+    """The list of pipeline elements (data source registrations)."""
+
+    release_pattern: Optional[str]
+    """An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released."""
+
+    visibility_pattern: Optional[str]
+    """An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible."""
+
+
+@dataclass(frozen=True)
 class DataSourceRegistration:
     """
     A data source registration.
@@ -673,8 +707,6 @@ class DataSourceRegistration:
         resource_locator: An optional URL which points to the data.
         configuration: Configuration parameters for the instantiated source.
         info_url: An optional info URL.
-        release_pattern: An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.
-        visibility_pattern: An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.
     """
 
     type: str
@@ -688,12 +720,6 @@ class DataSourceRegistration:
 
     info_url: Optional[str]
     """An optional info URL."""
-
-    release_pattern: Optional[str]
-    """An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released."""
-
-    visibility_pattern: Optional[str]
-    """An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible."""
 
 
 @dataclass(frozen=True)
@@ -1198,15 +1224,15 @@ class SourcesAsyncClient:
 
         return self.___client._invoke(list[ExtensionDescription], "GET", __url, "application/json", None, None)
 
-    def get_registrations(self, user_id: Optional[str] = None) -> Awaitable[dict[str, DataSourceRegistration]]:
+    def get_pipelines(self, user_id: Optional[str] = None) -> Awaitable[dict[str, DataSourcePipeline]]:
         """
-        Gets the list of data source registrations.
+        Gets the list of data source pipelines.
 
         Args:
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
-        __url = "/api/v1/sources/registrations"
+        __url = "/api/v1/sources/pipelines"
 
         __query_values: dict[str, str] = {}
 
@@ -1216,17 +1242,17 @@ class SourcesAsyncClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(dict[str, DataSourceRegistration], "GET", __url, "application/json", None, None)
+        return self.___client._invoke(dict[str, DataSourcePipeline], "GET", __url, "application/json", None, None)
 
-    def create_registration(self, registration: DataSourceRegistration, user_id: Optional[str] = None) -> Awaitable[UUID]:
+    def create_pipeline(self, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> Awaitable[UUID]:
         """
-        Creates a data source registration.
+        Creates a data source pipeline.
 
         Args:
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
-        __url = "/api/v1/sources/registrations"
+        __url = "/api/v1/sources/pipelines"
 
         __query_values: dict[str, str] = {}
 
@@ -1236,21 +1262,25 @@ class SourcesAsyncClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(registration, _json_encoder_options)))
+        return self.___client._invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
-    def delete_registration(self, registration_id: UUID, user_id: Optional[str] = None) -> Awaitable[Response]:
+    def delete_pipeline(self, registration_id: str, pipeline_id: Optional[UUID] = None, user_id: Optional[str] = None) -> Awaitable[Response]:
         """
-        Deletes a data source registration.
+        Deletes a data source pipeline.
 
         Args:
-            registration_id: The identifier of the registration.
+            pipeline_id: The identifier of the pipeline.
             user_id: The optional user identifier. If not specified, the current user will be used.
+            registration_id: 
         """
 
-        __url = "/api/v1/sources/registrations/{registrationId}"
+        __url = "/api/v1/sources/pipelines/{registrationId}"
         __url = __url.replace("{registrationId}", quote(str(registration_id), safe=""))
 
         __query_values: dict[str, str] = {}
+
+        if pipeline_id is not None:
+            __query_values["pipelineId"] = quote(_to_string(pipeline_id), safe="")
 
         if user_id is not None:
             __query_values["userId"] = quote(_to_string(user_id), safe="")
@@ -1962,15 +1992,15 @@ class SourcesClient:
 
         return self.___client._invoke(list[ExtensionDescription], "GET", __url, "application/json", None, None)
 
-    def get_registrations(self, user_id: Optional[str] = None) -> dict[str, DataSourceRegistration]:
+    def get_pipelines(self, user_id: Optional[str] = None) -> dict[str, DataSourcePipeline]:
         """
-        Gets the list of data source registrations.
+        Gets the list of data source pipelines.
 
         Args:
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
-        __url = "/api/v1/sources/registrations"
+        __url = "/api/v1/sources/pipelines"
 
         __query_values: dict[str, str] = {}
 
@@ -1980,17 +2010,17 @@ class SourcesClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(dict[str, DataSourceRegistration], "GET", __url, "application/json", None, None)
+        return self.___client._invoke(dict[str, DataSourcePipeline], "GET", __url, "application/json", None, None)
 
-    def create_registration(self, registration: DataSourceRegistration, user_id: Optional[str] = None) -> UUID:
+    def create_pipeline(self, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> UUID:
         """
-        Creates a data source registration.
+        Creates a data source pipeline.
 
         Args:
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
-        __url = "/api/v1/sources/registrations"
+        __url = "/api/v1/sources/pipelines"
 
         __query_values: dict[str, str] = {}
 
@@ -2000,21 +2030,25 @@ class SourcesClient:
         __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
         __url += __query
 
-        return self.___client._invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(registration, _json_encoder_options)))
+        return self.___client._invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
-    def delete_registration(self, registration_id: UUID, user_id: Optional[str] = None) -> Response:
+    def delete_pipeline(self, registration_id: str, pipeline_id: Optional[UUID] = None, user_id: Optional[str] = None) -> Response:
         """
-        Deletes a data source registration.
+        Deletes a data source pipeline.
 
         Args:
-            registration_id: The identifier of the registration.
+            pipeline_id: The identifier of the pipeline.
             user_id: The optional user identifier. If not specified, the current user will be used.
+            registration_id: 
         """
 
-        __url = "/api/v1/sources/registrations/{registrationId}"
+        __url = "/api/v1/sources/pipelines/{registrationId}"
         __url = __url.replace("{registrationId}", quote(str(registration_id), safe=""))
 
         __query_values: dict[str, str] = {}
+
+        if pipeline_id is not None:
+            __query_values["pipelineId"] = quote(_to_string(pipeline_id), safe="")
 
         if user_id is not None:
             __query_values["userId"] = quote(_to_string(user_id), safe="")

@@ -28,11 +28,12 @@ public class DataControllerServiceTests
             .Setup(extensionHive => extensionHive.GetInstance<IDataSource>(It.IsAny<string>()))
             .Returns(new Sample());
 
-        var registration = new InternalDataSourceRegistration(
-            Id: Guid.NewGuid(),
+        var registration = new DataSourceRegistration(
             Type: default!,
             new Uri("A", UriKind.Relative),
             Configuration: default);
+
+        var pipeline = new DataSourcePipeline([registration]);
 
         var expectedCatalog = Sample.LoadCatalog("/A/B/C");
 
@@ -43,7 +44,7 @@ public class DataControllerServiceTests
 
         var appState = new AppState()
         {
-            Project = new NexusProject(default, default!, default!),
+            Project = new NexusProject(default, default!),
             CatalogState = catalogState
         };
 
@@ -77,11 +78,10 @@ public class DataControllerServiceTests
             default!,
             default!,
             Options.Create(new DataOptions()),
-            default!,
             loggerFactory);
 
         // Act
-        var actual = await dataControllerService.GetDataSourceControllerAsync(registration, CancellationToken.None);
+        var actual = await dataControllerService.GetDataSourceControllerAsync(pipeline, CancellationToken.None);
 
         // Assert
         var actualCatalog = await actual.GetCatalogAsync("/A/B/C", CancellationToken.None);
@@ -89,7 +89,7 @@ public class DataControllerServiceTests
         Assert.Equal(expectedCatalog.Id, actualCatalog.Id);
 
         var expectedConfig = JsonSerializer.Serialize(requestConfiguration);
-        var actualConfig = JsonSerializer.Serialize(((DataSourceController)actual).RequestConfiguration);
+        var actualConfig = JsonSerializer.Serialize(((DataSourceController)actual)._requestConfiguration);
 
         Assert.Equal(expectedConfig, actualConfig);
     }
@@ -100,7 +100,7 @@ public class DataControllerServiceTests
         // Arrange
         var appState = new AppState()
         {
-            Project = new NexusProject(default, default!, default!)
+            Project = new NexusProject(default, default!)
         };
 
         var extensionHive = Mock.Of<IExtensionHive>();
@@ -121,15 +121,19 @@ public class DataControllerServiceTests
             default!,
             default!,
             Options.Create(new DataOptions()),
-            default!,
             loggerFactory);
 
-        var actual = await dataControllerService.GetDataWriterControllerAsync(
-            resourceLocator,
-            exportParameters,
-            CancellationToken.None);
+        async Task action()
+        {
+            var _ = await dataControllerService.GetDataWriterControllerAsync(
+                resourceLocator,
+                exportParameters,
+                CancellationToken.None);
+        };
+
+        var actual = await Record.ExceptionAsync(action);
 
         // Assert
-        /* nothing to assert */
+        Assert.Null(actual);
     }
 }

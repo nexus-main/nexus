@@ -51,10 +51,8 @@ public class AppState : INotifyPropertyChanged
             IsReleased: true,
             IsVisible: true,
             IsOwner: false,
-            DataSourceInfoUrl: default,
-            DataSourceType: default!,
-            DataSourceRegistrationId: default,
-            PackageReferenceId: default);
+            PackageReferenceIds: default!,
+            PipelineInfo: default!);
 
         RootCatalog = new FakeResourceCatalogViewModel(rootInfo, "", client, this, childCatalogInfosTask);
 

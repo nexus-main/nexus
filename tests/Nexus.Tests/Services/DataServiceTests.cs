@@ -27,10 +27,12 @@ public class DataServiceTests
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2020, 01, 03, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
-        var exportId = Guid.NewGuid();
 
-        var registration1 = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "A", new Uri("a", UriKind.Relative), default, default);
-        var registration2 = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "B", new Uri("a", UriKind.Relative), default, default);
+        var registration1 = new DataSourceRegistration(Type: "A", new Uri("a", UriKind.Relative), default, default);
+        var pipeline1 = new DataSourcePipeline([registration1]);
+
+        var registration2 = new DataSourceRegistration(Type: "B", new Uri("a", UriKind.Relative), default, default);
+        var pipeline2 = new DataSourcePipeline([registration2]);
 
         // DI services
         var dataSourceController1 = Mock.Of<IDataSourceController>();
@@ -55,13 +57,13 @@ public class DataServiceTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<InternalDataSourceRegistration>(), It.IsAny<CancellationToken>()))
-            .Returns<InternalDataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourcePipeline>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourcePipeline, CancellationToken>((pipeline, cancellationToken) =>
             {
-                if (registration.Type == registration1.Type)
+                if (pipeline.Registrations[0].Type == registration1.Type)
                     return Task.FromResult(dataSourceController1);
 
-                else if (registration.Type == registration2.Type)
+                else if (pipeline.Registrations[0].Type == registration2.Type)
                     return Task.FromResult(dataSourceController2);
 
                 else
@@ -114,13 +116,13 @@ public class DataServiceTests
         var resource1 = new Resource(id: "Resource1");
         var catalog1 = new ResourceCatalog(id: "/A/B/C");
         var catalogItem1 = new CatalogItem(catalog1, resource1, representation1, Parameters: default);
-        var catalogContainer1 = new CatalogContainer(new CatalogRegistration(catalog1.Id, string.Empty), default!, registration1, default!, default!, default!, default!, default!);
+        var catalogContainer1 = new CatalogContainer(new CatalogRegistration(catalog1.Id, string.Empty), default, default, pipeline1, default!, default!, default!, default!, default!);
 
         var representation2 = new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: samplePeriod);
         var resource2 = new Resource(id: "Resource2");
         var catalog2 = new ResourceCatalog(id: "/F/G/H");
         var catalogItem2 = new CatalogItem(catalog2, resource2, representation2, Parameters: default);
-        var catalogContainer2 = new CatalogContainer(new CatalogRegistration(catalog2.Id, string.Empty), default!, registration2, default!, default!, default!, default!, default!);
+        var catalogContainer2 = new CatalogContainer(new CatalogRegistration(catalog2.Id, string.Empty), default, default, pipeline2, default!, default!, default!, default!, default!);
 
         // export parameters
         var exportParameters = new ExportParameters(
