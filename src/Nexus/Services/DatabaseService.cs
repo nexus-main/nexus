@@ -19,11 +19,20 @@ internal interface IDatabaseService
     Stream WriteProject();
 
     /* /config/users */
+    IEnumerable<string> EnumerateUsers();
+
     bool TryReadTokenMap(
         string userId,
         [NotNullWhen(true)] out string? tokenMap);
 
     Stream WriteTokenMap(
+        string userId);
+
+    bool TryReadPipelineMap(
+        string userId,
+        [NotNullWhen(true)] out string? pipelineMap);
+
+    Stream WritePipelineMap(
         string userId);
 
     /* /catalogs/catalog_id/... */
@@ -118,6 +127,17 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     }
 
     /* /config/users */
+    public IEnumerable<string> EnumerateUsers()
+    {
+        var usersPath = Path.Combine(_pathsOptions.Config, "users");
+
+        if (Directory.Exists(usersPath))
+            return Directory.EnumerateDirectories(usersPath);
+
+        else
+            return Enumerable.Empty<string>();
+    }
+
     public bool TryReadTokenMap(
         string userId,
         [NotNullWhen(true)] out string? tokenMap)
@@ -140,11 +160,40 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         string userId)
     {
         var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
-        var tokenFilePath = Path.Combine(folderPath, "tokens.json");
+        var tokensFilePath = Path.Combine(folderPath, "tokens.json");
 
         Directory.CreateDirectory(folderPath);
 
-        return File.Open(tokenFilePath, FileMode.Create, FileAccess.Write);
+        return File.Open(tokensFilePath, FileMode.Create, FileAccess.Write);
+    }
+
+    public bool TryReadPipelineMap(
+       string userId,
+       [NotNullWhen(true)] out string? pipelineMap)
+    {
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
+        var pipelinesFilePath = Path.Combine(folderPath, "pipelines.json");
+
+        pipelineMap = default;
+
+        if (File.Exists(pipelinesFilePath))
+        {
+            pipelineMap = File.ReadAllText(pipelinesFilePath);
+            return true;
+        }
+
+        return false;
+    }
+
+    public Stream WritePipelineMap(
+        string userId)
+    {
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
+        var pipelineFilePath = Path.Combine(folderPath, "pipelines.json");
+
+        Directory.CreateDirectory(folderPath);
+
+        return File.Open(pipelineFilePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /catalogs/catalog_id/... */

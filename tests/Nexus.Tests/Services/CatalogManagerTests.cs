@@ -34,8 +34,8 @@ public class CatalogManagerTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<InternalDataSourceRegistration>(), It.IsAny<CancellationToken>()))
-            .Returns<InternalDataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourcePipeline>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourcePipeline, CancellationToken>((pipeline, cancellationToken) =>
             {
                 var dataSourceController = Mock.Of<IDataSourceController>();
 
@@ -43,7 +43,7 @@ public class CatalogManagerTests
                     .Setup(s => s.GetCatalogRegistrationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                     .Returns<string, CancellationToken>((path, cancellationToken) =>
                     {
-                        var type = registration.Type;
+                        var type = pipeline.Registrations[0].Type;
 
                         return (type, path) switch
                         {
@@ -58,27 +58,6 @@ public class CatalogManagerTests
 
                 return Task.FromResult(dataSourceController);
             });
-
-        /* appState */
-        var registrationA = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "A", new Uri("", UriKind.Relative), default);
-        var registrationB = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "B", new Uri("", UriKind.Relative), default);
-        var registrationC = new InternalDataSourceRegistration(Id: Guid.NewGuid(), Type: "C", new Uri("", UriKind.Relative), default);
-
-        var appState = new AppState()
-        {
-            Project = new NexusProject(default!, default!, new Dictionary<string, UserConfiguration>()
-            {
-                ["UserA"] = new UserConfiguration(new Dictionary<Guid, InternalDataSourceRegistration>()
-                {
-                    [Guid.NewGuid()] = registrationA
-                }),
-                ["UserB"] = new UserConfiguration(new Dictionary<Guid, InternalDataSourceRegistration>()
-                {
-                    [Guid.NewGuid()] = registrationB,
-                    [Guid.NewGuid()] = registrationC
-                })
-            })
-        };
 
         // databaseService
         var databaseService = Mock.Of<IDatabaseService>();
@@ -165,13 +144,39 @@ public class CatalogManagerTests
         /* extensionHive */
         var extensionHive = Mock.Of<IExtensionHive>();
 
+        /* pipelineService */
+        var registrationA = new DataSourceRegistration(Type: "A", new Uri("", UriKind.Relative), default);
+        var registrationB = new DataSourceRegistration(Type: "B", new Uri("", UriKind.Relative), default);
+        var registrationC = new DataSourceRegistration(Type: "C", new Uri("", UriKind.Relative), default);
+
+        var pipelineService = Mock.Of<IPipelineService>();
+
+        Mock.Get(pipelineService)
+            .Setup(pipelineService => pipelineService.GetAllAsync())
+            .ReturnsAsync(() =>
+            {
+                return new Dictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>
+                {
+                    ["UserA"] = new Dictionary<Guid, DataSourcePipeline>()
+                    {
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationA])
+                    },
+
+                    ["UserB"] = new Dictionary<Guid, DataSourcePipeline>()
+                    {
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationB]),
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationC])
+                    }
+                };
+            });
+
         /* catalogManager */
         var catalogManager = new CatalogManager(
-            appState,
             dataControllerService,
             databaseService,
             serviceProvider,
             extensionHive,
+            pipelineService,
             NullLogger<CatalogManager>.Instance);
 
         // act
@@ -184,34 +189,34 @@ public class CatalogManagerTests
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/A" && container.DataSourceRegistration == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/A" && container.DataSourceRegistration == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/B/A" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/B" && container.DataSourceRegistration == registrationB && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/B/B" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationB && container.Owner!.Identity!.Name! == userB.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/B2" && container.DataSourceRegistration == registrationB && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/B/B2" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationB && container.Owner!.Identity!.Name! == userB.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/C/A" && container.DataSourceRegistration == registrationC && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/C/A" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationC && container.Owner!.Identity!.Name! == userB.Name);
 
         // assert 'A'
         Assert.Equal(2, ACatalogContainers.Length);
 
         Assert.Contains(
             ACatalogContainers,
-            container => container.Id == "/A/B" && container.DataSourceRegistration == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A/B" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             ACatalogContainers,
-            container => container.Id == "/A/C/A" && container.DataSourceRegistration == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A/C/A" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
     }
 
     [Fact]
@@ -232,8 +237,8 @@ public class CatalogManagerTests
         var dataControllerService = Mock.Of<IDataControllerService>();
 
         Mock.Get(dataControllerService)
-            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<InternalDataSourceRegistration>(), It.IsAny<CancellationToken>()))
-            .Returns<InternalDataSourceRegistration, CancellationToken>((registration, cancellationToken) =>
+            .Setup(s => s.GetDataSourceControllerAsync(It.IsAny<DataSourcePipeline>(), It.IsAny<CancellationToken>()))
+            .Returns<DataSourcePipeline, CancellationToken>((_, _) =>
             {
                 var dataSourceController = Mock.Of<IDataSourceController>();
 
@@ -256,18 +261,20 @@ public class CatalogManagerTests
                 .WithReadme("v2")
                 .Build());
 
-        /* data source registrations */
-        var registration = new InternalDataSourceRegistration(
-            Id: Guid.NewGuid(),
+        /* pipeline */
+        var registration = new DataSourceRegistration(
             Type: "A",
             ResourceLocator: default,
             Configuration: default!);
 
+        var pipeline = new DataSourcePipeline([registration]);
+
         /* catalog container */
         var catalogContainer = new CatalogContainer(
             new CatalogRegistration("/A", string.Empty),
-            default!,
-            registration,
+            default,
+            default,
+            pipeline,
             default!,
             catalogMetadata,
             default!,

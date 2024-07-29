@@ -941,13 +941,13 @@
         }
       }
     },
-    "/api/v1/sources/registrations": {
+    "/api/v1/sources/pipelines": {
       "get": {
         "tags": [
           "Sources"
         ],
-        "summary": "Gets the list of data source registrations.",
-        "operationId": "Sources_GetRegistrations",
+        "summary": "Gets the list of data source pipelines.",
+        "operationId": "Sources_GetPipelines",
         "parameters": [
           {
             "name": "userId",
@@ -968,7 +968,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "#/components/schemas/DataSourceRegistration"
+                    "$ref": "#/components/schemas/DataSourcePipeline"
                   }
                 }
               }
@@ -980,8 +980,8 @@
         "tags": [
           "Sources"
         ],
-        "summary": "Creates a data source registration.",
-        "operationId": "Sources_CreateRegistration",
+        "summary": "Creates a data source pipeline.",
+        "operationId": "Sources_CreatePipeline",
         "parameters": [
           {
             "name": "userId",
@@ -995,12 +995,12 @@
           }
         ],
         "requestBody": {
-          "x-name": "registration",
-          "description": "The registration to create.",
+          "x-name": "pipeline",
+          "description": "The pipeline to create.",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DataSourceRegistration"
+                "$ref": "#/components/schemas/DataSourcePipeline"
               }
             }
           },
@@ -1022,19 +1022,18 @@
         }
       }
     },
-    "/api/v1/sources/registrations/{registrationId}": {
+    "/api/v1/sources/pipelines/{registrationId}": {
       "delete": {
         "tags": [
           "Sources"
         ],
-        "summary": "Deletes a data source registration.",
-        "operationId": "Sources_DeleteRegistration",
+        "summary": "Deletes a data source pipeline.",
+        "operationId": "Sources_DeletePipeline",
         "parameters": [
           {
-            "name": "registrationId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the registration.",
+            "name": "pipelineId",
+            "in": "query",
+            "description": "The identifier of the pipeline.",
             "schema": {
               "type": "string",
               "format": "guid"
@@ -1050,6 +1049,15 @@
               "nullable": true
             },
             "x-position": 2
+          },
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 3
           }
         ],
         "responses": {
@@ -1857,24 +1865,48 @@
             "type": "boolean",
             "description": "A boolean which indicates if the catalog is owned by the current user."
           },
-          "dataSourceInfoUrl": {
-            "type": "string",
-            "description": "A nullable info URL of the data source.",
-            "nullable": true
+          "packageReferenceIds": {
+            "type": "array",
+            "description": "The package reference identifiers.",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
           },
-          "dataSourceType": {
+          "pipelineInfo": {
+            "description": "A structure for pipeline info.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PipelineInfo"
+              }
+            ]
+          }
+        }
+      },
+      "PipelineInfo": {
+        "type": "object",
+        "description": "A structure for pipeline information.",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
             "type": "string",
-            "description": "The data source type."
-          },
-          "dataSourceRegistrationId": {
-            "type": "string",
-            "description": "The data source registration identifier.",
+            "description": "The pipeline identifier.",
             "format": "guid"
           },
-          "packageReferenceId": {
-            "type": "string",
-            "description": "The package reference identifier.",
-            "format": "guid"
+          "types": {
+            "type": "array",
+            "description": "An array of data source types.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "infoUrls": {
+            "type": "array",
+            "description": "An array of data source info URLs.",
+            "items": {
+              "type": "string",
+              "nullable": true
+            }
           }
         }
       },
@@ -2115,6 +2147,30 @@
           }
         }
       },
+      "DataSourcePipeline": {
+        "type": "object",
+        "description": "A data source pipeline.",
+        "additionalProperties": false,
+        "properties": {
+          "registrations": {
+            "type": "array",
+            "description": "The list of pipeline elements (data source registrations).",
+            "items": {
+              "$ref": "#/components/schemas/DataSourceRegistration"
+            }
+          },
+          "releasePattern": {
+            "type": "string",
+            "description": "An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.",
+            "nullable": true
+          },
+          "visibilityPattern": {
+            "type": "string",
+            "description": "An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.",
+            "nullable": true
+          }
+        }
+      },
       "DataSourceRegistration": {
         "type": "object",
         "description": "A data source registration.",
@@ -2139,16 +2195,6 @@
           "infoUrl": {
             "type": "string",
             "description": "An optional info URL.",
-            "nullable": true
-          },
-          "releasePattern": {
-            "type": "string",
-            "description": "An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.",
-            "nullable": true
-          },
-          "visibilityPattern": {
-            "type": "string",
-            "description": "An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.",
             "nullable": true
           }
         }

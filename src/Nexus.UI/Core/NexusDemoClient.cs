@@ -185,10 +185,12 @@ We hope you enjoy it!
                 IsReleased: true,
                 IsVisible: true,
                 IsOwner: false,
-                DataSourceInfoUrl: default,
-                DataSourceType: "Nexus.FakeSource",
-                DataSourceRegistrationId: Guid.NewGuid(),
-                PackageReferenceId: Guid.NewGuid()
+                PackageReferenceIds: [Guid.NewGuid()],
+                PipelineInfo: new PipelineInfo(
+                    Id: Guid.NewGuid(),
+                    Types: ["Nexus.FakeSource"],
+                    InfoUrls: [default]
+                )
             );
 
             return Task.FromResult((IReadOnlyList<CatalogInfo>)[catalogInfo]);

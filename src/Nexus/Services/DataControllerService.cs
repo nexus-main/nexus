@@ -13,7 +13,7 @@ namespace Nexus.Services;
 internal interface IDataControllerService
 {
     Task<IDataSourceController> GetDataSourceControllerAsync(
-        InternalDataSourceRegistration registration,
+        DataSourcePipeline pipeline,
         CancellationToken cancellationToken);
 
     Task<IDataWriterController> GetDataWriterControllerAsync(
@@ -29,7 +29,6 @@ internal class DataControllerService(
     IProcessingService processingService,
     ICacheService cacheService,
     IOptions<DataOptions> dataOptions,
-    ILogger<DataControllerService> logger,
     ILoggerFactory loggerFactory) : IDataControllerService
 {
     public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
@@ -40,17 +39,16 @@ internal class DataControllerService(
     private readonly IExtensionHive _extensionHive = extensionHive;
     private readonly IProcessingService _processingService = processingService;
     private readonly ICacheService _cacheService = cacheService;
-    private readonly ILogger _logger = logger;
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
 
     public async Task<IDataSourceController> GetDataSourceControllerAsync(
-        InternalDataSourceRegistration registration,
+        DataSourcePipeline pipeline,
         CancellationToken cancellationToken)
     {
-        var logger1 = _loggerFactory.CreateLogger<DataSourceController>();
-        var logger2 = _loggerFactory.CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
+        var dataSources = pipeline.Registrations
+            .Select(registration => _extensionHive.GetInstance<IDataSource>(registration.Type))
+            .ToArray();
 
-        var dataSource = _extensionHive.GetInstance<IDataSource>(registration.Type);
         var requestConfiguration = GetRequestConfiguration();
 
         var clonedSystemConfiguration = _appState.Project.SystemConfiguration is null
@@ -58,20 +56,21 @@ internal class DataControllerService(
             : _appState.Project.SystemConfiguration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
 
         var controller = new DataSourceController(
-            dataSource,
-            registration,
-            systemConfiguration: clonedSystemConfiguration,
-            requestConfiguration: requestConfiguration,
+            dataSources,
+            pipeline.Registrations,
+            clonedSystemConfiguration,
+            requestConfiguration,
             _processingService,
             _cacheService,
             _dataOptions,
-            logger1);
+            _loggerFactory.CreateLogger<DataSourceController>()
+        );
 
-        var actualCatalogCache = _appState.CatalogState.Cache.GetOrAdd(
-            registration,
+        var catalogCache = _appState.CatalogState.Cache.GetOrAdd(
+            pipeline,
             registration => new ConcurrentDictionary<string, ResourceCatalog>());
 
-        await controller.InitializeAsync(actualCatalogCache, logger2, cancellationToken);
+        await controller.InitializeAsync(catalogCache, _loggerFactory, cancellationToken);
 
         return controller;
     }

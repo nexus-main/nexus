@@ -19,41 +19,41 @@ public class CatalogContainersExtensionsTests
         var catalogManager = Mock.Of<ICatalogManager>();
 
         Mock.Get(catalogManager)
-           .Setup(catalogManager => catalogManager.GetCatalogContainersAsync(
-               It.IsAny<CatalogContainer>(),
-               It.IsAny<CancellationToken>()))
-           .Returns<CatalogContainer, CancellationToken>((container, token) =>
-           {
-               return Task.FromResult(container.Id switch
-               {
-                   "/" => new CatalogContainer[]
-                   {
-                       new(new CatalogRegistration("/A", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!),
-                   },
-                   "/A" =>
-                   [
-                       new CatalogContainer(new CatalogRegistration("/A/C", string.Empty), default!, default!,  default!, default!, catalogManager, default!, default!),
-                       new CatalogContainer(new CatalogRegistration("/A/B", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!),
-                       new CatalogContainer(new CatalogRegistration("/A/D", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!)
-                   ],
-                   "/A/B" =>
-                   [
-                       new CatalogContainer(new CatalogRegistration("/A/B/D", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!),
-                       new CatalogContainer(new CatalogRegistration("/A/B/C", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!)
-                   ],
-                   "/A/D" =>
-                   [
-                       new CatalogContainer(new CatalogRegistration("/A/D/F", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!),
-                       new CatalogContainer(new CatalogRegistration("/A/D/E", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!),
-                       new CatalogContainer(new CatalogRegistration("/A/D/E2", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!)
-                   ],
-                   "/A/F" =>
-                   [
-                       new CatalogContainer(new CatalogRegistration("/A/F/H", string.Empty), default!, default!, default!, default!, catalogManager, default!, default!)
-                   ],
-                   _ => throw new Exception($"Unsupported combination {container.Id}.")
-               });
-           });
+            .Setup(catalogManager => catalogManager.GetCatalogContainersAsync(
+                It.IsAny<CatalogContainer>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<CatalogContainer, CancellationToken>((container, token) =>
+            {
+                return Task.FromResult(container.Id switch
+                {
+                    "/" => new CatalogContainer[]
+                    {
+                        new(new CatalogRegistration("/A", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
+                    },
+                    "/A" =>
+                    [
+                        new CatalogContainer(new CatalogRegistration("/A/C", string.Empty), default, default, default!,  default!, default!, catalogManager, default!, default!),
+                        new CatalogContainer(new CatalogRegistration("/A/B", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new CatalogContainer(new CatalogRegistration("/A/D", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!)
+                    ],
+                    "/A/B" =>
+                    [
+                        new CatalogContainer(new CatalogRegistration("/A/B/D", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new CatalogContainer(new CatalogRegistration("/A/B/C", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!)
+                    ],
+                    "/A/D" =>
+                    [
+                        new CatalogContainer(new CatalogRegistration("/A/D/F", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new CatalogContainer(new CatalogRegistration("/A/D/E", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new CatalogContainer(new CatalogRegistration("/A/D/E2", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!)
+                    ],
+                    "/A/F" =>
+                    [
+                        new CatalogContainer(new CatalogRegistration("/A/F/H", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!)
+                    ],
+                    _ => throw new Exception($"Unsupported combination {container.Id}.")
+                });
+            });
 
         var root = CatalogContainer.CreateRoot(catalogManager, default!);
 
@@ -110,27 +110,27 @@ public class CatalogContainersExtensionsTests
 
         Mock.Get(dataControllerService)
            .Setup(dataControllerService => dataControllerService.GetDataSourceControllerAsync(
-               It.IsAny<InternalDataSourceRegistration>(),
+               It.IsAny<DataSourcePipeline>(),
                It.IsAny<CancellationToken>()))
            .ReturnsAsync(dataSourceController);
 
         var catalogManager = Mock.Of<ICatalogManager>();
 
         Mock.Get(catalogManager)
-          .Setup(catalogManager => catalogManager.GetCatalogContainersAsync(
-              It.IsAny<CatalogContainer>(),
-              It.IsAny<CancellationToken>()))
-          .Returns<CatalogContainer, CancellationToken>((container, token) =>
-          {
-              return Task.FromResult(container.Id switch
-              {
-                  "/" => new CatalogContainer[]
-                  {
-                    new(new CatalogRegistration("/A/B/C", string.Empty), default!, default!, default!, default!, default!, default!, dataControllerService),
-                  },
-                  _ => throw new Exception("Unsupported combination.")
-              });
-          });
+            .Setup(catalogManager => catalogManager.GetCatalogContainersAsync(
+                It.IsAny<CatalogContainer>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<CatalogContainer, CancellationToken>((container, token) =>
+            {
+                return Task.FromResult(container.Id switch
+                {
+                    "/" => new CatalogContainer[]
+                    {
+                        new(new CatalogRegistration("/A/B/C", string.Empty), default, default, default!, default!, default!, default!, default!, dataControllerService),
+                    },
+                    _ => throw new Exception("Unsupported combination.")
+                });
+            });
 
         var root = CatalogContainer.CreateRoot(catalogManager, default!);
 

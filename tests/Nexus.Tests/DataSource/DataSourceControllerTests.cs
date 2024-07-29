@@ -1,6 +1,7 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nexus.Core;
@@ -24,8 +25,8 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     internal async Task CanGetAvailability()
     {
         using var controller = new DataSourceController(
-            _fixture.DataSource,
-            _fixture.Registration,
+            [_fixture.DataSource1, _fixture.DataSource2],
+            [_fixture.Registration1, _fixture.Registration2],
             default!,
             default!,
             default!,
@@ -33,7 +34,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             default!,
             NullLogger<DataSourceController>.Instance);
 
-        await controller.InitializeAsync(default!, default!, CancellationToken.None);
+        await controller.InitializeAsync(default!, new LoggerFactory(), CancellationToken.None);
 
         var catalogId = Sample.LocalCatalogId;
         var begin = new DateTime(2020, 01, 01, 00, 00, 00, DateTimeKind.Utc);
@@ -53,8 +54,8 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     public async Task CanGetTimeRange()
     {
         using var controller = new DataSourceController(
-            _fixture.DataSource,
-            _fixture.Registration,
+            [_fixture.DataSource1, _fixture.DataSource2],
+            [_fixture.Registration1, _fixture.Registration2],
             default!,
             default!,
             default!,
@@ -62,7 +63,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             default!,
             NullLogger<DataSourceController>.Instance);
 
-        await controller.InitializeAsync(default!, default!, CancellationToken.None);
+        await controller.InitializeAsync(default!, new LoggerFactory(), CancellationToken.None);
 
         var catalogId = Sample.LocalCatalogId;
         var actual = await controller.GetTimeRangeAsync(catalogId, CancellationToken.None);
@@ -72,33 +73,11 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     }
 
     [Fact]
-    public async Task CanCheckIsDataOfDayAvailable()
-    {
-        using var controller = new DataSourceController(
-            _fixture.DataSource,
-            _fixture.Registration,
-            default!,
-            default!,
-            default!,
-            default!,
-            default!,
-            NullLogger<DataSourceController>.Instance);
-
-        await controller.InitializeAsync(default!, default!, CancellationToken.None);
-
-        var day = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
-        var catalogId = Sample.LocalCatalogId;
-        var actual = await controller.IsDataOfDayAvailableAsync(catalogId, day, CancellationToken.None);
-
-        Assert.True(actual);
-    }
-
-    [Fact]
     public async Task CanRead()
     {
         using var controller = new DataSourceController(
-            _fixture.DataSource,
-            _fixture.Registration,
+            [_fixture.DataSource1, _fixture.DataSource2],
+            [_fixture.Registration1, _fixture.Registration2],
             default!,
             default!,
             default!,
@@ -106,14 +85,14 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             default!,
             NullLogger<DataSourceController>.Instance);
 
-        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), new LoggerFactory(), CancellationToken.None);
 
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2020, 01, 02, 0, 0, 1, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
 
         // resource 1
-        var resourcePath1 = $"{Sample.LocalCatalogId}/V1/1_s";
+        var resourcePath1 = $"{Sample.LocalCatalogId}/V1_renamed/1_s";
         var catalogItem1 = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath1);
         var catalogItemRequest1 = new CatalogItemRequest(catalogItem1, default, default!);
 
@@ -128,11 +107,20 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var pipe2 = new Pipe();
         var dataWriter2 = pipe2.Writer;
 
+        // resource 3
+        var resourcePath3 = $"{Sample.LocalCatalogId}/foo/1_s";
+        var catalogItem3 = (await controller.GetCatalogAsync(Sample.LocalCatalogId, CancellationToken.None)).Find(resourcePath3);
+        var catalogItemRequest3 = new CatalogItemRequest(catalogItem3, default, default!);
+
+        var pipe3 = new Pipe();
+        var dataWriter3 = pipe3.Writer;
+
         // combine
         var catalogItemRequestPipeWriters = new CatalogItemRequestPipeWriter[]
         {
             new(catalogItemRequest1, dataWriter1),
-            new(catalogItemRequest2, dataWriter2)
+            new(catalogItemRequest2, dataWriter2),
+            new(catalogItemRequest3, dataWriter3)
         };
 
         var readingGroups = new DataReadingGroup[]
@@ -140,6 +128,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             new(controller, catalogItemRequestPipeWriters)
         };
 
+        // V1
         var result1 = new double[86401];
 
         var writing1 = Task.Run(async () =>
@@ -149,7 +138,6 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
             while (resultBuffer1.Length > 0)
             {
-                // V1
                 var readBytes1 = await stream1.ReadAsync(resultBuffer1);
 
                 if (readBytes1 == 0)
@@ -159,6 +147,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             }
         });
 
+        // T1
         var result2 = new double[86401];
 
         var writing2 = Task.Run(async () =>
@@ -168,13 +157,31 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
             while (resultBuffer2.Length > 0)
             {
-                // T1
                 var readBytes2 = await stream2.ReadAsync(resultBuffer2);
 
                 if (readBytes2 == 0)
                     throw new Exception("The stream stopped early.");
 
                 resultBuffer2 = resultBuffer2[readBytes2..];
+            }
+        });
+
+        // foo
+        var result3 = new double[86401];
+
+        var writing3 = Task.Run(async () =>
+        {
+            var resultBuffer3 = result3.AsMemory().Cast<double, byte>();
+            var stream3 = pipe3.Reader.AsStream();
+
+            while (resultBuffer3.Length > 0)
+            {
+                var readBytes3 = await stream3.ReadAsync(resultBuffer3);
+
+                if (readBytes3 == 0)
+                    throw new Exception("The stream stopped early.");
+
+                resultBuffer3 = resultBuffer3[readBytes3..];
             }
         });
 
@@ -195,7 +202,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             NullLogger<DataSourceController>.Instance,
             CancellationToken.None);
 
-        await Task.WhenAll(writing1, writing2, reading);
+        await Task.WhenAll(writing1, writing2, writing3);
 
         // /SAMPLE/LOCAL/V1/1_s
         Assert.Equal(6.5, result1[0], precision: 1);
@@ -210,14 +217,21 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         Assert.Equal(7.9, result2[01 * 60 * 60 + 2], precision: 1);
         Assert.Equal(8.1, result2[02 * 60 * 60 + 3], precision: 1);
         Assert.Equal(7.5, result2[10 * 60 * 60 + 4], precision: 1);
+
+        // /SAMPLE/LOCAL/foo/1_s
+        Assert.Equal(1, result3[0]);
+        Assert.Equal(1, result3[10 * 60 + 1]);
+        Assert.Equal(1, result3[01 * 60 * 60 + 2]);
+        Assert.Equal(1, result3[02 * 60 * 60 + 3]);
+        Assert.Equal(1, result3[10 * 60 * 60 + 4]);
     }
 
     [Fact]
     public async Task CanReadAsStream()
     {
         using var controller = new DataSourceController(
-            _fixture.DataSource,
-            _fixture.Registration,
+            [_fixture.DataSource1, _fixture.DataSource2],
+            [_fixture.Registration1, _fixture.Registration2],
             default!,
             default!,
             default!,
@@ -225,7 +239,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             default!,
             NullLogger<DataSourceController>.Instance);
 
-        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), new LoggerFactory(), CancellationToken.None);
 
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2020, 01, 02, 0, 0, 1, DateTimeKind.Utc);
@@ -280,8 +294,8 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var processingService = new Mock<IProcessingService>();
 
         using var controller = new DataSourceController(
-            _fixture.DataSource,
-            _fixture.Registration,
+            [_fixture.DataSource1, _fixture.DataSource2],
+            [_fixture.Registration1, _fixture.Registration2],
             default!,
             default!,
             processingService.Object,
@@ -289,7 +303,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             new DataOptions(),
             NullLogger<DataSourceController>.Instance);
 
-        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), default!, CancellationToken.None);
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), new LoggerFactory(), CancellationToken.None);
 
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, 200, DateTimeKind.Utc);
         var end = new DateTime(2020, 01, 01, 0, 0, 1, 700, DateTimeKind.Utc);
@@ -364,6 +378,14 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             .AddResource(resource2)
             .Build();
 
+        // update immutable catalog and resources with mandatory properties
+        catalog = catalog
+            .EnsureAndSanitizeMandatoryProperties(pipelinePosition: 0, dataSources: Array.Empty<IDataSource>());
+
+        resource1 = catalog.Resources![0];
+        resource2 = catalog.Resources![1];
+
+        // continue
         var baseItem1 = new CatalogItem(catalog, resource1, representationBase1, Parameters: default);
         var catalogItem1 = new CatalogItem(catalog, resource1, representation1, Parameters: default);
         var catalogItem2 = new CatalogItem(catalog, resource2, representation2, Parameters: default);
@@ -479,16 +501,15 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             .Returns(Task.FromResult(uncachedIntervals));
 
         /* DataSourceController */
-        var registration = new InternalDataSourceRegistration(
-            Id: Guid.NewGuid(),
+        var registration = new DataSourceRegistration(
             "a",
             new Uri("http://xyz"),
             default,
             default);
 
         var dataSourceController = new DataSourceController(
-            dataSource,
-            registration,
+            [dataSource],
+            [registration],
             default!,
             default!,
             processingService,
@@ -498,7 +519,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
         var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>() { [catalog.Id] = catalog };
 
-        await dataSourceController.InitializeAsync(catalogCache, NullLogger.Instance, CancellationToken.None);
+        await dataSourceController.InitializeAsync(catalogCache, new LoggerFactory(), CancellationToken.None);
 
         // Act
         await dataSourceController.ReadAsync(

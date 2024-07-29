@@ -32,7 +32,7 @@ var securityOptions = configuration
 
 var pathsOptions = configuration
     .GetRequiredSection(PathsOptions.Section)
-    .Get<PathsOptions>()?? throw new Exception("Unable to instantiate path options");
+    .Get<PathsOptions>() ?? throw new Exception("Unable to instantiate path options");
 
 // logging (https://nblumhardt.com/2019/10/serilog-in-aspnetcore-3/)
 var applicationName = generalOptions.ApplicationName;
@@ -172,6 +172,7 @@ void AddServices(
 
     services.AddSingleton<AppState>();
     services.AddSingleton<AppStateManager>();
+    services.AddSingleton<IPipelineService, PipelineService>();
     services.AddSingleton<ITokenService, TokenService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();
     services.AddSingleton<IJobService, JobService>();
@@ -266,13 +267,18 @@ async Task InitializeAppAsync(
 
     // project
     if (databaseService.TryReadProject(out var project))
-        appState.Project = JsonSerializer.Deserialize<NexusProject>(project) ?? throw new Exception("project is null");
+    {
+        appState.Project = JsonSerializer.Deserialize<NexusProject>(project)
+            ?? throw new Exception("project is null");
+    }
 
     else
+    {
         appState.Project = new NexusProject(
-            default,
-            new Dictionary<Guid, InternalPackageReference>(),
-            new Dictionary<string, UserConfiguration>());
+            SystemConfiguration: default,
+            PackageReferences: new Dictionary<Guid, InternalPackageReference>()
+        );
+    }
 
     // packages and catalogs
     await appStateManager.RefreshDatabaseAsync(new Progress<double>(), CancellationToken.None);

@@ -1828,47 +1828,49 @@ public interface ISourcesClient
     Task<IReadOnlyList<ExtensionDescription>> GetDescriptionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the list of data source registrations.
+    /// Gets the list of data source pipelines.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    IReadOnlyDictionary<string, DataSourceRegistration> GetRegistrations(string? userId = default);
+    IReadOnlyDictionary<string, DataSourcePipeline> GetPipelines(string? userId = default);
 
     /// <summary>
-    /// Gets the list of data source registrations.
+    /// Gets the list of data source pipelines.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, DataSourceRegistration>> GetRegistrationsAsync(string? userId = default, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, DataSourcePipeline>> GetPipelinesAsync(string? userId = default, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a data source registration.
+    /// Creates a data source pipeline.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    /// <param name="registration">The registration to create.</param>
-    Guid CreateRegistration(DataSourceRegistration registration, string? userId = default);
+    /// <param name="pipeline">The pipeline to create.</param>
+    Guid CreatePipeline(DataSourcePipeline pipeline, string? userId = default);
 
     /// <summary>
-    /// Creates a data source registration.
+    /// Creates a data source pipeline.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    /// <param name="registration">The registration to create.</param>
+    /// <param name="pipeline">The pipeline to create.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<Guid> CreateRegistrationAsync(DataSourceRegistration registration, string? userId = default, CancellationToken cancellationToken = default);
+    Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes a data source registration.
+    /// Deletes a data source pipeline.
     /// </summary>
-    /// <param name="registrationId">The identifier of the registration.</param>
+    /// <param name="pipelineId">The identifier of the pipeline.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    HttpResponseMessage DeleteRegistration(Guid registrationId, string? userId = default);
+    /// <param name="registrationId"></param>
+    HttpResponseMessage DeletePipeline(string registrationId, Guid? pipelineId = default, string? userId = default);
 
     /// <summary>
-    /// Deletes a data source registration.
+    /// Deletes a data source pipeline.
     /// </summary>
-    /// <param name="registrationId">The identifier of the registration.</param>
+    /// <param name="pipelineId">The identifier of the pipeline.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    /// <param name="registrationId"></param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> DeleteRegistrationAsync(Guid registrationId, string? userId = default, CancellationToken cancellationToken = default);
+    Task<HttpResponseMessage> DeletePipelineAsync(string registrationId, Guid? pipelineId = default, string? userId = default, CancellationToken cancellationToken = default);
 
 }
 
@@ -1903,10 +1905,10 @@ public class SourcesClient : ISourcesClient
     }
 
     /// <inheritdoc />
-    public IReadOnlyDictionary<string, DataSourceRegistration> GetRegistrations(string? userId = default)
+    public IReadOnlyDictionary<string, DataSourcePipeline> GetPipelines(string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/sources/registrations");
+        __urlBuilder.Append("/api/v1/sources/pipelines");
 
         var __queryValues = new Dictionary<string, string>();
 
@@ -1917,14 +1919,14 @@ public class SourcesClient : ISourcesClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyDictionary<string, DataSourceRegistration>>("GET", __url, "application/json", default, default);
+        return ___client.Invoke<IReadOnlyDictionary<string, DataSourcePipeline>>("GET", __url, "application/json", default, default);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, DataSourceRegistration>> GetRegistrationsAsync(string? userId = default, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<string, DataSourcePipeline>> GetPipelinesAsync(string? userId = default, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/sources/registrations");
+        __urlBuilder.Append("/api/v1/sources/pipelines");
 
         var __queryValues = new Dictionary<string, string>();
 
@@ -1935,14 +1937,14 @@ public class SourcesClient : ISourcesClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyDictionary<string, DataSourceRegistration>>("GET", __url, "application/json", default, default, cancellationToken);
+        return ___client.InvokeAsync<IReadOnlyDictionary<string, DataSourcePipeline>>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Guid CreateRegistration(DataSourceRegistration registration, string? userId = default)
+    public Guid CreatePipeline(DataSourcePipeline pipeline, string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/sources/registrations");
+        __urlBuilder.Append("/api/v1/sources/pipelines");
 
         var __queryValues = new Dictionary<string, string>();
 
@@ -1953,14 +1955,14 @@ public class SourcesClient : ISourcesClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(registration, options: Utilities.JsonOptions));
+        return ___client.Invoke<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(pipeline, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
-    public Task<Guid> CreateRegistrationAsync(DataSourceRegistration registration, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/sources/registrations");
+        __urlBuilder.Append("/api/v1/sources/pipelines");
 
         var __queryValues = new Dictionary<string, string>();
 
@@ -1971,17 +1973,20 @@ public class SourcesClient : ISourcesClient
         __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(registration, options: Utilities.JsonOptions), cancellationToken);
+        return ___client.InvokeAsync<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(pipeline, options: Utilities.JsonOptions), cancellationToken);
     }
 
     /// <inheritdoc />
-    public HttpResponseMessage DeleteRegistration(Guid registrationId, string? userId = default)
+    public HttpResponseMessage DeletePipeline(string registrationId, Guid? pipelineId = default, string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/sources/registrations/{registrationId}");
-        __urlBuilder.Replace("{registrationId}", Uri.EscapeDataString(Convert.ToString(registrationId, CultureInfo.InvariantCulture)!));
+        __urlBuilder.Append("/api/v1/sources/pipelines/{registrationId}");
+        __urlBuilder.Replace("{registrationId}", Uri.EscapeDataString(registrationId));
 
         var __queryValues = new Dictionary<string, string>();
+
+        if (pipelineId is not null)
+            __queryValues["pipelineId"] = Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!);
 
         if (userId is not null)
             __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
@@ -1994,13 +1999,16 @@ public class SourcesClient : ISourcesClient
     }
 
     /// <inheritdoc />
-    public Task<HttpResponseMessage> DeleteRegistrationAsync(Guid registrationId, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> DeletePipelineAsync(string registrationId, Guid? pipelineId = default, string? userId = default, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/sources/registrations/{registrationId}");
-        __urlBuilder.Replace("{registrationId}", Uri.EscapeDataString(Convert.ToString(registrationId, CultureInfo.InvariantCulture)!));
+        __urlBuilder.Append("/api/v1/sources/pipelines/{registrationId}");
+        __urlBuilder.Replace("{registrationId}", Uri.EscapeDataString(registrationId));
 
         var __queryValues = new Dictionary<string, string>();
+
+        if (pipelineId is not null)
+            __queryValues["pipelineId"] = Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!);
 
         if (userId is not null)
             __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
@@ -2941,11 +2949,17 @@ public enum NexusDataType
 /// <param name="IsReleased">A boolean which indicates if the catalog is released.</param>
 /// <param name="IsVisible">A boolean which indicates if the catalog is visible.</param>
 /// <param name="IsOwner">A boolean which indicates if the catalog is owned by the current user.</param>
-/// <param name="DataSourceInfoUrl">A nullable info URL of the data source.</param>
-/// <param name="DataSourceType">The data source type.</param>
-/// <param name="DataSourceRegistrationId">The data source registration identifier.</param>
-/// <param name="PackageReferenceId">The package reference identifier.</param>
-public record CatalogInfo(string Id, string? Title, string? Contact, string? Readme, string? License, bool IsReadable, bool IsWritable, bool IsReleased, bool IsVisible, bool IsOwner, string? DataSourceInfoUrl, string DataSourceType, Guid DataSourceRegistrationId, Guid PackageReferenceId);
+/// <param name="PackageReferenceIds">The package reference identifiers.</param>
+/// <param name="PipelineInfo">A structure for pipeline info.</param>
+public record CatalogInfo(string Id, string? Title, string? Contact, string? Readme, string? License, bool IsReadable, bool IsWritable, bool IsReleased, bool IsVisible, bool IsOwner, IReadOnlyList<Guid> PackageReferenceIds, PipelineInfo PipelineInfo);
+
+/// <summary>
+/// A structure for pipeline information.
+/// </summary>
+/// <param name="Id">The pipeline identifier.</param>
+/// <param name="Types">An array of data source types.</param>
+/// <param name="InfoUrls">An array of data source info URLs.</param>
+public record PipelineInfo(Guid Id, IReadOnlyList<string> Types, IReadOnlyList<string?> InfoUrls);
 
 /// <summary>
 /// A catalog time range.
@@ -3064,15 +3078,21 @@ public record PackageReference(string Provider, IReadOnlyDictionary<string, stri
 public record ExtensionDescription(string Type, string Version, string? Description, string? ProjectUrl, string? RepositoryUrl, IReadOnlyDictionary<string, JsonElement>? AdditionalInformation);
 
 /// <summary>
+/// A data source pipeline.
+/// </summary>
+/// <param name="Registrations">The list of pipeline elements (data source registrations).</param>
+/// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
+/// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
+public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrations, string? ReleasePattern, string? VisibilityPattern);
+
+/// <summary>
 /// A data source registration.
 /// </summary>
 /// <param name="Type">The type of the data source.</param>
 /// <param name="ResourceLocator">An optional URL which points to the data.</param>
 /// <param name="Configuration">Configuration parameters for the instantiated source.</param>
 /// <param name="InfoUrl">An optional info URL.</param>
-/// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
-/// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
-public record DataSourceRegistration(string Type, Uri? ResourceLocator, IReadOnlyDictionary<string, JsonElement>? Configuration, string? InfoUrl, string? ReleasePattern, string? VisibilityPattern);
+public record DataSourceRegistration(string Type, Uri? ResourceLocator, IReadOnlyDictionary<string, JsonElement>? Configuration, string? InfoUrl);
 
 /// <summary>
 /// A me response.

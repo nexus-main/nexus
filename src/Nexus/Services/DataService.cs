@@ -83,7 +83,7 @@ internal class DataService(
          * in the DataSourceControllerExtensions.ReadAsStream method which monitors that.
          */
         var controller = await _dataControllerService.GetDataSourceControllerAsync(
-            catalogContainer.DataSourceRegistration,
+            catalogContainer.Pipeline,
             cancellationToken);
 
         // read data
@@ -229,7 +229,7 @@ internal class DataService(
 
         foreach (var group in exportContext.CatalogItemRequests.GroupBy(request => request.Container))
         {
-            var registration = group.Key.DataSourceRegistration;
+            var registration = group.Key.Pipeline;
             var controller = await _dataControllerService.GetDataSourceControllerAsync(registration, cancellationToken);
             var catalogItemRequestPipeWriters = new List<CatalogItemRequestPipeWriter>();
 

@@ -122,88 +122,6 @@ internal class AppStateManager(
         }
     }
 
-    public async Task PutDataSourceRegistrationAsync(string userId, InternalDataSourceRegistration registration)
-    {
-        await _projectSemaphore.WaitAsync();
-
-        try
-        {
-            var project = AppState.Project;
-
-            if (!project.UserConfigurations.TryGetValue(userId, out var userConfiguration))
-                userConfiguration = new UserConfiguration(new Dictionary<Guid, InternalDataSourceRegistration>());
-
-            var newDataSourceRegistrations = userConfiguration.DataSourceRegistrations
-                .ToDictionary(current => current.Key, current => current.Value);
-
-            newDataSourceRegistrations[registration.Id] = registration;
-
-            var newUserConfiguration = userConfiguration with
-            {
-                DataSourceRegistrations = newDataSourceRegistrations
-            };
-
-            var userConfigurations = project.UserConfigurations
-                .ToDictionary(current => current.Key, current => current.Value);
-
-            userConfigurations[userId] = newUserConfiguration;
-
-            var newProject = project with
-            {
-                UserConfigurations = userConfigurations
-            };
-
-            await SaveProjectAsync(newProject);
-
-            AppState.Project = newProject;
-        }
-        finally
-        {
-            _projectSemaphore.Release();
-        }
-    }
-
-    public async Task DeleteDataSourceRegistrationAsync(string username, Guid registrationId)
-    {
-        await _projectSemaphore.WaitAsync();
-
-        try
-        {
-            var project = AppState.Project;
-
-            if (!project.UserConfigurations.TryGetValue(username, out var userConfiguration))
-                return;
-
-            var newDataSourceRegistrations = userConfiguration.DataSourceRegistrations
-                .ToDictionary(current => current.Key, current => current.Value);
-
-            newDataSourceRegistrations.Remove(registrationId);
-
-            var newUserConfiguration = userConfiguration with
-            {
-                DataSourceRegistrations = newDataSourceRegistrations
-            };
-
-            var userConfigurations = project.UserConfigurations
-                .ToDictionary(current => current.Key, current => current.Value);
-
-            userConfigurations[username] = newUserConfiguration;
-
-            var newProject = project with
-            {
-                UserConfigurations = userConfigurations
-            };
-
-            await SaveProjectAsync(newProject);
-
-            AppState.Project = newProject;
-        }
-        finally
-        {
-            _projectSemaphore.Release();
-        }
-    }
-
     public async Task PutSystemConfigurationAsync(IReadOnlyDictionary<string, JsonElement>? configuration)
     {
         await _projectSemaphore.WaitAsync();
@@ -244,7 +162,7 @@ internal class AppStateManager(
             }
 
             var additionalInformation = attribute.Description;
-            var label = (additionalInformation?.GetStringValue(Nexus.UI.Core.Constants.DATA_WRITER_LABEL_KEY)) ?? throw new Exception($"The description of data writer {fullName} has no label property");
+            var label = (additionalInformation?.GetStringValue([UI.Core.Constants.DATA_WRITER_LABEL_KEY])) ?? throw new Exception($"The description of data writer {fullName} has no label property");
             var version = dataWriterType.Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
                 .InformationalVersion;
@@ -253,6 +171,7 @@ internal class AppStateManager(
                 .GetCustomAttribute<ExtensionDescriptionAttribute>(inherit: false);
 
             if (attribute2 is null)
+            {
                 labelsAndDescriptions.Add((label, new ExtensionDescription(
                     fullName,
                     version,
@@ -260,8 +179,10 @@ internal class AppStateManager(
                     default,
                     default,
                     additionalInformation)));
+            }
 
             else
+            {
                 labelsAndDescriptions.Add((label, new ExtensionDescription(
                     fullName,
                     version,
@@ -269,6 +190,7 @@ internal class AppStateManager(
                     attribute2.ProjectUrl,
                     attribute2.RepositoryUrl,
                     additionalInformation)));
+            }
         }
 
         var dataWriterDescriptions = labelsAndDescriptions

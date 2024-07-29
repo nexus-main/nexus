@@ -36,11 +36,11 @@ public interface IDataSource : IExtension
     /// <summary>
     /// Gets the requested <see cref="ResourceCatalog"/>.
     /// </summary>
-    /// <param name="catalogId">The catalog identifier.</param>
+    /// <param name="catalog">The catalog to enrich.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     /// <returns>The catalog request task.</returns>
-    Task<ResourceCatalog> GetCatalogAsync(
-        string catalogId,
+    Task<ResourceCatalog> EnrichCatalogAsync(
+        ResourceCatalog catalog,
         CancellationToken cancellationToken);
 
     /// <summary>

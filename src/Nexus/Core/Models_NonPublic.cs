@@ -29,11 +29,7 @@ internal record CatalogItemRequest(
 
 internal record NexusProject(
     IReadOnlyDictionary<string, JsonElement>? SystemConfiguration,
-    IReadOnlyDictionary<Guid, InternalPackageReference> PackageReferences,
-    IReadOnlyDictionary<string, UserConfiguration> UserConfigurations);
-
-internal record UserConfiguration(
-    IReadOnlyDictionary<Guid, InternalDataSourceRegistration> DataSourceRegistrations);
+    IReadOnlyDictionary<Guid, InternalPackageReference> PackageReferences);
 
 internal record CatalogState(
     CatalogContainer Root,
@@ -56,6 +52,7 @@ internal record JobControl(
     CancellationTokenSource CancellationTokenSource)
 {
     public event EventHandler<double>? ProgressUpdated;
+
     public event EventHandler? Completed;
 
     public double Progress { get; private set; }

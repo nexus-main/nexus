@@ -17,12 +17,12 @@ public class TestDataSource : IDataSource
 
     public Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(string path, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException(nameof(GetCatalogAsync));
+        throw new NotImplementedException(nameof(EnrichCatalogAsync));
     }
 
-    public Task<ResourceCatalog> GetCatalogAsync(string catalogId, CancellationToken cancellationToken)
+    public Task<ResourceCatalog> EnrichCatalogAsync(ResourceCatalog catalog, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException(nameof(GetCatalogAsync));
+        throw new NotImplementedException(nameof(EnrichCatalogAsync));
     }
 
     public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(string catalogId, CancellationToken cancellationToken)

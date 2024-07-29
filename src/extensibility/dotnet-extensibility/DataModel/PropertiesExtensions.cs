@@ -15,27 +15,24 @@ public static class PropertiesExtensions
     /// Reads the value of the specified property as string if it exists.
     /// </summary>
     /// <param name="properties">The properties.</param>
-    /// <param name="propertyPath">The propery path.</param>
+    /// <param name="pathSegments">The propery path segments.</param>
     /// <returns></returns>
-    public static string? GetStringValue(this IReadOnlyDictionary<string, JsonElement> properties, string propertyPath)
+    public static string? GetStringValue(this IReadOnlyDictionary<string, JsonElement> properties, Span<string> pathSegments)
     {
-        var pathSegments = propertyPath.Split('/').AsSpan();
+        // TODO Maybe use params collection (Span) in future? https://github.com/dotnet/csharplang/issues/7700
 
         if (properties.TryGetValue(pathSegments[0], out var element))
         {
             pathSegments = pathSegments[1..];
 
-            if (pathSegments.Length == 0)
-            {
-                if (element.ValueKind == JsonValueKind.String || element.ValueKind == JsonValueKind.Null)
-                    return element.GetString();
-            }
+            if (
+                pathSegments.Length == 0 &&
+                (element.ValueKind == JsonValueKind.String || element.ValueKind == JsonValueKind.Null)
+            )
+                return element.GetString();
 
             else
-            {
-                var newPropertyPath = string.Join('/', pathSegments.ToArray());
-                return element.GetStringValue(newPropertyPath);
-            }
+                return element.GetStringValue(pathSegments);
         }
 
         return default;
@@ -45,21 +42,20 @@ public static class PropertiesExtensions
     /// Reads the value of the specified property as string if it exists.
     /// </summary>
     /// <param name="properties">The properties.</param>
-    /// <param name="propertyPath">The propery path.</param>
+    /// <param name="pathSegments">The propery path segments.</param>
     /// <returns></returns>
-    public static string? GetStringValue(this JsonElement properties, string propertyPath)
+    public static string? GetStringValue(this JsonElement properties, Span<string> pathSegments)
     {
-        var pathSegments = propertyPath.Split('/').AsSpan();
         var root = properties.GetJsonObjectFromPath(pathSegments[0..^1]);
-
-        var propertyName = pathSegments.Length == 0
-            ? propertyPath
-            : pathSegments[^1];
+        var propertyName = pathSegments[^1];
 
         if (root.ValueKind == JsonValueKind.Object &&
             root.TryGetProperty(propertyName, out var propertyValue) &&
-            (propertyValue.ValueKind == JsonValueKind.String || propertyValue.ValueKind == JsonValueKind.Null))
+            (propertyValue.ValueKind == JsonValueKind.String || propertyValue.ValueKind == JsonValueKind.Null)
+        )
+        {
             return propertyValue.GetString();
+        }
 
         return default;
     }
@@ -68,30 +64,26 @@ public static class PropertiesExtensions
     /// Reads the value of the specified property as string array if it exists.
     /// </summary>
     /// <param name="properties">The properties.</param>
-    /// <param name="propertyPath">The property path.</param>
+    /// <param name="pathSegments">The property path segments.</param>
     /// <returns></returns>
-    public static string?[]? GetStringArray(this IReadOnlyDictionary<string, JsonElement> properties, string propertyPath)
+    public static string?[]? GetStringArray(this IReadOnlyDictionary<string, JsonElement> properties, Span<string> pathSegments)
     {
-        var pathSegments = propertyPath.Split('/').AsSpan();
-
         if (properties.TryGetValue(pathSegments[0], out var element))
         {
             pathSegments = pathSegments[1..];
 
-            if (pathSegments.Length == 0)
+            if (pathSegments.Length == 0 && element.ValueKind == JsonValueKind.Array)
             {
-                if (element.ValueKind == JsonValueKind.Array)
-                    return element
-                        .EnumerateArray()
-                        .Where(current => current.ValueKind == JsonValueKind.String || current.ValueKind == JsonValueKind.Null)
-                        .Select(current => current.GetString())
-                        .ToArray();
+                return element
+                    .EnumerateArray()
+                    .Where(current => current.ValueKind == JsonValueKind.String || current.ValueKind == JsonValueKind.Null)
+                    .Select(current => current.GetString())
+                    .ToArray();
             }
 
             else
             {
-                var newPropertyPath = string.Join('/', pathSegments.ToArray());
-                return element.GetStringArray(newPropertyPath);
+                return element.GetStringArray(pathSegments);
             }
         }
 
@@ -102,25 +94,56 @@ public static class PropertiesExtensions
     /// Reads the value of the specified property as string array if it exists.
     /// </summary>
     /// <param name="properties">The properties.</param>
-    /// <param name="propertyPath">The property path.</param>
+    /// <param name="pathSegments">The property path segments.</param>
     /// <returns></returns>
-    public static string?[]? GetStringArray(this JsonElement properties, string propertyPath)
+    public static string?[]? GetStringArray(this JsonElement properties, Span<string> pathSegments)
     {
-        var pathSegments = propertyPath.Split('/').AsSpan();
         var root = properties.GetJsonObjectFromPath(pathSegments[0..^1]);
-
-        var propertyName = pathSegments.Length == 0
-            ? propertyPath
-            : pathSegments[^1];
+        var propertyName = pathSegments[^1];
 
         if (root.ValueKind == JsonValueKind.Object &&
-                root.TryGetProperty(propertyName, out var propertyValue) &&
-                propertyValue.ValueKind == JsonValueKind.Array)
+            root.TryGetProperty(propertyName, out var propertyValue) &&
+            propertyValue.ValueKind == JsonValueKind.Array
+        )
+        {
             return propertyValue
                 .EnumerateArray()
                 .Where(current => current.ValueKind == JsonValueKind.String || current.ValueKind == JsonValueKind.Null)
                 .Select(current => current.GetString())
                 .ToArray();
+        }
+
+        return default;
+    }
+
+    internal static int? GetIntValue(this IReadOnlyDictionary<string, JsonElement> properties, Span<string> pathSegments)
+    {
+        if (properties.TryGetValue(pathSegments[0], out var element))
+        {
+            pathSegments = pathSegments[1..];
+
+            if (pathSegments.Length == 0 && element.ValueKind == JsonValueKind.Number)
+                return element.GetInt32();
+
+            else
+                return element.GetIntValue(pathSegments);
+        }
+
+        return default;
+    }
+
+    internal static int? GetIntValue(this JsonElement properties, Span<string> pathSegments)
+    {
+        var root = properties.GetJsonObjectFromPath(pathSegments[0..^1]);
+        var propertyName = pathSegments[^1];
+
+        if (root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty(propertyName, out var propertyValue) &&
+            propertyValue.ValueKind == JsonValueKind.Number
+        )
+        {
+            return propertyValue.GetInt32();
+        }
 
         return default;
     }

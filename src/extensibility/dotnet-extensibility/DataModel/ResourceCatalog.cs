@@ -5,7 +5,6 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace Nexus.DataModel;
@@ -17,6 +16,7 @@ namespace Nexus.DataModel;
 public partial record ResourceCatalog
 {
     private string _id = default!;
+
     private IReadOnlyList<Resource>? _resources;
 
     /// <summary>
@@ -152,6 +152,8 @@ public partial record ResourceCatalog
             }
         }
 
+        string[] typePath = ["type"];
+
         var parametersAreOK =
 
             (representation.Parameters is null && parameters is null) ||
@@ -161,8 +163,8 @@ public partial record ResourceCatalog
 
                 parameters.ContainsKey(current.Key) &&
 
-                (current.Value.GetStringValue("type") == "input-integer" && long.TryParse(parameters[current.Key], out var _) ||
-                 current.Value.GetStringValue("type") == "select" && true /* no validation here */)));
+                (current.Value.GetStringValue(typePath) == "input-integer" && long.TryParse(parameters[current.Key], out var _) ||
+                 current.Value.GetStringValue(typePath) == "select" /* no validation here */)));
 
         if (!parametersAreOK)
             return false;
