@@ -124,13 +124,13 @@
             try
             {
                 await Client.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
-                await GetAttachmentsAsync();
             }
             catch (Exception ex)
             {
                 AppState.AddError(ex, Snackbar);
             }
         }
+        await GetAttachmentsAsync();
     }
 
     private async Task UploadAttachmentsAsync(IReadOnlyList<IBrowserFile> files)
