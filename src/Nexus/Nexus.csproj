@@ -28,6 +28,39 @@
     <PackageReference Include="Serilog.Sinks.Seq" Version="6.0.0" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
     <PackageReference Include="StreamJsonRpc" Version="2.17.11" />
+
+    <!-- 
+      This direct dependency is only required because of the transitive dependency
+      System.Security.Cryptography.Xml (v4.5.0) which has a known moderate 
+      severity vulnerability: https://github.com/advisories/GHSA-vh55-786g-wjwj
+
+      dotnet dotnet nuget why src/Nexus/Nexus.csproj System.Security.Cryptography.Xml
+
+      TODO: Check if still required
+    -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.1" />
+
+    <!--
+      This direct dependency is only required because of the transitive dependency 
+      System.Drawing.Common (v4.7.0) which has a known critical severity
+      vulnerability: https://github.com/advisories/GHSA-rxg9-xrhp-64gj
+
+      dotnet dotnet nuget why src/Nexus/Nexus.csproj System.Drawing.Common
+
+      TODO: Check if still required
+    -->
+    <PackageReference Include="System.Drawing.Common" Version="4.7.2" />
+
+    <!--
+      This direct dependency is only required because of the transitive dependency 
+      System.Formats.Asn1 (v8.0.0) which has a known high severity
+      vulnerability: https://github.com/advisories/GHSA-447r-wph3-92pm
+
+      dotnet dotnet nuget why src/Nexus/Nexus.csproj System.Formats.Asn1
+
+      TODO: Check if still required
+    -->
+    <PackageReference Include="System.Formats.Asn1" Version="8.0.1" />
   </ItemGroup>
 
   <ItemGroup>

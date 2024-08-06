@@ -90,7 +90,7 @@ internal class CacheEntryWrapper : IDisposable
                 var slicedByteTargetBuffer = new CastMemoryManager<double, byte>(slicedTargetBuffer).Memory;
 
                 _stream.Seek(cacheOffset * sizeof(double), SeekOrigin.Begin);
-                await _stream.ReadAsync(slicedByteTargetBuffer, cancellationToken);
+                await _stream.ReadExactlyAsync(slicedByteTargetBuffer, cancellationToken);
 
                 if (currentEnd >= cachedInterval.End)
                     index++;
@@ -221,10 +221,10 @@ internal class CacheEntryWrapper : IDisposable
 
         for (int i = 0; i < cachedPeriodCount; i++)
         {
-            stream.Read(buffer);
+            stream.ReadExactly(buffer);
             var beginTicks = BitConverter.ToInt64(buffer);
 
-            stream.Read(buffer);
+            stream.ReadExactly(buffer);
             var endTicks = BitConverter.ToInt64(buffer);
 
             cachedIntervals[i] = new Interval(
