@@ -43,7 +43,7 @@
                     @if (Catalog.Info.IsWritable)
                     {
                         <span class="hidden group-hover:inline text-xl ml-auto mr-1 mdi mdi-close hover:text-orange-500 hover:scale-125"
-                            @ondblclick="() => DeleteAttachmentAsync(attachment)" @onclick:preventDefault="true">
+                            @onclick="() => DeleteAttachmentAsync(attachment)" @onclick:preventDefault="true">
                         </span>
                     }
                 </a>
@@ -102,24 +102,36 @@
     [Inject]
     public INexusClient Client { get; set; } = default!;
 
+    [Inject]
+    private IDialogService DialogService { get; set; } = default!;
+
     [Parameter]
     public ResourceCatalogViewModel Catalog { get; set; } = default!;
 
     private async Task DeleteAttachmentAsync(string attachment)
     {
-        _attachments = default;
-        StateHasChanged();
+        bool? result = await DialogService.ShowMessageBox(
+            "Warning",
+            "Do you really want to delete the selected attachment?",
+            yesText:"Delete!", cancelText:"Cancel");
+        bool deleteConfirmed = result == null ? false : true;
 
         try
         {
-            await Client.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
-            await GetAttachmentsAsync();
+            if (deleteConfirmed)
+            {
+                await Client.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
+                _attachments = default;
+                StateHasChanged();
+                await GetAttachmentsAsync();
+            }
         }
         catch (Exception ex)
         {
             AppState.AddError(ex, Snackbar);
         }
     }
+
 
     private async Task UploadAttachmentsAsync(IReadOnlyList<IBrowserFile> files)
     {
@@ -191,7 +203,7 @@
         }
     }
 
-        private void OpenAttachmentModal()
+    private void OpenAttachmentModal()
     {
         _attachments = default;
         _isAttachmentDialogOpen = true;
