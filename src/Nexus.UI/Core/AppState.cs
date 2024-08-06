@@ -339,12 +339,12 @@ public class AppState : INotifyPropertyChanged
 
             var groupNames = (resource
                 .Properties
-                .GetStringArray(GROUP_KEY) ?? new string[] { "default" })
+                .GetStringArray(GROUP_KEY) ?? ["default"])
                 .Where(groupName => groupName is not null)
                 .Cast<string>();
 
             if (!groupNames.Any())
-                groupNames = new string[] { "default" };
+                groupNames = ["default"];
 
             foreach (var groupName in groupNames)
             {
