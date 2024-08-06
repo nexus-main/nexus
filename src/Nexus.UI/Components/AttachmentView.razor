@@ -119,19 +119,20 @@
             yesText:"Delete!", cancelText:"Cancel");
         bool deleteConfirmed = result == null ? false : true;
 
-        if(deleteConfirmed)
+        try
         {
-            try
+            if (deleteConfirmed)
             {
                 await Client.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
             }
-            catch (Exception ex)
-            {
-                AppState.AddError(ex, Snackbar);
-            }
+            await GetAttachmentsAsync();
         }
-        await GetAttachmentsAsync();
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
     }
+
 
     private async Task UploadAttachmentsAsync(IReadOnlyList<IBrowserFile> files)
     {
