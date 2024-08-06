@@ -110,9 +110,6 @@
 
     private async Task DeleteAttachmentAsync(string attachment)
     {
-        _attachments = default;
-        StateHasChanged();
-
         bool? result = await DialogService.ShowMessageBox(
             "Warning",
             "Do you really want to delete the selected attachment?",
@@ -124,8 +121,10 @@
             if (deleteConfirmed)
             {
                 await Client.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
+                _attachments = default;
+                StateHasChanged();
+                await GetAttachmentsAsync();
             }
-            await GetAttachmentsAsync();
         }
         catch (Exception ex)
         {
