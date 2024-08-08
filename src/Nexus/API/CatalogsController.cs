@@ -298,7 +298,7 @@ internal class CatalogsController(
             if (license is null)
             {
                 var catalogInfo = await catalogContainer.GetLazyCatalogInfoAsync(cancellationToken);
-                license = catalogInfo.Catalog.Properties?.GetStringValue([DataModelExtensions.LicenseKey]);
+                license = catalogInfo.Catalog.Properties?.GetStringValue(DataModelExtensions.LicenseKey);
             }
 
             return license;
