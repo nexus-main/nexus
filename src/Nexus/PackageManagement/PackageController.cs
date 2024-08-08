@@ -493,8 +493,6 @@ internal partial class PackageController(
 
             if (requestUrl == default)
                 break;
-
-            continue;
         }
 
         return result.ToArray();
