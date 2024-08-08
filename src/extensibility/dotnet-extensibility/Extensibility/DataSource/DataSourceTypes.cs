@@ -58,7 +58,7 @@ internal class ReadRequestManager : IDisposable
     public ReadRequestManager(CatalogItem catalogItem, int elementCount)
     {
         var byteCount = elementCount * catalogItem.Representation.ElementSize;
-        var originalResourceName = catalogItem.Resource.Properties!.GetStringValue(DataModelExtensions.OriginalNameKey)!;
+        var originalResourceName = catalogItem.Resource.Properties!.GetStringValue([DataModelExtensions.OriginalNameKey])!;
 
         /* data memory */
         var dataOwner = MemoryPool<byte>.Shared.Rent(byteCount);

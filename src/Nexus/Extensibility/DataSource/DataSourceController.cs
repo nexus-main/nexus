@@ -59,6 +59,7 @@ internal class DataSourceController(
     DataOptions dataOptions,
     ILogger<DataSourceController> logger) : IDataSourceController
 {
+    private static readonly string[] _pipelinePositionPath = [DataModelExtensions.NEXUS_KEY, DataModelExtensions.PIPELINE_POSITION_KEY];
 
     internal readonly IReadOnlyDictionary<string, JsonElement>? _requestConfiguration = requestConfiguration;
 
@@ -421,11 +422,7 @@ internal class DataSourceController(
                     var currentReadRequests = readRequests
                         .Where(request =>
                             request.CatalogItem.Resource.Properties is null ||
-                            request.CatalogItem.Resource.Properties
-                                .GetIntValue(
-                                    DataModelExtensions.NEXUS_KEY,
-                                    DataModelExtensions.PIPELINE_POSITION_KEY
-                                ) == pipelinePosition
+                            request.CatalogItem.Resource.Properties.GetIntValue(_pipelinePositionPath) == pipelinePosition
                         )
                         .ToArray();
 

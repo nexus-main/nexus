@@ -229,19 +229,18 @@ public static partial class DataModelExtensions
             var isModified = false;
             var newResources = new List<Resource>();
 
+            string[] originalNamePath = [OriginalNameKey];
+            string[] pipelinePositionPath = [NEXUS_KEY, PIPELINE_POSITION_KEY];
+            string[] groupsPath = [GroupsKey];
+
             foreach (var resource in catalog.Resources)
             {
                 var resourceProperties = resource.Properties;
                 var newResource = resource;
 
-                var originalName = resourceProperties?
-                    .GetStringValue(OriginalNameKey);
-
-                var currentPipelinePosition = resourceProperties?
-                    .GetIntValue(NEXUS_KEY, PIPELINE_POSITION_KEY);
-
-                var groups = resourceProperties?
-                    .GetStringArray(GroupsKey);
+                var originalName = resourceProperties?.GetStringValue(originalNamePath);
+                var currentPipelinePosition = resourceProperties?.GetIntValue(pipelinePositionPath);
+                var groups = resourceProperties?.GetStringArray(groupsPath);
 
                 var distinctGroups = groups is null
                     ? default

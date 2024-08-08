@@ -158,8 +158,8 @@ internal class Sample : IDataSource
                 // check credentials
                 if (catalog.Id == RemoteCatalogId)
                 {
-                    var user = Context.RequestConfiguration?.GetStringValue(typeof(Sample).FullName!, "user");
-                    var password = Context.RequestConfiguration?.GetStringValue(typeof(Sample).FullName!, "password");
+                    var user = Context.RequestConfiguration?.GetStringValue([typeof(Sample).FullName!, "user"]);
+                    var password = Context.RequestConfiguration?.GetStringValue([typeof(Sample).FullName!, "password"]);
 
                     if (user != RemoteUsername || password != RemotePassword)
                         throw new Exception("The provided credentials are invalid.");
