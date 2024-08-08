@@ -9,7 +9,7 @@ namespace Other;
 
 public class OptionsTests
 {
-    private static readonly object _lock = new();
+    private static readonly Lock _lock = new();
 
     [InlineData(GeneralOptions.Section, typeof(GeneralOptions))]
     [InlineData(DataOptions.Section, typeof(DataOptions))]
