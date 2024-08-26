@@ -17,10 +17,8 @@ public static class PropertiesExtensions
     /// <param name="properties">The properties.</param>
     /// <param name="pathSegments">The propery path segments.</param>
     /// <returns></returns>
-    public static string? GetStringValue(this IReadOnlyDictionary<string, JsonElement> properties, Span<string> pathSegments)
+    public static string? GetStringValue(this IReadOnlyDictionary<string, JsonElement> properties, params ReadOnlySpan<string> pathSegments)
     {
-        // TODO Maybe use params collection (Span) in future? https://github.com/dotnet/csharplang/issues/7700
-
         if (properties.TryGetValue(pathSegments[0], out var element))
         {
             pathSegments = pathSegments[1..];
@@ -44,7 +42,7 @@ public static class PropertiesExtensions
     /// <param name="properties">The properties.</param>
     /// <param name="pathSegments">The propery path segments.</param>
     /// <returns></returns>
-    public static string? GetStringValue(this JsonElement properties, Span<string> pathSegments)
+    public static string? GetStringValue(this JsonElement properties, params ReadOnlySpan<string> pathSegments)
     {
         var root = properties.GetJsonObjectFromPath(pathSegments[0..^1]);
         var propertyName = pathSegments[^1];
@@ -66,7 +64,7 @@ public static class PropertiesExtensions
     /// <param name="properties">The properties.</param>
     /// <param name="pathSegments">The property path segments.</param>
     /// <returns></returns>
-    public static string?[]? GetStringArray(this IReadOnlyDictionary<string, JsonElement> properties, Span<string> pathSegments)
+    public static string?[]? GetStringArray(this IReadOnlyDictionary<string, JsonElement> properties, params ReadOnlySpan<string> pathSegments)
     {
         if (properties.TryGetValue(pathSegments[0], out var element))
         {
@@ -96,7 +94,7 @@ public static class PropertiesExtensions
     /// <param name="properties">The properties.</param>
     /// <param name="pathSegments">The property path segments.</param>
     /// <returns></returns>
-    public static string?[]? GetStringArray(this JsonElement properties, Span<string> pathSegments)
+    public static string?[]? GetStringArray(this JsonElement properties, params ReadOnlySpan<string> pathSegments)
     {
         var root = properties.GetJsonObjectFromPath(pathSegments[0..^1]);
         var propertyName = pathSegments[^1];
@@ -116,7 +114,7 @@ public static class PropertiesExtensions
         return default;
     }
 
-    internal static int? GetIntValue(this IReadOnlyDictionary<string, JsonElement> properties, Span<string> pathSegments)
+    internal static int? GetIntValue(this IReadOnlyDictionary<string, JsonElement> properties, params ReadOnlySpan<string> pathSegments)
     {
         if (properties.TryGetValue(pathSegments[0], out var element))
         {
@@ -132,7 +130,7 @@ public static class PropertiesExtensions
         return default;
     }
 
-    internal static int? GetIntValue(this JsonElement properties, Span<string> pathSegments)
+    internal static int? GetIntValue(this JsonElement properties, params ReadOnlySpan<string> pathSegments)
     {
         var root = properties.GetJsonObjectFromPath(pathSegments[0..^1]);
         var propertyName = pathSegments[^1];
@@ -148,7 +146,7 @@ public static class PropertiesExtensions
         return default;
     }
 
-    private static JsonElement GetJsonObjectFromPath(this JsonElement root, Span<string> pathSegements)
+    private static JsonElement GetJsonObjectFromPath(this JsonElement root, ReadOnlySpan<string> pathSegements)
     {
         if (pathSegements.Length == 0)
             return root;

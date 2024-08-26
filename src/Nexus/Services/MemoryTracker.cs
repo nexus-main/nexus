@@ -37,6 +37,7 @@ internal class MemoryTracker : IMemoryTracker
     private readonly DataOptions _dataOptions;
     private readonly List<SemaphoreSlim> _retrySemaphores = [];
     private readonly ILogger<IMemoryTracker> _logger;
+    private readonly Lock _lock = new();
 
     public MemoryTracker(IOptions<DataOptions> dataOptions, ILogger<IMemoryTracker> logger)
     {
@@ -59,7 +60,7 @@ internal class MemoryTracker : IMemoryTracker
         while (true)
         {
             // get exclusive access to _consumedBytes and _retrySemaphores
-            lock (this)
+            lock (_lock)
             {
                 var fractionOfRemainingBytes = _consumedBytes >= _dataOptions.TotalBufferMemoryConsumption
                     ? 0
@@ -107,7 +108,7 @@ internal class MemoryTracker : IMemoryTracker
     public void UnregisterAllocation(AllocationRegistration allocationRegistration)
     {
         // get exclusive access to _consumedBytes and _retrySemaphores
-        lock (this)
+        lock (_lock)
         {
             _logger.LogTrace("Release {ByteCount} bytes ({MegaByteCount} MB)", allocationRegistration.ActualByteCount, allocationRegistration.ActualByteCount / 1024 / 1024);
             SetConsumedBytesAndTriggerWaitingTasks(-allocationRegistration.ActualByteCount);
