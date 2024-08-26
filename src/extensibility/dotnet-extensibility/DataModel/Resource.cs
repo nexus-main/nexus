@@ -37,7 +37,8 @@ public partial record Resource
     /// <summary>
     /// Gets a regular expression to validate a resource identifier.
     /// </summary>
-    public static Regex ValidIdExpression { get; } = ValidExpression();
+    [GeneratedRegex(@"^[a-zA-Z_][a-zA-Z_0-9]*$")]
+    public static partial Regex ValidIdExpression { get; }
 
     /// <summary>
     /// Gets a regular expression to find invalid characters in a resource identifier.
@@ -126,7 +127,4 @@ public partial record Resource
         if (uniqueIds.Count() != representations.Count)
             throw new ArgumentException("There are multiple representations with the same identifier.");
     }
-
-    [GeneratedRegex(@"^[a-zA-Z_][a-zA-Z_0-9]*$")]
-    private static partial Regex ValidExpression();
 }

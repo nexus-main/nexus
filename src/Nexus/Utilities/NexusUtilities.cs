@@ -24,7 +24,7 @@ internal static partial class NexusUtilities
 
                 if (aspnetcoreEnvVar is not null)
                 {
-                    var match = AspNetCoreEnvVarRegex().Match(aspnetcoreEnvVar);
+                    var match = AspNetCoreEnvVarRegex.Match(aspnetcoreEnvVar);
 
                     if (match.Success && int.TryParse(match.Groups[1].Value, out var parsedPort))
                         port = parsedPort;
@@ -36,6 +36,9 @@ internal static partial class NexusUtilities
             return _defaultBaseUrl;
         }
     }
+
+    [GeneratedRegex(":([0-9]+)")]
+    private static partial Regex AspNetCoreEnvVarRegex { get; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Scale(TimeSpan value, TimeSpan samplePeriod) => (int)(value.Ticks / samplePeriod.Ticks);
@@ -151,7 +154,4 @@ internal static partial class NexusUtilities
     {
         return type.GetCustomAttributes(false).OfType<T>();
     }
-
-    [GeneratedRegex(":([0-9]+)")]
-    private static partial Regex AspNetCoreEnvVarRegex();
 }

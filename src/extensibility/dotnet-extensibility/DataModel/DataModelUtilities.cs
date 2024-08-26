@@ -21,7 +21,9 @@ internal static partial class DataModelUtilities
      * /a/b/c/T1/600_s_mean(abc=456)#base=1s
      */
     // keep in sync with Nexus.UI.Core.Utilities
-    private static readonly Regex _resourcePathEvaluator = ResourcePathEvaluator();
+
+    [GeneratedRegex(@"^(?'catalog'.*)\/(?'resource'.*)\/(?'sample_period'[0-9]+_[a-zA-Z]+)(?:_(?'kind'[^\(#\s]+))?(?:\((?'parameters'.*)\))?(?:#(?'fragment'.*))?$")]
+    private static partial Regex _resourcePathEvaluator { get; }
 
     private static string ToPascalCase(string input)
     {
@@ -288,7 +290,4 @@ internal static partial class DataModelUtilities
             _ => JsonValue.Create(element)
         };
     }
-
-    [GeneratedRegex(@"^(?'catalog'.*)\/(?'resource'.*)\/(?'sample_period'[0-9]+_[a-zA-Z]+)(?:_(?'kind'[^\(#\s]+))?(?:\((?'parameters'.*)\))?(?:#(?'fragment'.*))?$", RegexOptions.Compiled)]
-    private static partial Regex ResourcePathEvaluator();
 }
