@@ -72,23 +72,23 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     private readonly PathsOptions _pathsOptions = pathsOptions.Value;
 
-    private readonly string _users = "users";
+    private const string USERS = "users";
 
-    private readonly string _catalogs = "catalogs";
+    private const string CATALOGS = "catalogs";
 
-    private readonly string _fileExtension = ".json";
+    private const string FILE_EXTENSION = ".json";
 
-    private readonly string _project = "project";
+    private const string PROJECT = "project";
 
-    private readonly string _tokens = "tokens";
+    private const string TOKENS = "tokens";
 
-    private readonly string _pipelines = "pipelines";
+    private const string PIPELINES = "pipelines";
 
     /* /config/catalogs/catalog_id.json */
     public bool TryReadCatalogMetadata(string catalogId, [NotNullWhen(true)] out string? catalogMetadata)
     {
-        var catalogMetadataFileName = $"{GetPhysicalCatalogId(catalogId)}" + _fileExtension;
-        var filePath = SafePathCombine(_pathsOptions.Config, Path.Combine(_catalogs, catalogMetadataFileName));
+        var catalogMetadataFileName = $"{GetPhysicalCatalogId(catalogId)}" + FILE_EXTENSION;
+        var filePath = SafePathCombine(_pathsOptions.Config, Path.Combine(CATALOGS, catalogMetadataFileName));
 
         catalogMetadata = default;
 
@@ -103,8 +103,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     public Stream WriteCatalogMetadata(string catalogId)
     {
-        var catalogMetadataFileName = $"{GetPhysicalCatalogId(catalogId)}" + _fileExtension;
-        var folderPath = Path.Combine(_pathsOptions.Config, _catalogs);
+        var catalogMetadataFileName = $"{GetPhysicalCatalogId(catalogId)}" + FILE_EXTENSION;
+        var folderPath = Path.Combine(_pathsOptions.Config, CATALOGS);
 
         Directory.CreateDirectory(folderPath);
 
@@ -116,7 +116,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     /* /config/project.json */
     public bool TryReadProject([NotNullWhen(true)] out string? project)
     {
-        var filePath = Path.Combine(_pathsOptions.Config, _project + _fileExtension);
+        var filePath = Path.Combine(_pathsOptions.Config, PROJECT + FILE_EXTENSION);
         project = default;
 
         if (File.Exists(filePath))
@@ -132,14 +132,14 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     {
         Directory.CreateDirectory(_pathsOptions.Config);
 
-        var filePath = Path.Combine(_pathsOptions.Config, _project + _fileExtension);
+        var filePath = Path.Combine(_pathsOptions.Config, PROJECT + FILE_EXTENSION);
         return File.Open(filePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /config/users */
     public IEnumerable<string> EnumerateUsers()
     {
-        var usersPath = Path.Combine(_pathsOptions.Config, _users);
+        var usersPath = Path.Combine(_pathsOptions.Config, USERS);
 
         if (Directory.Exists(usersPath))
             return Directory.EnumerateDirectories(usersPath);
@@ -151,8 +151,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     public bool TryReadTokenMap(string userId,
         [NotNullWhen(true)] out string? tokenMap)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, _users), userId);
-        var tokenFilePath = Path.Combine(folderPath, _tokens + _fileExtension);
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var tokenFilePath = Path.Combine(folderPath, TOKENS + FILE_EXTENSION);
 
         tokenMap = default;
 
@@ -168,8 +168,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     public Stream WriteTokenMap(
         string userId)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, _users), userId);
-        var tokensFilePath = Path.Combine(folderPath, _tokens + _fileExtension);
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var tokensFilePath = Path.Combine(folderPath, TOKENS + FILE_EXTENSION);
 
         Directory.CreateDirectory(folderPath);
 
@@ -180,8 +180,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
        string userId,
        [NotNullWhen(true)] out string? pipelineMap)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, _users), userId);
-        var pipelinesFilePath = Path.Combine(folderPath, _pipelines + _fileExtension);
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var pipelinesFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
 
         pipelineMap = default;
 
@@ -197,8 +197,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     public Stream WritePipelineMap(
         string userId)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, _users), userId);
-        var pipelineFilePath = Path.Combine(folderPath, _pipelines + _fileExtension);
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var pipelineFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
 
         Directory.CreateDirectory(folderPath);
 
