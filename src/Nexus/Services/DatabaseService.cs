@@ -72,12 +72,23 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     private readonly PathsOptions _pathsOptions = pathsOptions.Value;
 
+    private const string USERS = "users";
+
+    private const string CATALOGS = "catalogs";
+
+    private const string FILE_EXTENSION = ".json";
+
+    private const string PROJECT = "project";
+
+    private const string TOKENS = "tokens";
+
+    private const string PIPELINES = "pipelines";
+
     /* /config/catalogs/catalog_id.json */
     public bool TryReadCatalogMetadata(string catalogId, [NotNullWhen(true)] out string? catalogMetadata)
     {
-        var physicalId = catalogId.TrimStart('/').Replace("/", "_");
-        var catalogMetadataFileName = $"{physicalId}.json";
-        var filePath = SafePathCombine(_pathsOptions.Config, Path.Combine("catalogs", catalogMetadataFileName));
+        var catalogMetadataFileName = $"{GetPhysicalCatalogId(catalogId)}" + FILE_EXTENSION;
+        var filePath = SafePathCombine(_pathsOptions.Config, Path.Combine(CATALOGS, catalogMetadataFileName));
 
         catalogMetadata = default;
 
@@ -92,9 +103,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     public Stream WriteCatalogMetadata(string catalogId)
     {
-        var physicalId = catalogId.TrimStart('/').Replace("/", "_");
-        var catalogMetadataFileName = $"{physicalId}.json";
-        var folderPath = Path.Combine(_pathsOptions.Config, "catalogs");
+        var catalogMetadataFileName = $"{GetPhysicalCatalogId(catalogId)}" + FILE_EXTENSION;
+        var folderPath = Path.Combine(_pathsOptions.Config, CATALOGS);
 
         Directory.CreateDirectory(folderPath);
 
@@ -106,7 +116,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     /* /config/project.json */
     public bool TryReadProject([NotNullWhen(true)] out string? project)
     {
-        var filePath = Path.Combine(_pathsOptions.Config, "project.json");
+        var filePath = Path.Combine(_pathsOptions.Config, PROJECT + FILE_EXTENSION);
         project = default;
 
         if (File.Exists(filePath))
@@ -122,14 +132,14 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     {
         Directory.CreateDirectory(_pathsOptions.Config);
 
-        var filePath = Path.Combine(_pathsOptions.Config, "project.json");
+        var filePath = Path.Combine(_pathsOptions.Config, PROJECT + FILE_EXTENSION);
         return File.Open(filePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /config/users */
     public IEnumerable<string> EnumerateUsers()
     {
-        var usersPath = Path.Combine(_pathsOptions.Config, "users");
+        var usersPath = Path.Combine(_pathsOptions.Config, USERS);
 
         if (Directory.Exists(usersPath))
             return Directory.EnumerateDirectories(usersPath);
@@ -138,12 +148,11 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
             return Enumerable.Empty<string>();
     }
 
-    public bool TryReadTokenMap(
-        string userId,
+    public bool TryReadTokenMap(string userId,
         [NotNullWhen(true)] out string? tokenMap)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
-        var tokenFilePath = Path.Combine(folderPath, "tokens.json");
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var tokenFilePath = Path.Combine(folderPath, TOKENS + FILE_EXTENSION);
 
         tokenMap = default;
 
@@ -159,8 +168,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     public Stream WriteTokenMap(
         string userId)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
-        var tokensFilePath = Path.Combine(folderPath, "tokens.json");
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var tokensFilePath = Path.Combine(folderPath, TOKENS + FILE_EXTENSION);
 
         Directory.CreateDirectory(folderPath);
 
@@ -171,8 +180,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
        string userId,
        [NotNullWhen(true)] out string? pipelineMap)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
-        var pipelinesFilePath = Path.Combine(folderPath, "pipelines.json");
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var pipelinesFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
 
         pipelineMap = default;
 
@@ -188,8 +197,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     public Stream WritePipelineMap(
         string userId)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, "users"), userId);
-        var pipelineFilePath = Path.Combine(folderPath, "pipelines.json");
+        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var pipelineFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
 
         Directory.CreateDirectory(folderPath);
 
@@ -200,16 +209,14 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     public bool AttachmentExists(string catalogId, string attachmentId)
     {
-        var physicalId = catalogId.TrimStart('/').Replace("/", "_");
-        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, physicalId), attachmentId);
+        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
 
         return File.Exists(attachmentFile);
     }
 
     public IEnumerable<string> EnumerateAttachments(string catalogId)
     {
-        var physicalId = catalogId.TrimStart('/').Replace("/", "_");
-        var attachmentFolder = SafePathCombine(_pathsOptions.Catalogs, physicalId);
+        var attachmentFolder = SafePathCombine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId));
 
         if (Directory.Exists(attachmentFolder))
             return Directory
@@ -224,8 +231,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     {
         attachment = default;
 
-        var physicalId = catalogId.TrimStart('/').Replace("/", "_");
-        var attachmentFolder = Path.Combine(_pathsOptions.Catalogs, physicalId);
+        var attachmentFolder = Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId));
 
         if (Directory.Exists(attachmentFolder))
         {
@@ -245,8 +251,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     {
         attachment = default;
 
-        var physicalId = catalogId.TrimStart('/').Replace("/", "_");
-        var attachmentFolder = SafePathCombine(_pathsOptions.Catalogs, physicalId);
+        var attachmentFolder = SafePathCombine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId));
 
         if (Directory.Exists(attachmentFolder))
         {
@@ -266,8 +271,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     public Stream WriteAttachment(string catalogId, string attachmentId)
     {
-        var physicalId = catalogId.TrimStart('/').Replace("/", "_");
-        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, physicalId), attachmentId);
+        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
         var attachmentFolder = Path.GetDirectoryName(attachmentFile)!;
 
         Directory.CreateDirectory(attachmentFolder);
@@ -277,8 +281,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     public void DeleteAttachment(string catalogId, string attachmentId)
     {
-        var physicalId = catalogId.TrimStart('/').Replace("/", "_");
-        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, physicalId), attachmentId);
+        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
 
         File.Delete(attachmentFile);
     }
@@ -310,7 +313,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     /* /cache */
     private string GetCacheEntryDirectoryPath(string catalogId, DateOnly day)
-        => Path.Combine(_pathsOptions.Cache, $"{catalogId.TrimStart('/').Replace("/", "_")}/{day:yyyy-MM}/{day:dd}");
+        => Path.Combine(_pathsOptions.Cache, $"{GetPhysicalCatalogId(catalogId)}/{day:yyyy-MM}/{day:dd}");
 
     private string GetCacheEntryId(CatalogItem catalogItem, DateTime begin)
     {
@@ -414,7 +417,6 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
             throw new Exception($"Cannot delete cache entry {cacheEntry}.");
     }
 
-    //
     private static string SafePathCombine(string basePath, string relativePath)
     {
         var filePath = Path.GetFullPath(Path.Combine(basePath, relativePath));
@@ -423,5 +425,10 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
             throw new Exception("Invalid path.");
 
         return filePath;
+    }
+
+    private string GetPhysicalCatalogId(string catalogId)
+    {
+        return catalogId.TrimStart('/').Replace("/", "_");
     }
 }
