@@ -11,10 +11,21 @@ public record Period
 
     public Period(TimeSpan value)
     {
-        Value = value;
+        if (value == TimeSpan.MinValue)
+        {
+            Value = TimeSpan.MinValue;
+            IsValid = false;
+        }
+        else
+        {
+            Value = value;
+        }
     }
 
     public TimeSpan Value { get; }
+
+    //Exception passes MinValue to create invalid period
+    public bool IsValid { get; private set; } = true;
 
     public override string ToString()
     {
@@ -46,7 +57,8 @@ public static class PeriodHelper
 
         catch
         {
-            return new Period(default);
+            //Utilities.ToPeriod threw an exception, thus return invalid Period.
+            return new Period(TimeSpan.MinValue);
         }
     }
 }
