@@ -16,7 +16,7 @@
         Label="Period"
         CoerceValue="true"
         SearchFunc="_ => Task.FromResult(_values.AsEnumerable())"
-        Converter="PeriodHelper.Converter" />
+        Converter="PeriodHelper.CreateConverter(getCurrentValue: () => AppState.Settings.SamplePeriod)" />
 </div>
 
 @code {
