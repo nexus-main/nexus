@@ -26,16 +26,27 @@ public record Period
 
 public static class PeriodHelper
 {
-    public static readonly Converter<Period> Converter = new()
+    public static Converter<Period> CreateConverter(Func<Period> getCurrentValue)
     {
-        SetFunc = value => value != null ? value.ToString() : "",
-        GetFunc = GetFunc
-    };
+        return new()
+        {
+            SetFunc = value => value != null ? value.ToString() : "",
+            GetFunc = text => GetFunc(text, getCurrentValue())
+        };
+    }
 
-    private static Period? GetFunc(string? text)
+    private static Period GetFunc(string? text, Period currentValue)
     {
+        /* Whenever the input is invalid, the current value of the 
+         * autocomplete input this converter belongs to is returned. 
+         * This ensures that the input's current value does not change
+         * which in turn allows the user to continue typing until a
+         * valid value is entered. A valid value is a number + unit, 
+         * e.g. "10 min".
+         */
+
         if (text is null)
-            return default;
+            return currentValue;
 
         try
         {
@@ -46,7 +57,7 @@ public static class PeriodHelper
 
         catch
         {
-            return new Period(default);
+            return currentValue;
         }
     }
 }
