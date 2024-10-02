@@ -483,7 +483,7 @@ internal class CatalogsController(
     /// <param name="metadata">The catalog metadata to set.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpPut("{catalogId}/metadata")]
-    public Task
+    public Task<ActionResult<object>>
         SetMetadataAsync(
             string catalogId,
             [FromBody] CatalogMetadata metadata,
