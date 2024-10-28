@@ -103,12 +103,6 @@ public record PackageReference(
     string Provider,
     Dictionary<string, string> Configuration);
 
-/* Required to workaround JsonIgnore problems with local serialization and OpenAPI. */
-internal record InternalPackageReference(
-    Guid Id,
-    string Provider,
-    Dictionary<string, string> Configuration);
-
 /// <summary>
 /// A structure for export parameters.
 /// </summary>

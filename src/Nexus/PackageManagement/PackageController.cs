@@ -16,21 +16,25 @@ using Nexus.Core;
 namespace Nexus.PackageManagement;
 
 internal partial class PackageController(
-    InternalPackageReference packageReference,
-    ILogger<PackageController> logger)
+    PackageReference packageReference,
+    ILogger<PackageController> logger
+)
 {
     public static Guid BUILTIN_ID = new("97d297d2-df6f-4c85-9d07-86bc64a041a6");
+
     public const string BUILTIN_PROVIDER = "nexus";
 
     private const int MAX_PAGES = 20;
+
     private const int PER_PAGE = 100;
 
     private static readonly HttpClient _httpClient = new();
 
     private readonly ILogger _logger = logger;
+
     private PackageLoadContext? _loadContext;
 
-    public InternalPackageReference PackageReference { get; } = packageReference;
+    public PackageReference PackageReference { get; } = packageReference;
 
     public async Task<string[]> DiscoverAsync(CancellationToken cancellationToken)
     {

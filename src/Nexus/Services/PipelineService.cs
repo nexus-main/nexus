@@ -113,7 +113,7 @@ internal class PipelineService(IDatabaseService databaseService)
 
                 else
                 {
-                    return new ConcurrentDictionary<Guid, DataSourcePipeline>();
+                    return new();
                 }
             });
     }

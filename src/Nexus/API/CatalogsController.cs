@@ -178,10 +178,7 @@ internal class CatalogsController(
                         isReadable || Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
 
                     var isOwner = childContainer.Owner?.FindFirstValue(Claims.Subject) == User.FindFirstValue(Claims.Subject);
-
-                    var packageReferenceIds = childContainer.PackageReferences
-                        .Select(x => x.Id)
-                        .ToArray();
+                    var packageReferenceIds = childContainer.PackageReferenceIds;
 
                     var pipelineInfo = new PipelineInfo(
                         childContainer.PipelineId,

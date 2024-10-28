@@ -44,7 +44,7 @@ public class DataControllerServiceTests
 
         var appState = new AppState()
         {
-            Project = new NexusProject(default, default!),
+            Project = new NexusProject(default),
             CatalogState = catalogState
         };
 
@@ -100,7 +100,7 @@ public class DataControllerServiceTests
         // Arrange
         var appState = new AppState()
         {
-            Project = new NexusProject(default, default!)
+            Project = new NexusProject(default)
         };
 
         var extensionHive = Mock.Of<IExtensionHive>();

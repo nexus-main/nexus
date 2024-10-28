@@ -16,19 +16,19 @@ internal interface IExtensionHive
     IEnumerable<Type> GetExtensions<T>(
         ) where T : IExtension;
 
-    InternalPackageReference GetPackageReference<T>(
+    Guid GetPackageReferenceId<T>(
         string fullName) where T : IExtension;
 
     T GetInstance<T>(
         string fullName) where T : IExtension;
 
     Task LoadPackagesAsync(
-        IEnumerable<InternalPackageReference> packageReferences,
+        IReadOnlyDictionary<Guid, PackageReference> packageReferenceMap,
         IProgress<double> progress,
         CancellationToken cancellationToken);
 
     Task<string[]> GetVersionsAsync(
-        InternalPackageReference packageReference,
+        PackageReference packageReference,
         CancellationToken cancellationToken);
 }
 
@@ -41,10 +41,10 @@ internal class ExtensionHive(
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
     private readonly PathsOptions _pathsOptions = pathsOptions.Value;
 
-    private Dictionary<PackageController, ReadOnlyCollection<Type>>? _packageControllerMap = default!;
+    private Dictionary<Guid, (PackageController, ReadOnlyCollection<Type>)>? _packageControllerMap = default!;
 
     public async Task LoadPackagesAsync(
-        IEnumerable<InternalPackageReference> packageReferences,
+        IReadOnlyDictionary<Guid, PackageReference> packageReferenceMap,
         IProgress<double> progress,
         CancellationToken cancellationToken)
     {
@@ -53,7 +53,7 @@ internal class ExtensionHive(
         {
             _logger.LogDebug("Unload previously loaded packages");
 
-            foreach (var (controller, _) in _packageControllerMap)
+            foreach (var (_, (controller, _)) in _packageControllerMap)
             {
                 controller.Unload();
             }
@@ -61,20 +61,21 @@ internal class ExtensionHive(
             _packageControllerMap = default;
         }
 
-        var nexusPackageReference = new InternalPackageReference(
-            Id: PackageController.BUILTIN_ID,
+        var nexusPackageReference = new PackageReference(
             Provider: PackageController.BUILTIN_PROVIDER,
             Configuration: []
         );
 
-        packageReferences = new List<InternalPackageReference>() { nexusPackageReference }.Concat(packageReferences);
-
         // build new
-        var packageControllerMap = new Dictionary<PackageController, ReadOnlyCollection<Type>>();
+        var packageControllerMap = new Dictionary<Guid, (PackageController, ReadOnlyCollection<Type>)>();
         var currentCount = 0;
-        var totalCount = packageReferences.Count();
+        var totalCount = packageReferenceMap.Count();
 
-        foreach (var packageReference in packageReferences)
+        foreach (var (id, packageReference) in packageReferenceMap
+            .Concat([new KeyValuePair<Guid, PackageReference>(
+                PackageController.BUILTIN_ID,
+                nexusPackageReference
+            )]))
         {
             var packageController = new PackageController(packageReference, _loggerFactory.CreateLogger<PackageController>());
             using var scope = _logger.BeginScope(packageReference.Configuration.ToDictionary(entry => entry.Key, entry => (object)entry.Value));
@@ -94,7 +95,7 @@ internal class ExtensionHive(
                     ? assembly.DefinedTypes
                     : assembly.ExportedTypes);
 
-                packageControllerMap[packageController] = types;
+                packageControllerMap[id] = (packageController, types);
             }
             catch (Exception ex)
             {
@@ -109,7 +110,7 @@ internal class ExtensionHive(
     }
 
     public Task<string[]> GetVersionsAsync(
-        InternalPackageReference packageReference,
+        PackageReference packageReference,
         CancellationToken cancellationToken)
     {
         var controller = new PackageController(
@@ -128,24 +129,24 @@ internal class ExtensionHive(
 
         else
         {
-            var types = _packageControllerMap.SelectMany(entry => entry.Value);
+            var types = _packageControllerMap.SelectMany(entry => entry.Value.Item2);
 
             return types
                 .Where(type => typeof(T).IsAssignableFrom(type));
         }
     }
 
-    public InternalPackageReference GetPackageReference<T>(string fullName) where T : IExtension
+    public Guid GetPackageReferenceId<T>(string fullName) where T : IExtension
     {
-        if (!TryGetTypeInfo<T>(fullName, out var packageController, out var _))
+        if (!TryGetTypeInfo<T>(fullName, out var packageReferenceId, out var _, out var _))
             throw new Exception($"Could not find extension {fullName} of type {typeof(T).FullName}.");
 
-        return packageController.PackageReference;
+        return packageReferenceId;
     }
 
     public T GetInstance<T>(string fullName) where T : IExtension
     {
-        if (!TryGetTypeInfo<T>(fullName, out var _, out var type))
+        if (!TryGetTypeInfo<T>(fullName, out var _, out var _, out var type))
             throw new Exception($"Could not find extension {fullName} of type {typeof(T).FullName}.");
 
         _logger.LogDebug("Instantiate extension {ExtensionType}", fullName);
@@ -157,20 +158,22 @@ internal class ExtensionHive(
 
     private bool TryGetTypeInfo<T>(
         string fullName,
+        [NotNullWhen(true)] out Guid packageReferenceId,
         [NotNullWhen(true)] out PackageController? packageController,
         [NotNullWhen(true)] out Type? type)
         where T : IExtension
     {
-        type = default;
+        packageReferenceId = default;
         packageController = default;
+        type = default;
 
         if (_packageControllerMap is null)
             return false;
 
-        IEnumerable<(PackageController Controller, Type Type)> typeInfos = _packageControllerMap
-            .SelectMany(entry => entry.Value.Select(type => (entry.Key, type)));
+        IEnumerable<(Guid Id, PackageController Controller, Type Type)> typeInfos = _packageControllerMap
+            .SelectMany(entry => entry.Value.Item2.Select(type => (entry.Key, entry.Value.Item1, type)));
 
-        (packageController, type) = typeInfos
+        (packageReferenceId, packageController, type) = typeInfos
             .Where(typeInfo => typeof(T).IsAssignableFrom(typeInfo.Type) && typeInfo.Type.FullName == fullName)
             .FirstOrDefault();
 

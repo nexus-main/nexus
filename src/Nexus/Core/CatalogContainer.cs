@@ -15,10 +15,15 @@ internal class CatalogContainer
     public const string RootCatalogId = "/";
 
     private readonly SemaphoreSlim _semaphore = new(initialCount: 1, maxCount: 1);
+
     private LazyCatalogInfo? _lazyCatalogInfo;
+
     private CatalogContainer[]? _childCatalogContainers;
+
     private readonly ICatalogManager _catalogManager;
+
     private readonly IDatabaseService _databaseService;
+
     private readonly IDataControllerService _dataControllerService;
 
     public CatalogContainer(
@@ -26,7 +31,7 @@ internal class CatalogContainer
         ClaimsPrincipal? owner,
         Guid pipelineId,
         DataSourcePipeline pipeline,
-        InternalPackageReference[] packageReferences,
+        Guid[] packageReferenceIds,
         CatalogMetadata metadata,
         ICatalogManager catalogManager,
         IDatabaseService databaseService,
@@ -38,7 +43,7 @@ internal class CatalogContainer
         Owner = owner;
         PipelineId = pipelineId;
         Pipeline = pipeline;
-        PackageReferences = packageReferences;
+        PackageReferenceIds = packageReferenceIds;
         Metadata = metadata;
 
         _catalogManager = catalogManager;
@@ -63,7 +68,7 @@ internal class CatalogContainer
 
     public DataSourcePipeline Pipeline { get; }
 
-    public InternalPackageReference[] PackageReferences { get; }
+    public Guid[] PackageReferenceIds { get; }
 
     public CatalogMetadata Metadata { get; internal set; }
 

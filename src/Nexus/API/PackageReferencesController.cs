@@ -16,8 +16,7 @@ namespace Nexus.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class PackageReferencesController(
-    AppState appState,
-    AppStateManager appStateManager,
+    IPackageService packageService,
     IExtensionHive extensionHive) : ControllerBase
 {
     // GET      /api/packagereferences
@@ -25,8 +24,7 @@ internal class PackageReferencesController(
     // DELETE   /api/packagereferences/{packageReferenceId}
     // GET      /api/packagereferences/{packageReferenceId}/versions
 
-    private readonly AppState _appState = appState;
-    private readonly AppStateManager _appStateManager = appStateManager;
+    private readonly IPackageService _packageService = packageService;
     private readonly IExtensionHive _extensionHive = extensionHive;
 
     /// <summary>
@@ -34,12 +32,9 @@ internal class PackageReferencesController(
     /// </summary>
     /// <returns></returns>
     [HttpGet]
-    public IDictionary<Guid, PackageReference> Get()
+    public async Task<IReadOnlyDictionary<Guid, PackageReference>> GetAsync()
     {
-        return _appState.Project.PackageReferences
-            .ToDictionary(
-                entry => entry.Key,
-                entry => new PackageReference(entry.Value.Provider, entry.Value.Configuration));
+        return await _packageService.GetAllAsync();
     }
 
     /// <summary>
@@ -47,17 +42,10 @@ internal class PackageReferencesController(
     /// </summary>
     /// <param name="packageReference">The package reference to create.</param>
     [HttpPost]
-    public async Task<Guid> CreateAsync(
+    public Task<Guid> CreateAsync(
         [FromBody] PackageReference packageReference)
     {
-        var internalPackageReference = new InternalPackageReference(
-            Id: Guid.NewGuid(),
-            Provider: packageReference.Provider,
-            Configuration: packageReference.Configuration);
-
-        await _appStateManager.PutPackageReferenceAsync(internalPackageReference);
-
-        return internalPackageReference.Id;
+        return _packageService.PutAsync(packageReference);
     }
 
     /// <summary>
@@ -68,7 +56,7 @@ internal class PackageReferencesController(
     public Task DeleteAsync(
         Guid packageReferenceId)
     {
-        return _appStateManager.DeletePackageReferenceAsync(packageReferenceId);
+        return _packageService.DeleteAsync(packageReferenceId);
     }
 
     /// <summary>
@@ -81,9 +69,9 @@ internal class PackageReferencesController(
         Guid packageReferenceId,
         CancellationToken cancellationToken)
     {
-        var project = _appState.Project;
+        var packageReferenceMap = await _packageService.GetAllAsync();
 
-        if (!project.PackageReferences.TryGetValue(packageReferenceId, out var packageReference))
+        if (!packageReferenceMap.TryGetValue(packageReferenceId, out var packageReference))
             return NotFound($"Unable to find package reference with ID {packageReferenceId}.");
 
         var result = await _extensionHive
