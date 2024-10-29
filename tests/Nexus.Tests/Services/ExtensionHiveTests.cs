@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.Services;
 using System.Diagnostics;

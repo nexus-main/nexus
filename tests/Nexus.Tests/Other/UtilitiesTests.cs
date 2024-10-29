@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Utilities;
 using System.Security.Claims;

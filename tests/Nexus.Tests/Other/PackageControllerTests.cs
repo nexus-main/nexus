@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.PackageManagement;
 using System.Diagnostics;

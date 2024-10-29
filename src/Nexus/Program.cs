@@ -172,6 +172,7 @@ void AddServices(
 
     services.AddSingleton<AppState>();
     services.AddSingleton<AppStateManager>();
+    services.AddSingleton<IPackageService, PackageService>();
     services.AddSingleton<IPipelineService, PipelineService>();
     services.AddSingleton<ITokenService, TokenService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();

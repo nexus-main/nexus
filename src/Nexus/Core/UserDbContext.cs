@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Microsoft.EntityFrameworkCore;
+using Nexus.Core.V1;
 
 namespace Nexus.Core;
 

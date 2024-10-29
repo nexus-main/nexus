@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Readers;
 using Nexus.Controllers;
+using Nexus.Controllers.V1;
 
 namespace Nexus.ClientGenerator;
 
@@ -59,28 +60,25 @@ public static class Program
         var settings = new GeneratorSettings(
             Namespace: "Nexus.Api",
             ClientName: "Nexus",
-            TokenFolderName: ".nexus-api",
-            ConfigurationHeaderKey: "Nexus-Configuration",
             ExceptionType: "NexusException",
             ExceptionCodePrefix: "N",
             GetOperationName: (path, type, operation) => operation.OperationId.Split(['_'], 2)[1],
+            Special_ConfigurationHeaderKey: "Nexus-Configuration",
             Special_WebAssemblySupport: true,
             Special_AccessTokenSupport: true,
             Special_NexusFeatures: true);
 
         // generate C# client
         var csharpGenerator = new CSharpGenerator(settings);
-        var csharpCode = csharpGenerator.Generate(document);
+        var csharpOutputFolderPath = $"{solutionRoot}src/clients/dotnet-client";
 
-        var csharpOutputPath = $"{solutionRoot}src/clients/dotnet-client/NexusClient.g.cs";
-        File.WriteAllText(csharpOutputPath, csharpCode);
+        csharpGenerator.Generate(csharpOutputFolderPath, document);
 
         // generate Python client
+        var pythonOutputFolderPath = $"{solutionRoot}src/clients/python-client/nexus_api";
         var pythonGenerator = new PythonGenerator(settings);
-        var pythonCode = pythonGenerator.Generate(document);
 
-        var pythonOutputPath = $"{solutionRoot}src/clients/python-client/nexus_api/_nexus_api.py";
-        File.WriteAllText(pythonOutputPath, pythonCode);
+        pythonGenerator.Generate(pythonOutputFolderPath, document);
 
         // save open API document
         var openApiDocumentOutputPath = $"{solutionRoot}{openApiFileName}";

@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 using Nexus.Core;
+using Nexus.Core.V1;
 
 namespace Nexus.PackageManagement;
 

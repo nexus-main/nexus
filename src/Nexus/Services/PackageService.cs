@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Utilities;
 
 namespace Nexus.Services;

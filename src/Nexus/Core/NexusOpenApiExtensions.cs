@@ -19,10 +19,8 @@ internal static class NexusOpenApiExtensions
             .AddControllers(options => options.InputFormatters.Add(new StreamInputFormatter()))
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
             .ConfigureApplicationPartManager(
-                manager =>
-                {
-                    manager.FeatureProviders.Add(new InternalControllerFeatureProvider());
-                });
+                manager => manager.FeatureProviders.Add(new InternalControllerFeatureProvider())
+            );
 
         services.AddApiVersioning(
             options =>

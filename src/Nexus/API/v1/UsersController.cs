@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Services;
 using Nexus.Utilities;
 using System.Diagnostics.CodeAnalysis;
@@ -15,7 +16,7 @@ using System.Net;
 using System.Security.Claims;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
-namespace Nexus.Controllers;
+namespace Nexus.Controllers.V1;
 
 /// <summary>
 /// Provides access to users.

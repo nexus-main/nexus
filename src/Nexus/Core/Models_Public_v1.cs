@@ -6,7 +6,7 @@ using Nexus.DataModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Nexus.Core;
+namespace Nexus.Core.V1;
 
 /// <summary>
 /// Represents a user.

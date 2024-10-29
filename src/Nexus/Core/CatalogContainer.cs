@@ -1,6 +1,7 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Services;
 using Nexus.Utilities;

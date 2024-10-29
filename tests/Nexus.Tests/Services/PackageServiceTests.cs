@@ -4,6 +4,7 @@
 using System.Text.Json;
 using Moq;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Services;
 using Nexus.Utilities;
 using Xunit;

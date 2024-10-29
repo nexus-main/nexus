@@ -4,9 +4,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Services;
 
-namespace Nexus.Controllers;
+namespace Nexus.Controllers.V1;
 
 /// <summary>
 /// Provides access to package references.
@@ -51,28 +52,28 @@ internal class PackageReferencesController(
     /// <summary>
     /// Deletes a package reference.
     /// </summary>
-    /// <param name="packageReferenceId">The ID of the package reference.</param>
+    /// <param name="id">The ID of the package reference.</param>
     [HttpDelete("{packageReferenceId}")]
     public Task DeleteAsync(
-        Guid packageReferenceId)
+        Guid id)
     {
-        return _packageService.DeleteAsync(packageReferenceId);
+        return _packageService.DeleteAsync(id);
     }
 
     /// <summary>
     /// Gets package versions.
     /// </summary>
-    /// <param name="packageReferenceId">The ID of the package reference.</param>
+    /// <param name="id">The ID of the package reference.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{packageReferenceId}/versions")]
     public async Task<ActionResult<string[]>> GetVersionsAsync(
-        Guid packageReferenceId,
+        Guid id,
         CancellationToken cancellationToken)
     {
         var packageReferenceMap = await _packageService.GetAllAsync();
 
-        if (!packageReferenceMap.TryGetValue(packageReferenceId, out var packageReference))
-            return NotFound($"Unable to find package reference with ID {packageReferenceId}.");
+        if (!packageReferenceMap.TryGetValue(id, out var packageReference))
+            return NotFound($"Unable to find package reference with ID {id}.");
 
         var result = await _extensionHive
             .GetVersionsAsync(packageReference, cancellationToken);

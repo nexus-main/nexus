@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Services;
