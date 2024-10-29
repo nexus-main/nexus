@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Moq;
 using Moq.Protected;
+using Nexus.Api.V1;
 using Xunit;
 
 namespace Nexus.Api.Tests;
@@ -15,7 +16,7 @@ public class ClientTests
     public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
 
     [Fact]
-    public async Task CanAddConfigurationAsync()
+    public async Task CanAddConfiguration()
     {
         // Arrange
         var messageHandlerMock = new Mock<HttpMessageHandler>();
@@ -61,14 +62,14 @@ public class ClientTests
         };
 
         // Act
-        _ = await client.Catalogs.GetAsync(catalogId);
+        _ = await client.V1.Catalogs.GetAsync(catalogId);
 
         using (var disposable = client.AttachConfiguration(configuration))
         {
-            _ = await client.Catalogs.GetAsync(catalogId);
+            _ = await client.V1.Catalogs.GetAsync(catalogId);
         }
 
-        _ = await client.Catalogs.GetAsync(catalogId);
+        _ = await client.V1.Catalogs.GetAsync(catalogId);
 
         // Assert
         var encodedJson = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(configuration));

@@ -22,8 +22,8 @@ internal class PackageReferencesController(
 {
     // GET      /api/packagereferences
     // POST     /api/packagereferences
-    // DELETE   /api/packagereferences/{packageReferenceId}
-    // GET      /api/packagereferences/{packageReferenceId}/versions
+    // DELETE   /api/packagereferences/{id}
+    // GET      /api/packagereferences/{id}/versions
 
     private readonly IPackageService _packageService = packageService;
     private readonly IExtensionHive _extensionHive = extensionHive;
@@ -53,7 +53,7 @@ internal class PackageReferencesController(
     /// Deletes a package reference.
     /// </summary>
     /// <param name="id">The ID of the package reference.</param>
-    [HttpDelete("{packageReferenceId}")]
+    [HttpDelete("{id}")]
     public Task DeleteAsync(
         Guid id)
     {
@@ -65,7 +65,7 @@ internal class PackageReferencesController(
     /// </summary>
     /// <param name="id">The ID of the package reference.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
-    [HttpGet("{packageReferenceId}/versions")]
+    [HttpGet("{id}/versions")]
     public async Task<ActionResult<string[]>> GetVersionsAsync(
         Guid id,
         CancellationToken cancellationToken)

@@ -120,7 +120,7 @@
         {
             if (deleteConfirmed)
             {
-                await Client.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
+                await Client.V1.Catalogs.DeleteAttachmentAsync(Catalog.Id, attachment);
                 _attachments = default;
                 StateHasChanged();
                 await GetAttachmentsAsync();
@@ -178,7 +178,7 @@
                 {
                     using var stream = file.OpenReadStream(maxAllowedSize: long.MaxValue);
                     currentStream = stream;
-                    await Client.Catalogs.UploadAttachmentAsync(Catalog.Id, file.Name, stream, cts.Token);
+                    await Client.V1.Catalogs.UploadAttachmentAsync(Catalog.Id, file.Name, stream, cts.Token);
                 }
                 catch (Exception ex)
                 {
@@ -215,7 +215,7 @@
     {
         try
         {
-            _attachments = await Client.Catalogs.GetAttachmentsAsync(Catalog.Id, CancellationToken.None);
+            _attachments = await Client.V1.Catalogs.GetAttachmentsAsync(Catalog.Id, CancellationToken.None);
         }
         catch (Exception ex)
         {

@@ -20,7 +20,7 @@ public class NexusAuthenticationStateProvider(INexusClient client) : Authenticat
 
         try
         {
-            var meResponse = await _client.Users.GetMeAsync();
+            var meResponse = await _client.V1.Users.GetMeAsync();
 
             var claims = new List<Claim>
             {

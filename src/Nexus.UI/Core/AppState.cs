@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using Microsoft.JSInterop;
 using MudBlazor;
 using Nexus.Api;
+using Nexus.Api.V1;
 using Nexus.UI.ViewModels;
 
 namespace Nexus.UI.Core;
@@ -38,7 +39,7 @@ public class AppState : INotifyPropertyChanged
         _jsRuntime = jsRuntime;
         Settings = new SettingsViewModel(this, jsRuntime, client);
 
-        var childCatalogInfosTask = client.Catalogs.GetChildCatalogInfosAsync(ResourceCatalogViewModel.ROOT_CATALOG_ID, CancellationToken.None);
+        var childCatalogInfosTask = client.V1.Catalogs.GetChildCatalogInfosAsync(ResourceCatalogViewModel.ROOT_CATALOG_ID, CancellationToken.None);
 
         var rootInfo = new CatalogInfo(
             Id: ResourceCatalogViewModel.ROOT_CATALOG_ID,
@@ -192,8 +193,8 @@ public class AppState : INotifyPropertyChanged
         if (Jobs.Count >= 20)
             Jobs.RemoveAt(0);
 
-        if (job.Status is null || job.Status.Status < Api.TaskStatus.RanToCompletion)
-            _ = _client.Jobs.CancelJobAsync(job.Id);
+        if (job.Status is null || job.Status.Status < Api.V1.TaskStatus.RanToCompletion)
+            _ = _client.V1.Jobs.CancelJobAsync(job.Id);
     }
 
     public async Task SelectCatalogAsync(string? catalogId)
@@ -243,7 +244,7 @@ public class AppState : INotifyPropertyChanged
         {
             if (EditModeCatalogMap.TryGetValue(catalogId, out var map))
             {
-                var metadata = await _client.Catalogs.GetMetadataAsync(catalogId);
+                var metadata = await _client.V1.Catalogs.GetMetadataAsync(catalogId);
 
                 // overrides
                 var overrides = (JsonObject?)JsonSerializer.SerializeToNode(metadata.Overrides);
@@ -302,7 +303,7 @@ public class AppState : INotifyPropertyChanged
                         Overrides = JsonSerializer.Deserialize<ResourceCatalog>(overrides)
                     };
 
-                    await _client.Catalogs.SetMetadataAsync(catalogId, metadata, CancellationToken.None);
+                    await _client.V1.Catalogs.SetMetadataAsync(catalogId, metadata, CancellationToken.None);
 
                     // update view
                     if (SelectedCatalog is RealResourceCatalogViewModel realCatalog)

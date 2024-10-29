@@ -322,7 +322,7 @@
 
         try
         {
-            _accessTokenMap = (await Client.Users.GetMeAsync()).PersonalAccessTokens;
+            _accessTokenMap = (await Client.V1.Users.GetMeAsync()).PersonalAccessTokens;
         }
         catch (Exception ex)
         {
@@ -380,14 +380,14 @@
                 claims
             );
 
-            _newAccessToken = await Client.Users.CreateTokenAsync(token);
+            _newAccessToken = await Client.V1.Users.CreateTokenAsync(token);
 
             _newAccessTokenDescription = default;
             _newAccessTokenExpiration = default;
             _newAccessTokenIsAdmin = false;
             _newAccessTokenClaims.Clear();
             _newAccessTokenClaims.Add(new ClaimData(default, default));
-            _accessTokenMap = (await Client.Users.GetMeAsync()).PersonalAccessTokens;
+            _accessTokenMap = (await Client.V1.Users.GetMeAsync()).PersonalAccessTokens;
         }
         catch (Exception ex)
         {
@@ -402,8 +402,8 @@
     {
         try
         {
-            await Client.Users.DeleteTokenAsync(id, CancellationToken.None);
-            _accessTokenMap = (await Client.Users.GetMeAsync()).PersonalAccessTokens;
+            await Client.V1.Users.DeleteTokenAsync(id, CancellationToken.None);
+            _accessTokenMap = (await Client.V1.Users.GetMeAsync()).PersonalAccessTokens;
         }
         catch (Exception ex)
         {
@@ -460,7 +460,7 @@
         {
             cts.Token.ThrowIfCancellationRequested();
 
-            var job = await Client.Jobs.RefreshDatabaseAsync(_cts.Token);
+            var job = await Client.V1.Jobs.RefreshDatabaseAsync(_cts.Token);
 
             while (true)
             {
@@ -468,13 +468,13 @@
 
                 cts.Token.ThrowIfCancellationRequested();
 
-                var status = await Client.Jobs.GetJobStatusAsync(job.Id, _cts.Token);
+                var status = await Client.V1.Jobs.GetJobStatusAsync(job.Id, _cts.Token);
                 _refreshDatabaseProgress = status.Progress;
 
                 if (status.ExceptionMessage is not null)
                     throw new Exception("stauts:"  + status.ExceptionMessage);
 
-                if (status.Status >= Api.TaskStatus.RanToCompletion)
+                if (status.Status >= Api.V1.TaskStatus.RanToCompletion)
                     break;
             }
         }

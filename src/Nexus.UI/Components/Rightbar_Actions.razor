@@ -49,7 +49,7 @@ else
 
         try
         {
-            var job = await Client.Jobs.ExportAsync(exportParameters, CancellationToken.None);
+            var job = await Client.V1.Jobs.ExportAsync(exportParameters, CancellationToken.None);
             AppState.AddJob(new JobViewModel(job, exportParameters, Client, ex => AppState.AddError(ex, Snackbar)));
         }
         catch (Exception ex)

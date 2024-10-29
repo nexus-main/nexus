@@ -5,10 +5,31 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Nexus.Api;
+using Nexus.Api.V1;
 
 namespace Nexus.UI.Core;
 
 public class NexusDemoClient : INexusClient
+{
+    public IV1 V1 => throw new NotImplementedException();
+
+    public void SignIn(string accessToken)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IDisposable AttachConfiguration(object configuration)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void ClearConfiguration()
+    {
+        throw new NotImplementedException();
+    }
+}
+
+public class V1 : IV1
 {
     public IArtifactsClient Artifacts => throw new NotImplementedException();
 
@@ -27,21 +48,6 @@ public class NexusDemoClient : INexusClient
     public IUsersClient Users => new UsersDemoClient();
 
     public IWritersClient Writers => new WritersDemoClient();
-
-    public IDisposable AttachConfiguration(object configuration)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void ClearConfiguration()
-    {
-        throw new NotImplementedException();
-    }
-
-    public void SignIn(string accessToken)
-    {
-        throw new NotImplementedException();
-    }
 }
 
 public class CatalogsDemoClient : ICatalogsClient

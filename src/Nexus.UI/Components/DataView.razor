@@ -106,7 +106,7 @@ else
                 {
                     var resourcePath = catalogItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value);
 
-                    var response = await Client.Data
+                    var response = await Client.V1.Data
                         .GetStreamAsync(resourcePath, begin, end, _cts!.Token);
 
                     var data = await ReadAsDoubleAsync(response, progress => receivedBytes += progress, _cts!.Token);
