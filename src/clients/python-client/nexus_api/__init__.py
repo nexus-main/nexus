@@ -1,2 +1,2 @@
-from _client import *
-from _shared import *
+from ._client import *
+from ._shared import *

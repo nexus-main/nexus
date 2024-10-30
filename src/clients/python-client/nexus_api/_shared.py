@@ -1,11 +1,7 @@
-from array import array
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Type, cast
-from typing import Optional
-
-from nexus_api.V1 import CatalogItem
+from typing import (Any, AsyncIterable, Awaitable, Iterable, Optional,
+                    Protocol, Type, TypeVar, Union, cast)
 
 from ._encoder import JsonEncoderOptions, to_camel_case, to_snake_case
 
@@ -29,6 +25,46 @@ _json_encoder_options: JsonEncoderOptions = JsonEncoderOptions(
 _json_encoder_options.encoders[Enum] = lambda value: to_camel_case(value.name)
 _json_encoder_options.decoders[Enum] = lambda typeCls, value: cast(Type[Enum], typeCls)[to_snake_case(value).upper()]
 
+T = TypeVar("T")
+
+class HttpRequestHandler(Protocol):
+    """
+    A handler to execute HTTP requests.
+    """
+
+    def __call__(self, typeOfT: Optional[Type[T]], method: str, relative_url: str, accept_header_value: Optional[str], content_type_value: Optional[str], content: Union[None, str, bytes, Iterable[bytes], AsyncIterable[bytes]]) -> T:
+        """
+        Execute the HTTP request.
+
+        Args:
+            typeOfT: The return type.
+            method: The HTTP method.
+            relative_url: The relative URL.
+            accept_header_value: The value of the accept header.
+            content_type_value: The value of the content type.
+            content: The content.
+        """
+        ...
+
+class HttpRequestHandlerAsync(Protocol):
+    """
+    A handler to execute HTTP requests.
+    """
+
+    def __call__(self, typeOfT: Optional[Type[T]], method: str, relative_url: str, accept_header_value: Optional[str], content_type_value: Optional[str], content: Union[None, str, bytes, Iterable[bytes], AsyncIterable[bytes]]) -> Awaitable[T]:
+        """
+        Execute the HTTP request.
+
+        Args:
+            typeOfT: The return type.
+            method: The HTTP method.
+            relative_url: The relative URL.
+            accept_header_value: The value of the accept header.
+            content_type_value: The value of the content type.
+            content: The content.
+        """
+        ...
+
 class NexusException(Exception):
     """A NexusException."""
 
@@ -41,35 +77,3 @@ class NexusException(Exception):
 
     message: str
     """The exception message."""
-
-@dataclass(frozen=True)
-class DataResponse:
-    """
-    Result of a data request with a certain resource path.
-
-    Args:
-        catalog_item: The catalog item.
-        name: The resource name.
-        unit: The optional resource unit.
-        description: The optional resource description.
-        sample_period: The sample period.
-        values: The data.
-    """
-
-    catalog_item: CatalogItem
-    """The catalog item."""
-
-    name: Optional[str]
-    """The resource name."""
-
-    unit: Optional[str]
-    """The optional resource unit."""
-
-    description: Optional[str]
-    """The optional resource description."""
-
-    sample_period: timedelta
-    """The sample period."""
-
-    values: array[float]
-    """The data."""

@@ -6,20 +6,21 @@ import base64
 import json
 import time
 from array import array
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 from typing import Callable
-from typing import (Any, AsyncIterable, Iterable, Optional, Type, TypeVar,
-                    Union, cast)
+from typing import (Any, AsyncIterable, Callable, Iterable, Optional, Type,
+                    TypeVar, Union, cast)
 from zipfile import ZipFile
 
 from httpx import AsyncClient, Client, Request, Response
-from V1 import V1, V1Async
-from V1 import ExportParameters, TaskStatus
 
 from ._encoder import JsonEncoder
-from ._shared import DataResponse
 from ._shared import NexusException, _json_encoder_options
+from .V1 import V1, V1Async
+from .V1 import CatalogItem, ExportParameters, TaskStatus
+
 
 T = TypeVar("T")
 
@@ -72,7 +73,7 @@ class NexusClient:
         self.___http_client = http_client
         self.___token = None
 
-        self._v1 = V1(self)
+        self._v1 = V1(self._invoke)
 
 
     @property
@@ -411,7 +412,7 @@ class NexusAsyncClient:
         self.___http_client = http_client
         self.___token = None
 
-        self._v1 = V1Async(self)
+        self._v1 = V1Async(self._invoke)
 
 
     @property
@@ -700,3 +701,36 @@ class NexusAsyncClient:
 
         if on_progress is not None:
             on_progress(1, "extract")
+
+
+@dataclass(frozen=True)
+class DataResponse:
+    """
+    Result of a data request with a certain resource path.
+
+    Args:
+        catalog_item: The catalog item.
+        name: The resource name.
+        unit: The optional resource unit.
+        description: The optional resource description.
+        sample_period: The sample period.
+        values: The data.
+    """
+
+    catalog_item: CatalogItem
+    """The catalog item."""
+
+    name: Optional[str]
+    """The resource name."""
+
+    unit: Optional[str]
+    """The optional resource unit."""
+
+    description: Optional[str]
+    """The optional resource description."""
+
+    sample_period: timedelta
+    """The sample period."""
+
+    values: array[float]
+    """The data."""
