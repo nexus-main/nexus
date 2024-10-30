@@ -1,3 +1,6 @@
+## v2.0.0-beta.31 - 2024-10-30
+- Add support for chained data sources (= pipelines)
+
 ## v2.0.0-beta.30 - 2024-03-28
 - Personal Access Tokens can now also be granted administator privileges.
 
