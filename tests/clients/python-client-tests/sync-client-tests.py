@@ -53,11 +53,11 @@ def can_add_configuration_test():
     with NexusClient(http_client) as client:
 
         # act
-        _ = client.catalogs.get(catalog_id)
+        _ = client.v1.catalogs.get(catalog_id)
 
         with client.attach_configuration(configuration):
-            _ = client.catalogs.get(catalog_id)
+            _ = client.v1.catalogs.get(catalog_id)
 
-        _ = client.catalogs.get(catalog_id)
+        _ = client.v1.catalogs.get(catalog_id)
 
         # assert (already asserted in _handler)

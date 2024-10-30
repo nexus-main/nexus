@@ -55,11 +55,11 @@ async def can_add_configuration_test():
     async with NexusAsyncClient(http_client) as client:
 
         # act
-        _ = await client.catalogs.get(catalog_id)
+        _ = await client.v1.catalogs.get(catalog_id)
 
         with client.attach_configuration(configuration):
-            _ = await client.catalogs.get(catalog_id)
+            _ = await client.v1.catalogs.get(catalog_id)
 
-        _ = await client.catalogs.get(catalog_id)
+        _ = await client.v1.catalogs.get(catalog_id)
 
         # assert (already asserted in _handler)
