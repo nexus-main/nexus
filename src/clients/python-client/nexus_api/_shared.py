@@ -1,13 +1,13 @@
-import array
+from array import array
 from dataclasses import dataclass
-from datetime import timedelta
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Type, cast
 from typing import Optional
 
-from ._encoder import (JsonEncoderOptions, to_camel_case,
-                                     to_snake_case)
+from nexus_api.V1 import CatalogItem
+
+from ._encoder import JsonEncoderOptions, to_camel_case, to_snake_case
 
 
 def _to_string(value: Any) -> str:
