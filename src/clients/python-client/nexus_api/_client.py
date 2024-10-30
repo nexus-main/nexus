@@ -1,11 +1,12 @@
 # Python <= 3.9
 from __future__ import annotations
 
-import array
 import asyncio
 import base64
 import json
-from datetime import datetime, time, timedelta
+import time
+from array import array
+from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 from typing import Callable
 from typing import (Any, AsyncIterable, Iterable, Optional, Type, TypeVar,
@@ -14,6 +15,7 @@ from zipfile import ZipFile
 
 from httpx import AsyncClient, Client, Request, Response
 from V1 import V1, V1Async
+from V1 import ExportParameters, TaskStatus
 
 from ._encoder import JsonEncoder
 from ._shared import DataResponse
@@ -37,7 +39,7 @@ class _DisposableConfiguration:
 class NexusClient:
     """A client for the Nexus system."""
     
-    ___configuration_header_key: str = ""
+    ___configuration_header_key: str = "Nexus-Configuration"
     ___authorization_header_key: str = "Authorization"
 
     ___token: Optional[str]
@@ -85,20 +87,20 @@ class NexusClient:
 
 
 
-    def sign_in(self, access___token: str):
+    def sign_in(self, access_token: str):
         """Signs in the user.
 
         Args:
-            access___token: The access token.
+            access_token: The access token.
         """
 
-        authorization_header_value = f"Bearer {access___token}"
+        authorization_header_value = f"Bearer {access_token}"
 
         if self.___authorization_header_key in self.___http_client.headers:
             del self.___http_client.headers[self.___authorization_header_key]
 
         self.___http_client.headers[self.___authorization_header_key] = authorization_header_value
-        self.___token = access___token
+        self.___token = access_token
 
     def attach_configuration(self, configuration: Any) -> Any:
         """Attaches configuration data to subsequent API requests.
@@ -199,13 +201,13 @@ class NexusClient:
             onProgress: A callback which accepts the current progress.
         """
 
-        catalog_item_map = self.catalogs.search_catalog_items(list(resource_paths))
+        catalog_item_map = self.v1.catalogs.search_catalog_items(list(resource_paths))
         result: dict[str, DataResponse] = {}
         progress: float = 0
 
         for (resource_path, catalog_item) in catalog_item_map.items():
 
-            response = self.data.get_stream(resource_path, begin, end)
+            response = self.v1.data.get_stream(resource_path, begin, end)
 
             try:
                 double_data = self._read_as_double(response)
@@ -285,7 +287,7 @@ class NexusClient:
         )
 
         # Start job
-        job = self.jobs.export(export_parameters)
+        job = self.v1.jobs.export(export_parameters)
 
         # Wait for job to finish
         artifact_id: Optional[str] = None
@@ -293,7 +295,7 @@ class NexusClient:
         while True:
             time.sleep(1)
             
-            job_status = self.jobs.get_job_status(job.id)
+            job_status = self.v1.jobs.get_job_status(job.id)
 
             if (job_status.status == TaskStatus.CANCELED):
                 raise Exception("The job has been cancelled.")
@@ -325,7 +327,7 @@ class NexusClient:
         # Download zip file
         with NamedTemporaryFile() as target_stream:
 
-            response = self.artifacts.download(artifact_id)
+            response = self.v1.artifacts.download(artifact_id)
             
             try:
 
@@ -376,7 +378,7 @@ class _DisposableAsyncConfiguration:
 class NexusAsyncClient:
     """A client for the Nexus system."""
     
-    ___configuration_header_key: str = ""
+    ___configuration_header_key: str = "Nexus-Configuration"
     ___authorization_header_key: str = "Authorization"
 
     ___token: Optional[str]
@@ -424,20 +426,20 @@ class NexusAsyncClient:
 
 
 
-    def sign_in(self, access___token: str):
+    def sign_in(self, access_token: str):
         """Signs in the user.
 
         Args:
-            access___token: The access token.
+            access_token: The access token.
         """
 
-        authorization_header_value = f"Bearer {access___token}"
+        authorization_header_value = f"Bearer {access_token}"
 
         if self.___authorization_header_key in self.___http_client.headers:
             del self.___http_client.headers[self.___authorization_header_key]
 
         self.___http_client.headers[self.___authorization_header_key] = authorization_header_value
-        self.___token = access___token
+        self.___token = access_token
 
     def attach_configuration(self, configuration: Any) -> Any:
         """Attaches configuration data to subsequent API requests.
@@ -538,13 +540,13 @@ class NexusAsyncClient:
             onProgress: A callback which accepts the current progress.
         """
 
-        catalog_item_map = await self.catalogs.search_catalog_items(list(resource_paths))
+        catalog_item_map = await self.v1.catalogs.search_catalog_items(list(resource_paths))
         result: dict[str, DataResponse] = {}
         progress: float = 0
 
         for (resource_path, catalog_item) in catalog_item_map.items():
 
-            response = await self.data.get_stream(resource_path, begin, end)
+            response = await self.v1.data.get_stream(resource_path, begin, end)
 
             try:
                 double_data = await self._read_as_double(response)
@@ -624,7 +626,7 @@ class NexusAsyncClient:
         )
 
         # Start job
-        job = await self.jobs.export(export_parameters)
+        job = await self.v1.jobs.export(export_parameters)
 
         # Wait for job to finish
         artifact_id: Optional[str] = None
@@ -632,7 +634,7 @@ class NexusAsyncClient:
         while True:
             await asyncio.sleep(1)
             
-            job_status = await self.jobs.get_job_status(job.id)
+            job_status = await self.v1.jobs.get_job_status(job.id)
 
             if (job_status.status == TaskStatus.CANCELED):
                 raise Exception("The job has been cancelled.")
@@ -664,7 +666,7 @@ class NexusAsyncClient:
         # Download zip file
         with NamedTemporaryFile() as target_stream:
 
-            response = await self.artifacts.download(artifact_id)
+            response = await self.v1.artifacts.download(artifact_id)
             
             try:
 

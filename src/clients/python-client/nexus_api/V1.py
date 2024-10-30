@@ -10,8 +10,9 @@ from uuid import UUID
 
 from httpx import Response
 
-from . import JsonEncoder, _json_encoder_options, _to_string
+from . import JsonEncoder
 from ._client import NexusAsyncClient, NexusClient
+from ._shared import _json_encoder_options, _to_string
 
 T = TypeVar("T")
 

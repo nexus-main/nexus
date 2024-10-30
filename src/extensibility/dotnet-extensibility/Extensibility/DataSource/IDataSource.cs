@@ -34,7 +34,7 @@ public interface IDataSource : IExtension
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Gets the requested <see cref="ResourceCatalog"/>.
+    /// Enriches the provided <see cref="ResourceCatalog"/>.
     /// </summary>
     /// <param name="catalog">The catalog to enrich.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
