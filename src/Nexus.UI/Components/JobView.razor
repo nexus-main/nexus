@@ -2,9 +2,9 @@
 @inject AppState AppState
 
 <div class="group flex items-center">
-    @if (Job.Status is not null && Job.Status.Status >= Api.TaskStatus.RanToCompletion)
+    @if (Job.Status is not null && Job.Status.Status >= Api.V1.TaskStatus.RanToCompletion)
     {
-        if (Job.Status.Status == Api.TaskStatus.RanToCompletion)
+        if (Job.Status.Status == Api.V1.TaskStatus.RanToCompletion)
         {
             <div class="group-hover:hidden">
                 <MudIconButton 
@@ -19,12 +19,12 @@
                 </a>
             </div>
         }
-        else if (Job.Status.Status == Api.TaskStatus.Canceled)
+        else if (Job.Status.Status == Api.V1.TaskStatus.Canceled)
         {
             <MudIconButton 
                 Icon="@Icons.Material.Filled.Close" />
         }
-        else if (Job.Status.Status == Api.TaskStatus.Faulted)
+        else if (Job.Status.Status == Api.V1.TaskStatus.Faulted)
         {
             <MudIconButton 
                 OnClick="OpenErrorMessageModal"

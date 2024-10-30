@@ -12,11 +12,18 @@ internal interface IDatabaseService
 {
     /* /config/catalogs/catalog_id.json */
     bool TryReadCatalogMetadata(string catalogId, [NotNullWhen(true)] out string? catalogMetadata);
+
     Stream WriteCatalogMetadata(string catalogId);
 
     /* /config/project.json */
     bool TryReadProject([NotNullWhen(true)] out string? project);
+
     Stream WriteProject();
+
+    /* /config/packages.json */
+    bool TryReadPackageReferenceMap([NotNullWhen(true)] out string? packageReferenceMap);
+
+    Stream WritePackageReferenceMap();
 
     /* /config/users */
     IEnumerable<string> EnumerateUsers();
@@ -84,6 +91,8 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     private const string PIPELINES = "pipelines";
 
+    private const string PACKAGES = "packages";
+
     /* /config/catalogs/catalog_id.json */
     public bool TryReadCatalogMetadata(string catalogId, [NotNullWhen(true)] out string? catalogMetadata)
     {
@@ -134,6 +143,33 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
         var filePath = Path.Combine(_pathsOptions.Config, PROJECT + FILE_EXTENSION);
         return File.Open(filePath, FileMode.Create, FileAccess.Write);
+    }
+
+    /* /config/packages.json */
+    public bool TryReadPackageReferenceMap([NotNullWhen(true)] out string? packageReferenceMap)
+    {
+        var folderPath = _pathsOptions.Config;
+        var packageReferencesFilePath = Path.Combine(folderPath, PACKAGES + FILE_EXTENSION);
+
+        packageReferenceMap = default;
+
+        if (File.Exists(packageReferencesFilePath))
+        {
+            packageReferenceMap = File.ReadAllText(packageReferencesFilePath);
+            return true;
+        }
+
+        return false;
+    }
+
+    public Stream WritePackageReferenceMap()
+    {
+        var folderPath = _pathsOptions.Config;
+        var packageReferencesFilePath = Path.Combine(folderPath, PACKAGES + FILE_EXTENSION);
+
+        Directory.CreateDirectory(folderPath);
+
+        return File.Open(packageReferencesFilePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /config/users */
@@ -198,11 +234,11 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         string userId)
     {
         var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
-        var pipelineFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
+        var pipelinesFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
 
         Directory.CreateDirectory(folderPath);
 
-        return File.Open(pipelineFilePath, FileMode.Create, FileAccess.Write);
+        return File.Open(pipelinesFilePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /catalogs/catalog_id/... */

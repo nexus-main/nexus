@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.Services;
 using System.Diagnostics;
@@ -58,8 +59,7 @@ public class ExtensionHiveTests
 
             var version = "v1.0.0-unit.test";
 
-            var packageReference = new InternalPackageReference(
-                Id: Guid.NewGuid(),
+            var packageReference = new PackageReference(
                 Provider: "local",
                 Configuration: new Dictionary<string, string>
                 {
@@ -69,12 +69,12 @@ public class ExtensionHiveTests
                 }
             );
 
-            var packageReferences = new[]
+            var packageReferenceMap = new Dictionary<Guid, PackageReference>
             {
-                packageReference
+                [Guid.NewGuid()] = packageReference
             };
 
-            await hive.LoadPackagesAsync(packageReferences, new Progress<double>(), CancellationToken.None);
+            await hive.LoadPackagesAsync(packageReferenceMap, new Progress<double>(), CancellationToken.None);
 
             // instantiate
             hive.GetInstance<IDataSource>("TestExtensionProject.TestDataSource");

@@ -1,6 +1,7 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.IO.Pipelines;
@@ -28,8 +29,7 @@ internal record CatalogItemRequest(
     CatalogContainer Container);
 
 internal record NexusProject(
-    IReadOnlyDictionary<string, JsonElement>? SystemConfiguration,
-    IReadOnlyDictionary<Guid, InternalPackageReference> PackageReferences);
+    IReadOnlyDictionary<string, JsonElement>? SystemConfiguration);
 
 internal record CatalogState(
     CatalogContainer Root,

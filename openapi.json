@@ -853,7 +853,7 @@
         }
       }
     },
-    "/api/v1/packagereferences/{packageReferenceId}": {
+    "/api/v1/packagereferences/{id}": {
       "delete": {
         "tags": [
           "PackageReferences"
@@ -862,7 +862,7 @@
         "operationId": "PackageReferences_Delete",
         "parameters": [
           {
-            "name": "packageReferenceId",
+            "name": "id",
             "in": "path",
             "required": true,
             "description": "The ID of the package reference.",
@@ -880,7 +880,7 @@
         }
       }
     },
-    "/api/v1/packagereferences/{packageReferenceId}/versions": {
+    "/api/v1/packagereferences/{id}/versions": {
       "get": {
         "tags": [
           "PackageReferences"
@@ -889,7 +889,7 @@
         "operationId": "PackageReferences_GetVersions",
         "parameters": [
           {
-            "name": "packageReferenceId",
+            "name": "id",
             "in": "path",
             "required": true,
             "description": "The ID of the package reference.",

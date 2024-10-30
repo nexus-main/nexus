@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Sources;
@@ -31,7 +32,7 @@ internal class CatalogManager(
         CatalogRegistration Registration,
         Guid PipelineId,
         DataSourcePipeline Pipeline,
-        InternalPackageReference[] PackageReferences,
+        Guid[] PackageReferenceIds,
         CatalogMetadata Metadata,
         ClaimsPrincipal? Owner);
 
@@ -85,8 +86,8 @@ internal class CatalogManager(
 
                 foreach (var registration in pipeline.Registrations)
                 {
-                    var packageReferences = pipeline.Registrations
-                        .Select(registration => _extensionHive.GetPackageReference<IDataSource>(registration.Type))
+                    var packageReferenceIds = pipeline.Registrations
+                        .Select(registration => _extensionHive.GetPackageReferenceId<IDataSource>(registration.Type))
                         .ToArray();
 
                     foreach (var catalogRegistration in catalogRegistrations)
@@ -97,7 +98,7 @@ internal class CatalogManager(
                             catalogRegistration,
                             pipelineId,
                             pipeline,
-                            packageReferences,
+                            packageReferenceIds,
                             metadata,
                             null);
 
@@ -142,8 +143,8 @@ internal class CatalogManager(
                         using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
                         var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
 
-                        var packageReferences = pipeline.Registrations
-                            .Select(registration => _extensionHive.GetPackageReference<IDataSource>(registration.Type))
+                        var packageReferenceIds = pipeline.Registrations
+                            .Select(registration => _extensionHive.GetPackageReferenceId<IDataSource>(registration.Type))
                             .ToArray();
 
                         foreach (var catalogRegistration in catalogRegistrations)
@@ -154,7 +155,7 @@ internal class CatalogManager(
                                 catalogRegistration,
                                 pipelineId,
                                 pipeline,
-                                packageReferences,
+                                packageReferenceIds,
                                 metadata,
                                 owner);
 
@@ -197,7 +198,7 @@ internal class CatalogManager(
                         catalogRegistration,
                         parent.PipelineId,
                         parent.Pipeline,
-                        parent.PackageReferences,
+                        parent.PackageReferenceIds,
                         metadata,
                         parent.Owner);
                 });
@@ -229,7 +230,7 @@ internal class CatalogManager(
                 prototype.Owner,
                 prototype.PipelineId,
                 prototype.Pipeline,
-                prototype.PackageReferences,
+                prototype.PackageReferenceIds,
                 prototype.Metadata,
                 this,
                 _databaseService,

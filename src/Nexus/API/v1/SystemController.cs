@@ -8,7 +8,7 @@ using Nexus.Core;
 using Nexus.Services;
 using System.Text.Json;
 
-namespace Nexus.Controllers;
+namespace Nexus.Controllers.V1;
 
 /// <summary>
 /// Provides access to the system.

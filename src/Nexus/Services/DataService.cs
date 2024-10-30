@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.Utilities;
 

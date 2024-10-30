@@ -6,7 +6,7 @@ using Nexus.DataModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Nexus.Core;
+namespace Nexus.Core.V1;
 
 /// <summary>
 /// Represents a user.
@@ -100,12 +100,6 @@ public record AuthenticationSchemeDescription(
 /// <param name="Provider">The provider which loads the package.</param>
 /// <param name="Configuration">The configuration of the package reference.</param>
 public record PackageReference(
-    string Provider,
-    Dictionary<string, string> Configuration);
-
-/* Required to workaround JsonIgnore problems with local serialization and OpenAPI. */
-internal record InternalPackageReference(
-    Guid Id,
     string Provider,
     Dictionary<string, string> Configuration);
 

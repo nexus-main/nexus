@@ -11,57 +11,17 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Nexus.Api;
-
+namespace Nexus.Api
+{
 /// <summary>
 /// A client for the Nexus system.
 /// </summary>
 public interface INexusClient
 {
     /// <summary>
-    /// Gets the <see cref="IArtifactsClient"/>.
+    /// Gets the V1 client.
     /// </summary>
-    IArtifactsClient Artifacts { get; }
-
-    /// <summary>
-    /// Gets the <see cref="ICatalogsClient"/>.
-    /// </summary>
-    ICatalogsClient Catalogs { get; }
-
-    /// <summary>
-    /// Gets the <see cref="IDataClient"/>.
-    /// </summary>
-    IDataClient Data { get; }
-
-    /// <summary>
-    /// Gets the <see cref="IJobsClient"/>.
-    /// </summary>
-    IJobsClient Jobs { get; }
-
-    /// <summary>
-    /// Gets the <see cref="IPackageReferencesClient"/>.
-    /// </summary>
-    IPackageReferencesClient PackageReferences { get; }
-
-    /// <summary>
-    /// Gets the <see cref="ISourcesClient"/>.
-    /// </summary>
-    ISourcesClient Sources { get; }
-
-    /// <summary>
-    /// Gets the <see cref="ISystemClient"/>.
-    /// </summary>
-    ISystemClient System { get; }
-
-    /// <summary>
-    /// Gets the <see cref="IUsersClient"/>.
-    /// </summary>
-    IUsersClient Users { get; }
-
-    /// <summary>
-    /// Gets the <see cref="IWritersClient"/>.
-    /// </summary>
-    IWritersClient Writers { get; }
+    Nexus.Api.V1.IV1 V1 { get; }
 
 
 
@@ -90,18 +50,8 @@ public class NexusClient : INexusClient, IDisposable
     private const string ConfigurationHeaderKey = "Nexus-Configuration";
     private const string AuthorizationHeaderKey = "Authorization";
 
-    private string? _token;
-    private HttpClient _httpClient;
-
-    private ArtifactsClient _artifacts;
-    private CatalogsClient _catalogs;
-    private DataClient _data;
-    private JobsClient _jobs;
-    private PackageReferencesClient _packageReferences;
-    private SourcesClient _sources;
-    private SystemClient _system;
-    private UsersClient _users;
-    private WritersClient _writers;
+    private string? __token;
+    private HttpClient __httpClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NexusClient"/>.
@@ -121,51 +71,19 @@ public class NexusClient : INexusClient, IDisposable
         if (httpClient.BaseAddress is null)
             throw new Exception("The base address of the HTTP client must be set.");
 
-        _httpClient = httpClient;
+        __httpClient = httpClient;
 
-        _artifacts = new ArtifactsClient(this);
-        _catalogs = new CatalogsClient(this);
-        _data = new DataClient(this);
-        _jobs = new JobsClient(this);
-        _packageReferences = new PackageReferencesClient(this);
-        _sources = new SourcesClient(this);
-        _system = new SystemClient(this);
-        _users = new UsersClient(this);
-        _writers = new WritersClient(this);
+        V1 = new Nexus.Api.V1.V1(this);
 
     }
 
     /// <summary>
     /// Gets a value which indicates if the user is authenticated.
     /// </summary>
-    public bool IsAuthenticated => _token is not null;
+    public bool IsAuthenticated => __token is not null;
 
     /// <inheritdoc />
-    public IArtifactsClient Artifacts => _artifacts;
-
-    /// <inheritdoc />
-    public ICatalogsClient Catalogs => _catalogs;
-
-    /// <inheritdoc />
-    public IDataClient Data => _data;
-
-    /// <inheritdoc />
-    public IJobsClient Jobs => _jobs;
-
-    /// <inheritdoc />
-    public IPackageReferencesClient PackageReferences => _packageReferences;
-
-    /// <inheritdoc />
-    public ISourcesClient Sources => _sources;
-
-    /// <inheritdoc />
-    public ISystemClient System => _system;
-
-    /// <inheritdoc />
-    public IUsersClient Users => _users;
-
-    /// <inheritdoc />
-    public IWritersClient Writers => _writers;
+    public Nexus.Api.V1.IV1 V1 { get; }
 
 
 
@@ -173,10 +91,10 @@ public class NexusClient : INexusClient, IDisposable
     public void SignIn(string accessToken)
     {
         var authorizationHeaderValue = $"Bearer {accessToken}";
-        _httpClient.DefaultRequestHeaders.Remove(AuthorizationHeaderKey);
-        _httpClient.DefaultRequestHeaders.Add(AuthorizationHeaderKey, authorizationHeaderValue);
+        __httpClient.DefaultRequestHeaders.Remove(AuthorizationHeaderKey);
+        __httpClient.DefaultRequestHeaders.Add(AuthorizationHeaderKey, authorizationHeaderValue);
 
-        _token = accessToken;
+        __token = accessToken;
     }
 
     /// <inheritdoc />
@@ -184,8 +102,8 @@ public class NexusClient : INexusClient, IDisposable
     {
         var encodedJson = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(configuration));
 
-        _httpClient.DefaultRequestHeaders.Remove(ConfigurationHeaderKey);
-        _httpClient.DefaultRequestHeaders.Add(ConfigurationHeaderKey, encodedJson);
+        __httpClient.DefaultRequestHeaders.Remove(ConfigurationHeaderKey);
+        __httpClient.DefaultRequestHeaders.Add(ConfigurationHeaderKey, encodedJson);
 
         return new DisposableConfiguration(this);
     }
@@ -193,7 +111,7 @@ public class NexusClient : INexusClient, IDisposable
     /// <inheritdoc />
     public void ClearConfiguration()
     {
-        _httpClient.DefaultRequestHeaders.Remove(ConfigurationHeaderKey);
+        __httpClient.DefaultRequestHeaders.Remove(ConfigurationHeaderKey);
     }
 
     internal T Invoke<T>(string method, string relativeUrl, string? acceptHeaderValue, string? contentTypeValue, HttpContent? content)
@@ -202,13 +120,13 @@ public class NexusClient : INexusClient, IDisposable
         using var request = BuildRequestMessage(method, relativeUrl, content, contentTypeValue, acceptHeaderValue);
 
         // send request
-        var response = _httpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
+        var response = __httpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
 
         // process response
         if (!response.IsSuccessStatusCode)
         {
             var message = new StreamReader(response.Content.ReadAsStream()).ReadToEnd();
-            var statusCode = $"N00.{(int)response.StatusCode}";
+            var statusCode = $"00.{(int)response.StatusCode}";
 
             if (string.IsNullOrWhiteSpace(message))
                 throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
@@ -239,7 +157,7 @@ public class NexusClient : INexusClient, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    throw new NexusException("N01", "Response data could not be deserialized.", ex);
+                    throw new NexusException("01", "Response data could not be deserialized.", ex);
                 }
             }
         }
@@ -256,13 +174,13 @@ public class NexusClient : INexusClient, IDisposable
         using var request = BuildRequestMessage(method, relativeUrl, content, contentTypeValue, acceptHeaderValue);
 
         // send request
-        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        var response = await __httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
         // process response
         if (!response.IsSuccessStatusCode)
         {
             var message = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            var statusCode = $"N00.{(int)response.StatusCode}";
+            var statusCode = $"00.{(int)response.StatusCode}";
 
             if (string.IsNullOrWhiteSpace(message))
                 throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
@@ -293,7 +211,7 @@ public class NexusClient : INexusClient, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    throw new NexusException("N01", "Response data could not be deserialized.", ex);
+                    throw new NexusException("01", "Response data could not be deserialized.", ex);
                 }
             }
         }
@@ -332,7 +250,7 @@ public class NexusClient : INexusClient, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        _httpClient?.Dispose();
+        __httpClient?.Dispose();
     }
 
     /// <summary>
@@ -348,13 +266,13 @@ public class NexusClient : INexusClient, IDisposable
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default)
     {
-        var catalogItemMap = Catalogs.SearchCatalogItems(resourcePaths.ToList());
+        var catalogItemMap = V1.Catalogs.SearchCatalogItems(resourcePaths.ToList());
         var result = new Dictionary<string, DataResponse>();
         var progress = 0.0;
 
         foreach (var (resourcePath, catalogItem) in catalogItemMap)
         {
-            using var responseMessage = Data.GetStream(resourcePath, begin, end);
+            using var responseMessage = V1.Data.GetStream(resourcePath, begin, end);
 
             var doubleData = ReadAsDoubleAsync(responseMessage, useAsync: false)
                 .GetAwaiter()
@@ -409,13 +327,13 @@ public class NexusClient : INexusClient, IDisposable
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
     {
-        var catalogItemMap = await Catalogs.SearchCatalogItemsAsync(resourcePaths.ToList()).ConfigureAwait(false);
+        var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePaths.ToList()).ConfigureAwait(false);
         var result = new Dictionary<string, DataResponse>();
         var progress = 0.0;
 
         foreach (var (resourcePath, catalogItem) in catalogItemMap)
         {
-            using var responseMessage = await Data.GetStreamAsync(resourcePath, begin, end, cancellationToken).ConfigureAwait(false);
+            using var responseMessage = await V1.Data.GetStreamAsync(resourcePath, begin, end, cancellationToken).ConfigureAwait(false);
             var doubleData = await ReadAsDoubleAsync(responseMessage, useAsync: true, cancellationToken).ConfigureAwait(false);
             var resource = catalogItem.Resource;
 
@@ -552,7 +470,7 @@ public class NexusClient : INexusClient, IDisposable
             ? default
             : JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(JsonSerializer.Serialize(configuration));
 
-        var exportParameters = new ExportParameters(
+        var exportParameters = new V1.ExportParameters(
             begin,
             end,
             filePeriod,
@@ -561,7 +479,7 @@ public class NexusClient : INexusClient, IDisposable
             actualConfiguration);
 
         // Start Job
-        var job = Jobs.Export(exportParameters);
+        var job = V1.Jobs.Export(exportParameters);
 
         // Wait for job to finish
         string? artifactId = default;
@@ -570,15 +488,15 @@ public class NexusClient : INexusClient, IDisposable
         {
             Thread.Sleep(TimeSpan.FromSeconds(1));
 
-            var jobStatus = Jobs.GetJobStatus(job.Id);
+            var jobStatus = V1.Jobs.GetJobStatus(job.Id);
 
-            if (jobStatus.Status == TaskStatus.Canceled)
+            if (jobStatus.Status == Nexus.Api.V1.TaskStatus.Canceled)
                 throw new OperationCanceledException("The job has been cancelled.");
 
-            else if (jobStatus.Status == TaskStatus.Faulted)
+            else if (jobStatus.Status == Nexus.Api.V1.TaskStatus.Faulted)
                 throw new OperationCanceledException($"The job has failed. Reason: {jobStatus.ExceptionMessage}");
 
-            else if (jobStatus.Status == TaskStatus.RanToCompletion)
+            else if (jobStatus.Status == Nexus.Api.V1.TaskStatus.RanToCompletion)
             {
                 if (jobStatus.Result.HasValue &&
                     jobStatus.Result.Value.ValueKind == JsonValueKind.String)
@@ -601,7 +519,7 @@ public class NexusClient : INexusClient, IDisposable
             return;
 
         // Download zip file
-        var responseMessage = Artifacts.Download(artifactId);
+        var responseMessage = V1.Artifacts.Download(artifactId);
         var sourceStream = responseMessage.Content.ReadAsStream();
 
         long? length = default;
@@ -690,7 +608,7 @@ public class NexusClient : INexusClient, IDisposable
             ? default
             : JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(JsonSerializer.Serialize(configuration));
 
-        var exportParameters = new ExportParameters(
+        var exportParameters = new V1.ExportParameters(
             begin,
             end,
             filePeriod,
@@ -699,7 +617,7 @@ public class NexusClient : INexusClient, IDisposable
             actualConfiguration);
 
         // Start Job
-        var job = await Jobs.ExportAsync(exportParameters).ConfigureAwait(false);
+        var job = await V1.Jobs.ExportAsync(exportParameters).ConfigureAwait(false);
 
         // Wait for job to finish
         string? artifactId = default;
@@ -708,15 +626,15 @@ public class NexusClient : INexusClient, IDisposable
         {
             await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
 
-            var jobStatus = await Jobs.GetJobStatusAsync(job.Id, cancellationToken).ConfigureAwait(false);
+            var jobStatus = await V1.Jobs.GetJobStatusAsync(job.Id, cancellationToken).ConfigureAwait(false);
 
-            if (jobStatus.Status == TaskStatus.Canceled)
+            if (jobStatus.Status == Nexus.Api.V1.TaskStatus.Canceled)
                 throw new OperationCanceledException("The job has been cancelled.");
 
-            else if (jobStatus.Status == TaskStatus.Faulted)
+            else if (jobStatus.Status == Nexus.Api.V1.TaskStatus.Faulted)
                 throw new OperationCanceledException($"The job has failed. Reason: {jobStatus.ExceptionMessage}");
 
-            else if (jobStatus.Status == TaskStatus.RanToCompletion)
+            else if (jobStatus.Status == Nexus.Api.V1.TaskStatus.RanToCompletion)
             {
                 if (jobStatus.Result.HasValue &&
                     jobStatus.Result.Value.ValueKind == JsonValueKind.String)
@@ -739,7 +657,7 @@ public class NexusClient : INexusClient, IDisposable
             return;
 
         // Download zip file
-        var responseMessage = await Artifacts.DownloadAsync(artifactId, cancellationToken).ConfigureAwait(false);
+        var responseMessage = await V1.Artifacts.DownloadAsync(artifactId, cancellationToken).ConfigureAwait(false);
         var sourceStream = await responseMessage.Content.ReadAsStreamAsync().ConfigureAwait(false);
 
         long? length = default;
@@ -800,6 +718,203 @@ public class NexusClient : INexusClient, IDisposable
             }
         }
     }
+}
+
+internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
+     where TFrom : struct
+     where TTo : struct
+{
+    private readonly Memory<TFrom> _from;
+
+    public CastMemoryManager(Memory<TFrom> from) => _from = from;
+
+    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.Span);
+
+    protected override void Dispose(bool disposing)
+    {
+        //
+    }
+
+    public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+
+    public override void Unpin() => throw new NotSupportedException();
+}
+
+/// <summary>
+/// A NexusException.
+/// </summary>
+public class NexusException : Exception
+{
+    internal NexusException(string statusCode, string message) : base(message)
+    {
+        StatusCode = statusCode;
+    }
+
+    internal NexusException(string statusCode, string message, Exception innerException) : base(message, innerException)
+    {
+        StatusCode = statusCode;
+    }
+
+    /// <summary>
+    /// The exception status code.
+    /// </summary>
+    public string StatusCode { get; }
+}
+
+internal class DisposableConfiguration : IDisposable
+{
+    private NexusClient ___client;
+
+    public DisposableConfiguration(NexusClient client)
+    {
+        ___client = client;
+    }
+
+    public void Dispose()
+    {
+        ___client.ClearConfiguration();
+    }
+}
+
+internal static class Utilities
+{
+    internal static JsonSerializerOptions JsonOptions { get; }
+
+    static Utilities()
+    {
+        JsonOptions = new JsonSerializerOptions()
+        {
+            PropertyNameCaseInsensitive = true,
+            WriteIndented = true
+        };
+
+        JsonOptions.Converters.Add(new JsonStringEnumConverter());
+    }
+}
+
+/// <summary>
+/// Result of a data request with a certain resource path.
+/// </summary>
+/// <param name="CatalogItem">The catalog item.</param>
+/// <param name="Name">The resource name.</param>
+/// <param name="Unit">The optional resource unit.</param>
+/// <param name="Description">The optional resource description.</param>
+/// <param name="SamplePeriod">The sample period.</param>
+/// <param name="Values">The data.</param>
+public record DataResponse(
+    V1.CatalogItem CatalogItem, 
+    string? Name,
+    string? Unit,
+    string? Description,
+    TimeSpan SamplePeriod,
+    double[] Values);
+}
+
+namespace Nexus.Api.V1
+{
+
+/// <summary>
+/// A client for version V1.
+/// </summary>
+public interface IV1
+{
+    /// <summary>
+    /// Gets the <see cref="IArtifactsClient"/>.
+    /// </summary>
+    IArtifactsClient Artifacts { get; }
+
+    /// <summary>
+    /// Gets the <see cref="ICatalogsClient"/>.
+    /// </summary>
+    ICatalogsClient Catalogs { get; }
+
+    /// <summary>
+    /// Gets the <see cref="IDataClient"/>.
+    /// </summary>
+    IDataClient Data { get; }
+
+    /// <summary>
+    /// Gets the <see cref="IJobsClient"/>.
+    /// </summary>
+    IJobsClient Jobs { get; }
+
+    /// <summary>
+    /// Gets the <see cref="IPackageReferencesClient"/>.
+    /// </summary>
+    IPackageReferencesClient PackageReferences { get; }
+
+    /// <summary>
+    /// Gets the <see cref="ISourcesClient"/>.
+    /// </summary>
+    ISourcesClient Sources { get; }
+
+    /// <summary>
+    /// Gets the <see cref="ISystemClient"/>.
+    /// </summary>
+    ISystemClient System { get; }
+
+    /// <summary>
+    /// Gets the <see cref="IUsersClient"/>.
+    /// </summary>
+    IUsersClient Users { get; }
+
+    /// <summary>
+    /// Gets the <see cref="IWritersClient"/>.
+    /// </summary>
+    IWritersClient Writers { get; }
+
+
+}
+
+/// <inheritdoc />
+public class V1 : IV1
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="V1"/>.
+    /// </summary>
+    /// <param name="client">The client to use.</param>
+    public V1(NexusClient client)
+    {
+        Artifacts = new ArtifactsClient(client);
+        Catalogs = new CatalogsClient(client);
+        Data = new DataClient(client);
+        Jobs = new JobsClient(client);
+        PackageReferences = new PackageReferencesClient(client);
+        Sources = new SourcesClient(client);
+        System = new SystemClient(client);
+        Users = new UsersClient(client);
+        Writers = new WritersClient(client);
+
+    }
+
+    /// <inheritdoc />
+    public IArtifactsClient Artifacts { get; }
+
+    /// <inheritdoc />
+    public ICatalogsClient Catalogs { get; }
+
+    /// <inheritdoc />
+    public IDataClient Data { get; }
+
+    /// <inheritdoc />
+    public IJobsClient Jobs { get; }
+
+    /// <inheritdoc />
+    public IPackageReferencesClient PackageReferences { get; }
+
+    /// <inheritdoc />
+    public ISourcesClient Sources { get; }
+
+    /// <inheritdoc />
+    public ISystemClient System { get; }
+
+    /// <inheritdoc />
+    public IUsersClient Users { get; }
+
+    /// <inheritdoc />
+    public IWritersClient Writers { get; }
+
+
 }
 
 /// <summary>
@@ -1690,28 +1805,28 @@ public interface IPackageReferencesClient
     /// <summary>
     /// Deletes a package reference.
     /// </summary>
-    /// <param name="packageReferenceId">The ID of the package reference.</param>
-    void Delete(Guid packageReferenceId);
+    /// <param name="id">The ID of the package reference.</param>
+    void Delete(Guid id);
 
     /// <summary>
     /// Deletes a package reference.
     /// </summary>
-    /// <param name="packageReferenceId">The ID of the package reference.</param>
+    /// <param name="id">The ID of the package reference.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task DeleteAsync(Guid packageReferenceId, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets package versions.
     /// </summary>
-    /// <param name="packageReferenceId">The ID of the package reference.</param>
-    IReadOnlyList<string> GetVersions(Guid packageReferenceId);
+    /// <param name="id">The ID of the package reference.</param>
+    IReadOnlyList<string> GetVersions(Guid id);
 
     /// <summary>
     /// Gets package versions.
     /// </summary>
-    /// <param name="packageReferenceId">The ID of the package reference.</param>
+    /// <param name="id">The ID of the package reference.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyList<string>> GetVersionsAsync(Guid packageReferenceId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> GetVersionsAsync(Guid id, CancellationToken cancellationToken = default);
 
 }
 
@@ -1766,44 +1881,44 @@ public class PackageReferencesClient : IPackageReferencesClient
     }
 
     /// <inheritdoc />
-    public void Delete(Guid packageReferenceId)
+    public void Delete(Guid id)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/packagereferences/{packageReferenceId}");
-        __urlBuilder.Replace("{packageReferenceId}", Uri.EscapeDataString(Convert.ToString(packageReferenceId, CultureInfo.InvariantCulture)!));
+        __urlBuilder.Append("/api/v1/packagereferences/{id}");
+        __urlBuilder.Replace("{id}", Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!));
 
         var __url = __urlBuilder.ToString();
         ___client.Invoke<object>("DELETE", __url, default, default, default);
     }
 
     /// <inheritdoc />
-    public Task DeleteAsync(Guid packageReferenceId, CancellationToken cancellationToken = default)
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/packagereferences/{packageReferenceId}");
-        __urlBuilder.Replace("{packageReferenceId}", Uri.EscapeDataString(Convert.ToString(packageReferenceId, CultureInfo.InvariantCulture)!));
+        __urlBuilder.Append("/api/v1/packagereferences/{id}");
+        __urlBuilder.Replace("{id}", Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!));
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<object>("DELETE", __url, default, default, default, cancellationToken);
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<string> GetVersions(Guid packageReferenceId)
+    public IReadOnlyList<string> GetVersions(Guid id)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/packagereferences/{packageReferenceId}/versions");
-        __urlBuilder.Replace("{packageReferenceId}", Uri.EscapeDataString(Convert.ToString(packageReferenceId, CultureInfo.InvariantCulture)!));
+        __urlBuilder.Append("/api/v1/packagereferences/{id}/versions");
+        __urlBuilder.Replace("{id}", Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!));
 
         var __url = __urlBuilder.ToString();
         return ___client.Invoke<IReadOnlyList<string>>("GET", __url, "application/json", default, default);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<string>> GetVersionsAsync(Guid packageReferenceId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<string>> GetVersionsAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/packagereferences/{packageReferenceId}/versions");
-        __urlBuilder.Replace("{packageReferenceId}", Uri.EscapeDataString(Convert.ToString(packageReferenceId, CultureInfo.InvariantCulture)!));
+        __urlBuilder.Append("/api/v1/packagereferences/{id}/versions");
+        __urlBuilder.Replace("{id}", Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!));
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<IReadOnlyList<string>>("GET", __url, "application/json", default, default, cancellationToken);
@@ -2790,62 +2905,6 @@ public class WritersClient : IWritersClient
 
 
 
-internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
-     where TFrom : struct
-     where TTo : struct
-{
-    private readonly Memory<TFrom> _from;
-
-    public CastMemoryManager(Memory<TFrom> from) => _from = from;
-
-    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.Span);
-
-    protected override void Dispose(bool disposing)
-    {
-        //
-    }
-
-    public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
-
-    public override void Unpin() => throw new NotSupportedException();
-}
-
-/// <summary>
-/// A NexusException.
-/// </summary>
-public class NexusException : Exception
-{
-    internal NexusException(string statusCode, string message) : base(message)
-    {
-        StatusCode = statusCode;
-    }
-
-    internal NexusException(string statusCode, string message, Exception innerException) : base(message, innerException)
-    {
-        StatusCode = statusCode;
-    }
-
-    /// <summary>
-    /// The exception status code.
-    /// </summary>
-    public string StatusCode { get; }
-}
-
-internal class DisposableConfiguration : IDisposable
-{
-    private NexusClient ___client;
-
-    public DisposableConfiguration(NexusClient client)
-    {
-        ___client = client;
-    }
-
-    public void Dispose()
-    {
-        ___client.ClearConfiguration();
-    }
-}
-
 /// <summary>
 /// A catalog item consists of a catalog, a resource and a representation.
 /// </summary>
@@ -3133,35 +3192,4 @@ public record NexusClaim(string Type, string Value);
 
 
 
-internal static class Utilities
-{
-    internal static JsonSerializerOptions JsonOptions { get; }
-
-    static Utilities()
-    {
-        JsonOptions = new JsonSerializerOptions()
-        {
-            PropertyNameCaseInsensitive = true,
-            WriteIndented = true
-        };
-
-        JsonOptions.Converters.Add(new JsonStringEnumConverter());
-    }
 }
-
-/// <summary>
-/// Result of a data request with a certain resource path.
-/// </summary>
-/// <param name="CatalogItem">The catalog item.</param>
-/// <param name="Name">The resource name.</param>
-/// <param name="Unit">The optional resource unit.</param>
-/// <param name="Description">The optional resource description.</param>
-/// <param name="SamplePeriod">The sample period.</param>
-/// <param name="Values">The data.</param>
-public record DataResponse(
-    CatalogItem CatalogItem, 
-    string? Name,
-    string? Unit,
-    string? Description,
-    TimeSpan SamplePeriod,
-    double[] Values);

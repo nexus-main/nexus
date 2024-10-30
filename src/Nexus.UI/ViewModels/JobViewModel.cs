@@ -3,7 +3,8 @@
 
 using System.ComponentModel;
 using Nexus.Api;
-using TaskStatus = Nexus.Api.TaskStatus;
+using Nexus.Api.V1;
+using TaskStatus = Nexus.Api.V1.TaskStatus;
 
 namespace Nexus.UI.ViewModels;
 
@@ -27,7 +28,7 @@ public class JobViewModel : INotifyPropertyChanged
             {
                 try
                 {
-                    Status = await client.Jobs.GetJobStatusAsync(model.Id, CancellationToken.None);
+                    Status = await client.V1.Jobs.GetJobStatusAsync(model.Id, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {

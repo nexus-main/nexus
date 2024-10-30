@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.Services;
 using Nexus.Sources;
@@ -44,7 +45,7 @@ public class DataControllerServiceTests
 
         var appState = new AppState()
         {
-            Project = new NexusProject(default, default!),
+            Project = new NexusProject(default),
             CatalogState = catalogState
         };
 
@@ -100,7 +101,7 @@ public class DataControllerServiceTests
         // Arrange
         var appState = new AppState()
         {
-            Project = new NexusProject(default, default!)
+            Project = new NexusProject(default)
         };
 
         var extensionHive = Mock.Of<IExtensionHive>();

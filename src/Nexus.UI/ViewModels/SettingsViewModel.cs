@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.JSInterop;
 using Nexus.Api;
+using Nexus.Api.V1;
 using Nexus.UI.Core;
 
 namespace Nexus.UI.ViewModels;
@@ -264,9 +265,9 @@ public class SettingsViewModel : INotifyPropertyChanged
     {
         try
         {
-            DefaultFileType = await _client.System.GetDefaultFileTypeAsync();
+            DefaultFileType = await _client.V1.System.GetDefaultFileTypeAsync();
 
-            var writerDescriptions = (await _client.Writers
+            var writerDescriptions = (await _client.V1.Writers
                 .GetDescriptionsAsync(CancellationToken.None))
                 .Where(description => description.AdditionalInformation.GetStringValue(Constants.DATA_WRITER_LABEL_KEY) is not null)
                 .ToList();

@@ -146,7 +146,7 @@ void AddServices(
      * login view: We tried to use Blazor Webs ability to render pages
      * on the server but it does not work properly. With the command
      * dotnet new blazor --all-interactive --interactivity WebAssembly --no-https
-     * It is possible to simply define server side razor pages without
+     * it is possible to simply define server side razor pages without
      * any changes and because prerendering is enabled by default it is
      * being displayed shortly but then Blazor starts and redirects
      * the user to a "Not found" page.
@@ -172,6 +172,7 @@ void AddServices(
 
     services.AddSingleton<AppState>();
     services.AddSingleton<AppStateManager>();
+    services.AddSingleton<IPackageService, PackageService>();
     services.AddSingleton<IPipelineService, PipelineService>();
     services.AddSingleton<ITokenService, TokenService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();
@@ -275,8 +276,7 @@ async Task InitializeAppAsync(
     else
     {
         appState.Project = new NexusProject(
-            SystemConfiguration: default,
-            PackageReferences: new Dictionary<Guid, InternalPackageReference>()
+            SystemConfiguration: default
         );
     }
 

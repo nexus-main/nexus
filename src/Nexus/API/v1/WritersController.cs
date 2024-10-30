@@ -4,8 +4,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
+using Nexus.Core.V1;
 
-namespace Nexus.Controllers;
+namespace Nexus.Controllers.V1;
 
 /// <summary>
 /// Provides access to extensions.

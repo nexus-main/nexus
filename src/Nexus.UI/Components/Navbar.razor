@@ -52,7 +52,7 @@
     protected override async Task OnInitializedAsync()
     {
         _authenticationState = await GetAuthenticationStateTask;
-        _helpLink = await Client.System.GetHelpLinkAsync();
+        _helpLink = await Client.V1.System.GetHelpLinkAsync();
     }
 
     private bool IsAdmin(ClaimsPrincipal user)

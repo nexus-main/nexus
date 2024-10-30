@@ -7,6 +7,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Services;
 using Nexus.Utilities;

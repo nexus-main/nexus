@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Utilities;
@@ -12,11 +13,13 @@ namespace Nexus.Services;
 
 internal class AppStateManager(
     AppState appState,
+    IPackageService packageService,
     IExtensionHive extensionHive,
     ICatalogManager catalogManager,
     IDatabaseService databaseService,
     ILogger<AppStateManager> logger)
 {
+    private readonly IPackageService _packageService = packageService;
     private readonly IExtensionHive _extensionHive = extensionHive;
     private readonly ICatalogManager _catalogManager = catalogManager;
     private readonly IDatabaseService _databaseService = databaseService;
@@ -48,8 +51,10 @@ internal class AppStateManager(
                 /* load packages */
                 _logger.LogInformation("Load packages");
 
+                var packageReferenceMap = await _packageService.GetAllAsync();
+
                 refreshDatabaseTask = _extensionHive
-                    .LoadPackagesAsync(AppState.Project.PackageReferences.Values, progress, cancellationToken)
+                    .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken)
                     .ContinueWith(task =>
                     {
                         LoadDataWriters();
@@ -61,64 +66,6 @@ internal class AppStateManager(
         finally
         {
             _refreshDatabaseSemaphore.Release();
-        }
-    }
-
-    public async Task PutPackageReferenceAsync(
-        InternalPackageReference packageReference)
-    {
-        await _projectSemaphore.WaitAsync();
-
-        try
-        {
-            var project = AppState.Project;
-
-            var newPackageReferences = project.PackageReferences
-                .ToDictionary(current => current.Key, current => current.Value);
-
-            newPackageReferences[packageReference.Id] = packageReference;
-
-            var newProject = project with
-            {
-                PackageReferences = newPackageReferences
-            };
-
-            await SaveProjectAsync(newProject);
-
-            AppState.Project = newProject;
-        }
-        finally
-        {
-            _projectSemaphore.Release();
-        }
-    }
-
-    public async Task DeletePackageReferenceAsync(
-        Guid packageReferenceId)
-    {
-        await _projectSemaphore.WaitAsync();
-
-        try
-        {
-            var project = AppState.Project;
-
-            var newPackageReferences = project.PackageReferences
-                .ToDictionary(current => current.Key, current => current.Value);
-
-            newPackageReferences.Remove(packageReferenceId);
-
-            var newProject = project with
-            {
-                PackageReferences = newPackageReferences
-            };
-
-            await SaveProjectAsync(newProject);
-
-            AppState.Project = newProject;
-        }
-        finally
-        {
-            _projectSemaphore.Release();
         }
     }
 

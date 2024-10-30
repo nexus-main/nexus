@@ -98,7 +98,7 @@
             try
             {
                 var dataSourceTypes = Catalog.Info.PipelineInfo.Types;
-                var extensionDescriptions = await Client.Sources.GetDescriptionsAsync();
+                var extensionDescriptions = await Client.V1.Sources.GetDescriptionsAsync();
 
                 _extensionDescriptions = Catalog.Info.PipelineInfo.Types.Select((type, i) =>
                 {

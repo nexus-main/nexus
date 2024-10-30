@@ -8,7 +8,7 @@ using Nexus.Services;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 
-namespace Nexus.Controllers;
+namespace Nexus.Controllers.V1;
 
 /// <summary>
 /// Provides access to data.

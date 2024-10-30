@@ -5,11 +5,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Services;
 using Nexus.Utilities;
 using System.ComponentModel.DataAnnotations;
 
-namespace Nexus.Controllers;
+namespace Nexus.Controllers.V1;
 
 /// <summary>
 /// Provides access to jobs.

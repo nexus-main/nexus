@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Nexus.Core;
+using Nexus.Core.V1;
 
 namespace Nexus.Services;
 

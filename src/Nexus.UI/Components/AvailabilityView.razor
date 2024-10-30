@@ -63,7 +63,7 @@ else
         {
             if (begin < end)
             {
-                availability = await Client.Catalogs.GetAvailabilityAsync(
+                availability = await Client.V1.Catalogs.GetAvailabilityAsync(
                     AppState.SelectedCatalog!.Id,
                     begin,
                     end,

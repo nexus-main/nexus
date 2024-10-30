@@ -4,6 +4,7 @@
 using System.Text.Json;
 using Moq;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.Services;
 using Nexus.Utilities;
 using Xunit;
@@ -46,19 +47,19 @@ public class PipelineServiceTests
         );
 
         // Act
-        await pipelineService.PutAsync(
+        var expectedId = await pipelineService.PutAsync(
             USERNAME_1,
             pipeline
         );
 
         // Assert
         var jsonString = File.ReadAllText(filePath);
-        var actualPipelineMap = JsonSerializer.Deserialize<Dictionary<string, DataSourcePipeline>>(jsonString)!;
-        var entry1 = Assert.Single(actualPipelineMap);
+        var actualPipelineMap = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(jsonString)!;
+        var entry = Assert.Single(actualPipelineMap);
 
-        Assert.NotEqual(USERNAME_1, entry1.Key);
+        Assert.Equal(expectedId, entry.Key);
 
-        Assert.Collection(entry1.Value.Registrations,
+        Assert.Collection(entry.Value.Registrations,
             entry1_1 =>
             {
                 Assert.Equal(dataSourceRegistration1.Type, entry1_1.Type);
@@ -223,7 +224,10 @@ public class PipelineServiceTests
         Assert.Equal(expected, actual);
     }
 
-    private static IPipelineService GetPipelineService(string filePath, Dictionary<string, Dictionary<Guid, DataSourcePipeline>> userToPipelinesMap)
+    private static IPipelineService GetPipelineService(
+        string filePath,
+        Dictionary<string, Dictionary<Guid, DataSourcePipeline>> userToPipelinesMap
+    )
     {
         var databaseService = Mock.Of<IDatabaseService>();
 
@@ -235,7 +239,7 @@ public class PipelineServiceTests
             .Setup(databaseService => databaseService.TryReadPipelineMap(It.IsAny<string>(), out It.Ref<string?>.IsAny))
             .Returns(new GobbleReturns((string userId, out string? pipelineMapString) =>
             {
-                if (userToPipelinesMap.Any())
+                if (userToPipelinesMap.ContainsKey(userId))
                 {
                     pipelineMapString = JsonSerializer.Serialize(userToPipelinesMap[userId]);
                     return true;

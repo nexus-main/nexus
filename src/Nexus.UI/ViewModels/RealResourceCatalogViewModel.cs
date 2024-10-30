@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Nexus.Api;
+using Nexus.Api.V1;
 using Nexus.UI.Core;
 
 namespace Nexus.UI.ViewModels;
@@ -17,7 +18,7 @@ public class RealResourceCatalogViewModel : ResourceCatalogViewModel
 
         async Task<List<ResourceCatalogViewModel>> func()
         {
-            var childCatalogInfos = await client.Catalogs.GetChildCatalogInfosAsync(Id, CancellationToken.None);
+            var childCatalogInfos = await client.V1.Catalogs.GetChildCatalogInfosAsync(Id, CancellationToken.None);
 
             return childCatalogInfos
                 .Where(childInfo => (childInfo.IsReleased && childInfo.IsVisible) || childInfo.IsOwner)
@@ -26,13 +27,13 @@ public class RealResourceCatalogViewModel : ResourceCatalogViewModel
         }
 
         ChildrenTask = new Lazy<Task<List<ResourceCatalogViewModel>>>(func);
-        CatalogTask = new Lazy<Task<ResourceCatalog>>(() => client.Catalogs.GetAsync(Id, CancellationToken.None));
-        LicenseTask = new Lazy<Task<string?>>(() => client.Catalogs.GetLicenseAsync(Id, CancellationToken.None));
-        TimeRangeTask = new Lazy<Task<CatalogTimeRange>>(() => client.Catalogs.GetTimeRangeAsync(Id, CancellationToken.None));
+        CatalogTask = new Lazy<Task<ResourceCatalog>>(() => client.V1.Catalogs.GetAsync(Id, CancellationToken.None));
+        LicenseTask = new Lazy<Task<string?>>(() => client.V1.Catalogs.GetLicenseAsync(Id, CancellationToken.None));
+        TimeRangeTask = new Lazy<Task<CatalogTimeRange>>(() => client.V1.Catalogs.GetTimeRangeAsync(Id, CancellationToken.None));
     }
 
     public void ResetCatalogTask()
     {
-        CatalogTask = new Lazy<Task<ResourceCatalog>>(() => _client.Catalogs.GetAsync(Id, CancellationToken.None));
+        CatalogTask = new Lazy<Task<ResourceCatalog>>(() => _client.V1.Catalogs.GetAsync(Id, CancellationToken.None));
     }
 }

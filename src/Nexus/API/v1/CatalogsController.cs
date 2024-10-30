@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Nexus.Core;
+using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Services;
 using Nexus.Utilities;
@@ -16,7 +17,7 @@ using System.Security.Claims;
 using System.Text.RegularExpressions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
-namespace Nexus.Controllers;
+namespace Nexus.Controllers.V1;
 
 /// <summary>
 /// Provides access to catalogs.
@@ -178,10 +179,7 @@ internal class CatalogsController(
                         isReadable || Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
 
                     var isOwner = childContainer.Owner?.FindFirstValue(Claims.Subject) == User.FindFirstValue(Claims.Subject);
-
-                    var packageReferenceIds = childContainer.PackageReferences
-                        .Select(x => x.Id)
-                        .ToArray();
+                    var packageReferenceIds = childContainer.PackageReferenceIds;
 
                     var pipelineInfo = new PipelineInfo(
                         childContainer.PipelineId,
