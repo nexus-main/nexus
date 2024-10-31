@@ -120,34 +120,18 @@ public class PackageControllerTests
     #region Load
 
     [Fact]
-    public async Task CanLoadAndUnloadAsync()
+    public async Task CanLoadAndUnload()
     {
-        // prepare extension
-        var extensionFolderPath = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var pathHash = new Guid(extensionFolderPath.Hash()).ToString();
-        var configuration = "Debug";
-        var csprojPath = "./../../../../tests/TestExtensionProject/TestExtensionProject.csproj";
+        var extensionFolderPath = "../../../../tests/TestExtensionProject";
+        var extensionFolderPathHash = new Guid(extensionFolderPath.Hash()).ToString();
 
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "dotnet",
-                Arguments = $"publish --output {Path.Combine(extensionFolderPath, "v1.0.0-unit.test")} --configuration {configuration} {csprojPath}"
-            }
-        };
-
-        process.Start();
-        process.WaitForExit();
-
-        Assert.Equal(0, process.ExitCode);
-
-        // prepare restore root
+        // create restore folder
         var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
+        Directory.CreateDirectory(restoreRoot);
 
         try
         {
-            var version = "v1.0.0-unit.test";
+            var version = "v1";
 
             var packageReference = new PackageReference(
                 Provider: "local",
@@ -155,11 +139,12 @@ public class PackageControllerTests
                 {
                     // required
                     ["path"] = extensionFolderPath,
-                    ["version"] = version
+                    ["version"] = version,
+                    ["csproj"] = "TestExtensionProject.csproj"
                 }
             );
 
-            var fileToDelete = Path.Combine(restoreRoot, "local", pathHash, version, "TestExtensionProject.dll");
+            var fileToDelete = Path.Combine(restoreRoot, "local", extensionFolderPathHash, version, "TestExtensionProject.dll");
             var weakReference = await Load_Run_and_Unload_Async(restoreRoot, fileToDelete, packageReference);
 
             for (int i = 0; weakReference.IsAlive && i < 10; i++)
@@ -176,12 +161,6 @@ public class PackageControllerTests
             try
             {
                 Directory.Delete(restoreRoot, recursive: true);
-            }
-            catch { }
-
-            try
-            {
-                Directory.Delete(extensionFolderPath, recursive: true);
             }
             catch { }
         }
@@ -227,9 +206,6 @@ public class PackageControllerTests
     [Fact]
     public async Task CanDiscover_local()
     {
-        // create dirs
-        var root = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-
         var expected = new[]
         {
             "v2.0.0 postfix",
@@ -241,62 +217,38 @@ public class PackageControllerTests
             "v0.1.0"
         };
 
-        foreach (var version in expected)
-        {
-            var dataFolderPath = Path.Combine(root, version);
-            Directory.CreateDirectory(Path.Combine(dataFolderPath, "sub"));
-
-            await File.Create(Path.Combine(dataFolderPath, "sub", "a.deps.json")).DisposeAsync();
-            await File.Create(Path.Combine(dataFolderPath, "sub", "a.dll")).DisposeAsync();
-        }
-
-        try
-        {
-            var packageReference = new PackageReference(
-                Provider: "local",
-                Configuration: new Dictionary<string, string>
-                {
-                    ["path"] = root,
-                }
-            );
-
-            var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
-
-            var actual = (await packageController
-                .DiscoverAsync(CancellationToken.None))
-                .ToArray();
-
-            Assert.Equal(expected.Length, actual.Length);
-
-            foreach (var (expectedItem, actualItem) in expected.Zip(actual))
+        var packageReference = new PackageReference(
+            Provider: "local",
+            Configuration: new Dictionary<string, string>
             {
-                Assert.Equal(expectedItem, actualItem);
+                ["path"] = "../../../../tests/Nexus.Tests/Other/Nexus.Sources.PackageControllerTestsSource",
             }
-        }
-        finally
+        );
+
+        var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
+
+        var actual = (await packageController
+            .DiscoverAsync(CancellationToken.None))
+            .ToArray();
+
+        Assert.Equal(expected.Length, actual.Length);
+
+        foreach (var (expectedItem, actualItem) in expected.Zip(actual))
         {
-            Directory.Delete(root, recursive: true);
+            Assert.Equal(expectedItem, actualItem);
         }
     }
 
     [Fact]
     public async Task CanRestore_local()
     {
-        // create extension folder
-        var version = "v1.0.1 postfix";
-        var extensionRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var extensionRootHash = new Guid(extensionRoot.Hash()).ToString();
-        var extensionFolderPath = Path.Combine(extensionRoot, version);
-        Directory.CreateDirectory(Path.Combine(extensionFolderPath, "sub", "sub"));
-
-        await File.Create(Path.Combine(extensionFolderPath, "sub", "a.deps.json")).DisposeAsync();
-        await File.Create(Path.Combine(extensionFolderPath, "sub", "a.dll")).DisposeAsync();
-        await File.Create(Path.Combine(extensionFolderPath, "sub", "b.dll")).DisposeAsync();
-        await File.Create(Path.Combine(extensionFolderPath, "sub", "sub", "c.data")).DisposeAsync();
+        var version = "v0.1.0";
+        var extensionFolderPath = "../../../../tests/Nexus.Tests/Other/Nexus.Sources.PackageControllerTestsSource";
+        var extensionFolderPathHash = new Guid(extensionFolderPath.Hash()).ToString();
 
         // create restore folder
         var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var restoreFolderPath = Path.Combine(restoreRoot, "local", extensionRootHash, version);
+        var restoreFolderPath = Path.Combine(restoreRoot, "local", extensionFolderPathHash, version);
         Directory.CreateDirectory(restoreRoot);
 
         try
@@ -306,22 +258,20 @@ public class PackageControllerTests
                 Configuration: new Dictionary<string, string>
                 {
                     // required
-                    ["path"] = extensionRoot,
-                    ["version"] = version
+                    ["path"] = extensionFolderPath,
+                    ["version"] = version,
+                    ["csproj"] = "Nexus.Sources.PackageControllerTestsSource.csproj"
                 }
             );
 
             var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
             await packageController.RestoreAsync(restoreRoot, CancellationToken.None);
+            var expectedFilePath = Path.Combine(restoreFolderPath, "Nexus.Sources.PackageControllerTestsSource.deps.json");
 
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "a.deps.json")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "a.dll")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "b.dll")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "sub", "c.data")));
+            Assert.True(File.Exists(expectedFilePath));
         }
         finally
         {
-            Directory.Delete(extensionRoot, recursive: true);
             Directory.Delete(restoreRoot, recursive: true);
         }
     }
@@ -400,270 +350,6 @@ public class PackageControllerTests
             Assert.True(File.Exists(Path.Combine(restoreFolderPath, "git-tags-provider-test-project.deps.json")));
             Assert.True(File.Exists(Path.Combine(restoreFolderPath, "git-tags-provider-test-project.dll")));
             Assert.True(File.Exists(Path.Combine(restoreFolderPath, "git-tags-provider-test-project.pdb")));
-        }
-        finally
-        {
-            Directory.Delete(restoreRoot, recursive: true);
-        }
-    }
-
-    #endregion
-
-    #region Provider: github_releases
-
-    [Fact]
-    public async Task CanDiscover_github_releases()
-    {
-        var expected = new[]
-        {
-            "v2.0.0",
-            "v1.1.1",
-            "v1.0.1",
-            "v1.0.0-beta2+12347",
-            "v1.0.0-beta1+12346",
-            "v1.0.0-alpha1+12345",
-            "v0.1.0"
-        };
-
-        var packageReference = new PackageReference(
-            Provider: "github-releases",
-            Configuration: new Dictionary<string, string>
-            {
-                // required
-                ["project-path"] = "nexus-main/github-releases-provider-test-project",
-
-                // optional token with scope(s): repo
-                ["token"] = Encoding.ASCII.GetString(_token)
-            }
-        );
-
-        var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
-
-        var actual = (await packageController
-            .DiscoverAsync(CancellationToken.None))
-            .ToArray();
-
-        Assert.Equal(expected.Length, actual.Length);
-
-        foreach (var (expectedItem, actualItem) in expected.Zip(actual))
-        {
-            Assert.Equal(expectedItem, actualItem);
-        }
-    }
-
-    [Theory]
-    [InlineData(@"assets.*\.tar.gz")]
-    [InlineData(@"assets.*\.zip")]
-    public async Task CanRestore_github_releases(string assetSelector)
-    {
-        var version = "v1.0.1";
-
-        // create restore folder
-        var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var restoreFolderPath = Path.Combine(restoreRoot, "github-releases", "nexus-main_github-releases-provider-test-project", version);
-        Directory.CreateDirectory(restoreRoot);
-
-        try
-        {
-            var packageReference = new PackageReference(
-                Provider: "github-releases",
-                Configuration: new Dictionary<string, string>
-                {
-                    // required
-                    ["project-path"] = "nexus-main/github-releases-provider-test-project",
-                    ["tag"] = "v1.0.1",
-                    ["asset-selector"] = assetSelector,
-
-                    // optional token with scope(s): repo
-                    ["token"] = Encoding.ASCII.GetString(_token)
-                }
-            );
-
-            var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
-            await packageController.RestoreAsync(restoreRoot, CancellationToken.None);
-
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "a.deps.json")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "a.dll")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "b.dll")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "sub", "c.data")));
-        }
-        finally
-        {
-            Directory.Delete(restoreRoot, recursive: true);
-        }
-    }
-
-    #endregion
-
-    #region Provider: gitlab-releases-v4
-
-    [Fact(Skip = "The current approach does not work. See rationale in #region gitlab-releases-v4.")]
-    public async Task CanDiscover_gitlab_releases_v4()
-    {
-        var expected = new[]
-        {
-            "v2.0.0",
-            "v1.1.1",
-            "v1.0.1",
-            "v1.0.0-beta2+12347",
-            "v1.0.0-beta1+12346",
-            "v1.0.0-alpha1+12345",
-            "v0.1.0"
-        };
-
-        var packageReference = new PackageReference(
-            Provider: "gitlab-releases-v4",
-            Configuration: new Dictionary<string, string>
-            {
-                // required
-                ["server"] = "https://gitlab.com",
-                ["project-path"] = "nexus-main/Test-Group/my-awesome-test-project",
-
-                // optional token with scope(s): read_api
-                ["token"] = "doQyXYqgmFxS1LUsupue"
-            }
-        );
-
-        var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
-
-        var actual = (await packageController
-            .DiscoverAsync(CancellationToken.None))
-            .ToArray();
-
-        Assert.Equal(expected.Length, actual.Length);
-
-        foreach (var (expectedItem, actualItem) in expected.Zip(actual))
-        {
-            Assert.Equal(expectedItem, actualItem);
-        }
-    }
-
-    [Theory(Skip = "The current approach does not work. See rationale in #region gitlab-releases-v4.")]
-    [InlineData(@"assets.*\.tar.gz")]
-    [InlineData(@"assets.*\.zip")]
-    public async Task CanRestore_gitlab_releases_v4(string assetSelector)
-    {
-        var version = "v1.0.1";
-
-        // create restore folder
-        var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var restoreFolderPath = Path.Combine(restoreRoot, "gitlab-releases-v4", $"nexus-main_test-group_my-awesome-test-project", version);
-        Directory.CreateDirectory(restoreRoot);
-
-        try
-        {
-            var packageReference = new PackageReference(
-                Provider: "gitlab-releases-v4",
-                Configuration: new Dictionary<string, string>
-                {
-                    // required
-                    ["server"] = "https://gitlab.com",
-                    ["project-path"] = "nexus-main/Test-Group/my-awesome-test-project",
-                    ["tag"] = "v1.0.1",
-                    ["asset-selector"] = assetSelector,
-
-                    // optional token with scope(s): read_api
-                    ["token"] = "glpat-sQVhisTwk56oJyGJhzx1"
-                }
-            );
-
-            var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
-            await packageController.RestoreAsync(restoreRoot, CancellationToken.None);
-
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "a.deps.json")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "a.dll")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "b.dll")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "sub", "c.data")));
-        }
-        finally
-        {
-            Directory.Delete(restoreRoot, recursive: true);
-        }
-    }
-
-    #endregion
-
-    #region Provider: gitlab-packages-generic-v4
-
-    [Fact]
-    public async Task CanDiscover_gitlab_packages_generic_v4()
-    {
-        var expected = new[]
-        {
-            "v2.0.0",
-            "v1.1.1",
-            "v1.0.1",
-            "v1.0.0-beta2+12347",
-            "v1.0.0-beta1+12346",
-            "v1.0.0-alpha1+12345",
-            "v0.1.0"
-        };
-
-        var packageReference = new PackageReference(
-            Provider: "gitlab-packages-generic-v4",
-            Configuration: new Dictionary<string, string>
-            {
-                // required
-                ["server"] = "https://gitlab.com",
-                ["project-path"] = "nexus-main/Test-Group/my-awesome-test-project",
-                ["package"] = "test-package",
-
-                // optional token with scope(s): read_api
-                ["token"] = "glpat-sQVhisTwk56oJyGJhzx1",
-            }
-        );
-
-        var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
-
-        var actual = (await packageController
-            .DiscoverAsync(CancellationToken.None))
-            .ToArray();
-
-        Assert.Equal(expected.Length, actual.Length);
-
-        foreach (var (expectedItem, actualItem) in expected.Zip(actual))
-        {
-            Assert.Equal(expectedItem, actualItem);
-        }
-    }
-
-    [Theory]
-    [InlineData(@"assets.*\.tar.gz")]
-    [InlineData(@"assets.*\.zip")]
-    public async Task CanRestore_gitlab_packages_generic_v4(string assetSelector)
-    {
-        var version = "v1.0.1";
-
-        // create restore folder
-        var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var restoreFolderPath = Path.Combine(restoreRoot, "gitlab-packages-generic-v4", $"nexus-main_test-group_my-awesome-test-project", version);
-        Directory.CreateDirectory(restoreRoot);
-
-        try
-        {
-            var packageReference = new PackageReference(
-                Provider: "gitlab-packages-generic-v4",
-                Configuration: new Dictionary<string, string>
-                {
-                    // required
-                    ["server"] = "https://gitlab.com",
-                    ["project-path"] = "nexus-main/Test-Group/my-awesome-test-project",
-                    ["package"] = "test-package",
-                    ["version"] = "v1.0.1",
-                    ["asset-selector"] = assetSelector,
-
-                    // optional token with scope(s): read_api
-                    ["token"] = "glpat-sQVhisTwk56oJyGJhzx1",
-                }
-            );
-
-            var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
-            await packageController.RestoreAsync(restoreRoot, CancellationToken.None);
-
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "a.deps.json")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "a.dll")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "b.dll")));
-            Assert.True(File.Exists(Path.Combine(restoreFolderPath, "sub", "sub", "c.data")));
         }
         finally
         {

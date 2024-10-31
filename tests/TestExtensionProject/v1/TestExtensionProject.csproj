@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-	<ProjectReference Include="..\..\src\extensibility\dotnet-extensibility\dotnet-extensibility.csproj">
+	<ProjectReference Include="../../../src/extensibility/dotnet-extensibility/dotnet-extensibility.csproj">
       <Private>false</Private>
       <ExcludeAssets>runtime</ExcludeAssets>
     </ProjectReference>
