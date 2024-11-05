@@ -95,15 +95,6 @@ public record AuthenticationSchemeDescription(
     string DisplayName);
 
 /// <summary>
-/// A package reference.
-/// </summary>
-/// <param name="Provider">The provider which loads the package.</param>
-/// <param name="Configuration">The configuration of the package reference.</param>
-public record PackageReference(
-    string Provider,
-    Dictionary<string, string> Configuration);
-
-/// <summary>
 /// A structure for export parameters.
 /// </summary>
 /// <param name="Begin">The start date/time.</param>

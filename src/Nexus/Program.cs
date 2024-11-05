@@ -100,14 +100,14 @@ void AddServices(
     PathsOptions pathsOptions,
     SecurityOptions securityOptions)
 {
-    // database
+    // Database
     Directory.CreateDirectory(pathsOptions.Config);
     var filePath = Path.Combine(pathsOptions.Config, "users.db");
 
     services.AddDbContext<UserDbContext>(
         options => options.UseSqlite($"Data Source={filePath}"));
 
-    // forwarded headers
+    // Forwarded headers
     services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.All;
@@ -128,17 +128,17 @@ void AddServices(
             noContentFormatter.TreatNullValueAsNoContent = false;
     });
 
-    // authentication
+    // Authentication
     services.AddNexusAuth(pathsOptions, securityOptions);
 
     // Open API
     services.AddNexusOpenApi();
 
-    // default Identity Provider
+    // Default Identity Provider
     if (!securityOptions.OidcProviders.Any())
         services.AddNexusIdentityProvider();
 
-    // razor components
+    // Razor components
     services.AddRazorComponents()
         .AddInteractiveWebAssemblyComponents();
 
@@ -155,16 +155,16 @@ void AddServices(
      * https://github.com/dotnet/aspnetcore/issues/51046
      */
 
-    // razor pages (for login view)
+    // Razor pages (for login view)
     services.AddRazorPages();
 
-    // routing
+    // Routing
     services.AddRouting(options => options.LowercaseUrls = true);
 
     // HTTP context
     services.AddHttpContextAccessor();
 
-    // custom
+    // Custom
     services.AddTransient<IDataService, DataService>();
 
     services.AddScoped<IDBService, DbService>();
@@ -172,7 +172,6 @@ void AddServices(
 
     services.AddSingleton<AppState>();
     services.AddSingleton<AppStateManager>();
-    services.AddSingleton<IPackageService, PackageService>();
     services.AddSingleton<IPipelineService, PipelineService>();
     services.AddSingleton<ITokenService, TokenService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();
@@ -182,13 +181,16 @@ void AddServices(
     services.AddSingleton<IProcessingService, ProcessingService>();
     services.AddSingleton<ICacheService, CacheService>();
     services.AddSingleton<IDatabaseService, DatabaseService>();
-    services.AddSingleton<IExtensionHive, ExtensionHive>();
 
-    // options
+    // Options
     services.Configure<GeneralOptions>(configuration.GetSection(GeneralOptions.Section));
     services.Configure<DataOptions>(configuration.GetSection(DataOptions.Section));
     services.Configure<PathsOptions>(configuration.GetSection(PathsOptions.Section));
     services.Configure<SecurityOptions>(configuration.GetSection(SecurityOptions.Section));
+
+    // Package management
+    services.AddPackageManagement();
+    services.Configure<IPackageManagementPathsOptions>(configuration.GetSection(PathsOptions.Section));
 }
 
 void ConfigurePipeline(WebApplication app)

@@ -9,6 +9,7 @@ using Moq;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
+using Nexus.PackageManagement.Services;
 using Nexus.Services;
 using Nexus.Sources;
 using Nexus.Writers;

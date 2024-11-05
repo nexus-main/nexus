@@ -4,8 +4,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
-using Nexus.Core.V1;
-using Nexus.Services;
+using Nexus.PackageManagement;
+using Nexus.PackageManagement.Services;
 
 namespace Nexus.Controllers.V1;
 

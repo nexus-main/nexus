@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
+using Nexus.PackageManagement.Services;
 using Nexus.Services;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;

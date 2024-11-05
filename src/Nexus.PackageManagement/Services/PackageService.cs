@@ -4,33 +4,52 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
-using Nexus.Core.V1;
-using Nexus.Utilities;
+using Nexus.PackageManagement.Core;
 
-namespace Nexus.Services;
+namespace Nexus.PackageManagement.Services;
 
-internal interface IPackageService
+/// <summary>
+/// An interface which defined interactions with package references.
+/// </summary>
+public interface IPackageService
 {
+    /// <summary>
+    /// Puts a package reference.
+    /// </summary>
+    /// <param name="packageReference">The package reference.</param>
     Task<Guid> PutAsync(PackageReference packageReference);
 
+    /// <summary>
+    /// Tries to get the requested package reference.
+    /// </summary>
+    /// <param name="packageReferenceId">The package reference ID.</param>
+    /// <param name="packageReference">The package reference.</param>
     bool TryGet(
         Guid packageReferenceId,
         [NotNullWhen(true)] out PackageReference? packageReference
     );
 
+    /// <summary>
+    /// Deletes a package reference.
+    /// </summary>
+    /// <param name="packageReferenceId">The package reference ID.</param>
+    /// <returns></returns>
     Task DeleteAsync(Guid packageReferenceId);
 
+    /// <summary>
+    /// Gets all package references.
+    /// </summary>
     Task<IReadOnlyDictionary<Guid, PackageReference>> GetAllAsync();
 }
 
-internal class PackageService(IDatabaseService databaseService)
+internal class PackageService(IPackageManagementDatabaseService databaseService)
     : IPackageService
 {
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     private ConcurrentDictionary<Guid, PackageReference>? _cache;
 
-    private readonly IDatabaseService _databaseService = databaseService;
+    private readonly IPackageManagementDatabaseService _databaseService = databaseService;
 
     public Task<Guid> PutAsync(
         PackageReference packageReference)

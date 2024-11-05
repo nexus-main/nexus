@@ -3,8 +3,8 @@
 
 using System.Diagnostics;
 using System.Reflection;
-using Nexus.Core;
-using Nexus.Core.V1;
+using Microsoft.Extensions.Logging;
+using Nexus.PackageManagement.Core;
 
 namespace Nexus.PackageManagement;
 
@@ -355,7 +355,7 @@ internal partial class PackageController(
                 // Clone respository
                 Directory.CreateDirectory(cloneFolderPath);
 
-                var startInfo1 = new ProcessStartInfo
+                var startInfo = new ProcessStartInfo
                 {
                     CreateNoWindow = true,
                     FileName = "git",
@@ -363,14 +363,14 @@ internal partial class PackageController(
                     RedirectStandardError = true
                 };
 
-                using var process1 = Process.Start(startInfo1) ?? throw new Exception("Process is null.");
-                await process1.WaitForExitAsync(cancellationToken);
+                using var process = Process.Start(startInfo) ?? throw new Exception("Process is null.");
+                await process.WaitForExitAsync(cancellationToken);
 
-                if (process1.ExitCode != 0)
+                if (process.ExitCode != 0)
                 {
-                    var error = process1 is null
+                    var error = process is null
                         ? default :
-                        $" Reason: {await process1.StandardError.ReadToEndAsync(cancellationToken)}";
+                        $" Reason: {await process.StandardError.ReadToEndAsync(cancellationToken)}";
 
                     throw new Exception($"Unable to clone repository {escapedUriWithoutUserInfo}.{error}");
                 }

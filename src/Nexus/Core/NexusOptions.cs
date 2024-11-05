@@ -61,7 +61,7 @@ internal record DataOptions() : NexusOptionsBase
     public double AggregationNaNThreshold { get; set; } = 0.99;
 }
 
-internal record PathsOptions() : NexusOptionsBase
+internal record PathsOptions() : NexusOptionsBase, IPackageManagementPathsOptions
 {
     public const string Section = "Paths";
 

@@ -2,11 +2,9 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Microsoft.Extensions.Logging.Abstractions;
-using Nexus.Core;
-using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.PackageManagement;
-using System.Diagnostics;
+using Nexus.PackageManagement.Core;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -122,7 +120,7 @@ public class PackageControllerTests
     [Fact]
     public async Task CanLoadAndUnload()
     {
-        var extensionFolderPath = "../../../../tests/TestExtensionProject";
+        var extensionFolderPath = "../../../../tests/Nexus.PackageManagement.Tests/TestExtensionProject";
         var extensionFolderPathHash = new Guid(extensionFolderPath.Hash()).ToString();
 
         // create restore folder
@@ -131,7 +129,7 @@ public class PackageControllerTests
 
         try
         {
-            var version = "v1";
+            var version = "v0.1.0";
 
             var packageReference = new PackageReference(
                 Provider: "local",
@@ -177,8 +175,7 @@ public class PackageControllerTests
 
         var dataSourceType = assembly
             .ExportedTypes
-            .First(type => typeof(IDataSource).IsAssignableFrom(type))
-                ?? throw new Exception("data source type is null");
+            .First(type => typeof(IDataSource).IsAssignableFrom(type));
 
         // run
 
@@ -221,7 +218,7 @@ public class PackageControllerTests
             Provider: "local",
             Configuration: new Dictionary<string, string>
             {
-                ["path"] = "../../../../tests/Nexus.Tests/Other/Nexus.Sources.PackageControllerTestsSource",
+                ["path"] = "../../../../tests/Nexus.PackageManagement.Tests/TestExtensionProject",
             }
         );
 
@@ -243,7 +240,7 @@ public class PackageControllerTests
     public async Task CanRestore_local()
     {
         var version = "v0.1.0";
-        var extensionFolderPath = "../../../../tests/Nexus.Tests/Other/Nexus.Sources.PackageControllerTestsSource";
+        var extensionFolderPath = "../../../../tests/Nexus.PackageManagement.Tests/TestExtensionProject";
         var extensionFolderPathHash = new Guid(extensionFolderPath.Hash()).ToString();
 
         // create restore folder
@@ -260,13 +257,13 @@ public class PackageControllerTests
                     // required
                     ["path"] = extensionFolderPath,
                     ["version"] = version,
-                    ["csproj"] = "Nexus.Sources.PackageControllerTestsSource.csproj"
+                    ["csproj"] = "TestExtensionProject.csproj"
                 }
             );
 
             var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
             await packageController.RestoreAsync(restoreRoot, CancellationToken.None);
-            var expectedFilePath = Path.Combine(restoreFolderPath, "Nexus.Sources.PackageControllerTestsSource.deps.json");
+            var expectedFilePath = Path.Combine(restoreFolderPath, "TestExtensionProject.deps.json");
 
             Assert.True(File.Exists(expectedFilePath));
         }

@@ -34,12 +34,6 @@ internal static class CustomExtensions
         }, default, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
-    public static byte[] Hash(this string value)
-    {
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes(value));
-        return hash;
-    }
-
     public static Memory<To> Cast<TFrom, To>(this Memory<TFrom> buffer)
         where TFrom : unmanaged
         where To : unmanaged

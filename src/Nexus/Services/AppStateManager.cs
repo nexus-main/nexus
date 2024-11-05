@@ -5,6 +5,7 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
+using Nexus.PackageManagement.Services;
 using Nexus.Utilities;
 using System.Reflection;
 using System.Text.Json;

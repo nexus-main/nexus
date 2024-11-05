@@ -65,7 +65,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexus.UI\Nexus.UI.csproj" />
-    <ProjectReference Include="..\extensibility\dotnet-extensibility\dotnet-extensibility.csproj" />
+    <ProjectReference Include="..\Nexus.PackageManagement\Nexus.PackageManagement.csproj" />
   </ItemGroup>
 
   <ItemGroup>

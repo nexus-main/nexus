@@ -5,10 +5,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
-using Nexus.Core;
-using Nexus.Core.V1;
 using Nexus.Extensibility;
-using Nexus.Services;
+using Nexus.PackageManagement;
+using Nexus.PackageManagement.Services;
 using System.Diagnostics;
 using Xunit;
 
@@ -17,37 +16,22 @@ namespace Services;
 public class ExtensionHiveTests
 {
     [Fact]
-    public async Task CanInstantiateExtensionsAsync()
+    public async Task CanInstantiateExtensions()
     {
-        // prepare extension
-        var extensionFolderPath = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
-        var configuration = "Debug";
-        var csprojPath = "./../../../../tests/TestExtensionProject/TestExtensionProject.csproj";
+        var extensionFolderPath = "../../../../tests/Nexus.PackageManagement.Tests/TestExtensionProject";
 
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "dotnet",
-                Arguments = $"publish --output {Path.Combine(extensionFolderPath, "v1.0.0-unit.test")} --configuration {configuration} {csprojPath}"
-            }
-        };
-
-        process.Start();
-        process.WaitForExit();
-
-        Assert.Equal(0, process.ExitCode);
-
-        // prepare restore root
+        // create restore folder
         var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
+        Directory.CreateDirectory(restoreRoot);
 
         try
         {
             // load packages
-            var pathsOptions = new PathsOptions()
-            {
-                Packages = restoreRoot
-            };
+            var pathsOptions = Mock.Of<IPackageManagementPathsOptions>();
+
+            Mock.Get(pathsOptions)
+                .SetupGet(pathsOptions => pathsOptions.Packages)
+                .Returns(restoreRoot);
 
             var loggerFactory = Mock.Of<ILoggerFactory>();
 
@@ -56,8 +40,7 @@ public class ExtensionHiveTests
                 .Returns(NullLogger.Instance);
 
             var hive = new ExtensionHive(Options.Create(pathsOptions), NullLogger<ExtensionHive>.Instance, loggerFactory);
-
-            var version = "v1.0.0-unit.test";
+            var version = "v0.1.0";
 
             var packageReference = new PackageReference(
                 Provider: "local",
@@ -65,7 +48,8 @@ public class ExtensionHiveTests
                 {
                     // required
                     ["path"] = extensionFolderPath,
-                    ["version"] = version
+                    ["version"] = version,
+                    ["csproj"] = "TestExtensionProject.csproj"
                 }
             );
 
@@ -87,12 +71,6 @@ public class ExtensionHiveTests
             try
             {
                 Directory.Delete(restoreRoot, recursive: true);
-            }
-            catch { }
-
-            try
-            {
-                Directory.Delete(extensionFolderPath, recursive: true);
             }
             catch { }
         }

@@ -1,46 +1,73 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Nexus.Core;
-using Nexus.Core.V1;
 using Nexus.Extensibility;
-using Nexus.PackageManagement;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-namespace Nexus.Services;
+namespace Nexus.PackageManagement.Services;
 
-internal interface IExtensionHive
+/// <summary>
+/// An interface which defines method to interact with the extension hive.
+/// </summary>
+public interface IExtensionHive
 {
+    /// <summary>
+    /// Gets all extensions of the specified type.
+    /// </summary>
+    /// <typeparam name="T">The type parameter.</typeparam>
     IEnumerable<Type> GetExtensions<T>(
         ) where T : IExtension;
 
+    /// <summary>
+    /// Gets the package reference ID for the specified type name.
+    /// </summary>
+    /// <typeparam name="T">The type paramter.</typeparam>
+    /// <param name="fullName">The type name.</param>
     Guid GetPackageReferenceId<T>(
         string fullName) where T : IExtension;
 
+    /// <summary>
+    /// Create a new extension instance.
+    /// </summary>
+    /// <typeparam name="T">The type parameter.</typeparam>
+    /// <param name="fullName">The type name.</param>
     T GetInstance<T>(
         string fullName) where T : IExtension;
 
+    /// <summary>
+    /// Loads the map of packages.
+    /// </summary>
+    /// <param name="packageReferenceMap">The packages map.</param>
+    /// <param name="progress">The progress.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns></returns>
     Task LoadPackagesAsync(
         IReadOnlyDictionary<Guid, PackageReference> packageReferenceMap,
         IProgress<double> progress,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Gets all package versions.
+    /// </summary>
+    /// <param name="packageReference">The package reference.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     Task<string[]> GetVersionsAsync(
         PackageReference packageReference,
         CancellationToken cancellationToken);
 }
 
 internal class ExtensionHive(
-    IOptions<PathsOptions> pathsOptions,
+    IOptions<IPackageManagementPathsOptions> pathsOptions,
     ILogger<ExtensionHive> logger,
     ILoggerFactory loggerFactory) : IExtensionHive
 {
     private readonly ILogger<ExtensionHive> _logger = logger;
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
-    private readonly PathsOptions _pathsOptions = pathsOptions.Value;
+    private readonly IPackageManagementPathsOptions _pathsOptions = pathsOptions.Value;
 
     private Dictionary<Guid, (PackageController, ReadOnlyCollection<Type>)>? _packageControllerMap = default!;
 

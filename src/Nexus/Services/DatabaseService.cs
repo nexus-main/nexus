@@ -20,11 +20,6 @@ internal interface IDatabaseService
 
     Stream WriteProject();
 
-    /* /config/packages.json */
-    bool TryReadPackageReferenceMap([NotNullWhen(true)] out string? packageReferenceMap);
-
-    Stream WritePackageReferenceMap();
-
     /* /config/users */
     IEnumerable<string> EnumerateUsers();
 
@@ -143,33 +138,6 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
         var filePath = Path.Combine(_pathsOptions.Config, PROJECT + FILE_EXTENSION);
         return File.Open(filePath, FileMode.Create, FileAccess.Write);
-    }
-
-    /* /config/packages.json */
-    public bool TryReadPackageReferenceMap([NotNullWhen(true)] out string? packageReferenceMap)
-    {
-        var folderPath = _pathsOptions.Config;
-        var packageReferencesFilePath = Path.Combine(folderPath, PACKAGES + FILE_EXTENSION);
-
-        packageReferenceMap = default;
-
-        if (File.Exists(packageReferencesFilePath))
-        {
-            packageReferenceMap = File.ReadAllText(packageReferencesFilePath);
-            return true;
-        }
-
-        return false;
-    }
-
-    public Stream WritePackageReferenceMap()
-    {
-        var folderPath = _pathsOptions.Config;
-        var packageReferencesFilePath = Path.Combine(folderPath, PACKAGES + FILE_EXTENSION);
-
-        Directory.CreateDirectory(folderPath);
-
-        return File.Open(packageReferencesFilePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /config/users */

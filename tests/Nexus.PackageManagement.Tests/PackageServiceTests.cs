@@ -3,10 +3,9 @@
 
 using System.Text.Json;
 using Moq;
-using Nexus.Core;
-using Nexus.Core.V1;
-using Nexus.Services;
-using Nexus.Utilities;
+using Nexus.PackageManagement;
+using Nexus.PackageManagement.Core;
+using Nexus.PackageManagement.Services;
 using Xunit;
 
 namespace Services;
@@ -142,7 +141,7 @@ public class PackageServiceTests
         string filePath,
         Dictionary<Guid, PackageReference> packageReferenceMap)
     {
-        var databaseService = Mock.Of<IDatabaseService>();
+        var databaseService = Mock.Of<IPackageManagementDatabaseService>();
 
         Mock.Get(databaseService)
             .Setup(databaseService => databaseService.TryReadPackageReferenceMap(out It.Ref<string?>.IsAny))

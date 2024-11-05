@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  
+  <PropertyGroup>
+    <AssemblyName>Nexus.PackageManagement</AssemblyName>
+    <TargetFramework>$(TargetFrameworkVersion)</TargetFramework>
+  </PropertyGroup>
+	
+  <PropertyGroup>
+    <Description>Type definitions to implement the package management for the Nexus system.</Description>
+	  <PackageTags>Nexus extensibility time-series data lake</PackageTags>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../extensibility/dotnet-extensibility/dotnet-extensibility.csproj" />
+  </ItemGroup>
+
+  <!-- This prevents the package to be rebuilt when dotnet test is executed. -->
+  <PropertyGroup Condition="$(GeneratePackage) == 'true'">
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <None Include="../../doc/images/icon.png" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>
