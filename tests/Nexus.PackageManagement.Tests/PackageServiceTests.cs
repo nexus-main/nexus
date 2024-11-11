@@ -125,10 +125,10 @@ public class PackageServiceTests
         };
 
         var filePath = Path.GetTempFileName();
-        var pipelineService = GetPackageService(filePath, packageReferencesMap);
+        var packageService = GetPackageService(filePath, packageReferencesMap);
 
         // Act
-        var actualPackageMap = await pipelineService.GetAllAsync();
+        var actualPackageMap = await packageService.GetAllAsync();
 
         // Assert
         var expected = JsonSerializerHelper.SerializeIndented(packageReferencesMap.OrderBy(current => current.Key));
@@ -155,8 +155,8 @@ public class PackageServiceTests
             .Setup(databaseService => databaseService.WritePackageReferenceMap())
             .Returns(() => File.OpenWrite(filePath));
 
-        var pipelineService = new PackageService(databaseService);
+        var packageService = new PackageService(databaseService);
 
-        return pipelineService;
+        return packageService;
     }
 }

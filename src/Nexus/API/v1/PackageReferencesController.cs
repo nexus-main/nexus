@@ -33,9 +33,9 @@ internal class PackageReferencesController(
     /// </summary>
     /// <returns></returns>
     [HttpGet]
-    public async Task<IReadOnlyDictionary<Guid, PackageReference>> GetAsync()
+    public Task<IReadOnlyDictionary<Guid, PackageReference>> GetAsync()
     {
-        return await _packageService.GetAllAsync();
+        return _packageService.GetAllAsync();
     }
 
     /// <summary>
