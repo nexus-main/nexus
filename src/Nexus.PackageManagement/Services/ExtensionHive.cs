@@ -61,13 +61,13 @@ public interface IExtensionHive
 }
 
 internal class ExtensionHive(
-    IOptions<IPackageManagementPathsOptions> pathsOptions,
+    IPackageManagementPathsOptions pathsOptions,
     ILogger<ExtensionHive> logger,
     ILoggerFactory loggerFactory) : IExtensionHive
 {
     private readonly ILogger<ExtensionHive> _logger = logger;
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
-    private readonly IPackageManagementPathsOptions _pathsOptions = pathsOptions.Value;
+    private readonly IPackageManagementPathsOptions _pathsOptions = pathsOptions;
 
     private Dictionary<Guid, (PackageController, ReadOnlyCollection<Type>)>? _packageControllerMap = default!;
 

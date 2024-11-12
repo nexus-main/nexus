@@ -21,10 +21,10 @@ public interface IPackageManagementDatabaseService
     Stream WritePackageReferenceMap();
 }
 
-internal class PackageManagementDatabaseService(IOptions<IPackageManagementPathsOptions> pathsOptions)
+internal class PackageManagementDatabaseService(IPackageManagementPathsOptions pathsOptions)
     : IPackageManagementDatabaseService
 {
-    private readonly IPackageManagementPathsOptions _pathsOptions = pathsOptions.Value;
+    private readonly IPackageManagementPathsOptions _pathsOptions = pathsOptions;
 
     private const string FILE_EXTENSION = ".json";
 

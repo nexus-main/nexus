@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Nexus.PackageManagement.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -15,9 +16,11 @@ public static class MvcServiceCollectionExtensions
     public static IServiceCollection AddPackageManagement(this IServiceCollection services)
     {
         return services
+            .Configure<PackageManagementPathsOptions>(_ => { })
             .AddSingleton<IPackageService, PackageService>()
             .AddSingleton<IPackageManagementDatabaseService, PackageManagementDatabaseService>()
             .AddSingleton<IExtensionHive, ExtensionHive>()
-            .Configure<IPackageManagementPathsOptions>(options => new PackageManagementPathsOptions());
+            .AddSingleton<IPackageManagementPathsOptions>(
+                serviceProvider => serviceProvider.GetRequiredService<IOptions<PackageManagementPathsOptions>>().Value);
     }
 }

@@ -39,7 +39,7 @@ public class ExtensionHiveTests
                 .Setup(loggerFactory => loggerFactory.CreateLogger(It.IsAny<string>()))
                 .Returns(NullLogger.Instance);
 
-            var hive = new ExtensionHive(Options.Create(pathsOptions), NullLogger<ExtensionHive>.Instance, loggerFactory);
+            var hive = new ExtensionHive(pathsOptions, NullLogger<ExtensionHive>.Instance, loggerFactory);
             var version = "v0.1.0";
 
             var packageReference = new PackageReference(

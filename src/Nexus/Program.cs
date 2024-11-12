@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Nexus.Components;
 using Nexus.Core;
 using Nexus.Services;
@@ -190,7 +191,9 @@ void AddServices(
 
     // Package management
     services.AddPackageManagement();
-    services.Configure<IPackageManagementPathsOptions>(configuration.GetSection(PathsOptions.Section));
+
+    services.AddSingleton<IPackageManagementPathsOptions>(
+        serviceProvider => serviceProvider.GetRequiredService<IOptions<PathsOptions>>().Value);
 }
 
 void ConfigurePipeline(WebApplication app)
