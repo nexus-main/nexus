@@ -47,7 +47,7 @@ internal partial class PackageController(
 
         if (PackageReference.Provider == BUILTIN_PROVIDER)
         {
-            assembly = Assembly.GetExecutingAssembly();
+            assembly = Assembly.GetEntryAssembly()!;
             _loadContext = new PackageLoadContext(assembly.Location);
         }
 
