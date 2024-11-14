@@ -8,7 +8,7 @@
         @bind-Value="AppState.Settings.FilePeriod"
         Label="File Period"
         CoerceValue="true"
-        SearchFunc="_ => Task.FromResult(_values.AsEnumerable())"
+        SearchFunc="(_, _) => Task.FromResult(_values.AsEnumerable())"
         Converter="PeriodHelper.CreateConverter(getCurrentValue: () => AppState.Settings.FilePeriod)" /> />
 
     @if (AppState.Settings.WriterDescriptions is not null)

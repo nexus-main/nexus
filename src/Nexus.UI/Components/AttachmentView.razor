@@ -9,8 +9,7 @@
 </MudTooltip>
 
 <UIDialog
-    @bind-IsVisible="_isAttachmentDialogOpen"
-    Title="Attachments"
+    @bind-Visible="_isAttachmentDialogOpen"
     MaxWidth="MaxWidth.ExtraSmall">
     <TitleContent>
         <MudText Typo="Typo.h6">
@@ -73,16 +72,14 @@
                 T="IReadOnlyList<IBrowserFile>"
                 FilesChanged="UploadAttachmentsAsync"
                 MaximumFileCount="100">
-                <ButtonTemplate>
+                <ActivatorContent>
                     <MudButton
-                        HtmlTag="label"
                         Variant="Variant.Outlined"
                         Color="Color.Primary"
-                        StartIcon="@Icons.Material.Filled.Upload"
-                        for="@context">
+                        StartIcon="@Icons.Material.Filled.Upload">
                         Upload
                     </MudButton>
-                </ButtonTemplate>
+                </ActivatorContent>
             </MudFileUpload>
         }
     </DialogActions>

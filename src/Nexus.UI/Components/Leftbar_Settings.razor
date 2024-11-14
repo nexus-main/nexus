@@ -15,7 +15,7 @@
         @bind-Value="SamplePeriod"
         Label="Period"
         CoerceValue="true"
-        SearchFunc="_ => Task.FromResult(_values.AsEnumerable())"
+        SearchFunc="(_, _) => Task.FromResult(_values.AsEnumerable())"
         Converter="PeriodHelper.CreateConverter(getCurrentValue: () => AppState.Settings.SamplePeriod)" />
 </div>
 

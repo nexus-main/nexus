@@ -6,61 +6,57 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.0-preview.6.24328.4" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.0-preview.6.24328.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" Version="5.1.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0-preview.6.24327.4" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0-preview.6.24327.4" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0-preview.6.24327.4">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="NSwag.AspNetCore" Version="14.0.8" />
-    <PackageReference Include="OpenIddict" Version="5.2.0" />
-	  <PackageReference Include="OpenIddict.AspNetCore" Version="5.2.0" />
-    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="5.2.0" />
-    <PackageReference Include="Serilog.AspNetCore" Version="8.0.1" />
-    <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.0.3" />
+    <PackageReference Include="NSwag.AspNetCore" Version="14.1.0" />
+    <PackageReference Include="OpenIddict" Version="5.8.0" />
+	  <PackageReference Include="OpenIddict.AspNetCore" Version="5.8.0" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="5.8.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+    <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.1.2" />
     <PackageReference Include="Serilog.Enrichers.CorrelationId" Version="3.0.1" />
-    <PackageReference Include="Serilog.Enrichers.Environment" Version="2.3.0" />
-    <PackageReference Include="Serilog.Expressions" Version="4.0.0" />
+    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageReference Include="Serilog.Expressions" Version="5.0.0" />
     <PackageReference Include="Serilog.Sinks.Grafana.Loki" Version="8.3.0" />
-    <PackageReference Include="Serilog.Sinks.Seq" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.Seq" Version="8.0.0" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
-    <PackageReference Include="StreamJsonRpc" Version="2.17.11" />
 
     <!-- 
-      This direct dependency is only required because of the transitive dependency
-      System.Security.Cryptography.Xml (v4.5.0) which has a known moderate 
-      severity vulnerability: https://github.com/advisories/GHSA-vh55-786g-wjwj
+      Package 'System.Text.Encodings.Web' 4.5.0 has a known critical severity 
+      vulnerability, https://github.com/advisories/GHSA-ghhp-997w-qr28
 
-      dotnet dotnet nuget why src/Nexus/Nexus.csproj System.Security.Cryptography.Xml
+      dotnet nuget why src/Nexus/Nexus.csproj System.Text.Encodings.Web
 
       TODO: Check if still required
     -->
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.1" />
+    <PackageReference Include="System.Text.Encodings.Web" Version="4.5.1" />
 
-    <!--
-      This direct dependency is only required because of the transitive dependency 
-      System.Drawing.Common (v4.7.0) which has a known critical severity
-      vulnerability: https://github.com/advisories/GHSA-rxg9-xrhp-64gj
+    <!-- 
+      Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity
+      vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj
+      
+      dotnet nuget why src/Nexus/Nexus.csproj System.Security.Cryptography.Xml
 
-      dotnet dotnet nuget why src/Nexus/Nexus.csproj System.Drawing.Common
+      TODO: Check if still required
+    -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="4.7.1" />
+
+    <!-- 
+      Package 'System.Drawing.Common' 4.7.1 has a known critical severity vulnerability,
+      https://github.com/advisories/GHSA-rxg9-xrhp-64gj
+      
+      dotnet nuget why src/Nexus/Nexus.csproj System.Drawing.Common
 
       TODO: Check if still required
     -->
     <PackageReference Include="System.Drawing.Common" Version="4.7.2" />
-
-    <!--
-      This direct dependency is only required because of the transitive dependency 
-      System.Formats.Asn1 (v8.0.0) which has a known high severity
-      vulnerability: https://github.com/advisories/GHSA-447r-wph3-92pm
-
-      dotnet dotnet nuget why src/Nexus/Nexus.csproj System.Formats.Asn1
-
-      TODO: Check if still required
-    -->
-    <PackageReference Include="System.Formats.Asn1" Version="8.0.1" />
   </ItemGroup>
 
   <ItemGroup>
