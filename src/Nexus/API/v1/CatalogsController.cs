@@ -489,13 +489,8 @@ internal class CatalogsController(
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
-        var response = ProtectCatalogAsync<object>(catalogId, ensureReadable: true, ensureWritable: false, async catalogContainer =>
+        var response = ProtectCatalogAsync<object>(catalogId, ensureReadable: false, ensureWritable: true, async catalogContainer =>
         {
-            var canEdit = AuthUtilities.IsCatalogWritable(catalogId, catalogContainer.Metadata, User);
-
-            if (!canEdit)
-                return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
-
             await catalogContainer.UpdateMetadataAsync(metadata);
 
             return new object();
