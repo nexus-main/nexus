@@ -91,7 +91,7 @@ internal class CatalogContainer
     public async Task<IEnumerable<CatalogContainer>> GetChildCatalogContainersAsync(
         CancellationToken cancellationToken)
     {
-        await _semaphore.WaitAsync(cancellationToken);
+        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -109,7 +109,7 @@ internal class CatalogContainer
     // TODO: Use Lazy instead?
     public async Task<LazyCatalogInfo> GetLazyCatalogInfoAsync(CancellationToken cancellationToken)
     {
-        await _semaphore.WaitAsync(cancellationToken);
+        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -127,7 +127,7 @@ internal class CatalogContainer
 
     public async Task UpdateMetadataAsync(CatalogMetadata metadata)
     {
-        await _semaphore.WaitAsync();
+        await _semaphore.WaitAsync().ConfigureAwait(false);
 
         try
         {
