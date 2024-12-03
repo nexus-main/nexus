@@ -3,6 +3,7 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Nexus.Core;
 using Nexus.Core.V1;
@@ -481,22 +482,22 @@ internal class CatalogsController(
     /// <param name="metadata">The catalog metadata to set.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpPut("{catalogId}/metadata")]
-    public async Task<ActionResult<object>>
+    public async Task<ActionResult<object?>>
         SetMetadataAsync(
             string catalogId,
             [FromBody] CatalogMetadata metadata,
             CancellationToken cancellationToken)
     {
         if (metadata.Overrides?.Id != catalogId)
-            return (ActionResult<object>)UnprocessableEntity("The catalog ID does not match the ID of the catalog to update.");
+            return UnprocessableEntity("The catalog ID does not match the ID of the catalog to update.");
 
         catalogId = WebUtility.UrlDecode(catalogId);
 
-        var response = await ProtectCatalogAsync<object>(catalogId, ensureReadable: false, ensureWritable: true, async catalogContainer =>
+        var response = await ProtectCatalogAsync<object?>(catalogId, ensureReadable: false, ensureWritable: true, async catalogContainer =>
         {
             await catalogContainer.UpdateMetadataAsync(metadata);
 
-            return new object();
+            return default!;
 
         }, cancellationToken);
 

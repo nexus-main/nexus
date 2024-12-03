@@ -288,7 +288,7 @@ class CatalogsClient:
 
         return self.___invoke(CatalogMetadata, "GET", __url, "application/json", None, None)
 
-    def set_metadata(self, catalog_id: str, metadata: CatalogMetadata) -> None:
+    def set_metadata(self, catalog_id: str, metadata: CatalogMetadata) -> Response:
         """
         Puts the catalog metadata.
 
@@ -299,7 +299,7 @@ class CatalogsClient:
         __url = "/api/v1/catalogs/{catalogId}/metadata"
         __url = __url.replace("{catalogId}", quote(str(catalog_id), safe=""))
 
-        return self.___invoke(type(None), "PUT", __url, None, "application/json", json.dumps(JsonEncoder.encode(metadata, _json_encoder_options)))
+        return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(metadata, _json_encoder_options)))
 
 
 class DataClient:
@@ -1136,7 +1136,7 @@ class CatalogsAsyncClient:
 
         return self.___invoke(CatalogMetadata, "GET", __url, "application/json", None, None)
 
-    def set_metadata(self, catalog_id: str, metadata: CatalogMetadata) -> Awaitable[None]:
+    def set_metadata(self, catalog_id: str, metadata: CatalogMetadata) -> Awaitable[Response]:
         """
         Puts the catalog metadata.
 
@@ -1147,7 +1147,7 @@ class CatalogsAsyncClient:
         __url = "/api/v1/catalogs/{catalogId}/metadata"
         __url = __url.replace("{catalogId}", quote(str(catalog_id), safe=""))
 
-        return self.___invoke(type(None), "PUT", __url, None, "application/json", json.dumps(JsonEncoder.encode(metadata, _json_encoder_options)))
+        return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(metadata, _json_encoder_options)))
 
 
 class DataAsyncClient:

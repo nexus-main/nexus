@@ -11,6 +11,7 @@ namespace Nexus.UI.Charts;
 public partial class AvailabilityChart
 {
     private const float LINE_HEIGHT = 7.0f;
+
     private const float HALF_LINE_HEIGHT = LINE_HEIGHT / 2;
 
     [Inject]
@@ -43,27 +44,37 @@ public partial class AvailabilityChart
             Color = new SKColor(249, 115, 22, 0x19)
         };
 
+        using var axisTitleFont = new SKFont
+        {
+            Size = 17
+        };
+
         using var axisTitlePaint = new SKPaint
         {
-            TextSize = 17,
             IsAntialias = true,
-            Color = new SKColor(0x55, 0x55, 0x55),
-            TextAlign = SKTextAlign.Center
+            Color = new SKColor(0x55, 0x55, 0x55)
+        };
+
+        using var axisLabelFont = new SKFont
+        {
+            Typeface = TypeFaceService.GetTTF("Courier New Bold")
         };
 
         using var axisLabelPaint = new SKPaint
         {
             IsAntialias = true,
-            Typeface = TypeFaceService.GetTTF("Courier New Bold"),
             Color = new SKColor(0x55, 0x55, 0x55)
+        };
+
+        using var axisLabelCenteredFont = new SKFont
+        {
+            Typeface = TypeFaceService.GetTTF("Courier New Bold")
         };
 
         using var axisLabelCenteredPaint = new SKPaint
         {
             IsAntialias = true,
-            Typeface = TypeFaceService.GetTTF("Courier New Bold"),
-            Color = new SKColor(0x55, 0x55, 0x55),
-            TextAlign = SKTextAlign.Center
+            Color = new SKColor(0x55, 0x55, 0x55)
         };
 
         using var axisTickPaint = new SKPaint
@@ -79,12 +90,19 @@ public partial class AvailabilityChart
         using (var canvasRestore = new SKAutoCanvasRestore(canvas))
         {
             canvas.RotateDegrees(270, xMin, yMin + yRange / 2);
-            canvas.DrawText("Availability / %", new SKPoint(xMin, yMin + yRange / 2), axisTitlePaint);
+
+            canvas.DrawText(
+                "Availability / %",
+                new SKPoint(xMin, yMin + yRange / 2),
+                SKTextAlign.Center,
+                axisTitleFont,
+                axisTitlePaint
+            );
         }
 
         xMin += 10;
 
-        var widthPerCharacter = axisLabelPaint.MeasureText(" ");
+        var widthPerCharacter = axisLabelFont.MeasureText(" ");
         var desiredYLabelCount = 11;
         var maxYLabelCount = yRange / 50;
         var ySkip = (int)(desiredYLabelCount / (float)maxYLabelCount) + 1;
@@ -98,7 +116,7 @@ public partial class AvailabilityChart
                 var label = $"{(int)(relative * 100),3:D0}";
                 var lineOffset = widthPerCharacter * 3;
 
-                canvas.DrawText(label, new SKPoint(xMin, y + HALF_LINE_HEIGHT), axisLabelPaint);
+                canvas.DrawText(label, new SKPoint(xMin, y + HALF_LINE_HEIGHT), axisLabelFont, axisLabelPaint);
                 canvas.DrawLine(new SKPoint(xMin + lineOffset, y), new SKPoint(xMax, y), axisTickPaint);
             }
         }
@@ -137,10 +155,27 @@ public partial class AvailabilityChart
             if ((i + xSkip) % xSkip == 0)
             {
                 var currentBegin = AvailabilityData.Begin.AddDays(i);
-                canvas.DrawText(currentBegin.ToString("dd.MM"), xMin + (i + 0.5f) * valueWidth, yMax - 20, axisLabelCenteredPaint);
+
+                canvas.DrawText(
+                    currentBegin.ToString("dd.MM"),
+                    xMin + (i + 0.5f) * valueWidth,
+                    yMax - 20,
+                    SKTextAlign.Center,
+                    axisLabelCenteredFont,
+                    axisLabelCenteredPaint
+                );
 
                 if (lastBegin.Year != currentBegin.Year)
-                    canvas.DrawText(currentBegin.ToString("yyyy"), xMin + (i + 0.5f) * valueWidth, yMax, axisLabelCenteredPaint);
+                {
+                    canvas.DrawText(
+                        currentBegin.ToString("yyyy"),
+                        xMin + (i + 0.5f) * valueWidth,
+                        yMax,
+                        SKTextAlign.Center,
+                        axisLabelCenteredFont,
+                        axisLabelCenteredPaint
+                    );
+                }
 
                 lastBegin = currentBegin;
             }
