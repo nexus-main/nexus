@@ -248,12 +248,12 @@ We hope you enjoy it!
         throw new NotImplementedException();
     }
 
-    public void SetMetadata(string catalogId, CatalogMetadata metadata)
+    public HttpResponseMessage SetMetadata(string catalogId, CatalogMetadata metadata)
     {
         throw new NotImplementedException();
     }
 
-    public Task SetMetadataAsync(string catalogId, CatalogMetadata metadata, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> SetMetadataAsync(string catalogId, CatalogMetadata metadata, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }
