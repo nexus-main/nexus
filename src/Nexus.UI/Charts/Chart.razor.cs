@@ -142,7 +142,8 @@ public partial class Chart : IDisposable
                     .GroupBy(lineSeries => lineSeries.Unit)
                     .ToDictionary(group => GetAxisInfo(group.Key, group), group => group.ToArray());
 
-                _skiaView.Invalidate();
+                if (OperatingSystem.IsBrowser())
+                    _skiaView.Invalidate();
             });
         }
     }
@@ -189,7 +190,9 @@ public partial class Chart : IDisposable
             zoomBox.Height > 0)
         {
             ApplyZoom(zoomBox);
-            _skiaView.Invalidate();
+
+            if (OperatingSystem.IsBrowser())
+                _skiaView.Invalidate();
         }
     }
 
@@ -218,7 +221,8 @@ public partial class Chart : IDisposable
         var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
         DrawAuxiliary(relativePosition);
 
-        _skiaView.Invalidate();
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
     }
 
     private void OnWheel(WheelEventArgs e)
@@ -250,13 +254,16 @@ public partial class Chart : IDisposable
         ApplyZoom(zoomBox);
         DrawAuxiliary(relativePosition);
 
-        _skiaView.Invalidate();
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
     }
 
     private void ToggleSeriesEnabled(LineSeries series)
     {
         series.Show = !series.Show;
-        _skiaView.Invalidate();
+
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
     }
 
     #region Draw
@@ -546,9 +553,13 @@ public partial class Chart : IDisposable
 
     private float DrawYAxes(SKCanvas canvas, float xMin, float yMin, float yMax, Dictionary<AxisInfo, LineSeries[]> axesMap)
     {
+        using var axisLabelFont = new SKFont
+        {
+            Typeface = TypeFaceService.GetTTF("Courier New Bold")
+        };
+
         using var axisLabelPaint = new SKPaint
         {
-            Typeface = TypeFaceService.GetTTF("Courier New Bold"),
             IsAntialias = true,
             Color = new SKColor(0x55, 0x55, 0x55)
         };
@@ -562,7 +573,7 @@ public partial class Chart : IDisposable
         var currentOffset = xMin;
         var canvasRange = yMax - yMin;
         var maxTickCount = Math.Max(1, (int)Math.Round(canvasRange / 50, MidpointRounding.AwayFromZero));
-        var widthPerCharacter = axisLabelPaint.MeasureText(" ");
+        var widthPerCharacter = axisLabelFont.MeasureText(" ");
 
         foreach (var axesEntry in axesMap)
         {
@@ -593,7 +604,7 @@ public partial class Chart : IDisposable
                 var localUnitOffset = maxChars - axisInfo.Unit.Length;
                 var xUnit = currentOffset + localUnitOffset * widthPerCharacter;
                 var yUnit = yMin;
-                canvas.DrawText(axisInfo.Unit, new SKPoint(xUnit, yUnit), axisLabelPaint);
+                canvas.DrawText(axisInfo.Unit, new SKPoint(xUnit, yUnit), axisLabelFont, axisLabelPaint);
 
                 /* draw labels and ticks */
                 for (int i = 0; i < ticks.Length; i++)
@@ -608,7 +619,7 @@ public partial class Chart : IDisposable
                         var x = currentOffset + localLabelOffset * widthPerCharacter;
                         var y = yMax - (tick - axisInfo.Min) * scaleFactor;
 
-                        canvas.DrawText(label, new SKPoint(x, y + HALF_LINE_HEIGHT), axisLabelPaint);
+                        canvas.DrawText(label, new SKPoint(x, y + HALF_LINE_HEIGHT), axisLabelFont, axisLabelPaint);
 
                         var tickX = currentOffset + textWidth + TICK_MARGIN_LEFT;
                         canvas.DrawLine(tickX, y, tickX + TICK_SIZE, y, axisTickPaint);
@@ -710,10 +721,13 @@ public partial class Chart : IDisposable
 
     private void DrawTimeAxis(SKCanvas canvas, float xMin, float yMin, float xMax, float yMax, DateTime begin, DateTime end)
     {
+        using var axisLabelFont = new SKFont
+        {
+            Typeface = TypeFaceService.GetTTF("Courier New Bold")
+        };
+
         using var axisLabelPaint = new SKPaint
         {
-            Typeface = TypeFaceService.GetTTF("Courier New Bold"),
-            TextAlign = SKTextAlign.Center,
             IsAntialias = true,
             Color = new SKColor(0x55, 0x55, 0x55)
         };
@@ -727,6 +741,7 @@ public partial class Chart : IDisposable
         var canvasRange = xMax - xMin;
         var maxTickCount = Math.Max(1, (int)Math.Round(canvasRange / 130, MidpointRounding.AwayFromZero));
         var (config, ticks) = GetTimeTicks(begin, end, maxTickCount);
+
         _timeAxisConfig = config;
 
         var timeRange = (end - begin).Ticks;
@@ -741,7 +756,14 @@ public partial class Chart : IDisposable
 
             /* fast tick */
             var tickLabel = tick.ToString(config.FastTickLabelFormat);
-            canvas.DrawText(tickLabel, x, yMax + TICK_SIZE + TIME_AXIS_MARGIN_TOP, axisLabelPaint);
+
+            canvas.DrawText(
+                tickLabel,
+                x, yMax + TICK_SIZE + TIME_AXIS_MARGIN_TOP,
+                SKTextAlign.Center,
+                axisLabelFont,
+                axisLabelPaint
+            );
 
             /* slow tick */
             var addSlowTick = IsSlowTickRequired(previousTick, tick, config.SlowTickTrigger);
@@ -751,13 +773,29 @@ public partial class Chart : IDisposable
                 if (config.SlowTickLabelFormat1 is not null)
                 {
                     var slowTickLabel1 = tick.ToString(config.SlowTickLabelFormat1);
-                    canvas.DrawText(slowTickLabel1, x, yMax + TICK_SIZE + TIME_AXIS_MARGIN_TOP + TIME_FAST_LABEL_OFFSET, axisLabelPaint);
+
+                    canvas.DrawText(
+                        slowTickLabel1,
+                        x,
+                        yMax + TICK_SIZE + TIME_AXIS_MARGIN_TOP + TIME_FAST_LABEL_OFFSET,
+                        SKTextAlign.Center,
+                        axisLabelFont,
+                        axisLabelPaint
+                    );
                 }
 
                 if (config.SlowTickLabelFormat2 is not null)
                 {
                     var slowTickLabel2 = tick.ToString(config.SlowTickLabelFormat2);
-                    canvas.DrawText(slowTickLabel2, x, yMax + TICK_SIZE + TIME_AXIS_MARGIN_TOP + TIME_FAST_LABEL_OFFSET * 2, axisLabelPaint);
+
+                    canvas.DrawText(
+                        slowTickLabel2,
+                        x,
+                        yMax + TICK_SIZE + TIME_AXIS_MARGIN_TOP + TIME_FAST_LABEL_OFFSET * 2,
+                        SKTextAlign.Center,
+                        axisLabelFont,
+                        axisLabelPaint
+                    );
                 }
             }
 
