@@ -9,6 +9,7 @@ internal static class CatalogContainerExtensions
 {
     public static async Task<CatalogItemRequest?> TryFindAsync(
         this CatalogContainer parent,
+        CatalogContainer root,
         string resourcePath,
         CancellationToken cancellationToken)
     {
@@ -16,7 +17,7 @@ internal static class CatalogContainerExtensions
             throw new Exception("The resource path is malformed.");
 
         // find catalog
-        var catalogContainer = await parent.TryFindCatalogContainerAsync(parseResult.CatalogId, cancellationToken);
+        var catalogContainer = await parent.TryFindCatalogContainerAsync(root, parseResult.CatalogId, cancellationToken);
 
         if (catalogContainer is null)
             return default;
@@ -54,25 +55,46 @@ internal static class CatalogContainerExtensions
 
     public static async Task<CatalogContainer?> TryFindCatalogContainerAsync(
         this CatalogContainer parent,
+        CatalogContainer root,
         string catalogId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int recursionCounter = 0)
     {
         var childCatalogContainers = await parent.GetChildCatalogContainersAsync(cancellationToken);
-        var catalogIdWithTrailingSlash = catalogId + "/"; /* the slashes are important to correctly find /A/D/E2 in the tests */
+        var catalogIdWithTrailingSlash = catalogId + "/"; /* The slashes are important to correctly find /A/D/E2 in the tests */
 
         var catalogContainer = childCatalogContainers
             .FirstOrDefault(current => catalogIdWithTrailingSlash.StartsWith(current.Id + "/"));
 
-        /* nothing found */
+        /* Nothing found */
         if (catalogContainer is null)
             return default;
 
-        /* catalogContainer is searched one */
+        /* CatalogContainer is the searched one */
         else if (catalogContainer.Id == catalogId)
-            return catalogContainer;
+        {
+            if (catalogContainer.LinkTarget is null)
+            {
+                return catalogContainer;
+            }
 
-        /* catalogContainer is (grand)-parent of searched one */
+            /* It is a soft link */
+            else
+            {
+                if (recursionCounter >= 10)
+                    return null;
+
+                return await root.TryFindCatalogContainerAsync(
+                    root,
+                    catalogContainer.LinkTarget,
+                    cancellationToken,
+                    ++recursionCounter
+                );
+            }
+        }
+
+        /* CatalogContainer is (grand)-parent of the searched one */
         else
-            return await catalogContainer.TryFindCatalogContainerAsync(catalogId, cancellationToken);
+            return await catalogContainer.TryFindCatalogContainerAsync(root, catalogId, cancellationToken);
     }
 }

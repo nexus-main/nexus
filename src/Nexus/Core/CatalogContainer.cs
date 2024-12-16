@@ -41,6 +41,7 @@ internal class CatalogContainer
         Id = catalogRegistration.Path;
         Title = catalogRegistration.Title;
         IsTransient = catalogRegistration.IsTransient;
+        LinkTarget = catalogRegistration.LinkTarget;
         Owner = owner;
         PipelineId = pipelineId;
         Pipeline = pipeline;
@@ -60,6 +61,8 @@ internal class CatalogContainer
     public string? Title { get; }
 
     public bool IsTransient { get; }
+
+    public string? LinkTarget { get; }
 
     public ClaimsPrincipal? Owner { get; }
 

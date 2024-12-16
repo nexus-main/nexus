@@ -164,7 +164,9 @@ internal class JobsController(
         {
             catalogItemRequests = await Task.WhenAll(parameters.ResourcePaths.Select(async resourcePath =>
             {
-                var catalogItemRequest = await root.TryFindAsync(resourcePath, cancellationToken) ?? throw new ValidationException($"Could not find resource path {resourcePath}.");
+                var catalogItemRequest = await root.TryFindAsync(root, resourcePath, cancellationToken)
+                    ?? throw new ValidationException($"Could not find resource path {resourcePath}.");
+
                 return catalogItemRequest;
             }));
         }
@@ -304,7 +306,7 @@ internal class JobsController(
         CancellationToken cancellationToken)
     {
         var root = _appStateManager.AppState.CatalogState.Root;
-        var catalogContainer = await root.TryFindCatalogContainerAsync(catalogId, cancellationToken);
+        var catalogContainer = await root.TryFindCatalogContainerAsync(root, catalogId, cancellationToken);
 
         if (catalogContainer is not null)
         {

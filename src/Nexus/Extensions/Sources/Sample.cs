@@ -108,6 +108,8 @@ internal class Sample : IDataSource
                 {
                     new(LocalCatalogId, LocalCatalogTitle),
                     new(RemoteCatalogId, RemoteCatalogTitle),
+                    new("/HEY/HIER/BIN/ICH", "My title", LinkTarget: "/SAMPLE/LOCAL"),
+                    new("/HEY/HIER/BIN/ICH2", "My title", LinkTarget: "/SAMPLE/LOCAL")
                 });
 
         else

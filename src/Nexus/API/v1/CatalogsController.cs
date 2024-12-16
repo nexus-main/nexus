@@ -56,10 +56,9 @@ internal class CatalogsController(
     /// <param name="resourcePaths">The list of resource paths.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpPost("search-items")]
-    public async Task<ActionResult<Dictionary<string, CatalogItem>>>
-        SearchCatalogItemsAsync(
-            [FromBody] string[] resourcePaths,
-            CancellationToken cancellationToken)
+    public async Task<ActionResult<Dictionary<string, CatalogItem>>> SearchCatalogItemsAsync(
+        [FromBody] string[] resourcePaths,
+        CancellationToken cancellationToken)
     {
         var root = _appState.CatalogState.Root;
 
@@ -70,8 +69,7 @@ internal class CatalogsController(
         {
             resourcePathAndRequests = await Task.WhenAll(resourcePaths.Distinct().Select(async resourcePath =>
             {
-                var catalogItemRequest = await root
-                    .TryFindAsync(resourcePath, cancellationToken)
+                var catalogItemRequest = await root.TryFindAsync(root, resourcePath, cancellationToken)
                     ?? throw new ValidationException($"Could not find resource path {resourcePath}.");
 
                 return (resourcePath, catalogItemRequest);
@@ -110,10 +108,9 @@ internal class CatalogsController(
     /// <param name="catalogId">The catalog identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}")]
-    public Task<ActionResult<ResourceCatalog>>
-        GetAsync(
-            string catalogId,
-            CancellationToken cancellationToken)
+    public Task<ActionResult<ResourceCatalog>> GetAsync(
+        string catalogId,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
@@ -134,8 +131,7 @@ internal class CatalogsController(
     /// <param name="catalogId">The parent catalog identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}/child-catalog-infos")]
-    public async Task<ActionResult<CatalogInfo[]>>
-        GetChildCatalogInfosAsync(
+    public async Task<ActionResult<CatalogInfo[]>> GetChildCatalogInfosAsync(
         string catalogId,
         CancellationToken cancellationToken)
     {
@@ -215,10 +211,9 @@ internal class CatalogsController(
     /// <param name="catalogId">The catalog identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}/timerange")]
-    public Task<ActionResult<CatalogTimeRange>>
-        GetTimeRangeAsync(
-            string catalogId,
-            CancellationToken cancellationToken)
+    public Task<ActionResult<CatalogTimeRange>> GetTimeRangeAsync(
+        string catalogId,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
@@ -240,13 +235,12 @@ internal class CatalogsController(
     /// <param name="step">Step period.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}/availability")]
-    public async Task<ActionResult<CatalogAvailability>>
-        GetAvailabilityAsync(
-            string catalogId,
-            [BindRequired] DateTime begin,
-            [BindRequired] DateTime end,
-            [BindRequired] TimeSpan step,
-            CancellationToken cancellationToken)
+    public async Task<ActionResult<CatalogAvailability>> GetAvailabilityAsync(
+        string catalogId,
+        [BindRequired] DateTime begin,
+        [BindRequired] DateTime end,
+        [BindRequired] TimeSpan step,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
         begin = begin.ToUniversalTime();
@@ -277,10 +271,9 @@ internal class CatalogsController(
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}/license")]
     [return: CanBeNull]
-    public async Task<ActionResult<string?>>
-        GetLicenseAsync(
-            string catalogId,
-            CancellationToken cancellationToken)
+    public async Task<ActionResult<string?>> GetLicenseAsync(
+        string catalogId,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
@@ -312,10 +305,9 @@ internal class CatalogsController(
     /// <param name="catalogId">The catalog identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}/attachments")]
-    public Task<ActionResult<string[]>>
-        GetAttachmentsAsync(
-            string catalogId,
-            CancellationToken cancellationToken)
+    public Task<ActionResult<string[]>> GetAttachmentsAsync(
+        string catalogId,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
@@ -336,12 +328,11 @@ internal class CatalogsController(
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpPut("{catalogId}/attachments/{attachmentId}")]
     [DisableRequestSizeLimit]
-    public Task<ActionResult>
-        UploadAttachmentAsync(
-            string catalogId,
-            string attachmentId,
-            [FromBody] Stream content,
-            CancellationToken cancellationToken)
+    public Task<ActionResult> UploadAttachmentAsync(
+        string catalogId,
+        string attachmentId,
+        [FromBody] Stream content,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
         attachmentId = WebUtility.UrlDecode(attachmentId);
@@ -385,11 +376,10 @@ internal class CatalogsController(
     /// <param name="attachmentId">The attachment identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpDelete("{catalogId}/attachments/{attachmentId}")]
-    public Task<ActionResult>
-        DeleteAttachmentAsync(
-            string catalogId,
-            string attachmentId,
-            CancellationToken cancellationToken)
+    public Task<ActionResult> DeleteAttachmentAsync(
+        string catalogId,
+        string attachmentId,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
         attachmentId = WebUtility.UrlDecode(attachmentId);
@@ -399,8 +389,8 @@ internal class CatalogsController(
             try
             {
                 _databaseService.DeleteAttachment(catalogId, attachmentId);
-                return Task.FromResult<ActionResult>(
-                    Ok());
+
+                return Task.FromResult<ActionResult>(Ok());
             }
             catch (IOException ex)
             {
@@ -419,11 +409,10 @@ internal class CatalogsController(
     /// <param name="attachmentId">The attachment identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}/attachments/{attachmentId}/content")]
-    public Task<ActionResult>
-        GetAttachmentStreamAsync(
-            string catalogId,
-            string attachmentId,
-            CancellationToken cancellationToken)
+    public Task<ActionResult> GetAttachmentStreamAsync(
+        string catalogId,
+        string attachmentId,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
         attachmentId = WebUtility.UrlDecode(attachmentId);
@@ -460,10 +449,9 @@ internal class CatalogsController(
     /// <param name="catalogId">The catalog identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}/metadata")]
-    public Task<ActionResult<CatalogMetadata>>
-        GetMetadataAsync(
-            string catalogId,
-            CancellationToken cancellationToken)
+    public Task<ActionResult<CatalogMetadata>> GetMetadataAsync(
+        string catalogId,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
@@ -482,23 +470,20 @@ internal class CatalogsController(
     /// <param name="metadata">The catalog metadata to set.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpPut("{catalogId}/metadata")]
-    public async Task<ActionResult<object?>>
-        SetMetadataAsync(
-            string catalogId,
-            [FromBody] CatalogMetadata metadata,
-            CancellationToken cancellationToken)
+    public async Task<ActionResult> SetMetadataAsync(
+        string catalogId,
+        [FromBody] CatalogMetadata metadata,
+        CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
         if (metadata.Overrides?.Id != catalogId)
             return UnprocessableEntity("The catalog ID does not match the ID of the catalog to update.");
 
-        var response = await ProtectCatalogAsync<object?>(catalogId, ensureReadable: false, ensureWritable: true, async catalogContainer =>
+        var response = await ProtectCatalogNonGenericAsync(catalogId, ensureReadable: false, ensureWritable: true, async catalogContainer =>
         {
             await catalogContainer.UpdateMetadataAsync(metadata);
-
-            return default!;
-
+            return Ok();
         }, cancellationToken);
 
         return response;
@@ -511,11 +496,12 @@ internal class CatalogsController(
         Func<CatalogContainer, Task<ActionResult<T>>> action,
         CancellationToken cancellationToken)
     {
+        /* KEEP IN SYNC WITH ProtectCatalogNonGenericAsync! */
         var root = _appState.CatalogState.Root;
 
         var catalogContainer = catalogId == CatalogContainer.RootCatalogId
             ? root
-            : await root.TryFindCatalogContainerAsync(catalogId, cancellationToken);
+            : await root.TryFindCatalogContainerAsync(root, catalogId, cancellationToken);
 
         if (catalogContainer is not null)
         {
@@ -550,16 +536,30 @@ internal class CatalogsController(
         Func<CatalogContainer, Task<ActionResult>> action,
         CancellationToken cancellationToken)
     {
+        /* KEEP IN SYNC WITH ProtectCatalogAsync! */
         var root = _appState.CatalogState.Root;
-        var catalogContainer = await root.TryFindCatalogContainerAsync(catalogId, cancellationToken);
+
+        var catalogContainer = catalogId == CatalogContainer.RootCatalogId
+            ? root
+            : await root.TryFindCatalogContainerAsync(root, catalogId, cancellationToken);
 
         if (catalogContainer is not null)
         {
-            if (ensureReadable && !AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
-                return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to read the catalog {catalogId}.");
+            if (ensureReadable && !AuthUtilities.IsCatalogReadable(
+                catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    $"The current user is not permitted to read the catalog {catalogId}.");
+            }
 
-            if (ensureWritable && !AuthUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
-                return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
+            if (ensureWritable && !AuthUtilities.IsCatalogWritable(
+                catalogContainer.Id, catalogContainer.Metadata, User))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    $"The current user is not permitted to modify the catalog {catalogId}.");
+            }
 
             return await action.Invoke(catalogContainer);
         }

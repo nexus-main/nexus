@@ -70,7 +70,10 @@ internal class DataService(
 
         // find representation
         var root = _appState.CatalogState.Root;
-        var catalogItemRequest = await root.TryFindAsync(resourcePath, cancellationToken) ?? throw new Exception($"Could not find resource path {resourcePath}.");
+
+        var catalogItemRequest = await root.TryFindAsync(root, resourcePath, cancellationToken)
+            ?? throw new Exception($"Could not find resource path {resourcePath}.");
+
         var catalogContainer = catalogItemRequest.Container;
 
         // security check

@@ -59,10 +59,10 @@ public class CatalogContainersExtensionsTests
         var root = CatalogContainer.CreateRoot(catalogManager, default!);
 
         // act
-        var catalogContainerA = await root.TryFindCatalogContainerAsync("/A/B/C", CancellationToken.None);
-        var catalogContainerB = await root.TryFindCatalogContainerAsync("/A/D/E", CancellationToken.None);
-        var catalogContainerB2 = await root.TryFindCatalogContainerAsync("/A/D/E2", CancellationToken.None);
-        var catalogContainerC = await root.TryFindCatalogContainerAsync("/A/F/G", CancellationToken.None);
+        var catalogContainerA = await root.TryFindCatalogContainerAsync(root, "/A/B/C", CancellationToken.None);
+        var catalogContainerB = await root.TryFindCatalogContainerAsync(root, "/A/D/E", CancellationToken.None);
+        var catalogContainerB2 = await root.TryFindCatalogContainerAsync(root, "/A/D/E2", CancellationToken.None);
+        var catalogContainerC = await root.TryFindCatalogContainerAsync(root, "/A/F/G", CancellationToken.None);
 
         // assert
         Assert.NotNull(catalogContainerA);
@@ -136,12 +136,12 @@ public class CatalogContainersExtensionsTests
         var root = CatalogContainer.CreateRoot(catalogManager, default!);
 
         // act
-        var request1 = await root.TryFindAsync("/A/B/C/T1/1_ms", CancellationToken.None);
-        var request2 = await root.TryFindAsync("/A/B/C/T1/10_ms", CancellationToken.None);
-        var request3 = await root.TryFindAsync("/A/B/C/T1/100_ms", CancellationToken.None);
-        var request4 = await root.TryFindAsync("/A/B/C/T1/1_s_mean_polar_deg", CancellationToken.None);
-        var request5 = await root.TryFindAsync("/A/B/C/T1/1_s_min_bitwise#base=1_ms", CancellationToken.None);
-        var request6 = await root.TryFindAsync("/A/B/C/T1/1_s_max_bitwise#base=100_ms", CancellationToken.None);
+        var request1 = await root.TryFindAsync(root, "/A/B/C/T1/1_ms", CancellationToken.None);
+        var request2 = await root.TryFindAsync(root, "/A/B/C/T1/10_ms", CancellationToken.None);
+        var request3 = await root.TryFindAsync(root, "/A/B/C/T1/100_ms", CancellationToken.None);
+        var request4 = await root.TryFindAsync(root, "/A/B/C/T1/1_s_mean_polar_deg", CancellationToken.None);
+        var request5 = await root.TryFindAsync(root, "/A/B/C/T1/1_s_min_bitwise#base=1_ms", CancellationToken.None);
+        var request6 = await root.TryFindAsync(root, "/A/B/C/T1/1_s_max_bitwise#base=100_ms", CancellationToken.None);
 
         // assert
         Assert.NotNull(request1);
