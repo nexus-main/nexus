@@ -11,3 +11,5 @@ Please check out the [Live Demo](https://nexus-main.github.io/nexus/) to get a f
 > Note: Documentation follows soon. In the meantime, if you are interested in how to setup Nexus and it's data sources, please open a new issue describing your use case.
  
 ![Nexus Demo](doc/images/demo.png)
+
+:sparkles: Supported by code contributions from Fraunhofer IWES
