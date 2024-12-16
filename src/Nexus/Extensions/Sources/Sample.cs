@@ -219,36 +219,40 @@ internal class Sample : IDataSource
     internal static ResourceCatalog LoadCatalog(
         string catalogId)
     {
-        var resourceBuilderA = new ResourceBuilder(id: "T1")
+        var resourceA = new ResourceBuilder(id: "T1")
             .WithUnit("°C")
             .WithDescription("Test Resource A")
             .WithGroups("Group 1")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)));
+            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .Build();
 
-        var resourceBuilderB = new ResourceBuilder(id: "V1")
+        var resourceB = new ResourceBuilder(id: "V1")
             .WithUnit("m/s")
             .WithDescription("Test Resource B")
             .WithGroups("Group 1")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)));
+            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .Build();
 
-        var resourceBuilderC = new ResourceBuilder(id: "unix_time1")
+        var resourceC = new ResourceBuilder(id: "unix_time1")
             .WithDescription("Test Resource C")
             .WithGroups("Group 2")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromMilliseconds(40)));
+            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromMilliseconds(40)))
+            .Build();
 
-        var resourceBuilderD = new ResourceBuilder(id: "unix_time2")
+        var resourceD = new ResourceBuilder(id: "unix_time2")
             .WithDescription("Test Resource D")
             .WithGroups("Group 2")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)));
+            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .Build();
 
         var catalogBuilder = new ResourceCatalogBuilder(catalogId);
 
         catalogBuilder.AddResources(new List<Resource>()
         {
-            resourceBuilderA.Build(),
-            resourceBuilderB.Build(),
-            resourceBuilderC.Build(),
-            resourceBuilderD.Build()
+            resourceA,
+            resourceB,
+            resourceC,
+            resourceD
         });
 
         if (catalogId == RemoteCatalogId)
