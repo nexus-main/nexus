@@ -17,9 +17,9 @@
         <div class="overflow-y-auto">
             @if (AppState.CatalogItemsMap is not null)
             {
-                @foreach (var entry in AppState.CatalogItemsMap) //String = GruppenName, Val = Gruppe selbst
+                @foreach (var entry in AppState.CatalogItemsMap)
                 {
-                    @if (entry.Value == AppState.CatalogItemsGroup) //AppState.CatalogItemsGroup aktuelle gewählte gruppe
+                    @if (entry.Value == AppState.CatalogItemsGroup)
                     {
                         <div class="flex justify-between items-end py-0.5 cursor-pointer">
                             <span class="font-bold text-orange-500">@entry.Key</span>
@@ -29,7 +29,7 @@
                     else
                     {
                         <div class="group flex justify-between items-end py-0.5 cursor-pointer"
-                            @onclick="() => SelectCatalogItemsGroupAsync(entry.Value)">
+                            @onclick="() => AppState.CatalogItemsGroup = entry.Value">
                             <span class="group-hover:text-cyan-500 font-bold text-cyan-700">@entry.Key</span>
                             <span class="text-sm text-gray-500">@entry.Value.Count</span>
                         </div>
@@ -54,7 +54,7 @@
                 RowStyleFunc="@RowStyleFunc"
                 RowContextMenuClick="@OpenGridContextMenu">
                 <Columns>
-                    <PropertyColumn Property="x => x.Resource.Id" Title="ID" IsEditable="false"/>
+                    <PropertyColumn Property="x => x.Resource.Id" Title="ID" Editable="false"/>
                     <PropertyColumn Property="x => Utilities.ToUnitString(x.Representation.SamplePeriod, false)" Title="Sample Period"/>
                     <PropertyColumn Property="x => x.Description" Title="Description" />
                     <PropertyColumn Property="x => x.Unit" Title="Unit"/>
@@ -157,7 +157,7 @@
 
     public ResourceView()
     {
-        _handler = async (sender, e) =>
+        _handler = (sender, e) =>
         {
             if (e.PropertyName == nameof(AppState.SearchString))
             {
@@ -190,17 +190,12 @@
     }
 
 
-    private async Task SelectCatalogItemsGroupAsync(List<CatalogItemViewModel> catalogItems)
-    {
-        AppState.CatalogItemsGroup = catalogItems;
-    }
-
     private void OpenPropertiesModal()
     {
         _isPropertiesViewDialogOpen = true;
     }
 
-    private void SetNewMetaDataValue(string resourceId, string newValue, string propertyKey)
+    private void SetNewMetaDataValue(string resourceId, string? newValue, string propertyKey)
     {
         if (AppState.EditModeCatalogMap.TryGetValue(AppState.SelectedCatalog!.Id, out var map))
         {
