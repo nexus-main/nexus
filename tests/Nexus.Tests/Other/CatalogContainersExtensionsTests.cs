@@ -16,55 +16,58 @@ public class CatalogContainersExtensionsTests
     [Fact]
     public async Task CanTryFindCatalogContainer()
     {
-        // arrange
+        // Arrange
         var catalogManager = Mock.Of<ICatalogManager>();
 
         Mock.Get(catalogManager)
             .Setup(catalogManager => catalogManager.GetCatalogContainersAsync(
                 It.IsAny<CatalogContainer>(),
                 It.IsAny<CancellationToken>()))
-            .Returns<CatalogContainer, CancellationToken>((container, token) =>
+            .Returns<CatalogContainer, CancellationToken>((parent, token) =>
             {
-                return Task.FromResult(container.Id switch
+                return Task.FromResult(parent.Id switch
                 {
                     "/" => new CatalogContainer[]
                     {
-                        new(new CatalogRegistration("/A", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A", default), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/SOFT/A", default, LinkTarget: "/A/B/C"), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/SOFT/B", default, LinkTarget: "/SOFT/A"), default, default, default!, default!, default!, catalogManager, default!, default!),
                     },
                     "/A" =>
                     [
-                        new CatalogContainer(new CatalogRegistration("/A/C", string.Empty), default, default, default!,  default!, default!, catalogManager, default!, default!),
-                        new CatalogContainer(new CatalogRegistration("/A/B", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new CatalogContainer(new CatalogRegistration("/A/D", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!)
+                        new (new CatalogRegistration("/A/C", default), default, default, default!,  default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/B", default), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/D", default), default, default, default!, default!, default!, catalogManager, default!, default!)
                     ],
                     "/A/B" =>
                     [
-                        new CatalogContainer(new CatalogRegistration("/A/B/D", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new CatalogContainer(new CatalogRegistration("/A/B/C", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!)
+                        new (new CatalogRegistration("/A/B/D", default), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/B/C", default), default, default, default!, default!, default!, catalogManager, default!, default!)
                     ],
                     "/A/D" =>
                     [
-                        new CatalogContainer(new CatalogRegistration("/A/D/F", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new CatalogContainer(new CatalogRegistration("/A/D/E", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new CatalogContainer(new CatalogRegistration("/A/D/E2", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!)
+                        new (new CatalogRegistration("/A/D/F", default), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/D/E", default), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/D/E2", default), default, default, default!, default!, default!, catalogManager, default!, default!)
                     ],
                     "/A/F" =>
                     [
-                        new CatalogContainer(new CatalogRegistration("/A/F/H", string.Empty), default, default, default!, default!, default!, catalogManager, default!, default!)
+                        new (new CatalogRegistration("/A/F/H", default), default, default, default!, default!, default!, catalogManager, default!, default!)
                     ],
-                    _ => throw new Exception($"Unsupported combination {container.Id}.")
+                    _ => throw new Exception($"Unsupported combination: {parent.Id}.")
                 });
             });
 
         var root = CatalogContainer.CreateRoot(catalogManager, default!);
 
-        // act
+        // Act
         var catalogContainerA = await root.TryFindCatalogContainerAsync(root, "/A/B/C", CancellationToken.None);
         var catalogContainerB = await root.TryFindCatalogContainerAsync(root, "/A/D/E", CancellationToken.None);
         var catalogContainerB2 = await root.TryFindCatalogContainerAsync(root, "/A/D/E2", CancellationToken.None);
         var catalogContainerC = await root.TryFindCatalogContainerAsync(root, "/A/F/G", CancellationToken.None);
+        var catalogContainerSoft = await root.TryFindCatalogContainerAsync(root, "/SOFT/B", CancellationToken.None);
 
-        // assert
+        // Assert
         Assert.NotNull(catalogContainerA);
         Assert.Equal("/A/B/C", catalogContainerA?.Id);
 
@@ -75,12 +78,15 @@ public class CatalogContainersExtensionsTests
         Assert.Equal("/A/D/E2", catalogContainerB2?.Id);
 
         Assert.Null(catalogContainerC);
+
+        Assert.NotNull(catalogContainerSoft);
+        Assert.Equal("/A/B/C", catalogContainerSoft?.Id);
     }
 
     [Fact]
     public async Task CanTryFind()
     {
-        // arrange
+        // Arrange
         var representation1 = new Representation(NexusDataType.FLOAT64, TimeSpan.FromMilliseconds(1));
         var representation2 = new Representation(NexusDataType.FLOAT64, TimeSpan.FromMilliseconds(100));
 
@@ -127,7 +133,7 @@ public class CatalogContainersExtensionsTests
                 {
                     "/" => new CatalogContainer[]
                     {
-                        new(new CatalogRegistration("/A/B/C", string.Empty), default, default, default!, default!, default!, default!, default!, dataControllerService),
+                        new (new CatalogRegistration("/A/B/C", default), default, default, default!, default!, default!, default!, default!, dataControllerService),
                     },
                     _ => throw new Exception("Unsupported combination.")
                 });
@@ -135,7 +141,7 @@ public class CatalogContainersExtensionsTests
 
         var root = CatalogContainer.CreateRoot(catalogManager, default!);
 
-        // act
+        // Act
         var request1 = await root.TryFindAsync(root, "/A/B/C/T1/1_ms", CancellationToken.None);
         var request2 = await root.TryFindAsync(root, "/A/B/C/T1/10_ms", CancellationToken.None);
         var request3 = await root.TryFindAsync(root, "/A/B/C/T1/100_ms", CancellationToken.None);
@@ -143,7 +149,7 @@ public class CatalogContainersExtensionsTests
         var request5 = await root.TryFindAsync(root, "/A/B/C/T1/1_s_min_bitwise#base=1_ms", CancellationToken.None);
         var request6 = await root.TryFindAsync(root, "/A/B/C/T1/1_s_max_bitwise#base=100_ms", CancellationToken.None);
 
-        // assert
+        // Assert
         Assert.NotNull(request1);
         Assert.Null(request2);
         Assert.NotNull(request3);

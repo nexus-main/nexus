@@ -104,16 +104,18 @@ internal class Sample : IDataSource
         CancellationToken cancellationToken)
     {
         if (path == "/")
+        {
             return Task.FromResult(new CatalogRegistration[]
-                {
-                    new(LocalCatalogId, LocalCatalogTitle),
-                    new(RemoteCatalogId, RemoteCatalogTitle),
-                    new("/HEY/HIER/BIN/ICH", "My title", LinkTarget: "/SAMPLE/LOCAL"),
-                    new("/HEY/HIER/BIN/ICH2", "My title", LinkTarget: "/SAMPLE/LOCAL")
-                });
+            {
+                new(LocalCatalogId, LocalCatalogTitle),
+                new(RemoteCatalogId, RemoteCatalogTitle)
+            });
+        }
 
         else
+        {
             return Task.FromResult(Array.Empty<CatalogRegistration>());
+        }
     }
 
     public Task<ResourceCatalog> EnrichCatalogAsync(
