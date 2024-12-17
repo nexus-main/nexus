@@ -1,4 +1,4 @@
-## v2.0.0-beta.31 - 2024-10-30
+## v2.0.0-beta.32 - 2024-10-30
 - Switch to .NET 9
 - Add support catalog soft links
 - UI improvement: Use Mudblazor's data grid to show catalog resources.
