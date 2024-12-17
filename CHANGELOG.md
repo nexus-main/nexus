@@ -1,4 +1,10 @@
 ## v2.0.0-beta.31 - 2024-10-30
+- Switch to .NET 9
+- Add support catalog soft links
+- UI improvement: Use Mudblazor's data grid to show catalog resources.
+- Make "local" package references compile the source code (like "git-tag")
+
+## v2.0.0-beta.31 - 2024-10-30
 - Add support for chained data sources (= pipelines)
 
 ## v2.0.0-beta.30 - 2024-03-28
