@@ -258,11 +258,11 @@ public static partial class DataModelExtensions
                         ? []
                         : resourceProperties!.ToDictionary(entry => entry.Key, entry => entry.Value);
 
-                    // original name
+                    // Original name
                     if (originalName is null)
                         newResourceProperties[OriginalNameKey] = JsonSerializer.SerializeToElement(resource.Id);
 
-                    // pipeline position
+                    // Pipeline position
                     if (currentPipelinePosition is null)
                     {
                         var nexusJsonObject = new JsonObject()
@@ -273,7 +273,7 @@ public static partial class DataModelExtensions
                         newResourceProperties[NEXUS_KEY] = JsonSerializer.SerializeToElement(nexusJsonObject);
                     }
 
-                    // groups
+                    // Groups
                     if (distinctGroups is not null && distinctGroups.Count != groups!.Length)
                     {
                         var groupJsonArray = new JsonArray();

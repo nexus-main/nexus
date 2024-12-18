@@ -1,3 +1,6 @@
+## v2.0.0-beta.34 - 2024-12-18
+- Fix Dockerfile
+
 ## v2.0.0-beta.33 - 2024-12-17
 - Fix publish process
 
