@@ -86,8 +86,6 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     private const string PIPELINES = "pipelines";
 
-    private const string PACKAGES = "packages";
-
     /* /config/catalogs/catalog_id.json */
     public bool TryReadCatalogMetadata(string catalogId, [NotNullWhen(true)] out string? catalogMetadata)
     {

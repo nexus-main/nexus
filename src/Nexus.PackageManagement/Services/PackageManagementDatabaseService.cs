@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.Extensions.Options;
 
 namespace Nexus.PackageManagement.Services;
 
@@ -8,7 +7,6 @@ namespace Nexus.PackageManagement.Services;
 /// </summary>
 public interface IPackageManagementDatabaseService
 {
-
     /// <summary>
     /// Reads the package reference map.
     /// </summary>
