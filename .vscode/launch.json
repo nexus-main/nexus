@@ -24,7 +24,11 @@
         },
         {
             /* How to debug into remote Nexus Docker container via SSH
-             * 1. Install SSH on container (docker exec -it <container name> bash)
+
+             * 1. Configure docker so that port 22 is exposed (e.g. to port 2222), then test the connection:
+             * - ssh root@<docker-host> -p 2222
+             *
+             * 2. Install SSH on container (docker exec -it <container name> bash)
              * - apt update; apt install openssh-server nano curl -y
              * - sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
              * - service ssh start
@@ -32,9 +36,6 @@
              * - echo -e "$password\n$password" | passwd
              * - curl -sSL https://aka.ms/getvsdbgsh | /bin/sh /dev/stdin -v latest -l ~/vsdbg # https://github.com/OmniSharp/omnisharp-vscode/wiki/Attaching-to-remote-processes#installing-vsdbg-on-the-server
              * - exit
-             * 
-             * 2. Configure docker so that port 22 is exposed (e.g. to port 2222), then test the connection:
-             * - ssh root@<docker-host> -p 2222
              *
              * 3. Replace <docker-host> below with the actual host
              */

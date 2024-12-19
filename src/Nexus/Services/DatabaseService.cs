@@ -144,10 +144,16 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         var usersPath = Path.Combine(_pathsOptions.Config, USERS);
 
         if (Directory.Exists(usersPath))
-            return Directory.EnumerateDirectories(usersPath);
+        {
+            return Directory
+                .EnumerateDirectories(usersPath)
+                .Select(x => Path.GetFileName(x));
+        }
 
         else
+        {
             return Enumerable.Empty<string>();
+        }
     }
 
     public bool TryReadTokenMap(string userId,

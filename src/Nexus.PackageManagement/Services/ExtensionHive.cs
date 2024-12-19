@@ -115,7 +115,7 @@ internal class ExtensionHive(
 
                 /* Currently, only the directly referenced assembly is being searched for extensions. When this
                  * behavior should change, it is important to think about the consequences: What should happen when
-                 * an extension is references as usual but at the same time it serves as a base class extensions in
+                 * an extension is referenced as usual but at the same time it serves as a base class extension in
                  * other packages. If all assemblies in that package are being scanned, the original extension would
                  * be found twice.
                  */

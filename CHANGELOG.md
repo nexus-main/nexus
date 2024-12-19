@@ -1,3 +1,6 @@
+## v2.0.0-beta.35 - 2024-12-19
+- Fixed a bug that prevented catalogs plugins to be loaded properly
+
 ## v2.0.0-beta.34 - 2024-12-18
 - Fix Dockerfile
 
