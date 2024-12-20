@@ -1030,7 +1030,7 @@
         }
       }
     },
-    "/api/v1/sources/pipelines/{registrationId}": {
+    "/api/v1/sources/pipelines/{pipelineId}": {
       "delete": {
         "tags": [
           "Sources"
@@ -1040,7 +1040,8 @@
         "parameters": [
           {
             "name": "pipelineId",
-            "in": "query",
+            "in": "path",
+            "required": true,
             "description": "The identifier of the pipeline.",
             "schema": {
               "type": "string",
@@ -1057,15 +1058,6 @@
               "nullable": true
             },
             "x-position": 2
-          },
-          {
-            "name": "registrationId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 3
           }
         ],
         "responses": {

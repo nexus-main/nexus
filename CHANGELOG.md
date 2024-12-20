@@ -1,3 +1,6 @@
+## v2.0.0-beta.36 - 2024-12-20
+- Fixed incorrect delete pipeline API parameter 
+
 ## v2.0.0-beta.35 - 2024-12-19
 - Fixed a bug that prevented catalogs plugins to be loaded properly
 

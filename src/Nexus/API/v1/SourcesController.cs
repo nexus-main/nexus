@@ -28,9 +28,9 @@ internal class SourcesController(
 ) : ControllerBase
 {
     // GET      /api/sources/descriptions
-    // GET      /api/sources/registrations
-    // POST     /api/sources/registrations
-    // DELETE   /api/sources/registrations/{registrationId}
+    // GET      /api/sources/pipelines
+    // POST     /api/sources/pipelines
+    // DELETE   /api/sources/pipelines/{pipelineId}
 
     private readonly IExtensionHive _extensionHive = extensionHive;
 
@@ -84,7 +84,7 @@ internal class SourcesController(
     /// </summary>
     /// <param name="pipelineId">The identifier of the pipeline.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    [HttpDelete("pipelines/{registrationId}")]
+    [HttpDelete("pipelines/{pipelineId}")]
     public async Task<ActionResult> DeletePipelineAsync(
         Guid pipelineId,
         [FromQuery] string? userId = default)

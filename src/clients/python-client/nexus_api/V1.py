@@ -545,23 +545,19 @@ class SourcesClient:
 
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
-    def delete_pipeline(self, registration_id: str, pipeline_id: Optional[UUID] = None, user_id: Optional[str] = None) -> Response:
+    def delete_pipeline(self, pipeline_id: UUID, user_id: Optional[str] = None) -> Response:
         """
         Deletes a data source pipeline.
 
         Args:
             pipeline_id: The identifier of the pipeline.
             user_id: The optional user identifier. If not specified, the current user will be used.
-            registration_id: 
         """
 
-        __url = "/api/v1/sources/pipelines/{registrationId}"
-        __url = __url.replace("{registrationId}", quote(str(registration_id), safe=""))
+        __url = "/api/v1/sources/pipelines/{pipelineId}"
+        __url = __url.replace("{pipelineId}", quote(str(pipeline_id), safe=""))
 
         __query_values: dict[str, str] = {}
-
-        if pipeline_id is not None:
-            __query_values["pipelineId"] = quote(_to_string(pipeline_id), safe="")
 
         if user_id is not None:
             __query_values["userId"] = quote(_to_string(user_id), safe="")
@@ -1393,23 +1389,19 @@ class SourcesAsyncClient:
 
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
-    def delete_pipeline(self, registration_id: str, pipeline_id: Optional[UUID] = None, user_id: Optional[str] = None) -> Awaitable[Response]:
+    def delete_pipeline(self, pipeline_id: UUID, user_id: Optional[str] = None) -> Awaitable[Response]:
         """
         Deletes a data source pipeline.
 
         Args:
             pipeline_id: The identifier of the pipeline.
             user_id: The optional user identifier. If not specified, the current user will be used.
-            registration_id: 
         """
 
-        __url = "/api/v1/sources/pipelines/{registrationId}"
-        __url = __url.replace("{registrationId}", quote(str(registration_id), safe=""))
+        __url = "/api/v1/sources/pipelines/{pipelineId}"
+        __url = __url.replace("{pipelineId}", quote(str(pipeline_id), safe=""))
 
         __query_values: dict[str, str] = {}
-
-        if pipeline_id is not None:
-            __query_values["pipelineId"] = quote(_to_string(pipeline_id), safe="")
 
         if user_id is not None:
             __query_values["userId"] = quote(_to_string(user_id), safe="")

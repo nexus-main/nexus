@@ -1975,17 +1975,15 @@ public interface ISourcesClient
     /// </summary>
     /// <param name="pipelineId">The identifier of the pipeline.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    /// <param name="registrationId"></param>
-    HttpResponseMessage DeletePipeline(string registrationId, Guid? pipelineId = default, string? userId = default);
+    HttpResponseMessage DeletePipeline(Guid pipelineId, string? userId = default);
 
     /// <summary>
     /// Deletes a data source pipeline.
     /// </summary>
     /// <param name="pipelineId">The identifier of the pipeline.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    /// <param name="registrationId"></param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> DeletePipelineAsync(string registrationId, Guid? pipelineId = default, string? userId = default, CancellationToken cancellationToken = default);
+    Task<HttpResponseMessage> DeletePipelineAsync(Guid pipelineId, string? userId = default, CancellationToken cancellationToken = default);
 
 }
 
@@ -2092,16 +2090,13 @@ public class SourcesClient : ISourcesClient
     }
 
     /// <inheritdoc />
-    public HttpResponseMessage DeletePipeline(string registrationId, Guid? pipelineId = default, string? userId = default)
+    public HttpResponseMessage DeletePipeline(Guid pipelineId, string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/sources/pipelines/{registrationId}");
-        __urlBuilder.Replace("{registrationId}", Uri.EscapeDataString(registrationId));
+        __urlBuilder.Append("/api/v1/sources/pipelines/{pipelineId}");
+        __urlBuilder.Replace("{pipelineId}", Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!));
 
         var __queryValues = new Dictionary<string, string>();
-
-        if (pipelineId is not null)
-            __queryValues["pipelineId"] = Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!);
 
         if (userId is not null)
             __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
@@ -2114,16 +2109,13 @@ public class SourcesClient : ISourcesClient
     }
 
     /// <inheritdoc />
-    public Task<HttpResponseMessage> DeletePipelineAsync(string registrationId, Guid? pipelineId = default, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> DeletePipelineAsync(Guid pipelineId, string? userId = default, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/sources/pipelines/{registrationId}");
-        __urlBuilder.Replace("{registrationId}", Uri.EscapeDataString(registrationId));
+        __urlBuilder.Append("/api/v1/sources/pipelines/{pipelineId}");
+        __urlBuilder.Replace("{pipelineId}", Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!));
 
         var __queryValues = new Dictionary<string, string>();
-
-        if (pipelineId is not null)
-            __queryValues["pipelineId"] = Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!);
 
         if (userId is not null)
             __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
