@@ -172,8 +172,8 @@ internal class CatalogsController(
                     var isReleased = childContainer.Owner is null ||
                         childContainer.IsReleasable && Regex.IsMatch(id, childContainer.Pipeline.ReleasePattern ?? "");
 
-                    var isVisible =
-                        isReadable || Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
+                    var isVisible = isReadable ||
+                        Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
 
                     var isOwner = childContainer.Owner?.FindFirstValue(Claims.Subject) == User.FindFirstValue(Claims.Subject);
                     var packageReferenceIds = childContainer.PackageReferenceIds;

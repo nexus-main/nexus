@@ -1,3 +1,6 @@
+## v2.0.0-beta.37 - 2024-12-20
+- Folders being mounted in containers will be precreated to avoid them being owned by root.
+
 ## v2.0.0-beta.36 - 2024-12-20
 - Fixed incorrect delete pipeline API parameter 
 
