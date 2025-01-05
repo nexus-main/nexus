@@ -39,26 +39,40 @@
         </div>
     </div>
 
-    <div class="flex-1 p-2 h-full">
-        <div class="overflow-y-auto select-none h-full">
+    <div class="flex-1 p-2 h-full min-w-0">
+        <div class="select-none h-full">
+            <!-- 
+                Aim: we want to always see header and footer, the rest should scroll
+
+                - 'Class="h-full flex flex-col"' is applied to outer container
+
+                - 'Height="100%"' is applied to inner container. 
+                    Without it the footer looks weird. Don't know why it works. 
+                    I would have preferred `flex-1` but there is not option to apply it.
+            -->
             <MudDataGrid
+                Class="h-full flex flex-col"
+                Height="100%"
                 T="CatalogItemViewModel"
-                Items="@AppState.CatalogItemsGroup"
+                FixedHeader="true"
+                FixedFooter="true"
+                Items="AppState.CatalogItemsGroup"
                 ReadOnly=@(!AppState.EditModeCatalogMap.ContainsKey(AppState.SelectedCatalog!.Id))
                 EditMode="DataGridEditMode.Cell"
                 EditTrigger="DataGridEditTrigger.OnRowClick"
-                CommittedItemChanges="@CommittedItemChanges"
+                CommittedItemChanges="CommittedItemChanges"
                 Filterable="true"
-                QuickFilter="@QuickFilter"
-                RowClick="@RowClicked"
-                RowStyleFunc="@RowStyleFunc"
-                RowContextMenuClick="@OpenGridContextMenu">
+                QuickFilter="QuickFilter"
+                RowClick="RowClicked"
+                RowStyleFunc="RowStyleFunc"
+                RowContextMenuClick="OpenGridContextMenu">
                 <Columns>
-                    <PropertyColumn Property="x => x.Resource.Id" Title="ID" Editable="false"/>
-                    <PropertyColumn Property="x => Utilities.ToUnitString(x.Representation.SamplePeriod, false)" Title="Sample Period"/>
+                    @* StickyLeft="true" does not work properly with the currently available version of MatBlazor: https://github.com/MudBlazor/MudBlazor/pull/10151 *@
+                    <PropertyColumn Property="x => x.Resource.Id" Title="ID" Editable="false" />
                     <PropertyColumn Property="x => x.Description" Title="Description" />
                     <PropertyColumn Property="x => x.Unit" Title="Unit"/>
                     <PropertyColumn Property="x => x.Warning" Title="Warning"/>
+                    <PropertyColumn Property="x => Utilities.ToUnitString(x.Representation.SamplePeriod, false)" Title="Sample Period"/>
                 </Columns>
                 <PagerContent>
                     <MudDataGridPager T="CatalogItemViewModel" />
@@ -163,7 +177,8 @@
             {
                 _searchIcon = string.IsNullOrWhiteSpace(AppState.SearchString)
                     ? Icons.Material.Filled.Search
-                    : Icons.Material.Filled.Close;            }
+                    : Icons.Material.Filled.Close;            
+            }
 
             else if (e.PropertyName == nameof(AppState.Settings.SelectedCatalogItems))
             {
@@ -275,10 +290,8 @@
 
     private void RowClicked(DataGridRowClickEventArgs<CatalogItemViewModel> args)
     {
-        if(!AppState.EditModeCatalogMap.ContainsKey(AppState.SelectedCatalog!.Id))
-        {
+        if (!AppState.EditModeCatalogMap.ContainsKey(AppState.SelectedCatalog!.Id))
             ToggleCatalogItemSelection(args.Item);
-        }
     }
 
     private void OpenGridContextMenu(DataGridRowClickEventArgs<CatalogItemViewModel> args)
@@ -289,11 +302,10 @@
         _isContextMenuOpen = true;
     }
 
-    // style the rows where the Element.Position == 0 to have italic text.
     private Func<CatalogItemViewModel, int, string> RowStyleFunc => (x, i) =>
     {
         if (AppState.Settings.IsSelected(x))
-            return "background-color:#EACE5D";
+            return "background-color: #ffedd5";
 
         return "";
     };
