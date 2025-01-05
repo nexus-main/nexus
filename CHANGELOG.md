@@ -1,4 +1,4 @@
-## v2.0.0-beta.37 - 2025-01-25
+## v2.0.0-beta.38 - 2025-01-25
 - The behavior of the newly introduced data grid has been improved.
 
 ## v2.0.0-beta.37 - 2024-12-20
