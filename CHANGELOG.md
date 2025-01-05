@@ -1,3 +1,6 @@
+## v2.0.0-beta.37 - 2025-01-25
+- The behavior of the newly introduced data grid has been improved.
+
 ## v2.0.0-beta.37 - 2024-12-20
 - Folders being mounted in containers will be precreated to avoid them being owned by root.
 
