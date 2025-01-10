@@ -4,5 +4,4 @@ WORKDIR /app
 COPY app .
 
 USER app
-RUN mkdir -p /home/app/.local/share
 ENTRYPOINT ["./Nexus"]
