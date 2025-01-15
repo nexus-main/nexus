@@ -1,3 +1,6 @@
+## v2.0.0-beta.42 - 2025-01-15
+- Fix pyright issues
+
 ## v2.0.0-beta.41 - 2025-01-15
 - Update Python libs
 
