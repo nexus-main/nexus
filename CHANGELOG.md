@@ -1,4 +1,7 @@
-## v2.0.0-beta.40 - 2025-01-06
+## v2.0.0-beta.41 - 2025-01-15
+- Update Python libs
+
+## v2.0.0-beta.40 - 2025-01-15
 - Allow using claims other than `sub` to derive the user id (#183)
 
 ## v2.0.0-beta.39 - 2025-01-06
