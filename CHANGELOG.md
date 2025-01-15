@@ -1,5 +1,8 @@
 ## v2.0.0-beta.39 - 2025-01-06
-- The datetimer pickers were not working properly.
+- Allow using claims other than `sub` to derive the user id (#183)
+
+## v2.0.0-beta.39 - 2025-01-06
+- The datetime pickers were not working properly.
 
 ## v2.0.0-beta.38 - 2025-01-05
 - The behavior of the newly introduced data grid has been improved.
