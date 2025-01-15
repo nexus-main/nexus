@@ -80,10 +80,10 @@ class ReadRequest:
     catalog_item: CatalogItem
     """The CatalogItem to be read."""
 
-    data: memoryview[float]
+    data: memoryview
     """The data buffer."""
 
-    status: memoryview[bytes]
+    status: memoryview
     """The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN")."""
 
 class ReadDataHandler(Protocol):
@@ -91,7 +91,7 @@ class ReadDataHandler(Protocol):
     A handler to read data.
     """
 
-    def __call__(self, resource_path: str, begin: datetime, end: datetime) -> Awaitable[memoryview[float]]:
+    def __call__(self, resource_path: str, begin: datetime, end: datetime) -> Awaitable[memoryview]:
         """
         Reads the requested data.
 
