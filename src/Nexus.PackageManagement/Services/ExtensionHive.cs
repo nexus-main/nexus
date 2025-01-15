@@ -2,7 +2,6 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Nexus.Extensibility;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;

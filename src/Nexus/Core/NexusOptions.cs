@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Runtime.InteropServices;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Core;
 
@@ -48,16 +49,22 @@ internal abstract record NexusOptionsBase()
 internal record GeneralOptions() : NexusOptionsBase
 {
     public const string Section = "General";
+
     public string? ApplicationName { get; set; } = "Nexus";
+
     public string? HelpLink { get; set; }
+
     public string? DefaultFileType { get; set; } = "Nexus.Writers.Csv";
 }
 
 internal record DataOptions() : NexusOptionsBase
 {
     public const string Section = "Data";
+
     public string? CachePattern { get; set; }
+
     public long TotalBufferMemoryConsumption { get; set; } = 1 * 1024 * 1024 * 1024; // 1 GB
+
     public double AggregationNaNThreshold { get; set; } = 0.99;
 }
 
@@ -101,5 +108,8 @@ internal partial record SecurityOptions() : NexusOptionsBase
     public const string Section = "Security";
 
     public TimeSpan CookieLifetime { get; set; } = TimeSpan.FromDays(30);
+
     public List<OpenIdConnectProvider> OidcProviders { get; set; } = [];
+
+    public string OidcIdentifierClaim { get; set; } = Claims.Subject;
 }

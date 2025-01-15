@@ -1,4 +1,10 @@
-## v2.0.0-beta.38 - 2025-01-25
+## v2.0.0-beta.39 - 2025-01-06
+- Allow using claims other than `sub` to derive the user id (#183)
+
+## v2.0.0-beta.39 - 2025-01-06
+- The datetime pickers were not working properly.
+
+## v2.0.0-beta.38 - 2025-01-05
 - The behavior of the newly introduced data grid has been improved.
 
 ## v2.0.0-beta.37 - 2024-12-20
@@ -26,7 +32,7 @@
 - Add support for chained data sources (= pipelines)
 
 ## v2.0.0-beta.30 - 2024-03-28
-- Personal Access Tokens can now also be granted administator privileges.
+- Personal Access Tokens can now also be granted administrator privileges.
 
 ## v2.0.0-beta.29 - 2024-03-18
 - Fixed wrong `users` folder location.

@@ -132,13 +132,16 @@ internal static class NexusAuthExtensions
 
                     OnTokenValidated = async context =>
                     {
-                        // scopes
+                        // Scopes
                         // https://openid.net/specs/openid-connect-basic-1_0.html#Scopes
 
                         var principal = context.Principal
                             ?? throw new Exception("The principal is null. This should never happen.");
-                        var userId = principal.FindFirstValue(Claims.Subject)
-                            ?? throw new Exception("The subject claim is missing. This should never happen.");
+
+                        var identifierClaim = securityOptions.OidcIdentifierClaim;
+
+                        var userId = principal.FindFirstValue(identifierClaim)
+                            ?? throw new Exception($"Could not find a value for claim '{identifierClaim}' in the OIDC ticket.");
 
                         var username = principal.FindFirstValue(Claims.Name)
                             ?? throw new Exception("The name claim is required.");
@@ -146,7 +149,7 @@ internal static class NexusAuthExtensions
                         using var dbContext = context.HttpContext.RequestServices.GetRequiredService<UserDbContext>();
                         var uniqueUserId = $"{Uri.EscapeDataString(userId)}@{Uri.EscapeDataString(context.Scheme.Name)}";
 
-                        // user
+                        // User
                         var user = await dbContext.Users
                             .Include(user => user.Claims)
                             .SingleOrDefaultAsync(user => user.Id == uniqueUserId);
@@ -179,7 +182,7 @@ internal static class NexusAuthExtensions
 
                         await dbContext.SaveChangesAsync();
 
-                        // oidc identity
+                        // OIDC identity
                         var oidcIdentity = (ClaimsIdentity)principal.Identity!;
                         var subClaim = oidcIdentity.FindFirst(Claims.Subject);
 
@@ -188,7 +191,7 @@ internal static class NexusAuthExtensions
 
                         oidcIdentity.AddClaim(new Claim(Claims.Subject, uniqueUserId));
 
-                        // app identity
+                        // App identity
                         var claims = user.Claims.Select(entry => new Claim(entry.Type, entry.Value));
 
                         var appIdentity = new ClaimsIdentity(

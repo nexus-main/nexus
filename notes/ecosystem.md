@@ -1,15 +1,15 @@
 # Extension Types Overview
 
-| Extension Type                | Complexity | Performance | Hosting type                                                   | Dependencies               | Catalog Paths                  | Example                                                                       |
-|-------------------------------|------------|-------------|----------------------------------------------------------------|----------------------------|--------------------------------|-------------------------------------------------------------------------------|
-| C#                            | High       | Highest     | GitHub Release .zip file or GitLab Package + Tag (e.g. v1.0.0) | all                        | all (Admin approves)           | [Example](https://github.com/Apollo3zehn/nexus-sources-gantner)                          |
-| Python Remote Data Source     | Medium     | High/Medium | GitHub/GitLab repository + Tag (e.g. v1.0.0)                   | all (requirements.txt)     | all (Admin approves)           | [Example](https://github.com/nexus-main/nexus-remoting-template-python)              |
-| Python Playground Data Source | Low        | High/Medium | Single folder per user (VSCode SSH access)     | only preinstalled packages | /PLAYGROUND/%USERNAME%/CATALOG_X | [Example](https://github.com/Apollo3zehn/nexus-remoting-python-playground) |
+| Extension Type                | Complexity | Performance | Hosting type                               | Dependencies               | Catalog Paths                    | Example                                                                                                                     |
+| ----------------------------- | ---------- | ----------- | ------------------------------------------ | -------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| C#                            | High       | Highest     | Git repostory with tag (e.g. v1.0.0)       | all                        | all (Admin approves)             | [Example](https://github.com/Apollo3zehn/nexus-sources-gantner)                                                             |
+| Python Remote Data Source     | Medium     | High/Medium | Git repostory with tag (e.g. v1.0.0)       | all (requirements.txt)     | all (Admin approves)             | [Example](https://github.com/nexus-main/nexus-sources-remote/blob/master/tests/Nexus.Sources.Remote.Tests/python/remote.py) |
+| Python Playground Data Source | Low        | High/Medium | Single folder per user (VSCode SSH access) | only preinstalled packages | /PLAYGROUND/%USERNAME%/CATALOG_X | [Example](https://github.com/Apollo3zehn/nexus-remoting-python-playground)                                                  |
 
 # Extension Ecosystem
 
 ```mermaid
-flowchart TB
+flowchart LR
 
     Nexus.Sources.Federation[Nexus.Sources.Federation]
 
@@ -30,14 +30,14 @@ flowchart TB
     end
 
     subgraph File-based data sources
-        nexus-sources-structured-file[nexus-sources-structured-file]
+        nexus-sources-structured-file[Nexus.Sources.StructuredFile]
 
-        nexus-sources-windcube[nexus-sources-windcube]
-        nexus-sources-famos[nexus-sources-famos]
-        nexus-sources-gantner[nexus-sources-gantner ]
-        nexus-sources-leospherewindiris[nexus-sources-leospherewindiris]
-        nexus-sources-csv[nexus-sources-csv]
-        nexus-sources-campbell[nexus-sources-campbell]
+        nexus-sources-windcube[Nexus.Sources.Windcube]
+        nexus-sources-famos[Nexus.Sources.Famos]
+        nexus-sources-gantner[Nexus.Sources.Gantner]
+        nexus-sources-leospherewindiris[Nexus.Sources.LeosphereWindIris]
+        nexus-sources-csv[Nexus.Sources.Csv]
+        nexus-sources-campbell[Nexus.Sources.Campbell]
 
         nexus-sources-structured-file --> nexus-sources-windcube
         nexus-sources-structured-file --> nexus-sources-famos
@@ -47,11 +47,19 @@ flowchart TB
         nexus-sources-structured-file --> nexus-sources-campbell
     end
 
+    subgraph nexus-agent[Nexus Agent]
+        nexus-extensibility["nexus-extensibility (.NET, Python)"]
+        nexus-api["nexus-api (.NET, Python)"]
+    end
+
     nexus-api --> Nexus.Sources.Federation
 
     nexus-extensibility --> Nexus.Sources.Federation
+    nexus-extensibility --> Nexus.Sources.Transform
     nexus-extensibility --> Nexus.Sources.Remote
     nexus-extensibility --> nexus-remoting
     nexus-extensibility --> nexus-sources-structured-file
+
+    nexus-remoting --> nexus-agent
 
 ```

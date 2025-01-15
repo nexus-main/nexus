@@ -149,9 +149,4 @@ internal static partial class NexusUtilities
     {
         return ((ushort)dataType & 0x00FF) / 8;
     }
-
-    public static IEnumerable<T> GetCustomAttributes<T>(this Type type) where T : Attribute
-    {
-        return type.GetCustomAttributes(false).OfType<T>();
-    }
 }
