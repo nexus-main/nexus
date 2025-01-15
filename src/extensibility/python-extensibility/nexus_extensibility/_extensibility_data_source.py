@@ -80,10 +80,10 @@ class ReadRequest:
     catalog_item: CatalogItem
     """The CatalogItem to be read."""
 
-    data: memoryview
+    data: memoryview[float]
     """The data buffer."""
 
-    status: memoryview
+    status: memoryview[bytes]
     """The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN")."""
 
 class ReadDataHandler(Protocol):
@@ -91,7 +91,7 @@ class ReadDataHandler(Protocol):
     A handler to read data.
     """
 
-    def __call__(self, resource_path: str, begin: datetime, end: datetime) -> Awaitable[memoryview]:
+    def __call__(self, resource_path: str, begin: datetime, end: datetime) -> Awaitable[memoryview[float]]:
         """
         Reads the requested data.
 
@@ -132,12 +132,12 @@ class IDataSource(IExtension, ABC):
         pass
 
     @abstractmethod
-    def get_catalog(self, catalog_id: str) -> Awaitable[ResourceCatalog]:
+    def enrich_catalog(self, catalog: ResourceCatalog) -> Awaitable[ResourceCatalog]:
         """
-        Gets the requested ResourceCatalog.
+        Enriches the provided ResourceCatalog.
 
         Args:
-            catalog_id: The catalog identifier.
+            catalog: The catalog to enrich.
         """
         pass
 
