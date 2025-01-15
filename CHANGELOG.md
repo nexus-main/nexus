@@ -1,4 +1,4 @@
-## v2.0.0-beta.39 - 2025-01-06
+## v2.0.0-beta.40 - 2025-01-06
 - Allow using claims other than `sub` to derive the user id (#183)
 
 ## v2.0.0-beta.39 - 2025-01-06
