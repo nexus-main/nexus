@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Text.Json;
+using System.Threading.Tasks;
 using Moq;
 using Nexus.PackageManagement;
 using Nexus.PackageManagement.Core;
@@ -40,7 +41,7 @@ public class PackageServiceTests
     }
 
     [Fact]
-    public void CanTryGetPackageReference()
+    public async Task CanTryGetPackageReference()
     {
         // Arrange
         var id1 = Guid.NewGuid();
@@ -61,13 +62,11 @@ public class PackageServiceTests
         var packageService = GetPackageService(default!, packageReferenceMap);
 
         // Act
-        var actual = packageService.TryGet(id2, out var actualPackageReference);
+        var actual = await packageService.GetAsync(id2);
 
         // Assert
-        Assert.True(actual);
-
         Assert.Equal(
-            expected: JsonSerializer.Serialize(actualPackageReference),
+            expected: JsonSerializer.Serialize(actual),
             actual: JsonSerializer.Serialize(packageReferenceMap[id2])
         );
     }

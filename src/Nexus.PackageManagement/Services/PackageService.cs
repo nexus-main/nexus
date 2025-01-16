@@ -1,7 +1,6 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Nexus.PackageManagement.Core;
@@ -20,14 +19,10 @@ public interface IPackageService
     Task<Guid> PutAsync(PackageReference packageReference);
 
     /// <summary>
-    /// Tries to get the requested package reference.
+    /// Tries to get the requested package reference. Returns null if the package reference does not exist.
     /// </summary>
     /// <param name="packageReferenceId">The package reference ID.</param>
-    /// <param name="packageReference">The package reference.</param>
-    bool TryGet(
-        Guid packageReferenceId,
-        [NotNullWhen(true)] out PackageReference? packageReference
-    );
+    Task<PackageReference?> GetAsync(Guid packageReferenceId);
 
     /// <summary>
     /// Deletes a package reference.
@@ -47,7 +42,7 @@ internal class PackageService(IPackageManagementDatabaseService databaseService)
 {
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
-    private ConcurrentDictionary<Guid, PackageReference>? _cache;
+    private Dictionary<Guid, PackageReference>? _cache;
 
     private readonly IPackageManagementDatabaseService _databaseService = databaseService;
 
@@ -58,23 +53,20 @@ internal class PackageService(IPackageManagementDatabaseService databaseService)
         {
             var id = Guid.NewGuid();
 
-            packageReferenceMap.AddOrUpdate(
-                id,
-                packageReference,
-                (key, _) => packageReference
-            );
+            packageReferenceMap[id] = packageReference;
 
             return id;
         }, saveChanges: true);
     }
 
-    public bool TryGet(
-        Guid packageReferenceId,
-        [NotNullWhen(true)] out PackageReference? packageReference)
+    public Task<PackageReference?> GetAsync(Guid packageReferenceId)
     {
-        var packageReferencMap = GetPackageReferenceMap();
+        return InteractWithPackageReferenceMapAsync(packageReferenceMap =>
+        {
+            var _ = packageReferenceMap.TryGetValue(packageReferenceId, out var packageReference);
 
-        return packageReferencMap.TryGetValue(packageReferenceId, out packageReference);
+            return packageReference;
+        }, saveChanges: false);
     }
 
     public Task DeleteAsync(Guid packageReferenceId)
@@ -84,7 +76,7 @@ internal class PackageService(IPackageManagementDatabaseService databaseService)
             var packageReferenceEntry = packageReferenceMap
                 .FirstOrDefault(entry => entry.Key == packageReferenceId);
 
-            packageReferenceMap.TryRemove(packageReferenceEntry.Key, out _);
+            packageReferenceMap.Remove(packageReferenceEntry.Key, out _);
             return default;
         }, saveChanges: true);
     }
@@ -97,13 +89,13 @@ internal class PackageService(IPackageManagementDatabaseService databaseService)
         );
     }
 
-    private ConcurrentDictionary<Guid, PackageReference> GetPackageReferenceMap()
+    private Dictionary<Guid, PackageReference> GetPackageReferenceMap()
     {
         if (_cache is null)
         {
             if (_databaseService.TryReadPackageReferenceMap(out var jsonString))
             {
-                _cache = JsonSerializer.Deserialize<ConcurrentDictionary<Guid, PackageReference>>(jsonString)
+                _cache = JsonSerializer.Deserialize<Dictionary<Guid, PackageReference>>(jsonString)
                     ?? throw new Exception("packageReferenceMap is null");
             }
 
@@ -117,7 +109,7 @@ internal class PackageService(IPackageManagementDatabaseService databaseService)
     }
 
     private async Task<T> InteractWithPackageReferenceMapAsync<T>(
-        Func<ConcurrentDictionary<Guid, PackageReference>, T> func,
+        Func<Dictionary<Guid, PackageReference>, T> func,
         bool saveChanges
     )
     {
