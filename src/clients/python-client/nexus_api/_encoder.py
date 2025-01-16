@@ -19,13 +19,15 @@ class JsonEncoderOptions:
     encoders: dict[Type, Callable[[Any], Any]] = field(default_factory=lambda: {
         datetime:   lambda value: value.isoformat().replace("+00:00", "Z"),
         timedelta:  lambda value: _encode_timedelta(value),
-        Enum:       lambda value: value.name
+        Enum:       lambda value: value.name,
+        UUID:       lambda value: str(value)
     })
 
     decoders: dict[Type, Callable[[Type, Any], Any]] = field(default_factory=lambda: {
         datetime:   lambda       _, value: datetime.fromisoformat((value[0:26] + value[26 + 1:]).replace("Z", "+00:00")),
         timedelta:  lambda       _, value: _decode_timedelta(value),
-        Enum:       lambda typeCls, value: cast(Type[Enum], typeCls)[value]
+        Enum:       lambda typeCls, value: cast(Type[Enum], typeCls)[value],
+        UUID:       lambda       _, value: UUID(value)
     })
 
 class JsonEncoder:
@@ -45,16 +47,12 @@ class JsonEncoder:
             return None
 
         # list/tuple
-        elif isinstance(value, UUID):
-            value = str(value)
-
-        # list/tuple
         elif isinstance(value, list) or isinstance(value, tuple):
             value = [JsonEncoder._try_encode(current, options) for current in value]
         
         # dict
         elif isinstance(value, dict):
-            value = {key:JsonEncoder._try_encode(current_value, options) for key, current_value in value.items()}
+            value = {JsonEncoder._try_encode(key, options):JsonEncoder._try_encode(current_value, options) for key, current_value in value.items()}
 
         elif dataclasses.is_dataclass(value):
             # dataclasses.asdict(value) would be good choice here, but it also converts nested dataclasses into
@@ -84,9 +82,6 @@ class JsonEncoder:
 
         if typeCls == Any:
             return data
-
-        if typeCls == UUID:
-            return cast(T, UUID(data))
 
         origin = typing.get_origin(typeCls)
         args = typing.get_args(typeCls)
