@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Nexus.Components;
 using Nexus.Core;
+using Nexus.Extensibility;
 using Nexus.Services;
 using Nexus.UI.Components;
 using Serilog;
@@ -190,7 +191,7 @@ void AddServices(
     services.Configure<SecurityOptions>(configuration.GetSection(SecurityOptions.Section));
 
     // Package management
-    services.AddPackageManagement();
+    services.AddPackageManagement<IDataSource, IDataWriter>();
 
     services.AddSingleton<IPackageManagementPathsOptions>(
         serviceProvider => serviceProvider.GetRequiredService<IOptions<PathsOptions>>().Value);

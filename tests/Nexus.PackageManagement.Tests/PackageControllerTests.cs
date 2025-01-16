@@ -120,7 +120,7 @@ public class PackageControllerTests
     [Fact]
     public async Task CanLoadAndUnload()
     {
-        var extensionFolderPath = "../../../../tests/Nexus.PackageManagement.Tests/TestExtensionProject";
+        var extensionFolderPath = "../../../../tests/resources/TestExtension";
         var extensionFolderPathHash = new Guid(extensionFolderPath.Hash()).ToString();
 
         // create restore folder
@@ -138,11 +138,11 @@ public class PackageControllerTests
                     // required
                     ["path"] = extensionFolderPath,
                     ["version"] = version,
-                    ["csproj"] = "TestExtensionProject.csproj"
+                    ["csproj"] = "TestExtension.csproj"
                 }
             );
 
-            var fileToDelete = Path.Combine(restoreRoot, "local", extensionFolderPathHash, version, "TestExtensionProject.dll");
+            var fileToDelete = Path.Combine(restoreRoot, "local", extensionFolderPathHash, version, "TestExtension.dll");
             var weakReference = await Load_Run_and_Unload_Async(restoreRoot, fileToDelete, packageReference);
 
             for (int i = 0; weakReference.IsAlive && i < 10; i++)
@@ -218,7 +218,7 @@ public class PackageControllerTests
             Provider: "local",
             Configuration: new Dictionary<string, string>
             {
-                ["path"] = "../../../../tests/Nexus.PackageManagement.Tests/TestExtensionProject",
+                ["path"] = "../../../../tests/resources/TestExtension",
             }
         );
 
@@ -240,7 +240,7 @@ public class PackageControllerTests
     public async Task CanRestore_local()
     {
         var version = "v0.1.0";
-        var extensionFolderPath = "../../../../tests/Nexus.PackageManagement.Tests/TestExtensionProject";
+        var extensionFolderPath = "../../../../tests/resources/TestExtension";
         var extensionFolderPathHash = new Guid(extensionFolderPath.Hash()).ToString();
 
         // create restore folder
@@ -257,13 +257,13 @@ public class PackageControllerTests
                     // required
                     ["path"] = extensionFolderPath,
                     ["version"] = version,
-                    ["csproj"] = "TestExtensionProject.csproj"
+                    ["csproj"] = "TestExtension.csproj"
                 }
             );
 
             var packageController = new PackageController(packageReference, NullLogger<PackageController>.Instance);
             await packageController.RestoreAsync(restoreRoot, CancellationToken.None);
-            var expectedFilePath = Path.Combine(restoreFolderPath, "TestExtensionProject.deps.json");
+            var expectedFilePath = Path.Combine(restoreFolderPath, "TestExtension.deps.json");
 
             Assert.True(File.Exists(expectedFilePath));
         }

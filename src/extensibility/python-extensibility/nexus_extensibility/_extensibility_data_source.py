@@ -7,7 +7,6 @@ from typing import (Any, Awaitable, Callable, Dict, List, Optional, Protocol,
 from urllib.parse import ParseResult
 
 from ._data_model import CatalogItem, CatalogRegistration, ResourceCatalog
-from ._i_extension import IExtension
 
 ################# DATA SOURCE TYPES ###############
 
@@ -105,7 +104,7 @@ class ReadDataHandler(Protocol):
 
 ################# DATA SOURCE ###############
 
-class IDataSource(IExtension, ABC):
+class IDataSource(ABC):
     """
     A data source.
     """

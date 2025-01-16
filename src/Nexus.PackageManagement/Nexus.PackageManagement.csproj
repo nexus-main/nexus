@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../extensibility/dotnet-extensibility/dotnet-extensibility.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
   </ItemGroup>
 
   <!-- This prevents the package to be rebuilt when dotnet test is executed. -->
