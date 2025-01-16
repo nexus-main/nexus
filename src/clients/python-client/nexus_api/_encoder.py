@@ -52,6 +52,7 @@ class JsonEncoder:
         
         # dict
         elif isinstance(value, dict):
+            # also encode key, it could be a UUID
             value = {JsonEncoder._try_encode(key, options):JsonEncoder._try_encode(current_value, options) for key, current_value in value.items()}
 
         elif dataclasses.is_dataclass(value):
@@ -116,6 +117,7 @@ class JsonEncoder:
                 instance2: dict = dict()
 
                 for key, value in data.items():
+                    # also decode key, it could be a UUID
                     instance2[JsonEncoder._decode(keyType, key, options)] = JsonEncoder._decode(valueType, value, options)
 
                 return cast(T, instance2)
