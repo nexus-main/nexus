@@ -1,7 +1,6 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Nexus.PackageManagement.Core;
 
