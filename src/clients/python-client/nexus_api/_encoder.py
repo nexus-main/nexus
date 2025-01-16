@@ -110,13 +110,13 @@ class JsonEncoder:
             # dict
             elif issubclass(cast(type, origin), dict):
 
-                # keyType = args[0]
+                keyType = args[0]
                 valueType = args[1]
 
                 instance2: dict = dict()
 
                 for key, value in data.items():
-                    instance2[key] = JsonEncoder._decode(valueType, value, options)
+                    instance2[JsonEncoder._decode(keyType, key, options)] = JsonEncoder._decode(valueType, value, options)
 
                 return cast(T, instance2)
 
