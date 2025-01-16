@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "Nexus.UI",
   "resources": {
-    "hash": "sha256-E1Ch/yR+BVCGz1B02klwIwdX3CL1TPPYEU+zZGs7/QQ=",
+    "hash": "sha256-RvCNgaMufC/N1KA+IClY+tSU+9IRfPew2WD8slQkc08=",
     "fingerprinting": {
       "Microsoft.AspNetCore.Authorization.qmwpqs06ou.wasm": "Microsoft.AspNetCore.Authorization.wasm",
       "Microsoft.AspNetCore.Components.Authorization.nhdm4lwev3.wasm": "Microsoft.AspNetCore.Components.Authorization.wasm",
@@ -24,8 +24,8 @@
       "Microsoft.JSInterop.kbqp1w1ib5.wasm": "Microsoft.JSInterop.wasm",
       "Microsoft.JSInterop.WebAssembly.heoad7mujs.wasm": "Microsoft.JSInterop.WebAssembly.wasm",
       "MudBlazor.xy03wdjc5h.wasm": "MudBlazor.wasm",
-      "Nexus.Api.664hy4vjs0.wasm": "Nexus.Api.wasm",
-      "Nexus.UI.eqjo8qj5fu.wasm": "Nexus.UI.wasm",
+      "Nexus.Api.y46ksi3ilm.wasm": "Nexus.Api.wasm",
+      "Nexus.UI.84m55ivyy8.wasm": "Nexus.UI.wasm",
       "SkiaSharp.Views.Blazor.q2do2cng2z.wasm": "SkiaSharp.Views.Blazor.wasm",
       "SkiaSharp.ohdphstds6.wasm": "SkiaSharp.wasm",
       "System.Collections.Concurrent.n67n61xhbt.wasm": "System.Collections.Concurrent.wasm",
@@ -108,8 +108,8 @@
       "Microsoft.JSInterop.kbqp1w1ib5.wasm": "sha256-gP2A0yziyh3RlYulPXsPURC8+lpchhmaOhZCX+CobYc=",
       "Microsoft.JSInterop.WebAssembly.heoad7mujs.wasm": "sha256-99wG3VH14sWkwPaF5rX6YAcJvtAhDuqonwihvj2m5HA=",
       "MudBlazor.xy03wdjc5h.wasm": "sha256-VzSdrkxOijfPuNBtpXHdj8lcNuPMYsXFIT8Qr4oz0EQ=",
-      "Nexus.Api.664hy4vjs0.wasm": "sha256-oi4UhEUeIiWSOS3nToBXyFub2dBli39VbhIPnDxvxdM=",
-      "Nexus.UI.eqjo8qj5fu.wasm": "sha256-5pn/qrT0Yo18VQSvHzsYVYgm56CqDNc5FCRfHpVPtv0=",
+      "Nexus.Api.y46ksi3ilm.wasm": "sha256-7s9ZP/FiOtrY8JM9y3Pc/DQ4JcEpwe6p7f20jPQ4QLk=",
+      "Nexus.UI.84m55ivyy8.wasm": "sha256-yOPCJqCNLaW5F+fkVHtssFinMhJ/oJD4J6oi96s/O+0=",
       "SkiaSharp.Views.Blazor.q2do2cng2z.wasm": "sha256-MrqA0tv8R0JHXt7wX1PVMdsrG8n7elxqAU3QoZ2veJc=",
       "SkiaSharp.ohdphstds6.wasm": "sha256-jMGxztiQ/6IHcqQcLIUALBhvRT8DefTwUC/ymDqJOkg=",
       "System.Collections.Concurrent.n67n61xhbt.wasm": "sha256-4cGo6NbaUNDbXiNin2zMn5ASYATjlHoIVvvuFofO5eM=",
