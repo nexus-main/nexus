@@ -18,7 +18,7 @@ public class ExtensionHiveTests
     [Fact]
     public async Task CanInstantiateExtensions()
     {
-        var extensionFolderPath = "../../../../tests/Nexus.PackageManagement.Tests/TestExtensionProject";
+        var extensionFolderPath = "../../../../tests/resources/TestExtension";
 
         // create restore folder
         var restoreRoot = Path.Combine(Path.GetTempPath(), $"Nexus.Tests.{Guid.NewGuid()}");
@@ -39,7 +39,7 @@ public class ExtensionHiveTests
                 .Setup(loggerFactory => loggerFactory.CreateLogger(It.IsAny<string>()))
                 .Returns(NullLogger.Instance);
 
-            var hive = new ExtensionHive(pathsOptions, NullLogger<ExtensionHive>.Instance, loggerFactory);
+            var hive = new ExtensionHive<IDataSource, IDataWriter>(pathsOptions, NullLogger<ExtensionHive<IDataSource, IDataWriter>>.Instance, loggerFactory);
             var version = "v0.1.0";
 
             var packageReference = new PackageReference(
@@ -49,7 +49,7 @@ public class ExtensionHiveTests
                     // required
                     ["path"] = extensionFolderPath,
                     ["version"] = version,
-                    ["csproj"] = "TestExtensionProject.csproj"
+                    ["csproj"] = "TestExtension.csproj"
                 }
             );
 
@@ -61,10 +61,10 @@ public class ExtensionHiveTests
             await hive.LoadPackagesAsync(packageReferenceMap, new Progress<double>(), CancellationToken.None);
 
             // instantiate
-            hive.GetInstance<IDataSource>("TestExtensionProject.TestDataSource");
-            hive.GetInstance<IDataWriter>("TestExtensionProject.TestDataWriter");
+            hive.GetInstance<IDataSource>("TestExtension.TestDataSource");
+            hive.GetInstance<IDataWriter>("TestExtension.TestDataWriter");
 
-            Assert.Throws<Exception>(() => hive.GetInstance<IDataSource>("TestExtensionProject.TestDataWriter"));
+            Assert.Throws<Exception>(() => hive.GetInstance<IDataSource>("TestExtension.TestDataWriter"));
         }
         finally
         {

@@ -9,7 +9,7 @@ namespace Nexus.Extensibility;
 /// <summary>
 /// A data source.
 /// </summary>
-public interface IDataSource : IExtension
+public interface IDataSource
 {
     /// <summary>
     /// Invoked by Nexus right after construction to provide the context.

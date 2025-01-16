@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using Nexus.PackageManagement.Services;
 
@@ -13,13 +14,15 @@ public static class MvcServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> to add the services to.</param>
     /// <returns>The <see cref="IServiceCollection"/> so that additional calls can be chained.</returns>
-    public static IServiceCollection AddPackageManagement(this IServiceCollection services)
+    public static IServiceCollection AddPackageManagement<TSource, TWriter>(this IServiceCollection services)
+        where TSource : class
+        where TWriter : class
     {
         return services
             .Configure<PackageManagementPathsOptions>(_ => { })
             .AddSingleton<IPackageService, PackageService>()
             .AddSingleton<IPackageManagementDatabaseService, PackageManagementDatabaseService>()
-            .AddSingleton<IExtensionHive, ExtensionHive>()
+            .AddSingleton<IExtensionHive, ExtensionHive<TSource, TWriter>>()
             .AddSingleton<IPackageManagementPathsOptions>(
                 serviceProvider => serviceProvider.GetRequiredService<IOptions<PackageManagementPathsOptions>>().Value);
     }

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 
-namespace TestExtensionProject;
+namespace TestExtension;
 
 [ExtensionDescription("A data source for unit tests.", default!, default!)]
 public class TestDataSource : IDataSource

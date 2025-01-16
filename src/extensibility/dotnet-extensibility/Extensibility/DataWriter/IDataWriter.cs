@@ -9,7 +9,7 @@ namespace Nexus.Extensibility;
 /// <summary>
 /// A data writer.
 /// </summary>
-public interface IDataWriter : IExtension
+public interface IDataWriter
 {
     /// <summary>
     /// Invoked by Nexus right after construction to provide the context.

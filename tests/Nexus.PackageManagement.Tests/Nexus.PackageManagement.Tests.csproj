@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\extensibility\dotnet-extensibility\dotnet-extensibility.csproj" />
     <ProjectReference Include="..\..\src\Nexus.PackageManagement\Nexus.PackageManagement.csproj" />
   </ItemGroup>
 

@@ -2,7 +2,6 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Microsoft.Extensions.Logging;
-using Nexus.Extensibility;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -18,24 +17,21 @@ public interface IExtensionHive
     /// Gets all extensions of the specified type.
     /// </summary>
     /// <typeparam name="T">The type parameter.</typeparam>
-    IEnumerable<Type> GetExtensions<T>(
-        ) where T : IExtension;
+    IEnumerable<Type> GetExtensions<T>();
 
     /// <summary>
     /// Gets the package reference ID for the specified type name.
     /// </summary>
     /// <typeparam name="T">The type paramter.</typeparam>
     /// <param name="fullName">The type name.</param>
-    Guid GetPackageReferenceId<T>(
-        string fullName) where T : IExtension;
+    Guid GetPackageReferenceId<T>(string fullName);
 
     /// <summary>
     /// Create a new extension instance.
     /// </summary>
     /// <typeparam name="T">The type parameter.</typeparam>
     /// <param name="fullName">The type name.</param>
-    T GetInstance<T>(
-        string fullName) where T : IExtension;
+    T GetInstance<T>(string fullName);
 
     /// <summary>
     /// Loads the map of packages.
@@ -59,12 +55,14 @@ public interface IExtensionHive
         CancellationToken cancellationToken);
 }
 
-internal class ExtensionHive(
+internal class ExtensionHive<TSource, TWriter>(
     IPackageManagementPathsOptions pathsOptions,
-    ILogger<ExtensionHive> logger,
+    ILogger<ExtensionHive<TSource, TWriter>> logger,
     ILoggerFactory loggerFactory) : IExtensionHive
+    where TSource : class
+    where TWriter : class
 {
-    private readonly ILogger<ExtensionHive> _logger = logger;
+    private readonly ILogger<ExtensionHive<TSource, TWriter>> _logger = logger;
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
     private readonly IPackageManagementPathsOptions _pathsOptions = pathsOptions;
 
@@ -147,7 +145,7 @@ internal class ExtensionHive(
         return controller.DiscoverAsync(cancellationToken);
     }
 
-    public IEnumerable<Type> GetExtensions<T>() where T : IExtension
+    public IEnumerable<Type> GetExtensions<T>()
     {
         if (_packageControllerMap is null)
         {
@@ -163,7 +161,7 @@ internal class ExtensionHive(
         }
     }
 
-    public Guid GetPackageReferenceId<T>(string fullName) where T : IExtension
+    public Guid GetPackageReferenceId<T>(string fullName)
     {
         if (!TryGetTypeInfo<T>(fullName, out var packageReferenceId, out var _, out var _))
             throw new Exception($"Could not find extension {fullName} of type {typeof(T).FullName}.");
@@ -171,7 +169,7 @@ internal class ExtensionHive(
         return packageReferenceId;
     }
 
-    public T GetInstance<T>(string fullName) where T : IExtension
+    public T GetInstance<T>(string fullName)
     {
         if (!TryGetTypeInfo<T>(fullName, out var _, out var _, out var type))
             throw new Exception($"Could not find extension {fullName} of type {typeof(T).FullName}.");
@@ -188,7 +186,6 @@ internal class ExtensionHive(
         [NotNullWhen(true)] out Guid packageReferenceId,
         [NotNullWhen(true)] out PackageController? packageController,
         [NotNullWhen(true)] out Type? type)
-        where T : IExtension
     {
         packageReferenceId = default;
         packageController = default;
@@ -217,8 +214,8 @@ internal class ExtensionHive(
             {
                 var isClass = type.IsClass;
                 var isInstantiatable = !type.IsAbstract;
-                var isDataSource = typeof(IDataSource).IsAssignableFrom(type);
-                var isDataWriter = typeof(IDataWriter).IsAssignableFrom(type);
+                var isDataSource = typeof(TSource).IsAssignableFrom(type);
+                var isDataWriter = typeof(TWriter).IsAssignableFrom(type);
 
                 if (isClass && isInstantiatable && (isDataSource | isDataWriter))
                 {
