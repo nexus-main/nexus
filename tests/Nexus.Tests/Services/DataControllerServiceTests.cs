@@ -1,6 +1,7 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,7 +10,6 @@ using Moq;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
-using Nexus.PackageManagement.Services;
 using Nexus.Services;
 using Nexus.Sources;
 using Nexus.Writers;
@@ -131,7 +131,8 @@ public class DataControllerServiceTests
                 resourceLocator,
                 exportParameters,
                 CancellationToken.None);
-        };
+        }
+        ;
 
         var actual = await Record.ExceptionAsync(action);
 

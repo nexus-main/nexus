@@ -67,12 +67,12 @@ jobs:
         run: |
           (cd src/Nexus && libman restore)
           dotnet publish -c Release -o app /p:GeneratePackage=true src/Nexus/Nexus.csproj
-          python -m build --wheel --outdir artifacts/package --no-isolation src/clients/python
+          python -m build --wheel --outdir artifacts/package --no-isolation src/clients/python-client
           python -m build --wheel --outdir artifacts/package --no-isolation src/extensibility/python-extensibility
 
       - name: Test
         run: |
-          dotnet test -c Release /p:BuildProjectReferences=false && echo "Success! :-)" || echo "Fail! :-("
+          dotnet test -c Release /p:BuildProjectReferences=false
           pyright
           pytest
 

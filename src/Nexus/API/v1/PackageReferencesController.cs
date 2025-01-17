@@ -1,11 +1,11 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apollo3zehn.PackageManagement;
+using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
-using Nexus.PackageManagement;
-using Nexus.PackageManagement.Services;
 
 namespace Nexus.Controllers.V1;
 
