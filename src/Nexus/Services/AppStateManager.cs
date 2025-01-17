@@ -15,13 +15,13 @@ namespace Nexus.Services;
 internal class AppStateManager(
     AppState appState,
     IPackageService packageService,
-    IExtensionHive extensionHive,
+    IExtensionHive<IDataWriter> writersExtensionHive,
     ICatalogManager catalogManager,
     IDatabaseService databaseService,
     ILogger<AppStateManager> logger)
 {
     private readonly IPackageService _packageService = packageService;
-    private readonly IExtensionHive _extensionHive = extensionHive;
+    private readonly IExtensionHive<IDataWriter> _writersExtensionHive = writersExtensionHive;
     private readonly ICatalogManager _catalogManager = catalogManager;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly ILogger<AppStateManager> _logger = logger;
@@ -54,7 +54,7 @@ internal class AppStateManager(
 
                 var packageReferenceMap = await _packageService.GetAllAsync();
 
-                refreshDatabaseTask = _extensionHive
+                refreshDatabaseTask = _writersExtensionHive
                     .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken)
                     .ContinueWith(task =>
                     {
@@ -98,7 +98,7 @@ internal class AppStateManager(
         var labelsAndDescriptions = new List<(string Label, ExtensionDescription Description)>();
 
         /* for each data writer */
-        foreach (var dataWriterType in _extensionHive.GetExtensions<IDataWriter>())
+        foreach (var dataWriterType in _writersExtensionHive.GetExtensions())
         {
             var fullName = dataWriterType.FullName!;
             var attribute = dataWriterType.GetCustomAttribute<DataWriterDescriptionAttribute>();

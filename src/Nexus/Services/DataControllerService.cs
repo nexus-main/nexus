@@ -27,7 +27,8 @@ internal interface IDataControllerService
 internal class DataControllerService(
     AppState appState,
     IHttpContextAccessor httpContextAccessor,
-    IExtensionHive extensionHive,
+    IExtensionHive<IDataSource> sourcesExtensionHive,
+    IExtensionHive<IDataWriter> writersExtensionHive,
     IProcessingService processingService,
     ICacheService cacheService,
     IOptions<DataOptions> dataOptions,
@@ -38,7 +39,8 @@ internal class DataControllerService(
     private readonly AppState _appState = appState;
     private readonly DataOptions _dataOptions = dataOptions.Value;
     private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
-    private readonly IExtensionHive _extensionHive = extensionHive;
+    private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
+    private readonly IExtensionHive<IDataWriter> _writersExtensionHive = writersExtensionHive;
     private readonly IProcessingService _processingService = processingService;
     private readonly ICacheService _cacheService = cacheService;
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
@@ -48,7 +50,7 @@ internal class DataControllerService(
         CancellationToken cancellationToken)
     {
         var dataSources = pipeline.Registrations
-            .Select(registration => _extensionHive.GetInstance<IDataSource>(registration.Type))
+            .Select(registration => _sourcesExtensionHive.GetInstance(registration.Type))
             .ToArray();
 
         var requestConfiguration = GetRequestConfiguration();
@@ -81,7 +83,7 @@ internal class DataControllerService(
     {
         var logger1 = _loggerFactory.CreateLogger<DataWriterController>();
         var logger2 = _loggerFactory.CreateLogger($"{exportParameters.Type} - {resourceLocator}");
-        var dataWriter = _extensionHive.GetInstance<IDataWriter>(exportParameters.Type ?? throw new Exception("The type must not be null."));
+        var dataWriter = _writersExtensionHive.GetInstance(exportParameters.Type ?? throw new Exception("The type must not be null."));
         var requestConfiguration = exportParameters.Configuration;
 
         var clonedSystemConfiguration = _appState.Project.SystemConfiguration is null

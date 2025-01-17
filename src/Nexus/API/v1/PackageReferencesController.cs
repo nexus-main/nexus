@@ -6,6 +6,7 @@ using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
+using Nexus.Extensibility;
 
 namespace Nexus.Controllers.V1;
 
@@ -18,7 +19,8 @@ namespace Nexus.Controllers.V1;
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class PackageReferencesController(
     IPackageService packageService,
-    IExtensionHive extensionHive) : ControllerBase
+    IExtensionHive<IDataSource> sourcesExtensionHive,
+    IExtensionHive<IDataWriter> writersExtensionHive) : ControllerBase
 {
     // GET      /api/packagereferences
     // POST     /api/packagereferences
@@ -26,7 +28,10 @@ internal class PackageReferencesController(
     // GET      /api/packagereferences/{id}/versions
 
     private readonly IPackageService _packageService = packageService;
-    private readonly IExtensionHive _extensionHive = extensionHive;
+
+    private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
+
+    private readonly IExtensionHive<IDataWriter> _writersExtensionHive = writersExtensionHive;
 
     /// <summary>
     /// Gets the list of package references.

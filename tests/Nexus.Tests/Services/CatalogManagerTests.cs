@@ -144,7 +144,7 @@ public class CatalogManagerTests
             });
 
         /* extensionHive */
-        var extensionHive = Mock.Of<IExtensionHive>();
+        var extensionHive = Mock.Of<IExtensionHive<IDataSource>>();
 
         /* pipelineService */
         var registrationA = new DataSourceRegistration(Type: "A", new Uri("", UriKind.Relative), default);
