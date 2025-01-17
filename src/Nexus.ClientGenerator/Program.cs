@@ -70,12 +70,12 @@ public static class Program
 
         // generate C# client
         var csharpGenerator = new CSharpGenerator(settings);
-        var csharpOutputFolderPath = $"{solutionRoot}src/clients/dotnet-client";
+        var csharpOutputFolderPath = $"{solutionRoot}src/clients/dotnet";
 
         csharpGenerator.Generate(csharpOutputFolderPath, document);
 
         // generate Python client
-        var pythonOutputFolderPath = $"{solutionRoot}src/clients/python-client/nexus_api";
+        var pythonOutputFolderPath = $"{solutionRoot}src/clients/python/nexus_api";
         var pythonGenerator = new PythonGenerator(settings);
 
         pythonGenerator.Generate(pythonOutputFolderPath, document);

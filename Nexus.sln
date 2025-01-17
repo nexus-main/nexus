@@ -28,11 +28,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nexus.Tests", "tests\Nexus.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nexus", "src\Nexus\Nexus.csproj", "{6DDD84D7-8FCF-4E49-A5DB-EAF95B0E040F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet-client", "src\clients\dotnet-client\dotnet-client.csproj", "{FD8E5EA0-674B-492D-8D1E-1D0B8374B71D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet", "src\clients\dotnet\client.csproj", "{FD8E5EA0-674B-492D-8D1E-1D0B8374B71D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nexus.UI", "src\Nexus.UI\Nexus.UI.csproj", "{121840FD-19CC-4C48-86DE-AF0B6C70A089}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet-client-tests", "tests\clients\dotnet-client-tests\dotnet-client-tests.csproj", "{AFCE2F13-F54D-439A-B796-DC3F32E1A12B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet-tests", "tests\clients\dotnet-tests\client-tests.csproj", "{AFCE2F13-F54D-439A-B796-DC3F32E1A12B}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nexus.ClientGenerator", "src\Nexus.ClientGenerator\Nexus.ClientGenerator.csproj", "{E12BE061-CCEF-48AF-8442-BC23A1C4D3F2}"
 EndProject

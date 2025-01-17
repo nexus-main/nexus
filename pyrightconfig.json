@@ -1,8 +1,8 @@
 {
   "include": [
-    "src/clients/python-client",
+    "src/clients/python",
     "src/extensibility/python-extensibility",
-    "tests/clients/python-client-tests",
+    "tests/clients/python-tests",
     "tests/extensibility/python-extensibility-tests"
   ],
   "stubPath": "",
@@ -10,7 +10,7 @@
     {
       "root": ".",
       "extraPaths": [
-        "src/clients/python-client",
+        "src/clients/python",
         "src/extensibility/python-extensibility"
       ]
     }
