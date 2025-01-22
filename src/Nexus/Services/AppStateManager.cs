@@ -15,17 +15,26 @@ namespace Nexus.Services;
 internal class AppStateManager(
     AppState appState,
     IPackageService packageService,
+    IExtensionHive<IDataSource> sourcesExtensionHive,
     IExtensionHive<IDataWriter> writersExtensionHive,
     ICatalogManager catalogManager,
     IDatabaseService databaseService,
     ILogger<AppStateManager> logger)
 {
     private readonly IPackageService _packageService = packageService;
+
     private readonly IExtensionHive<IDataWriter> _writersExtensionHive = writersExtensionHive;
+
+    private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
+
     private readonly ICatalogManager _catalogManager = catalogManager;
+
     private readonly IDatabaseService _databaseService = databaseService;
+
     private readonly ILogger<AppStateManager> _logger = logger;
+
     private readonly SemaphoreSlim _refreshDatabaseSemaphore = new(initialCount: 1, maxCount: 1);
+
     private readonly SemaphoreSlim _projectSemaphore = new(initialCount: 1, maxCount: 1);
 
     public AppState AppState { get; } = appState;
@@ -54,14 +63,18 @@ internal class AppStateManager(
 
                 var packageReferenceMap = await _packageService.GetAllAsync();
 
-                refreshDatabaseTask = _writersExtensionHive
-                    .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken)
-                    .ContinueWith(task =>
-                    {
-                        LoadDataWriters();
-                        AppState.ReloadPackagesTask = default;
-                        return Task.CompletedTask;
-                    }, TaskScheduler.Default);
+                refreshDatabaseTask = Task.Run(async () =>
+                {
+                    await _sourcesExtensionHive
+                        .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+
+                    await _writersExtensionHive
+                        .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+
+                    LoadDataWriters();
+                    AppState.ReloadPackagesTask = default;
+                    return Task.CompletedTask;
+                });
             }
         }
         finally

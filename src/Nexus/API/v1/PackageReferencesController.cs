@@ -18,9 +18,7 @@ namespace Nexus.Controllers.V1;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class PackageReferencesController(
-    IPackageService packageService,
-    IExtensionHive<IDataSource> sourcesExtensionHive,
-    IExtensionHive<IDataWriter> writersExtensionHive) : ControllerBase
+    IPackageService packageService) : ControllerBase
 {
     // GET      /api/packagereferences
     // POST     /api/packagereferences
@@ -28,10 +26,6 @@ internal class PackageReferencesController(
     // GET      /api/packagereferences/{id}/versions
 
     private readonly IPackageService _packageService = packageService;
-
-    private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
-
-    private readonly IExtensionHive<IDataWriter> _writersExtensionHive = writersExtensionHive;
 
     /// <summary>
     /// Gets the list of package references.
@@ -75,13 +69,10 @@ internal class PackageReferencesController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var packageReferenceMap = await _packageService.GetAllAsync();
+        var result = await _packageService.GetVersionsAsync(id, cancellationToken);
 
-        if (!packageReferenceMap.TryGetValue(id, out var packageReference))
+        if (result is null)
             return NotFound($"Unable to find package reference with ID {id}.");
-
-        var result = await _extensionHive
-            .GetVersionsAsync(packageReference, cancellationToken);
 
         return result;
     }

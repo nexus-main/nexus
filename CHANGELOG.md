@@ -1,3 +1,6 @@
+## v2.0.0-beta.43 - 2025-01-22
+- Follow Apollo3zehn.PackageManagement changes
+
 ## v2.0.0-beta.42 - 2025-01-16
 - Make Nexus.PackageManagement indepenent of Nexus.Extensibility
 

@@ -4,9 +4,6 @@
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "python.analysis.extraPaths": [
-        "src/clients/python"
-    ],
     "editor.formatOnSave": true,
     "[aspnetcorerazor]": {
         "editor.formatOnSave": false
