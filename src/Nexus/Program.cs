@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using System.Text.Json;
+using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Formatters;
@@ -191,7 +192,9 @@ void AddServices(
     services.Configure<SecurityOptions>(configuration.GetSection(SecurityOptions.Section));
 
     // Package management
-    services.AddPackageManagement<IDataSource, IDataWriter>();
+    services.AddPackageManagement();
+    services.AddExtensionHive<IDataSource>();
+    services.AddExtensionHive<IDataWriter>();
 
     services.AddSingleton<IPackageManagementPathsOptions>(
         serviceProvider => serviceProvider.GetRequiredService<IOptions<PathsOptions>>().Value);

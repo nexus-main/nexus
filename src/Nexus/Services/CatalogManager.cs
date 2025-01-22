@@ -1,11 +1,11 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apollo3zehn.PackageManagement.Services;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
-using Nexus.PackageManagement.Services;
 using Nexus.Sources;
 using Nexus.Utilities;
 using System.Security.Claims;
@@ -25,7 +25,7 @@ internal class CatalogManager(
     IDataControllerService dataControllerService,
     IDatabaseService databaseService,
     IServiceProvider serviceProvider,
-    IExtensionHive extensionHive,
+    IExtensionHive<IDataSource> sourcesExtensionHive,
     IPipelineService pipelineService,
     ILogger<CatalogManager> logger) : ICatalogManager
 {
@@ -40,7 +40,7 @@ internal class CatalogManager(
     private readonly IDataControllerService _dataControllerService = dataControllerService;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly IServiceProvider _serviceProvider = serviceProvider;
-    private readonly IExtensionHive _extensionHive = extensionHive;
+    private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
     private readonly IPipelineService _pipelineService = pipelineService;
     private readonly ILogger<CatalogManager> _logger = logger;
 
@@ -88,7 +88,7 @@ internal class CatalogManager(
                 foreach (var registration in pipeline.Registrations)
                 {
                     var packageReferenceIds = pipeline.Registrations
-                        .Select(registration => _extensionHive.GetPackageReferenceId<IDataSource>(registration.Type))
+                        .Select(registration => _sourcesExtensionHive.GetPackageReferenceId(registration.Type))
                         .ToArray();
 
                     foreach (var catalogRegistration in catalogRegistrations)
@@ -145,7 +145,7 @@ internal class CatalogManager(
                         var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
 
                         var packageReferenceIds = pipeline.Registrations
-                            .Select(registration => _extensionHive.GetPackageReferenceId<IDataSource>(registration.Type))
+                            .Select(registration => _sourcesExtensionHive.GetPackageReferenceId(registration.Type))
                             .ToArray();
 
                         foreach (var catalogRegistration in catalogRegistrations)

@@ -12,7 +12,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal static class NexusOpenApiExtensions
 {
     public static IServiceCollection AddNexusOpenApi(
-        this IServiceCollection services)
+        this IServiceCollection services
+    )
     {
         // https://github.com/dotnet/aspnet-api-versioning/tree/master/samples/aspnetcore/SwaggerSample
         services
@@ -49,7 +50,7 @@ internal static class NexusOpenApiExtensions
                 config.Description = "Explore resources and get their data."
                     + (description.IsDeprecated ? " This API version is deprecated." : "");
 
-                config.ApiGroupNames = new[] { description.GroupName };
+                config.ApiGroupNames = [description.GroupName];
                 config.DocumentName = description.GroupName;
             });
         }
@@ -57,12 +58,13 @@ internal static class NexusOpenApiExtensions
         return services;
     }
 
-    public static IApplicationBuilder UseNexusOpenApi(
-        this IApplicationBuilder app,
+    public static WebApplication UseNexusOpenApi(
+        this WebApplication app,
         IApiVersionDescriptionProvider provider,
-        bool addExplorer)
+        bool addExplorer
+    )
     {
-        app.UseOpenApi(settings => settings.Path = "/openapi/{documentName}/openapi.json");
+        app.UseOpenApi(settings => settings.Path = "/openapi/{documentName}.json");
 
         if (addExplorer)
         {
@@ -75,7 +77,7 @@ internal static class NexusOpenApiExtensions
                     settings.SwaggerRoutes.Add(
                         new SwaggerUiRoute(
                             description.GroupName.ToUpperInvariant(),
-                            $"/openapi/{description.GroupName}/openapi.json"));
+                            $"/openapi/{description.GroupName}.json"));
                 }
             });
         }

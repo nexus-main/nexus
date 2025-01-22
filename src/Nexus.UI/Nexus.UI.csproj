@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\clients\dotnet-client\dotnet-client.csproj" />
+    <ProjectReference Include="..\clients\dotnet\client.csproj" />
   </ItemGroup>
 
 </Project>

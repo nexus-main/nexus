@@ -1,6 +1,7 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apollo3zehn.PackageManagement.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -8,7 +9,6 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
-using Nexus.PackageManagement.Services;
 using Nexus.Services;
 using Nexus.Sources;
 using Nexus.Utilities;
@@ -144,7 +144,7 @@ public class CatalogManagerTests
             });
 
         /* extensionHive */
-        var extensionHive = Mock.Of<IExtensionHive>();
+        var extensionHive = Mock.Of<IExtensionHive<IDataSource>>();
 
         /* pipelineService */
         var registrationA = new DataSourceRegistration(Type: "A", new Uri("", UriKind.Relative), default);

@@ -1,6 +1,7 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,7 +10,6 @@ using Moq;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
-using Nexus.PackageManagement.Services;
 using Nexus.Services;
 using Nexus.Sources;
 using Nexus.Writers;
@@ -24,10 +24,10 @@ public class DataControllerServiceTests
     public async Task CanCreateAndInitializeDataSourceController()
     {
         // Arrange
-        var extensionHive = Mock.Of<IExtensionHive>();
+        var sourcesExtensionHive = Mock.Of<IExtensionHive<IDataSource>>();
 
-        Mock.Get(extensionHive)
-            .Setup(extensionHive => extensionHive.GetInstance<IDataSource>(It.IsAny<string>()))
+        Mock.Get(sourcesExtensionHive)
+            .Setup(extensionHive => extensionHive.GetInstance(It.IsAny<string>()))
             .Returns(new Sample());
 
         var registration = new DataSourceRegistration(
@@ -76,7 +76,8 @@ public class DataControllerServiceTests
         var dataControllerService = new DataControllerService(
             appState,
             httpContextAccessor,
-            extensionHive,
+            sourcesExtensionHive,
+            default!,
             default!,
             default!,
             Options.Create(new DataOptions()),
@@ -105,10 +106,10 @@ public class DataControllerServiceTests
             Project = new NexusProject(default)
         };
 
-        var extensionHive = Mock.Of<IExtensionHive>();
+        var writersExtensionHive = Mock.Of<IExtensionHive<IDataWriter>>();
 
-        Mock.Get(extensionHive)
-            .Setup(extensionHive => extensionHive.GetInstance<IDataWriter>(It.IsAny<string>()))
+        Mock.Get(writersExtensionHive)
+            .Setup(extensionHive => extensionHive.GetInstance(It.IsAny<string>()))
             .Returns(new Csv());
 
         var loggerFactory = Mock.Of<ILoggerFactory>();
@@ -119,7 +120,8 @@ public class DataControllerServiceTests
         var dataControllerService = new DataControllerService(
             appState,
             default!,
-            extensionHive,
+            default!,
+            writersExtensionHive,
             default!,
             default!,
             Options.Create(new DataOptions()),
@@ -131,7 +133,8 @@ public class DataControllerServiceTests
                 resourceLocator,
                 exportParameters,
                 CancellationToken.None);
-        };
+        }
+        ;
 
         var actual = await Record.ExceptionAsync(action);
 

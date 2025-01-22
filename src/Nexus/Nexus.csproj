@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Apollo3zehn.PackageManagement" Version="1.0.0-beta.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.0" />
@@ -62,7 +63,6 @@
   <ItemGroup>
     <ProjectReference Include="../extensibility/dotnet-extensibility/dotnet-extensibility.csproj" />
     <ProjectReference Include="../Nexus.UI/Nexus.UI.csproj" />
-    <ProjectReference Include="../Nexus.PackageManagement/Nexus.PackageManagement.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,12 +1,12 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
-using Nexus.PackageManagement.Services;
 using Nexus.Services;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -23,7 +23,7 @@ namespace Nexus.Controllers.V1;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class SourcesController(
-    IExtensionHive extensionHive,
+    IExtensionHive<IDataSource> extensionHive,
     IPipelineService pipelineService
 ) : ControllerBase
 {
@@ -32,7 +32,7 @@ internal class SourcesController(
     // POST     /api/sources/pipelines
     // DELETE   /api/sources/pipelines/{pipelineId}
 
-    private readonly IExtensionHive _extensionHive = extensionHive;
+    private readonly IExtensionHive<IDataSource> _extensionHive = extensionHive;
 
     private readonly IPipelineService _pipelineService = pipelineService;
 
@@ -42,7 +42,7 @@ internal class SourcesController(
     [HttpGet("descriptions")]
     public List<ExtensionDescription> GetDescriptions()
     {
-        var result = GetExtensionDescriptions(_extensionHive.GetExtensions<IDataSource>());
+        var result = GetExtensionDescriptions(_extensionHive.GetExtensions());
         return result;
     }
 

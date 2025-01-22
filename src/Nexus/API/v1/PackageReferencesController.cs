@@ -1,11 +1,12 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apollo3zehn.PackageManagement;
+using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
-using Nexus.PackageManagement;
-using Nexus.PackageManagement.Services;
+using Nexus.Extensibility;
 
 namespace Nexus.Controllers.V1;
 
@@ -17,8 +18,7 @@ namespace Nexus.Controllers.V1;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class PackageReferencesController(
-    IPackageService packageService,
-    IExtensionHive extensionHive) : ControllerBase
+    IPackageService packageService) : ControllerBase
 {
     // GET      /api/packagereferences
     // POST     /api/packagereferences
@@ -26,7 +26,6 @@ internal class PackageReferencesController(
     // GET      /api/packagereferences/{id}/versions
 
     private readonly IPackageService _packageService = packageService;
-    private readonly IExtensionHive _extensionHive = extensionHive;
 
     /// <summary>
     /// Gets the list of package references.
@@ -70,13 +69,10 @@ internal class PackageReferencesController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var packageReferenceMap = await _packageService.GetAllAsync();
+        var result = await _packageService.GetVersionsAsync(id, cancellationToken);
 
-        if (!packageReferenceMap.TryGetValue(id, out var packageReference))
+        if (result is null)
             return NotFound($"Unable to find package reference with ID {id}.");
-
-        var result = await _extensionHive
-            .GetVersionsAsync(packageReference, cancellationToken);
 
         return result;
     }
