@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Readers;
-using Nexus.Controllers;
 using Nexus.Controllers.V1;
 
 namespace Nexus.ClientGenerator;
@@ -45,7 +44,7 @@ public static class Program
 
         // read open API document
         var client = new HttpClient();
-        var response = await client.GetAsync("http://localhost:5000/openapi/v1/openapi.json");
+        var response = await client.GetAsync("http://localhost:5000/openapi/v1.json");
 
         response.EnsureSuccessStatusCode();
 

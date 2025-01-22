@@ -3111,10 +3111,10 @@ public enum TaskStatus
 public record ExportParameters(DateTime Begin, DateTime End, TimeSpan FilePeriod, string? Type, IReadOnlyList<string> ResourcePaths, IReadOnlyDictionary<string, JsonElement>? Configuration);
 
 /// <summary>
-/// A package reference.
+/// 
 /// </summary>
-/// <param name="Provider">The provider which loads the package.</param>
-/// <param name="Configuration">The configuration of the package reference.</param>
+/// <param name="Provider"></param>
+/// <param name="Configuration"></param>
 public record PackageReference(string Provider, IReadOnlyDictionary<string, string> Configuration);
 
 /// <summary>
