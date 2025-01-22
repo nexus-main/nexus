@@ -2095,16 +2095,13 @@
       },
       "PackageReference": {
         "type": "object",
-        "description": "A package reference.",
         "additionalProperties": false,
         "properties": {
           "provider": {
-            "type": "string",
-            "description": "The provider which loads the package."
+            "type": "string"
           },
           "configuration": {
             "type": "object",
-            "description": "The configuration of the package reference.",
             "additionalProperties": {
               "type": "string"
             }

@@ -1,4 +1,3 @@
-# Python <= 3.9
 from __future__ import annotations
 
 import asyncio

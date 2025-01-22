@@ -1,4 +1,3 @@
-# Python <= 3.9
 from __future__ import annotations
 
 import json
@@ -2074,18 +2073,18 @@ class ExportParameters:
 @dataclass(frozen=True)
 class PackageReference:
     """
-    A package reference.
+    
 
     Args:
-        provider: The provider which loads the package.
-        configuration: The configuration of the package reference.
+        provider: 
+        configuration: 
     """
 
     provider: str
-    """The provider which loads the package."""
+    """"""
 
     configuration: dict[str, str]
-    """The configuration of the package reference."""
+    """"""
 
 
 @dataclass(frozen=True)
