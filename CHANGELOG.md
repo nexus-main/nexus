@@ -1,3 +1,6 @@
+## v2.0.0-beta.44 - 2025-01-23
+- Fix SimpleDataSource (Python)
+
 ## v2.0.0-beta.43 - 2025-01-22
 - Follow Apollo3zehn.PackageManagement changes
 
