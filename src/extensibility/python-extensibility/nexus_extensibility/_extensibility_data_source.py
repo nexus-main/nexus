@@ -202,7 +202,7 @@ class SimpleDataSource(IDataSource, ABC):
         pass
 
     @abstractmethod
-    def get_catalog(self, catalog_id: str) -> Awaitable[ResourceCatalog]:
+    def enrich_catalog(self, catalog: ResourceCatalog) -> Awaitable[ResourceCatalog]:
         pass
 
     async def get_time_range(self, catalog_id: str) -> Tuple[datetime, datetime]:
