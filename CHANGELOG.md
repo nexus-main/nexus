@@ -1,3 +1,6 @@
+## v2.0.0-beta.45 - 2025-01-25
+- Fix OIDC identifier claim definition
+
 ## v2.0.0-beta.44 - 2025-01-23
 - Fix SimpleDataSource (Python)
 

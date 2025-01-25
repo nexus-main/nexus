@@ -138,7 +138,7 @@ internal static class NexusAuthExtensions
                         var principal = context.Principal
                             ?? throw new Exception("The principal is null. This should never happen.");
 
-                        var identifierClaim = securityOptions.OidcIdentifierClaim;
+                        var identifierClaim = provider.IdentifierClaim;
 
                         var userId = principal.FindFirstValue(identifierClaim)
                             ?? throw new Exception($"Could not find a value for claim '{identifierClaim}' in the OIDC ticket.");

@@ -100,7 +100,8 @@ internal record OpenIdConnectProvider(
     string DisplayName,
     string Authority,
     string ClientId,
-    string ClientSecret
+    string ClientSecret,
+    string IdentifierClaim = Claims.Subject
 );
 
 internal partial record SecurityOptions() : NexusOptionsBase
@@ -110,6 +111,4 @@ internal partial record SecurityOptions() : NexusOptionsBase
     public TimeSpan CookieLifetime { get; set; } = TimeSpan.FromDays(30);
 
     public List<OpenIdConnectProvider> OidcProviders { get; set; } = [];
-
-    public string OidcIdentifierClaim { get; set; } = Claims.Subject;
 }
