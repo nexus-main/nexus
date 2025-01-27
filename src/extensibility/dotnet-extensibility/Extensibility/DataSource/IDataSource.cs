@@ -6,23 +6,12 @@ using Nexus.DataModel;
 
 namespace Nexus.Extensibility;
 
+
 /// <summary>
-/// A data source.
+/// A non-generic base interface for data sources. Use the generic version to implement a data source.
 /// </summary>
 public interface IDataSource
 {
-    /// <summary>
-    /// Invoked by Nexus right after construction to provide the context.
-    /// </summary>
-    /// <param name="context">The <paramref name="context"/>.</param>
-    /// <param name="logger">The logger.</param>
-    /// <param name="cancellationToken">A token to cancel the current operation.</param>
-    /// <returns>The task.</returns>
-    Task SetContextAsync(
-        DataSourceContext context,
-        ILogger logger,
-        CancellationToken cancellationToken);
-
     /// <summary>
     /// Gets the catalog registrations that are located under <paramref name="path"/>.
     /// </summary>
@@ -83,5 +72,23 @@ public interface IDataSource
         ReadRequest[] requests,
         ReadDataHandler readData,
         IProgress<double> progress,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// A data source.
+/// </summary>
+public interface IDataSource<T> : IDataSource where T : class?
+{
+    /// <summary>
+    /// Invoked by Nexus right after construction to provide the context.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    /// <returns>The task.</returns>
+    Task SetContextAsync(
+        DataSourceContext<T> context,
+        ILogger logger,
         CancellationToken cancellationToken);
 }

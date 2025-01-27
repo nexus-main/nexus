@@ -66,7 +66,9 @@ internal class CatalogManager(
                         new(
                             Type: typeof(Sample).FullName!,
                             ResourceLocator: default,
-                            Configuration: default
+                            Configuration: JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>>(
+                                JsonSerializer.SerializeToElement(new SampleSettings("Hello from Sample!"))
+                            )
                         )
                     ]
                 ))

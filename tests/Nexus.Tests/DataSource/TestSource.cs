@@ -15,7 +15,7 @@ public class TestSource : IDataSource
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
-    public Task SetContextAsync(DataSourceContext context, ILogger logger, CancellationToken cancellationToken)
+    public Task SetContextAsync(DataSourceContext<object> context, ILogger logger, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
     }

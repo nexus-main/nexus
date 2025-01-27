@@ -4,6 +4,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nexus.Core;
@@ -89,20 +90,20 @@ internal class DataSourceController(
         foreach (var (dataSource, registration) in _dataSources
             .Zip(_registrations))
         {
-            var dataSourceLogger = loggerFactory
-                .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
+            var dataSourceInterfaceType = dataSource.GetType().GetInterfaces()[0];
+            var genericType = dataSourceInterfaceType.GenericTypeArguments[0];
+            var methodInfo = typeof(DataSourceController).GetMethod(nameof(SetGenericContextAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var genericMethod = methodInfo.MakeGenericMethod(genericType);
 
-            var clonedSourceConfiguration = registration.Configuration is null
-                ? default
-                : registration.Configuration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
-
-            var context = new DataSourceContext(
-                ResourceLocator: registration.ResourceLocator,
-                SystemConfiguration: _systemConfiguration,
-                SourceConfiguration: clonedSourceConfiguration,
-                RequestConfiguration: _requestConfiguration);
-
-            await dataSource.SetContextAsync(context, dataSourceLogger, cancellationToken);
+            await (Task)genericMethod.Invoke(
+                this,
+                [
+                    dataSource,
+                    registration,
+                    loggerFactory,
+                    cancellationToken
+                ]
+            )!;
         }
     }
 
@@ -436,7 +437,8 @@ internal class DataSourceController(
                         currentReadRequests,
                         readDataHandler,
                         progress,
-                        cancellationToken);
+                        cancellationToken
+                    );
                 }
             }
             catch (OutOfMemoryException)
@@ -1025,7 +1027,6 @@ internal class DataSourceController(
          *
          */
 
-
         if (begin >= end)
             throw new ValidationException("The begin datetime must be less than the end datetime.");
 
@@ -1034,6 +1035,29 @@ internal class DataSourceController(
 
         if (end.Ticks % samplePeriod.Ticks != 0)
             throw new ValidationException("The end parameter must be a multiple of the sample period.");
+    }
+
+    private Task SetGenericContextAsync<T>(
+        IDataSource<T?> dataSource,
+        DataSourceRegistration registration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken
+    ) where T : class?
+    {
+        var dataSourceLogger = loggerFactory
+            .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
+
+        var sourceConfiguration = registration.Configuration is null
+            ? default
+            : JsonSerializer.Deserialize<T>(JsonSerializer.SerializeToElement(registration.Configuration));
+
+        var context = new DataSourceContext<T?>(
+            ResourceLocator: registration.ResourceLocator,
+            SystemConfiguration: _systemConfiguration,
+            SourceConfiguration: sourceConfiguration,
+            RequestConfiguration: _requestConfiguration);
+
+        return dataSource.SetContextAsync(context, dataSourceLogger, cancellationToken);
     }
 
     private bool _disposedValue;

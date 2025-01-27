@@ -14,11 +14,12 @@ namespace Nexus.Extensibility;
 /// <param name="SystemConfiguration">The system configuration.</param>
 /// <param name="SourceConfiguration">The source configuration.</param>
 /// <param name="RequestConfiguration">The request configuration.</param>
-public record DataSourceContext(
+public record DataSourceContext<T>(
     Uri? ResourceLocator,
     IReadOnlyDictionary<string, JsonElement>? SystemConfiguration,
-    IReadOnlyDictionary<string, JsonElement>? SourceConfiguration,
-    IReadOnlyDictionary<string, JsonElement>? RequestConfiguration);
+    T SourceConfiguration,
+    IReadOnlyDictionary<string, JsonElement>? RequestConfiguration
+) where T : class?;
 
 /// <summary>
 /// A read request.

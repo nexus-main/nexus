@@ -9,12 +9,12 @@ namespace Nexus.Extensibility;
 /// <summary>
 /// A simple implementation of a data source.
 /// </summary>
-public abstract class SimpleDataSource : IDataSource
+public abstract class SimpleDataSource<T> : IDataSource<T> where T : class?
 {
     /// <summary>
     /// Gets the data source context. This property is not accessible from within class constructors as it will bet set later.
     /// </summary>
-    protected DataSourceContext Context { get; private set; } = default!;
+    protected DataSourceContext<T> Context { get; private set; } = default!;
 
     /// <summary>
     /// Gets the data logger. This property is not accessible from within class constructors as it will bet set later.
@@ -23,7 +23,7 @@ public abstract class SimpleDataSource : IDataSource
 
     /// <inheritdoc />
     public Task SetContextAsync(
-        DataSourceContext context,
+        DataSourceContext<T> context,
         ILogger logger,
         CancellationToken cancellationToken)
     {
