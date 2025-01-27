@@ -54,7 +54,6 @@ internal interface IDataSourceController : IDisposable
 internal class DataSourceController(
     IDataSource[] dataSources,
     DataSourceRegistration[] registrations,
-    IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
     IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
     IProcessingService processingService,
     ICacheService cacheService,
@@ -73,8 +72,6 @@ internal class DataSourceController(
     private readonly IDataSource[] _dataSources = dataSources;
 
     private readonly DataSourceRegistration[] _registrations = registrations;
-
-    private readonly IReadOnlyDictionary<string, JsonElement>? _systemConfiguration = systemConfiguration;
 
     private ConcurrentDictionary<string, ResourceCatalog> _catalogCache = default!;
 
@@ -1053,7 +1050,6 @@ internal class DataSourceController(
 
         var context = new DataSourceContext<T?>(
             ResourceLocator: registration.ResourceLocator,
-            SystemConfiguration: _systemConfiguration,
             SourceConfiguration: sourceConfiguration,
             RequestConfiguration: _requestConfiguration);
 

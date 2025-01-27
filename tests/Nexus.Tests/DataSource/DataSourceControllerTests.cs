@@ -32,7 +32,6 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             default!,
             default!,
             default!,
-            default!,
             NullLogger<DataSourceController>.Instance);
 
         await controller.InitializeAsync(default!, new LoggerFactory(), CancellationToken.None);
@@ -61,7 +60,6 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             default!,
             default!,
             default!,
-            default!,
             NullLogger<DataSourceController>.Instance);
 
         await controller.InitializeAsync(default!, new LoggerFactory(), CancellationToken.None);
@@ -79,7 +77,6 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         using var controller = new DataSourceController(
             [_fixture.DataSource1, _fixture.DataSource2],
             [_fixture.Registration1, _fixture.Registration2],
-            default!,
             default!,
             default!,
             default!,
@@ -237,7 +234,6 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             default!,
             default!,
             default!,
-            default!,
             NullLogger<DataSourceController>.Instance);
 
         await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(), new LoggerFactory(), CancellationToken.None);
@@ -297,7 +293,6 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         using var controller = new DataSourceController(
             [_fixture.DataSource1, _fixture.DataSource2],
             [_fixture.Registration1, _fixture.Registration2],
-            default!,
             default!,
             processingService.Object,
             default!,
@@ -511,7 +506,6 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var dataSourceController = new DataSourceController(
             [dataSource],
             [registration],
-            default!,
             default!,
             processingService,
             cacheService.Object,

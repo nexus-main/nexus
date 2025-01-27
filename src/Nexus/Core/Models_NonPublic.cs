@@ -28,9 +28,6 @@ internal record CatalogItemRequest(
     CatalogItem? BaseItem,
     CatalogContainer Container);
 
-internal record NexusProject(
-    IReadOnlyDictionary<string, JsonElement>? SystemConfiguration);
-
 internal record CatalogState(
     CatalogContainer Root,
     CatalogCache Cache);

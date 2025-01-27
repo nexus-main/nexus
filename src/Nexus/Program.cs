@@ -275,20 +275,6 @@ async Task InitializeAppAsync(
 
     await userContext.Database.EnsureCreatedAsync();
 
-    // project
-    if (databaseService.TryReadProject(out var project))
-    {
-        appState.Project = JsonSerializer.Deserialize<NexusProject>(project)
-            ?? throw new Exception("project is null");
-    }
-
-    else
-    {
-        appState.Project = new NexusProject(
-            SystemConfiguration: default
-        );
-    }
-
     // packages and catalogs
     await appStateManager.RefreshDatabaseAsync(new Progress<double>(), CancellationToken.None);
 }

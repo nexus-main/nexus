@@ -11,12 +11,10 @@ namespace Nexus.Extensibility;
 /// The starter package for a data source.
 /// </summary>
 /// <param name="ResourceLocator">An optional URL which points to the data.</param>
-/// <param name="SystemConfiguration">The system configuration.</param>
 /// <param name="SourceConfiguration">The source configuration.</param>
 /// <param name="RequestConfiguration">The request configuration.</param>
 public record DataSourceContext<T>(
     Uri? ResourceLocator,
-    IReadOnlyDictionary<string, JsonElement>? SystemConfiguration,
     T SourceConfiguration,
     IReadOnlyDictionary<string, JsonElement>? RequestConfiguration
 ) where T : class?;

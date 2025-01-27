@@ -25,9 +25,6 @@ internal class AppState
 
     public Task? ReloadPackagesTask { get; set; }
 
-    // these properties will be set during host startup
-    public NexusProject Project { get; set; } = default!;
-
     public CatalogState CatalogState { get; set; } = default!;
 
     public List<ExtensionDescription> DataWriterDescriptions { get; set; } = default!;

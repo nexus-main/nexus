@@ -20,9 +20,9 @@ public class SampleDataSourceTests
 
         var context = new DataSourceContext<SampleSettings>(
             ResourceLocator: default,
-            SystemConfiguration: default!,
             SourceConfiguration: default!,
-            RequestConfiguration: default);
+            RequestConfiguration: default
+        );
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
@@ -53,9 +53,9 @@ public class SampleDataSourceTests
 
         var context = new DataSourceContext<SampleSettings>(
             ResourceLocator: default,
-            SystemConfiguration: default!,
             SourceConfiguration: default!,
-            RequestConfiguration: default);
+            RequestConfiguration: default
+        );
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
@@ -72,9 +72,9 @@ public class SampleDataSourceTests
 
         var context = new DataSourceContext<SampleSettings>(
             ResourceLocator: default,
-            SystemConfiguration: default!,
             SourceConfiguration: default!,
-            RequestConfiguration: default);
+            RequestConfiguration: default
+        );
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
@@ -93,9 +93,9 @@ public class SampleDataSourceTests
 
         var context = new DataSourceContext<SampleSettings>(
             ResourceLocator: default,
-            SystemConfiguration: default!,
             SourceConfiguration: default!,
-            RequestConfiguration: default);
+            RequestConfiguration: default
+        );
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 

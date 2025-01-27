@@ -55,14 +55,9 @@ internal class DataControllerService(
 
         var requestConfiguration = GetRequestConfiguration();
 
-        var clonedSystemConfiguration = _appState.Project.SystemConfiguration is null
-            ? default
-            : _appState.Project.SystemConfiguration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
-
         var controller = new DataSourceController(
             dataSources,
             pipeline.Registrations,
-            clonedSystemConfiguration,
             requestConfiguration,
             _processingService,
             _cacheService,
@@ -86,14 +81,9 @@ internal class DataControllerService(
         var dataWriter = _writersExtensionHive.GetInstance(exportParameters.Type ?? throw new Exception("The type must not be null."));
         var requestConfiguration = exportParameters.Configuration;
 
-        var clonedSystemConfiguration = _appState.Project.SystemConfiguration is null
-            ? default
-            : _appState.Project.SystemConfiguration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
-
         var controller = new DataWriterController(
             dataWriter,
             resourceLocator,
-            systemConfiguration: clonedSystemConfiguration,
             requestConfiguration: requestConfiguration,
             logger1);
 

@@ -30,12 +30,9 @@ internal interface IDataWriterController : IDisposable
 internal class DataWriterController(
     IDataWriter dataWriter,
     Uri resourceLocator,
-    IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
     IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
     ILogger<DataWriterController> logger) : IDataWriterController
 {
-    private IReadOnlyDictionary<string, JsonElement>? SystemConfiguration { get; } = systemConfiguration;
-
     private IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; } = requestConfiguration;
 
     private IDataWriter DataWriter { get; } = dataWriter;
@@ -50,8 +47,8 @@ internal class DataWriterController(
     {
         var context = new DataWriterContext(
             ResourceLocator: ResourceLocator,
-            SystemConfiguration: SystemConfiguration,
-            RequestConfiguration: RequestConfiguration);
+            RequestConfiguration: RequestConfiguration
+        );
 
         await DataWriter.SetContextAsync(context, logger, cancellationToken);
     }

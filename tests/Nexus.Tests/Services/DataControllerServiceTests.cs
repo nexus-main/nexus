@@ -46,7 +46,6 @@ public class DataControllerServiceTests
 
         var appState = new AppState()
         {
-            Project = new NexusProject(default),
             CatalogState = catalogState
         };
 
@@ -101,11 +100,7 @@ public class DataControllerServiceTests
     public async Task CanCreateAndInitializeDataWriterController()
     {
         // Arrange
-        var appState = new AppState()
-        {
-            Project = new NexusProject(default)
-        };
-
+        var appState = new AppState();
         var writersExtensionHive = Mock.Of<IExtensionHive<IDataWriter>>();
 
         Mock.Get(writersExtensionHive)

@@ -83,29 +83,6 @@ internal class AppStateManager(
         }
     }
 
-    public async Task PutSystemConfigurationAsync(IReadOnlyDictionary<string, JsonElement>? configuration)
-    {
-        await _projectSemaphore.WaitAsync();
-
-        try
-        {
-            var project = AppState.Project;
-
-            var newProject = project with
-            {
-                SystemConfiguration = configuration
-            };
-
-            await SaveProjectAsync(newProject);
-
-            AppState.Project = newProject;
-        }
-        finally
-        {
-            _projectSemaphore.Release();
-        }
-    }
-
     private void LoadDataWriters()
     {
         var labelsAndDescriptions = new List<(string Label, ExtensionDescription Description)>();
@@ -160,11 +137,5 @@ internal class AppStateManager(
             .ToList();
 
         AppState.DataWriterDescriptions = dataWriterDescriptions;
-    }
-
-    private async Task SaveProjectAsync(NexusProject project)
-    {
-        using var stream = _databaseService.WriteProject();
-        await JsonSerializerHelper.SerializeIndentedAsync(stream, project);
     }
 }

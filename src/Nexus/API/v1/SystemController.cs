@@ -18,20 +18,14 @@ namespace Nexus.Controllers.V1;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class SystemController(
-    AppState appState,
-    AppStateManager appStateManager,
-    IOptions<GeneralOptions> generalOptions) : ControllerBase
+    IOptions<GeneralOptions> generalOptions
+) : ControllerBase
 {
     // [authenticated]
     // GET      /api/system/configuration
     // GET      /api/system/file-type
     // GET      /api/system/help-link
 
-    // [privileged]
-    // PUT      /api/system/configuration
-
-    private readonly AppState _appState = appState;
-    private readonly AppStateManager _appStateManager = appStateManager;
     private readonly GeneralOptions _generalOptions = generalOptions.Value;
 
     /// <summary>
@@ -50,24 +44,5 @@ internal class SystemController(
     public string? GetHelpLink()
     {
         return _generalOptions.HelpLink;
-    }
-
-    /// <summary>
-    /// Gets the system configuration.
-    /// </summary>
-    [HttpGet("configuration")]
-    public IReadOnlyDictionary<string, JsonElement>? GetConfiguration()
-    {
-        return _appState.Project.SystemConfiguration;
-    }
-
-    /// <summary>
-    /// Sets the system configuration.
-    /// </summary>
-    [HttpPut("configuration")]
-    [Authorize(Policy = NexusPolicies.RequireAdmin)]
-    public Task SetConfigurationAsync(IReadOnlyDictionary<string, JsonElement>? configuration)
-    {
-        return _appStateManager.PutSystemConfigurationAsync(configuration);
     }
 }
