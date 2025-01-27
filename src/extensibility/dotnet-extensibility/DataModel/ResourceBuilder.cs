@@ -36,7 +36,6 @@ public record ResourceBuilder
     public ResourceBuilder WithProperty(string key, object value)
     {
         _properties ??= [];
-
         _properties[key] = JsonSerializer.SerializeToElement(value);
 
         return this;

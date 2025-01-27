@@ -6,12 +6,24 @@ using Nexus.DataModel;
 
 namespace Nexus.Extensibility;
 
-
 /// <summary>
 /// A non-generic base interface for data sources. Use the generic version to implement a data source.
 /// </summary>
 public interface IDataSource
 {
+    /// <summary>
+    /// Invoked by Nexus right after construction to provide the context.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    /// <returns>The task.</returns>
+    Task SetContextAsync(
+        DataSourceContext context,
+        ILogger logger,
+        CancellationToken cancellationToken
+    );
+
     /// <summary>
     /// Gets the catalog registrations that are located under <paramref name="path"/>.
     /// </summary>
@@ -20,7 +32,8 @@ public interface IDataSource
     /// <returns>The catalog identifiers task.</returns>
     Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(
         string path,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 
     /// <summary>
     /// Enriches the provided <see cref="ResourceCatalog"/>.
@@ -30,7 +43,8 @@ public interface IDataSource
     /// <returns>The catalog request task.</returns>
     Task<ResourceCatalog> EnrichCatalogAsync(
         ResourceCatalog catalog,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 
     /// <summary>
     /// Gets the time range of the <see cref="ResourceCatalog"/>.
@@ -40,7 +54,8 @@ public interface IDataSource
     /// <returns>The time range task.</returns>
     Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
         string catalogId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 
     /// <summary>
     /// Gets the availability of the <see cref="ResourceCatalog"/>.
@@ -54,7 +69,8 @@ public interface IDataSource
         string catalogId,
         DateTime begin,
         DateTime end,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 
     /// <summary>
     /// Performs a number of read requests.
@@ -72,14 +88,26 @@ public interface IDataSource
         ReadRequest[] requests,
         ReadDataHandler readData,
         IProgress<double> progress,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 }
 
 /// <summary>
 /// A data source.
 /// </summary>
-public interface IDataSource<T> : IDataSource where T : class?
+/// <typeparam name="T">The source configuration type</typeparam>
+public interface IDataSource<T> : IDataSource
 {
+    /// <inheritdoc />
+    Task IDataSource.SetContextAsync(
+        DataSourceContext context,
+        ILogger logger,
+        CancellationToken cancellationToken
+    )
+    {
+        throw new Exception($"Use the generic version of {nameof(IDataSource)}.{nameof(IDataSource.SetContextAsync)}.");
+    }
+
     /// <summary>
     /// Invoked by Nexus right after construction to provide the context.
     /// </summary>
@@ -90,5 +118,6 @@ public interface IDataSource<T> : IDataSource where T : class?
     Task SetContextAsync(
         DataSourceContext<T> context,
         ILogger logger,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 }

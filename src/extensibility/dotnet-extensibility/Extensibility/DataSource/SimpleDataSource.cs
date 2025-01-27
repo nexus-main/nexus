@@ -9,7 +9,7 @@ namespace Nexus.Extensibility;
 /// <summary>
 /// A simple implementation of a data source.
 /// </summary>
-public abstract class SimpleDataSource<T> : IDataSource<T> where T : class?
+public abstract class SimpleDataSource<T> : IDataSource<T>
 {
     /// <summary>
     /// Gets the data source context. This property is not accessible from within class constructors as it will bet set later.

@@ -87,20 +87,38 @@ internal class DataSourceController(
         foreach (var (dataSource, registration) in _dataSources
             .Zip(_registrations))
         {
-            var dataSourceInterfaceType = dataSource.GetType().GetInterfaces()[0];
-            var genericType = dataSourceInterfaceType.GenericTypeArguments[0];
-            var methodInfo = typeof(DataSourceController).GetMethod(nameof(SetGenericContextAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
-            var genericMethod = methodInfo.MakeGenericMethod(genericType);
+            var dataSourceLogger = loggerFactory
+                .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
 
-            await (Task)genericMethod.Invoke(
-                this,
-                [
-                    dataSource,
-                    registration,
-                    loggerFactory,
-                    cancellationToken
-                ]
-            )!;
+            var dataSourceInterfaceTypes = dataSource.GetType().GetInterfaces();
+
+            var genericInterface = dataSourceInterfaceTypes
+                .FirstOrDefault(x =>
+                    x.IsGenericType &&
+                    x.GetGenericTypeDefinition() == typeof(IDataSource<>)
+                );
+
+            if (genericInterface is null)
+            {
+                await SetContextAsync(dataSource, registration, logger, cancellationToken);
+            }
+
+            else
+            {
+                var genericType = genericInterface.GenericTypeArguments[0];
+                var methodInfo = typeof(DataSourceController).GetMethod(nameof(SetGenericContextAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var genericMethod = methodInfo.MakeGenericMethod(genericType);
+
+                await (Task)genericMethod.Invoke(
+                    this,
+                    [
+                        dataSource,
+                        registration,
+                        dataSourceLogger,
+                        cancellationToken
+                    ]
+                )!;
+            }
         }
     }
 
@@ -585,7 +603,8 @@ internal class DataSourceController(
                 /* process */
                 var slicedTargetBuffer = targetBuffer.Slice(
                     start: NexusUtilities.Scale(offset, targetSamplePeriod),
-                    length: NexusUtilities.Scale(length, targetSamplePeriod));
+                    length: NexusUtilities.Scale(length, targetSamplePeriod)
+                );
 
                 _processingService.Aggregate(
                     baseItem.Representation.DataType,
@@ -593,7 +612,8 @@ internal class DataSourceController(
                     slicedReadRequest.Data,
                     slicedReadRequest.Status,
                     targetBuffer: slicedTargetBuffer,
-                    blockSize);
+                    blockSize
+                );
             }
 
             /* update cache */
@@ -604,7 +624,8 @@ internal class DataSourceController(
                     begin,
                     targetBuffer,
                     uncachedIntervals,
-                    cancellationToken);
+                    cancellationToken
+                );
             }
         }
         catch (OutOfMemoryException)
@@ -1034,26 +1055,40 @@ internal class DataSourceController(
             throw new ValidationException("The end parameter must be a multiple of the sample period.");
     }
 
+    private Task SetContextAsync(
+        IDataSource dataSource,
+        DataSourceRegistration registration,
+        ILogger logger,
+        CancellationToken cancellationToken
+    )
+    {
+        var context = new DataSourceContext(
+            ResourceLocator: registration.ResourceLocator,
+            RequestConfiguration: _requestConfiguration
+        );
+
+        return dataSource.SetContextAsync(context, logger, cancellationToken);
+    }
+
     private Task SetGenericContextAsync<T>(
         IDataSource<T?> dataSource,
         DataSourceRegistration registration,
-        ILoggerFactory loggerFactory,
+        ILogger logger,
         CancellationToken cancellationToken
-    ) where T : class?
+    )
     {
-        var dataSourceLogger = loggerFactory
-            .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
-
-        var sourceConfiguration = registration.Configuration is null
+        var sourceConfiguration = registration.Configuration.ValueKind == JsonValueKind.Undefined
             ? default
-            : JsonSerializer.Deserialize<T>(JsonSerializer.SerializeToElement(registration.Configuration));
+            : JsonSerializer
+                .Deserialize<T>(registration.Configuration);
 
         var context = new DataSourceContext<T?>(
             ResourceLocator: registration.ResourceLocator,
-            SourceConfiguration: sourceConfiguration,
-            RequestConfiguration: _requestConfiguration);
+            RequestConfiguration: _requestConfiguration,
+            SourceConfiguration: sourceConfiguration
+        );
 
-        return dataSource.SetContextAsync(context, dataSourceLogger, cancellationToken);
+        return dataSource.SetContextAsync(context, logger, cancellationToken);
     }
 
     private bool _disposedValue;

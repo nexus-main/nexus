@@ -15,7 +15,11 @@ public class TestSource : IDataSource
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
-    public Task SetContextAsync(DataSourceContext<object> context, ILogger logger, CancellationToken cancellationToken)
+    public Task SetContextAsync(
+        DataSourceContext context,
+        ILogger logger,
+        CancellationToken cancellationToken
+    )
     {
         return Task.CompletedTask;
     }
@@ -25,7 +29,10 @@ public class TestSource : IDataSource
         return Task.FromResult(Array.Empty<CatalogRegistration>());
     }
 
-    public Task<ResourceCatalog> EnrichCatalogAsync(ResourceCatalog catalog, CancellationToken cancellationToken)
+    public Task<ResourceCatalog> EnrichCatalogAsync(
+        ResourceCatalog catalog,
+        CancellationToken cancellationToken
+    )
     {
         if (catalog.Resources is null)
             return Task.FromResult(catalog);
@@ -51,17 +58,32 @@ public class TestSource : IDataSource
         return Task.FromResult(newCatalog);
     }
 
-    public Task<double> GetAvailabilityAsync(string catalogId, DateTime begin, DateTime end, CancellationToken cancellationToken)
+    public Task<double> GetAvailabilityAsync(
+        string catalogId,
+        DateTime begin,
+        DateTime end,
+        CancellationToken cancellationToken
+    )
     {
         return Task.FromResult(double.NaN);
     }
 
-    public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(string catalogId, CancellationToken cancellationToken)
+    public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
+        string catalogId,
+        CancellationToken cancellationToken
+    )
     {
         return Task.FromResult((DateTime.MaxValue, DateTime.MinValue));
     }
 
-    public Task ReadAsync(DateTime begin, DateTime end, ReadRequest[] requests, ReadDataHandler readData, IProgress<double> progress, CancellationToken cancellationToken)
+    public Task ReadAsync(
+        DateTime begin,
+        DateTime end,
+        ReadRequest[] requests,
+        ReadDataHandler readData,
+        IProgress<double> progress,
+        CancellationToken cancellationToken
+    )
     {
         foreach (var request in requests)
         {

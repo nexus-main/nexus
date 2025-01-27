@@ -216,7 +216,7 @@ public record DataSourcePipeline(
 public record DataSourceRegistration(
     string Type,
     Uri? ResourceLocator,
-    IReadOnlyDictionary<string, JsonElement>? Configuration,
+    JsonElement Configuration,
     string? InfoUrl = default);
 
 /// <summary>

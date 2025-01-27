@@ -13,6 +13,7 @@ using Nexus.Sources;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using Xunit;
 
 namespace DataSource;
@@ -501,7 +502,8 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             "a",
             new Uri("http://xyz"),
             default,
-            default);
+            default
+        );
 
         var dataSourceController = new DataSourceController(
             [dataSource],
@@ -510,7 +512,8 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             processingService,
             cacheService.Object,
             new DataOptions(),
-            NullLogger<DataSourceController>.Instance);
+            NullLogger<DataSourceController>.Instance
+        );
 
         var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>() { [catalog.Id] = catalog };
 
@@ -540,5 +543,53 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                It.IsAny<Memory<double>>(),
                uncachedIntervals,
                It.IsAny<CancellationToken>()), Times.Once());
+    }
+
+    [Fact]
+    public async Task CanSetGenericContext()
+    {
+        // Arrange
+        var expectedSettings = new GenericSourceSettings("bar");
+        var genericSource = Mock.Of<IDataSource<GenericSourceSettings>>();
+
+        var configuration = JsonSerializer
+            .SerializeToElement(expectedSettings);
+
+        var registration = new DataSourceRegistration
+        (
+            Type: "foo",
+            ResourceLocator: default,
+            Configuration: configuration
+        );
+
+        var dataSourceController = new DataSourceController(
+            dataSources: [genericSource],
+            registrations: [registration],
+            requestConfiguration: default!,
+            processingService: default!,
+            cacheService: default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance
+        );
+
+        var loggerFactory = new LoggerFactory();
+
+        // Act
+        await dataSourceController.InitializeAsync(
+            catalogCache: default!,
+            loggerFactory,
+            CancellationToken.None
+        );
+
+        // Assert
+        Mock.Get(genericSource)
+            .Verify(
+                x => x.SetContextAsync(
+                    It.Is<DataSourceContext<GenericSourceSettings>>(x => x.SourceConfiguration == expectedSettings),
+                    It.IsAny<ILogger>(),
+                    It.IsAny<CancellationToken>()
+                ),
+                Times.Exactly(1)
+            );
     }
 }
