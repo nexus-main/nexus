@@ -1,6 +1,7 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Nexus.DataModel;
 
@@ -11,6 +12,15 @@ namespace Nexus.Extensibility;
 /// </summary>
 public interface IDataSource
 {
+    /// <summary>
+    /// Upgrades the source configuration.
+    /// </summary>
+    /// <param name="version">The version of the current configuration.</param>
+    /// <param name="configuration">The configuration.</param>
+    /// <returns>The new version and the upgraded source configuration.</returns>
+    static (string Version, JsonNode Configuration) UpgradeSourceConfiguration(string version, JsonNode configuration)
+        => (version, configuration);
+
     /// <summary>
     /// Invoked by Nexus right after construction to provide the context.
     /// </summary>

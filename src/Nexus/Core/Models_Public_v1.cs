@@ -212,11 +212,13 @@ public record DataSourcePipeline(
 /// <param name="Type">The type of the data source.</param>
 /// <param name="ResourceLocator">An optional URL which points to the data.</param>
 /// <param name="Configuration">Configuration parameters for the instantiated source.</param>
+/// <param name="ConfigurationVersion">An optional configuration version. Will be set automatically if omitted.</param>
 /// <param name="InfoUrl">An optional info URL.</param>
 public record DataSourceRegistration(
     string Type,
     Uri? ResourceLocator,
     JsonElement Configuration,
+    string? ConfigurationVersion = default,
     string? InfoUrl = default);
 
 /// <summary>
