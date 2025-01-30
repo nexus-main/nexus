@@ -1031,6 +1031,62 @@
       }
     },
     "/api/v1/sources/pipelines/{pipelineId}": {
+      "put": {
+        "tags": [
+          "Sources"
+        ],
+        "summary": "Updates a data source pipeline.",
+        "operationId": "Sources_UpdatePipeline",
+        "parameters": [
+          {
+            "name": "pipelineId",
+            "in": "path",
+            "required": true,
+            "description": "The identifier of the pipeline to update.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "description": "The optional user identifier. If not specified, the current user will be used.",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 3
+          }
+        ],
+        "requestBody": {
+          "x-name": "pipeline",
+          "description": "The new pipeline.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataSourcePipeline"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "Sources"
@@ -1042,7 +1098,7 @@
             "name": "pipelineId",
             "in": "path",
             "required": true,
-            "description": "The identifier of the pipeline.",
+            "description": "The identifier of the pipeline to delete.",
             "schema": {
               "type": "string",
               "format": "guid"
@@ -1113,53 +1169,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/v1/system/configuration": {
-      "get": {
-        "tags": [
-          "System"
-        ],
-        "summary": "Gets the system configuration.",
-        "operationId": "System_GetConfiguration",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "nullable": true,
-                  "additionalProperties": {}
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "System"
-        ],
-        "summary": "Sets the system configuration.",
-        "operationId": "System_SetConfiguration",
-        "requestBody": {
-          "x-name": "configuration",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": {}
-              }
-            }
-          },
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": ""
           }
         }
       }
@@ -2184,10 +2193,7 @@
             "nullable": true
           },
           "configuration": {
-            "type": "object",
-            "description": "Configuration parameters for the instantiated source.",
-            "nullable": true,
-            "additionalProperties": {}
+            "description": "Configuration parameters for the instantiated source."
           },
           "infoUrl": {
             "type": "string",

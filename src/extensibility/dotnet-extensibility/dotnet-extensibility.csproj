@@ -4,7 +4,7 @@
     <AssemblyName>Nexus.Extensibility</AssemblyName>
     <TargetFramework>$(TargetFrameworkVersion)</TargetFramework>
   </PropertyGroup>
-	
+
   <PropertyGroup>
     <Description>Type definitions to implement data sources and data writers for the Nexus system.</Description>
 	  <PackageTags>Nexus extensibility time-series data lake</PackageTags>

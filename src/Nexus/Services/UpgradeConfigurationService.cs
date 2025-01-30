@@ -41,7 +41,7 @@ internal class UpgradeConfigurationService(
                 var isDirty = false;
                 var registrations = pipeline.Registrations.ToList();
 
-                foreach (var registration in registrations)
+                foreach (var registration in pipeline.Registrations)
                 {
                     var sourceTypeName = registration.Type;
 
@@ -66,7 +66,7 @@ internal class UpgradeConfigurationService(
                         var configurationType = genericInterface.GenericTypeArguments[0];
 
                         /* Invoke InternalUpgradeAsync */
-                        var methodInfo = typeof(DataSourceController)
+                        var methodInfo = typeof(UpgradeConfigurationService)
                             .GetMethod(nameof(InternalUpgradeAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
 
                         var genericMethod = methodInfo
@@ -103,7 +103,7 @@ internal class UpgradeConfigurationService(
 
                 /* Save changes */
                 if (isDirty)
-                    _ = _pipelineService.TryUpdateAsync(userId, pipelineId, pipeline);
+                    _ = _pipelineService.TryUpdateAsync(userId, pipelineId, pipeline with { Registrations = registrations });
             }
         }
     }
@@ -114,7 +114,7 @@ internal class UpgradeConfigurationService(
         var upgradedConfiguration = await TSource.UpgradeSourceConfigurationAsync(configuration);
 
         /* ensure it can be deserialized */
-        _ = JsonSerializer.Deserialize<TConfiguration>(upgradedConfiguration);
+        _ = JsonSerializer.Deserialize<TConfiguration>(upgradedConfiguration, JsonSerializerOptions.Web);
 
         return upgradedConfiguration;
     }

@@ -4,7 +4,6 @@
 using Microsoft.Extensions.Logging;
 using Nexus.DataModel;
 using Nexus.Extensibility;
-using Nexus.UI.Core;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -19,7 +18,7 @@ public record TestSourceSettings(
     "Augments existing catalogs with more awesome data.",
     "https://github.com/nexus-main/nexus",
     "https://github.com/nexus-main/nexus/blob/master/tests/Nexus.Tests/DataSource/TestSource.cs")]
-public class TestSource : IDataSource<TestSourceSettings?>
+public class TestSource : IDataSource<TestSourceSettings?>, IUpgradableDataSource
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
@@ -29,16 +28,9 @@ public class TestSource : IDataSource<TestSourceSettings?>
         if (configuration.ValueKind == JsonValueKind.Null)
             return Task.FromResult(configuration);
 
-        // Ensure configuration is an object
-        if (configuration.ValueKind != JsonValueKind.Object)
-            throw new Exception("Invalid configuration");
-
         // If version exists, it should be equal to 2
         if (configuration.TryGetProperty("version", out var versionElement))
         {
-            if (versionElement.ValueKind != JsonValueKind.Number)
-                throw new Exception("Invalid configuration");
-
             if (versionElement.GetInt32() != 2)
                 throw new Exception("Invalid configuration");
 
@@ -48,10 +40,11 @@ public class TestSource : IDataSource<TestSourceSettings?>
         // Else: upgrade
         else
         {
-            var configurationNode = JsonSerializer.SerializeToNode(configuration)!;
+            var configurationNode = (JsonSerializer.SerializeToNode(configuration) as JsonObject)!;
 
             configurationNode["version"] = 2;
             configurationNode["bar"] = configurationNode["foo"]!.GetValue<double>();
+            configurationNode.Remove("foo");
 
             var upgradedConfiguration = JsonSerializer.SerializeToElement(configurationNode);
 
