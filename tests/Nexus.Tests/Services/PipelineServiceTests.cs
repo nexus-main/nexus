@@ -96,14 +96,55 @@ public class PipelineServiceTests
         var pipelineService = GetPipelineService(default!, userToPipelinesMap);
 
         // Act
-        var actual = pipelineService.TryGet(USERNAME_1, id2, out var actualPipeline);
+        var success = pipelineService.TryGet(USERNAME_1, id2, out var actualPipeline);
 
         // Assert
-        Assert.True(actual);
+        Assert.True(success);
 
         Assert.Equal(
-            expected: JsonSerializer.Serialize(actualPipeline),
-            actual: JsonSerializer.Serialize(userToPipelinesMap[USERNAME_1][id2])
+            expected: JsonSerializer.Serialize(userToPipelinesMap[USERNAME_1][id2]),
+            actual: JsonSerializer.Serialize(actualPipeline)
+        );
+    }
+
+    [Fact]
+    public async Task CanTryUpdatePipeline()
+    {
+        // Arrange
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+
+        var userToPipelinesMap = new Dictionary<string, Dictionary<Guid, DataSourcePipeline>>()
+        {
+            [USERNAME_1] = new()
+            {
+                [id1] = new DataSourcePipeline(
+                    Registrations: [],
+                    ReleasePattern: ".^"
+                ),
+                [id2] = new DataSourcePipeline(
+                    Registrations: [],
+                    ReleasePattern: ".*"
+                )
+            }
+        };
+
+        var pipelineService = GetPipelineService(default!, userToPipelinesMap);
+
+        var expectedPipeline = new DataSourcePipeline(
+            Registrations: [],
+            ReleasePattern: "foo"
+        );
+
+        // Act
+        var success = await pipelineService.TryUpdateAsync(USERNAME_1, id1, expectedPipeline);
+
+        // Assert
+        Assert.True(success);
+
+        Assert.Equal(
+            expected: JsonSerializer.Serialize(expectedPipeline),
+            actual: JsonSerializer.Serialize(userToPipelinesMap[USERNAME_1][id1])
         );
     }
 

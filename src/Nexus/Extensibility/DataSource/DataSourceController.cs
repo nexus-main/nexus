@@ -53,7 +53,7 @@ internal interface IDataSourceController : IDisposable
 
 internal class DataSourceController(
     IDataSource[] dataSources,
-    DataSourceRegistration[] registrations,
+    IReadOnlyList<DataSourceRegistration> registrations,
     IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
     IProcessingService processingService,
     ICacheService cacheService,
@@ -71,7 +71,7 @@ internal class DataSourceController(
 
     private readonly IDataSource[] _dataSources = dataSources;
 
-    private readonly DataSourceRegistration[] _registrations = registrations;
+    private readonly IReadOnlyList<DataSourceRegistration> _registrations = registrations;
 
     private ConcurrentDictionary<string, ResourceCatalog> _catalogCache = default!;
 
@@ -90,7 +90,9 @@ internal class DataSourceController(
             var dataSourceLogger = loggerFactory
                 .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
 
-            var dataSourceInterfaceTypes = dataSource.GetType().GetInterfaces();
+            /* Find generic parameter */
+            var dataSourceType = dataSource.GetType();
+            var dataSourceInterfaceTypes = dataSourceType.GetInterfaces();
 
             var genericInterface = dataSourceInterfaceTypes
                 .FirstOrDefault(x =>
@@ -99,26 +101,26 @@ internal class DataSourceController(
                 );
 
             if (genericInterface is null)
-            {
-                await SetContextAsync(dataSource, registration, logger, cancellationToken);
-            }
+                throw new Exception("Data sources must implement IDataSource<T>.");
 
-            else
-            {
-                var genericType = genericInterface.GenericTypeArguments[0];
-                var methodInfo = typeof(DataSourceController).GetMethod(nameof(SetGenericContextAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
-                var genericMethod = methodInfo.MakeGenericMethod(genericType);
+            var configurationType = genericInterface.GenericTypeArguments[0];
 
-                await (Task)genericMethod.Invoke(
-                    this,
-                    [
-                        dataSource,
-                        registration,
-                        dataSourceLogger,
-                        cancellationToken
-                    ]
-                )!;
-            }
+            /* Invoke SetContextAsync */
+            var methodInfo = typeof(DataSourceController)
+                .GetMethod(nameof(SetContextAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+            var genericMethod = methodInfo
+                .MakeGenericMethod(configurationType);
+
+            await (Task)genericMethod.Invoke(
+                this,
+                [
+                    dataSource,
+                    registration,
+                    dataSourceLogger,
+                    cancellationToken
+                ]
+            )!;
         }
     }
 
@@ -1055,22 +1057,7 @@ internal class DataSourceController(
             throw new ValidationException("The end parameter must be a multiple of the sample period.");
     }
 
-    private Task SetContextAsync(
-        IDataSource dataSource,
-        DataSourceRegistration registration,
-        ILogger logger,
-        CancellationToken cancellationToken
-    )
-    {
-        var context = new DataSourceContext(
-            ResourceLocator: registration.ResourceLocator,
-            RequestConfiguration: _requestConfiguration
-        );
-
-        return dataSource.SetContextAsync(context, logger, cancellationToken);
-    }
-
-    private Task SetGenericContextAsync<T>(
+    private Task SetContextAsync<T>(
         IDataSource<T?> dataSource,
         DataSourceRegistration registration,
         ILogger logger,

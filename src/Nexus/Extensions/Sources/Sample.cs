@@ -4,6 +4,7 @@
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Nexus.Sources;
 
@@ -84,15 +85,21 @@ internal class Sample : IDataSource<SampleSettings?>
     ];
 
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
+
     public const string RemoteCatalogId = "/SAMPLE/REMOTE";
 
     private const string LocalCatalogTitle = "Simulates a local catalog";
+
     private const string RemoteCatalogTitle = "Simulates a remote catalog";
 
     public const string RemoteUsername = "test";
+
     public const string RemotePassword = "1234";
 
     private DataSourceContext<SampleSettings?> Context { get; set; } = default!;
+
+    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration)
+        => Task.FromResult(configuration);
 
     public Task SetContextAsync(
         DataSourceContext<SampleSettings?> context,

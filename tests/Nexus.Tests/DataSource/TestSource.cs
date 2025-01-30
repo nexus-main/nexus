@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging;
 using Nexus.DataModel;
 using Nexus.Extensibility;
+using Nexus.UI.Core;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -22,34 +23,40 @@ public class TestSource : IDataSource<TestSourceSettings?>
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
-    public static Task<JsonNode?> UpgradeSourceConfigurationAsync(JsonNode? sourceConfiguration)
+    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration)
     {
         // Nothing to upgrade
-        if (sourceConfiguration is null)
-            return Task.FromResult(sourceConfiguration);
+        if (configuration.ValueKind == JsonValueKind.Null)
+            return Task.FromResult(configuration);
 
         // Ensure configuration is an object
-        if (sourceConfiguration.GetValueKind() != JsonValueKind.Object)
+        if (configuration.ValueKind != JsonValueKind.Object)
             throw new Exception("Invalid configuration");
 
         // If version exists, it should be equal to 2
-        if (sourceConfiguration.AsObject().TryGetPropertyValue("version", out var versionNode))
+        if (configuration.TryGetProperty("version", out var versionElement))
         {
-            if (versionNode is null)
+            if (versionElement.ValueKind != JsonValueKind.Number)
                 throw new Exception("Invalid configuration");
 
-            if (versionNode.GetValue<int>() != 2)
+            if (versionElement.GetInt32() != 2)
                 throw new Exception("Invalid configuration");
+
+            return Task.FromResult(configuration);
         }
 
         // Else: upgrade
         else
         {
-            sourceConfiguration["version"] = 2;
-            sourceConfiguration["bar"] = sourceConfiguration["foo"]!.GetValue<double>();
-        }
+            var configurationNode = JsonSerializer.SerializeToNode(configuration)!;
 
-        return Task.FromResult((JsonNode?)sourceConfiguration);
+            configurationNode["version"] = 2;
+            configurationNode["bar"] = configurationNode["foo"]!.GetValue<double>();
+
+            var upgradedConfiguration = JsonSerializer.SerializeToElement(configurationNode);
+
+            return Task.FromResult(upgradedConfiguration);
+        }
     }
 
     public Task SetContextAsync(

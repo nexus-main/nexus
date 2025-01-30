@@ -13,6 +13,7 @@ namespace Nexus.Services;
 internal class AppStateManager(
     AppState appState,
     IPackageService packageService,
+    IUpgradeConfigurationService upgradeConfigurationService,
     IExtensionHive<IDataSource> sourcesExtensionHive,
     IExtensionHive<IDataWriter> writersExtensionHive,
     ICatalogManager catalogManager,
@@ -20,6 +21,8 @@ internal class AppStateManager(
     ILogger<AppStateManager> logger)
 {
     private readonly IPackageService _packageService = packageService;
+
+    private readonly IUpgradeConfigurationService _upgradeConfigurationService = upgradeConfigurationService;
 
     private readonly IExtensionHive<IDataWriter> _writersExtensionHive = writersExtensionHive;
 
@@ -48,10 +51,10 @@ internal class AppStateManager(
 
             if (refreshDatabaseTask is null)
             {
-                /* create fresh app state */
+                /* create new catalog state */
                 AppState.CatalogState = new CatalogState(
                     Root: CatalogContainer.CreateRoot(_catalogManager, _databaseService),
-                    Cache: new CatalogCache()
+                    Cache: new()
                 );
 
                 /* load packages */
@@ -61,17 +64,22 @@ internal class AppStateManager(
 
                 refreshDatabaseTask = Task.Run(async () =>
                 {
-                    await _sourcesExtensionHive
-                        .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+                    try
+                    {
+                        await _sourcesExtensionHive
+                            .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
 
-                    await _writersExtensionHive
-                        .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+                        await _upgradeConfigurationService.UpgradeAsync();
 
-                    LoadDataWriters();
+                        await _writersExtensionHive
+                            .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
 
-                    AppState.ReloadPackagesTask = default;
-
-                    return Task.CompletedTask;
+                        LoadDataWriters();
+                    }
+                    finally
+                    {
+                        AppState.ReloadPackagesTask = default;
+                    }
                 });
             }
         }

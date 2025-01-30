@@ -1,37 +1,18 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Text.Json.Nodes;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Nexus.DataModel;
 
 namespace Nexus.Extensibility;
 
 /// <summary>
-/// A non-generic base interface for data sources. Use the generic version to implement a data source.
+/// For internal use only. Use IDataSource&gt;T&lt; instead.
 /// </summary>
+[Obsolete($"For internal use only. Use IDataSource<T> instead.")]
 public interface IDataSource
 {
-    /// <summary>
-    /// Upgrades the source configuration.
-    /// </summary>
-    /// <param name="configuration">The configuration.</param>
-    /// <returns>The upgraded source configuration.</returns>
-    static Task<JsonNode?> UpgradeSourceConfigurationAsync(JsonNode? configuration) => Task.FromResult(configuration);
-
-    /// <summary>
-    /// Invoked by Nexus right after construction to provide the context.
-    /// </summary>
-    /// <param name="context">The context.</param>
-    /// <param name="logger">The logger.</param>
-    /// <param name="cancellationToken">A token to cancel the current operation.</param>
-    /// <returns>The task.</returns>
-    Task SetContextAsync(
-        DataSourceContext context,
-        ILogger logger,
-        CancellationToken cancellationToken
-    );
-
     /// <summary>
     /// Gets the catalog registrations that are located under <paramref name="path"/>.
     /// </summary>
@@ -100,22 +81,14 @@ public interface IDataSource
     );
 }
 
+#pragma warning disable CS0618 // Type or member is obsolete
+
 /// <summary>
 /// A data source.
 /// </summary>
 /// <typeparam name="T">The source configuration type</typeparam>
 public interface IDataSource<T> : IDataSource
 {
-    /// <inheritdoc />
-    Task IDataSource.SetContextAsync(
-        DataSourceContext context,
-        ILogger logger,
-        CancellationToken cancellationToken
-    )
-    {
-        throw new Exception($"Use the generic version of {nameof(IDataSource)}.{nameof(IDataSource.SetContextAsync)}.");
-    }
-
     /// <summary>
     /// Invoked by Nexus right after construction to provide the context.
     /// </summary>
@@ -127,5 +100,22 @@ public interface IDataSource<T> : IDataSource
         DataSourceContext<T> context,
         ILogger logger,
         CancellationToken cancellationToken
+    );
+}
+
+#pragma warning restore CS0618 // Type or member is obsolete
+
+/// <summary>
+/// Data sources which have configuration data to be upgraded should implement this interface.
+/// </summary>
+public interface IUpgradableDataSource
+{
+    /// <summary>
+    /// Upgrades the source configuration.
+    /// </summary>
+    /// <param name="configuration">The configuration.</param>
+    /// <returns>The upgraded source configuration.</returns>
+    static abstract Task<JsonElement> UpgradeSourceConfigurationAsync(
+        JsonElement configuration
     );
 }

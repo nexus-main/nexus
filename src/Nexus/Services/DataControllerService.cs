@@ -50,7 +50,7 @@ internal class DataControllerService(
         CancellationToken cancellationToken)
     {
         var dataSources = pipeline.Registrations
-            .Select(registration => _sourcesExtensionHive.GetInstance(registration.Type))
+            .Select(registration => (IDataSource)Activator.CreateInstance(_sourcesExtensionHive.GetExtensionType(registration.Type))!)
             .ToArray();
 
         var requestConfiguration = GetRequestConfiguration();
@@ -78,7 +78,8 @@ internal class DataControllerService(
     {
         var logger1 = _loggerFactory.CreateLogger<DataWriterController>();
         var logger2 = _loggerFactory.CreateLogger($"{exportParameters.Type} - {resourceLocator}");
-        var dataWriter = _writersExtensionHive.GetInstance(exportParameters.Type ?? throw new Exception("The type must not be null."));
+        var dataWriterType = _writersExtensionHive.GetExtensionType(exportParameters.Type ?? throw new Exception("The type must not be null."));
+        var dataWriter = (IDataWriter)Activator.CreateInstance(dataWriterType)!;
         var requestConfiguration = exportParameters.Configuration;
 
         var controller = new DataWriterController(

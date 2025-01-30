@@ -27,8 +27,8 @@ public class DataControllerServiceTests
         var sourcesExtensionHive = Mock.Of<IExtensionHive<IDataSource>>();
 
         Mock.Get(sourcesExtensionHive)
-            .Setup(extensionHive => extensionHive.GetInstance(It.IsAny<string>()))
-            .Returns(new Sample());
+            .Setup(extensionHive => extensionHive.GetExtensionType(It.IsAny<string>()))
+            .Returns(typeof(Sample));
 
         var registration = new DataSourceRegistration(
             Type: default!,
@@ -104,8 +104,8 @@ public class DataControllerServiceTests
         var writersExtensionHive = Mock.Of<IExtensionHive<IDataWriter>>();
 
         Mock.Get(writersExtensionHive)
-            .Setup(extensionHive => extensionHive.GetInstance(It.IsAny<string>()))
-            .Returns(new Csv());
+            .Setup(extensionHive => extensionHive.GetExtensionType(It.IsAny<string>()))
+            .Returns(typeof(Csv));
 
         var loggerFactory = Mock.Of<ILoggerFactory>();
         var resourceLocator = new Uri("A", UriKind.Relative);

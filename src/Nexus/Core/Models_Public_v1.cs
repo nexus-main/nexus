@@ -202,7 +202,7 @@ public record CatalogAvailability(
 /// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
 /// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
 public record DataSourcePipeline(
-    DataSourceRegistration[] Registrations,
+    IReadOnlyList<DataSourceRegistration> Registrations,
     string? ReleasePattern = default,
     string? VisibilityPattern = default);
 

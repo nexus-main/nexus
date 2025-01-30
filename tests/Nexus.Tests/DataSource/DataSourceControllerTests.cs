@@ -600,7 +600,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         // Arrange
         var expected = new TestSourceSettings(2, 1.99);
 
-        var configuration = JsonSerializer.Deserialize<JsonNode>(
+        var configuration = JsonSerializer.Deserialize<JsonElement>(
             $$"""
             {
                 "foo": 1.99
