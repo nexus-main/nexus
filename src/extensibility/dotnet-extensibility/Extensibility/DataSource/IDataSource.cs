@@ -15,11 +15,9 @@ public interface IDataSource
     /// <summary>
     /// Upgrades the source configuration.
     /// </summary>
-    /// <param name="version">The version of the current configuration.</param>
     /// <param name="configuration">The configuration.</param>
-    /// <returns>The new version and the upgraded source configuration.</returns>
-    static (string Version, JsonNode Configuration) UpgradeSourceConfiguration(string version, JsonNode configuration)
-        => (version, configuration);
+    /// <returns>The upgraded source configuration.</returns>
+    static Task<JsonNode?> UpgradeSourceConfigurationAsync(JsonNode? configuration) => Task.FromResult(configuration);
 
     /// <summary>
     /// Invoked by Nexus right after construction to provide the context.

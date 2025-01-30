@@ -14,6 +14,7 @@ using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace DataSource;
@@ -591,5 +592,30 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 ),
                 Times.Exactly(1)
             );
+    }
+
+    [Fact]
+    public async Task CanUpgradeSourceConfiguration()
+    {
+        // Arrange
+        var expected = new TestSourceSettings(2, 1.99);
+
+        var configuration = JsonSerializer.Deserialize<JsonNode>(
+            $$"""
+            {
+                "foo": 1.99
+            }
+            """
+        );
+
+        // Act
+        var upgradedConfiguration = await TestSource
+            .UpgradeSourceConfigurationAsync(configuration);
+
+        // Assert
+        var actual = JsonSerializer
+            .Deserialize<TestSourceSettings>(upgradedConfiguration, JsonSerializerOptions.Web);
+
+        Assert.Equal(expected, actual);
     }
 }

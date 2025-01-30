@@ -6,9 +6,7 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
-using Nexus.Utilities;
 using System.Reflection;
-using System.Text.Json;
 
 namespace Nexus.Services;
 
@@ -34,8 +32,6 @@ internal class AppStateManager(
     private readonly ILogger<AppStateManager> _logger = logger;
 
     private readonly SemaphoreSlim _refreshDatabaseSemaphore = new(initialCount: 1, maxCount: 1);
-
-    private readonly SemaphoreSlim _projectSemaphore = new(initialCount: 1, maxCount: 1);
 
     public AppState AppState { get; } = appState;
 
@@ -72,7 +68,9 @@ internal class AppStateManager(
                         .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
 
                     LoadDataWriters();
+
                     AppState.ReloadPackagesTask = default;
+
                     return Task.CompletedTask;
                 });
             }
@@ -100,7 +98,10 @@ internal class AppStateManager(
             }
 
             var additionalInformation = attribute.Description;
-            var label = (additionalInformation?.GetStringValue(UI.Core.Constants.DATA_WRITER_LABEL_KEY)) ?? throw new Exception($"The description of data writer {fullName} has no label property");
+
+            var label = additionalInformation?.GetStringValue(UI.Core.Constants.DATA_WRITER_LABEL_KEY)
+                ?? throw new Exception($"The description of data writer {fullName} has no label property");
+
             var version = dataWriterType.Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
                 .InformationalVersion;

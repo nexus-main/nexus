@@ -4,7 +4,6 @@
 using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MudBlazor;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
@@ -73,39 +72,6 @@ internal class SourcesController(
         DataSourcePipeline pipeline,
         [FromQuery] string? userId = default)
     {
-        /* Ensure configuration version is set for known providers */
-        var registrations = pipeline.Registrations;
-
-        for (int i = 0; i < registrations.Length; i++)
-        {
-            var registration = registrations[i];
-
-            if (string.IsNullOrWhiteSpace(registration.ConfigurationVersion))
-            {
-                try
-                {
-                    var packageReferenceEntry = _extensionHive.GetPackageReference(registration.Type);
-                    var reference = packageReferenceEntry.Reference;
-
-                    var version = reference.Provider switch
-                    {
-                        "local" => reference.Configuration["version"],
-                        "git-tag" => reference.Configuration["tag"],
-                        _ => default
-                    };
-
-                    registrations[i] = registration with { ConfigurationVersion = version };
-                }
-                catch (Exception ex)
-                {
-                    return NotFound(ex.Message);
-                }
-            }
-        }
-
-        pipeline = pipeline with { Registrations = registrations };
-
-        /* Continue */
         if (TryAuthenticate(userId, out var actualUserId, out var response))
             return Ok(await _pipelineService.PutAsync(actualUserId, pipeline));
 

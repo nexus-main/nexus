@@ -4,19 +4,56 @@
 using Microsoft.Extensions.Logging;
 using Nexus.DataModel;
 using Nexus.Extensibility;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace DataSource;
+
+public record TestSourceSettings(
+    int Version,
+    double Bar
+);
 
 [ExtensionDescription(
     "Augments existing catalogs with more awesome data.",
     "https://github.com/nexus-main/nexus",
     "https://github.com/nexus-main/nexus/blob/master/tests/Nexus.Tests/DataSource/TestSource.cs")]
-public class TestSource : IDataSource
+public class TestSource : IDataSource<TestSourceSettings?>
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
+    public static Task<JsonNode?> UpgradeSourceConfigurationAsync(JsonNode? sourceConfiguration)
+    {
+        // Nothing to upgrade
+        if (sourceConfiguration is null)
+            return Task.FromResult(sourceConfiguration);
+
+        // Ensure configuration is an object
+        if (sourceConfiguration.GetValueKind() != JsonValueKind.Object)
+            throw new Exception("Invalid configuration");
+
+        // If version exists, it should be equal to 2
+        if (sourceConfiguration.AsObject().TryGetPropertyValue("version", out var versionNode))
+        {
+            if (versionNode is null)
+                throw new Exception("Invalid configuration");
+
+            if (versionNode.GetValue<int>() != 2)
+                throw new Exception("Invalid configuration");
+        }
+
+        // Else: upgrade
+        else
+        {
+            sourceConfiguration["version"] = 2;
+            sourceConfiguration["bar"] = sourceConfiguration["foo"]!.GetValue<double>();
+        }
+
+        return Task.FromResult((JsonNode?)sourceConfiguration);
+    }
+
     public Task SetContextAsync(
-        DataSourceContext context,
+        DataSourceContext<TestSourceSettings?> context,
         ILogger logger,
         CancellationToken cancellationToken
     )
