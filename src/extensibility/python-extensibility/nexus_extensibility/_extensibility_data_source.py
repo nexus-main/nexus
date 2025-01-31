@@ -2,8 +2,8 @@ import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import (Any, Awaitable, Callable, Dict, Generic, List, Optional,
-                    Protocol, Tuple, TypeVar)
+from typing import (Any, Awaitable, Callable, Generic, Optional, Protocol,
+                    TypeVar)
 from urllib.parse import ParseResult
 
 from ._data_model import CatalogItem, CatalogRegistration, ResourceCatalog
@@ -57,8 +57,24 @@ class DataSourceContext(Generic[T]):
     source_configuration: T
     """The source configuration."""
 
-    request_configuration: Optional[Dict[str, Any]]
+    request_configuration: Optional[dict[str, Any]]
     """The request configuration."""
+
+@dataclass(frozen=True)
+class CatalogTimeRange:
+    """
+    A data source time range.
+
+    Args:
+        begin: The date/time of the first data in the catalog.
+        end: The date/time of the last data in the catalog.
+    """
+
+    begin: datetime
+    """The date/time of the first data in the catalog."""
+
+    end: datetime
+    """The date/time of the last data in the catalog."""
 
 @dataclass(frozen=True)
 class ReadRequest:
@@ -120,7 +136,7 @@ class IDataSource(Generic[T], ABC):
         pass
 
     @abstractmethod
-    def get_catalog_registrations(self, path: str) -> Awaitable[List[CatalogRegistration]]:
+    def get_catalog_registrations(self, path: str) -> Awaitable[list[CatalogRegistration]]:
         """
         Gets the catalog registrations that are located under path.
 
@@ -140,7 +156,7 @@ class IDataSource(Generic[T], ABC):
         pass
 
     @abstractmethod
-    def get_time_range(self, catalog_id: str) -> Awaitable[Tuple[datetime, datetime]]:
+    def get_time_range(self, catalog_id: str) -> Awaitable[CatalogTimeRange]:
         """
         Gets the time range of the ResourceCatalog.
 
@@ -214,15 +230,15 @@ class SimpleDataSource(Generic[T], IDataSource[T], ABC):
         self.Logger = logger
 
     @abstractmethod
-    def get_catalog_registrations(self, path: str) -> Awaitable[List[CatalogRegistration]]:
+    def get_catalog_registrations(self, path: str) -> Awaitable[list[CatalogRegistration]]:
         pass
 
     @abstractmethod
     def enrich_catalog(self, catalog: ResourceCatalog) -> Awaitable[ResourceCatalog]:
         pass
 
-    async def get_time_range(self, catalog_id: str) -> Tuple[datetime, datetime]:
-        return (datetime.min, datetime.max)
+    async def get_time_range(self, catalog_id: str) -> CatalogTimeRange:
+        return CatalogTimeRange(datetime.min, datetime.max)
 
     async def get_availability(self, catalog_id: str, begin: datetime, end: datetime) -> float:
         return float("NaN")

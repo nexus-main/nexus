@@ -22,7 +22,10 @@ public class TestSource : IDataSource<TestSourceSettings?>, IUpgradableDataSourc
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
-    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration)
+    public static Task<JsonElement> UpgradeSourceConfigurationAsync(
+        JsonElement configuration,
+        CancellationToken cancellationToken
+    )
     {
         // Nothing to upgrade
         if (configuration.ValueKind == JsonValueKind.Null)
@@ -61,7 +64,10 @@ public class TestSource : IDataSource<TestSourceSettings?>, IUpgradableDataSourc
         return Task.CompletedTask;
     }
 
-    public Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(string path, CancellationToken cancellationToken)
+    public Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(
+        string path,
+        CancellationToken cancellationToken
+    )
     {
         return Task.FromResult(Array.Empty<CatalogRegistration>());
     }
@@ -105,12 +111,12 @@ public class TestSource : IDataSource<TestSourceSettings?>, IUpgradableDataSourc
         return Task.FromResult(double.NaN);
     }
 
-    public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
+    public Task<CatalogTimeRange> GetTimeRangeAsync(
         string catalogId,
         CancellationToken cancellationToken
     )
     {
-        return Task.FromResult((DateTime.MaxValue, DateTime.MinValue));
+        return Task.FromResult(new CatalogTimeRange(DateTime.MaxValue, DateTime.MinValue));
     }
 
     public Task ReadAsync(

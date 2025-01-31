@@ -1921,7 +1921,7 @@
       },
       "CatalogTimeRange": {
         "type": "object",
-        "description": "A catalog time range.",
+        "description": "A data source time range.",
         "additionalProperties": false,
         "properties": {
           "begin": {

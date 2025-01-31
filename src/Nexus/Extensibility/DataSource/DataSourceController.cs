@@ -291,7 +291,8 @@ internal class DataSourceController(
 
         return new CatalogTimeRange(
             Begin: begin,
-            End: end);
+            End: end
+        );
     }
 
     public async Task ReadAsync(

@@ -20,6 +20,16 @@ public record DataSourceContext<T>(
 );
 
 /// <summary>
+/// A data source time range.
+/// </summary>
+/// <param name="Begin">The date/time of the first data in the catalog.</param>
+/// <param name="End">The date/time of the last data in the catalog.</param>
+public record CatalogTimeRange(
+    DateTime Begin,
+    DateTime End
+);
+
+/// <summary>
 /// A read request.
 /// </summary>
 /// <param name="OriginalResourceName">The original resource name.</param>

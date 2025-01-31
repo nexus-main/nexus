@@ -180,15 +180,6 @@ public record CatalogMetadata(
     ResourceCatalog? Overrides);
 
 /// <summary>
-/// A catalog time range.
-/// </summary>
-/// <param name="Begin">The date/time of the first data in the catalog.</param>
-/// <param name="End">The date/time of the last data in the catalog.</param>
-public record CatalogTimeRange(
-    DateTime Begin,
-    DateTime End);
-
-/// <summary>
 /// The catalog availability.
 /// </summary>
 /// <param name="Data">The actual availability data.</param>

@@ -4,7 +4,6 @@
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 
 namespace Nexus.Sources;
 
@@ -98,9 +97,6 @@ internal class Sample : IDataSource<SampleSettings?>
 
     private DataSourceContext<SampleSettings?> Context { get; set; } = default!;
 
-    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration)
-        => Task.FromResult(configuration);
-
     public Task SetContextAsync(
         DataSourceContext<SampleSettings?> context,
         ILogger logger,
@@ -140,11 +136,11 @@ internal class Sample : IDataSource<SampleSettings?>
         return Task.FromResult(catalog.Merge(LoadCatalog(catalog.Id)));
     }
 
-    public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
+    public Task<CatalogTimeRange> GetTimeRangeAsync(
         string catalogId,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult((DateTime.MinValue, DateTime.MaxValue));
+        return Task.FromResult(new CatalogTimeRange(DateTime.MinValue, DateTime.MaxValue));
     }
 
     public Task<double> GetAvailabilityAsync(

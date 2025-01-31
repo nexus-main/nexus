@@ -44,11 +44,11 @@ public abstract class SimpleDataSource<T> : IDataSource<T>
         CancellationToken cancellationToken);
 
     /// <inheritdoc />
-    public virtual Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
+    public virtual Task<CatalogTimeRange> GetTimeRangeAsync(
         string catalogId,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult((DateTime.MinValue, DateTime.MaxValue));
+        return Task.FromResult(new CatalogTimeRange(DateTime.MinValue, DateTime.MaxValue));
     }
 
     /// <inheritdoc />
