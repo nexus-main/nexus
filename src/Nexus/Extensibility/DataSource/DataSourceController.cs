@@ -4,6 +4,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nexus.Core;
@@ -52,13 +53,13 @@ internal interface IDataSourceController : IDisposable
 
 internal class DataSourceController(
     IDataSource[] dataSources,
-    DataSourceRegistration[] registrations,
-    IReadOnlyDictionary<string, JsonElement>? systemConfiguration,
+    IReadOnlyList<DataSourceRegistration> registrations,
     IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
     IProcessingService processingService,
     ICacheService cacheService,
     DataOptions dataOptions,
-    ILogger<DataSourceController> logger) : IDataSourceController
+    ILogger<DataSourceController> logger
+) : IDataSourceController
 {
 
     internal readonly IReadOnlyDictionary<string, JsonElement>? _requestConfiguration = requestConfiguration;
@@ -71,9 +72,7 @@ internal class DataSourceController(
 
     private readonly IDataSource[] _dataSources = dataSources;
 
-    private readonly DataSourceRegistration[] _registrations = registrations;
-
-    private readonly IReadOnlyDictionary<string, JsonElement>? _systemConfiguration = systemConfiguration;
+    private readonly IReadOnlyList<DataSourceRegistration> _registrations = registrations;
 
     private ConcurrentDictionary<string, ResourceCatalog> _catalogCache = default!;
 
@@ -92,17 +91,37 @@ internal class DataSourceController(
             var dataSourceLogger = loggerFactory
                 .CreateLogger($"{registration.Type} - {registration.ResourceLocator?.ToString() ?? "<null>"}");
 
-            var clonedSourceConfiguration = registration.Configuration is null
-                ? default
-                : registration.Configuration.ToDictionary(entry => entry.Key, entry => entry.Value.Clone());
+            /* Find generic parameter */
+            var dataSourceType = dataSource.GetType();
+            var dataSourceInterfaceTypes = dataSourceType.GetInterfaces();
 
-            var context = new DataSourceContext(
-                ResourceLocator: registration.ResourceLocator,
-                SystemConfiguration: _systemConfiguration,
-                SourceConfiguration: clonedSourceConfiguration,
-                RequestConfiguration: _requestConfiguration);
+            var genericInterface = dataSourceInterfaceTypes
+                .FirstOrDefault(x =>
+                    x.IsGenericType &&
+                    x.GetGenericTypeDefinition() == typeof(IDataSource<>)
+                );
 
-            await dataSource.SetContextAsync(context, dataSourceLogger, cancellationToken);
+            if (genericInterface is null)
+                throw new Exception("Data sources must implement IDataSource<T>.");
+
+            var configurationType = genericInterface.GenericTypeArguments[0];
+
+            /* Invoke SetContextAsync */
+            var methodInfo = typeof(DataSourceController)
+                .GetMethod(nameof(SetContextAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+            var genericMethod = methodInfo
+                .MakeGenericMethod(configurationType);
+
+            await (Task)genericMethod.Invoke(
+                this,
+                [
+                    dataSource,
+                    registration,
+                    dataSourceLogger,
+                    cancellationToken
+                ]
+            )!;
         }
     }
 
@@ -436,7 +455,8 @@ internal class DataSourceController(
                         currentReadRequests,
                         readDataHandler,
                         progress,
-                        cancellationToken);
+                        cancellationToken
+                    );
                 }
             }
             catch (OutOfMemoryException)
@@ -586,7 +606,8 @@ internal class DataSourceController(
                 /* process */
                 var slicedTargetBuffer = targetBuffer.Slice(
                     start: NexusUtilities.Scale(offset, targetSamplePeriod),
-                    length: NexusUtilities.Scale(length, targetSamplePeriod));
+                    length: NexusUtilities.Scale(length, targetSamplePeriod)
+                );
 
                 _processingService.Aggregate(
                     baseItem.Representation.DataType,
@@ -594,7 +615,8 @@ internal class DataSourceController(
                     slicedReadRequest.Data,
                     slicedReadRequest.Status,
                     targetBuffer: slicedTargetBuffer,
-                    blockSize);
+                    blockSize
+                );
             }
 
             /* update cache */
@@ -605,7 +627,8 @@ internal class DataSourceController(
                     begin,
                     targetBuffer,
                     uncachedIntervals,
-                    cancellationToken);
+                    cancellationToken
+                );
             }
         }
         catch (OutOfMemoryException)
@@ -1025,7 +1048,6 @@ internal class DataSourceController(
          *
          */
 
-
         if (begin >= end)
             throw new ValidationException("The begin datetime must be less than the end datetime.");
 
@@ -1034,6 +1056,27 @@ internal class DataSourceController(
 
         if (end.Ticks % samplePeriod.Ticks != 0)
             throw new ValidationException("The end parameter must be a multiple of the sample period.");
+    }
+
+    private Task SetContextAsync<T>(
+        IDataSource<T?> dataSource,
+        DataSourceRegistration registration,
+        ILogger logger,
+        CancellationToken cancellationToken
+    )
+    {
+        var sourceConfiguration = registration.Configuration.ValueKind == JsonValueKind.Undefined
+            ? default
+            : JsonSerializer
+                .Deserialize<T>(registration.Configuration);
+
+        var context = new DataSourceContext<T?>(
+            ResourceLocator: registration.ResourceLocator,
+            RequestConfiguration: _requestConfiguration,
+            SourceConfiguration: sourceConfiguration
+        );
+
+        return dataSource.SetContextAsync(context, logger, cancellationToken);
     }
 
     private bool _disposedValue;

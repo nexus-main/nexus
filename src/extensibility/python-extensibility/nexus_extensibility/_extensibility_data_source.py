@@ -2,13 +2,15 @@ import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import (Any, Awaitable, Callable, Dict, List, Optional, Protocol,
-                    Tuple)
+from typing import (Any, Awaitable, Callable, Dict, Generic, List, Optional,
+                    Protocol, Tuple, TypeVar)
 from urllib.parse import ParseResult
 
 from ._data_model import CatalogItem, CatalogRegistration, ResourceCatalog
 
 ################# DATA SOURCE TYPES ###############
+
+T = TypeVar('T')
 
 class LogLevel(enum.IntEnum):
     """Defines logging severity levels."""
@@ -37,14 +39,14 @@ class ILogger(ABC):
     def log(self, log_level: LogLevel, message: str):
         pass
 
+# use this syntax in future (3.12+): DataSourceContext[T]
 @dataclass(frozen=True)
-class DataSourceContext:
+class DataSourceContext(Generic[T]):
     """
     The starter package for a data source.
 
     Args:
         resource_locator: An optional URL which points to the data.
-        system_configuration: The system configuration.
         source_configuration: The source configuration.
         request_configuration: The request configuration.
     """
@@ -52,10 +54,7 @@ class DataSourceContext:
     resource_locator: Optional[ParseResult]
     """The unique identifier of the package reference."""
 
-    system_configuration: Optional[Dict[str, Any]]
-    """The system configuration."""
-
-    source_configuration: Optional[Dict[str, Any]]
+    source_configuration: T
     """The source configuration."""
 
     request_configuration: Optional[Dict[str, Any]]
@@ -104,13 +103,13 @@ class ReadDataHandler(Protocol):
 
 ################# DATA SOURCE ###############
 
-class IDataSource(ABC):
+class IDataSource(Generic[T], ABC):
     """
     A data source.
     """
 
     @abstractmethod
-    def set_context(self, context: DataSourceContext, logger: ILogger) -> Awaitable[None]:
+    def set_context(self, context: DataSourceContext[T], logger: ILogger) -> Awaitable[None]:
         """
         Invoked by Nexus right after construction to provide the context.
 
@@ -182,12 +181,29 @@ class IDataSource(ABC):
         """
         pass
 
-class SimpleDataSource(IDataSource, ABC):
+class IUpgradableDataSource(ABC):
+    """
+    Data sources which have configuration data to be upgraded should implement this interface.
+    """
+
+    @staticmethod
+    @abstractmethod
+    def upgrade_source_configuration(configuration: Any) -> Awaitable[Any]:
+        """
+        Upgrades the source configuration.
+
+        Args:
+            configuration: The configuration.
+        """
+        pass
+
+# use this syntax in future (3.12+): SimpleDataSource[T](...
+class SimpleDataSource(Generic[T], IDataSource[T], ABC):
     """
     A simple implementation of a data source.
     """
 
-    Context: DataSourceContext
+    Context: DataSourceContext[T]
     """Gets the data source context. This property is not accessible from within class constructors as it will bet set later."""
 
     Logger: ILogger

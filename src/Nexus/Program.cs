@@ -2,8 +2,6 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Globalization;
-using System.Text.Json;
-using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Formatters;
@@ -176,6 +174,7 @@ void AddServices(
     services.AddSingleton<AppState>();
     services.AddSingleton<AppStateManager>();
     services.AddSingleton<IPipelineService, PipelineService>();
+    services.AddSingleton<IUpgradeConfigurationService, UpgradeConfigurationService>();
     services.AddSingleton<ITokenService, TokenService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();
     services.AddSingleton<IJobService, JobService>();
@@ -274,20 +273,6 @@ async Task InitializeAppAsync(
     using var userContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
 
     await userContext.Database.EnsureCreatedAsync();
-
-    // project
-    if (databaseService.TryReadProject(out var project))
-    {
-        appState.Project = JsonSerializer.Deserialize<NexusProject>(project)
-            ?? throw new Exception("project is null");
-    }
-
-    else
-    {
-        appState.Project = new NexusProject(
-            SystemConfiguration: default
-        );
-    }
 
     // packages and catalogs
     await appStateManager.RefreshDatabaseAsync(new Progress<double>(), CancellationToken.None);

@@ -30,6 +30,7 @@ internal class SourcesController(
     // GET      /api/sources/descriptions
     // GET      /api/sources/pipelines
     // POST     /api/sources/pipelines
+    // PUT      /api/sources/pipelines/{pipelineId}
     // DELETE   /api/sources/pipelines/{pipelineId}
 
     private readonly IExtensionHive<IDataSource> _extensionHive = extensionHive;
@@ -80,9 +81,36 @@ internal class SourcesController(
     }
 
     /// <summary>
+    /// Updates a data source pipeline.
+    /// </summary>
+    /// <param name="pipelineId">The identifier of the pipeline to update.</param>
+    /// <param name="pipeline">The new pipeline.</param>
+    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    [HttpPut("pipelines/{pipelineId}")]
+    public async Task<ActionResult> UpdatePipelineAsync(
+        Guid pipelineId,
+        DataSourcePipeline pipeline,
+        [FromQuery] string? userId = default)
+    {
+        if (TryAuthenticate(userId, out var actualUserId, out var response))
+        {
+            if (await _pipelineService.TryUpdateAsync(actualUserId, pipelineId, pipeline))
+                return Ok();
+
+            else
+                return NotFound();
+        }
+
+        else
+        {
+            return response;
+        }
+    }
+
+    /// <summary>
     /// Deletes a data source pipeline.
     /// </summary>
-    /// <param name="pipelineId">The identifier of the pipeline.</param>
+    /// <param name="pipelineId">The identifier of the pipeline to delete.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     [HttpDelete("pipelines/{pipelineId}")]
     public async Task<ActionResult> DeletePipelineAsync(

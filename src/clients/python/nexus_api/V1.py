@@ -544,12 +544,34 @@ class SourcesClient:
 
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
+    def update_pipeline(self, pipeline_id: UUID, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> Response:
+        """
+        Updates a data source pipeline.
+
+        Args:
+            pipeline_id: The identifier of the pipeline to update.
+            user_id: The optional user identifier. If not specified, the current user will be used.
+        """
+
+        __url = "/api/v1/sources/pipelines/{pipelineId}"
+        __url = __url.replace("{pipelineId}", quote(str(pipeline_id), safe=""))
+
+        __query_values: dict[str, str] = {}
+
+        if user_id is not None:
+            __query_values["userId"] = quote(_to_string(user_id), safe="")
+
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
+
+        return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
+
     def delete_pipeline(self, pipeline_id: UUID, user_id: Optional[str] = None) -> Response:
         """
         Deletes a data source pipeline.
 
         Args:
-            pipeline_id: The identifier of the pipeline.
+            pipeline_id: The identifier of the pipeline to delete.
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
@@ -596,28 +618,6 @@ class SystemClient:
         __url = "/api/v1/system/help-link"
 
         return self.___invoke(str, "GET", __url, "application/json", None, None)
-
-    def get_configuration(self) -> Optional[dict[str, object]]:
-        """
-        Gets the system configuration.
-
-        Args:
-        """
-
-        __url = "/api/v1/system/configuration"
-
-        return self.___invoke(dict[str, object], "GET", __url, "application/json", None, None)
-
-    def set_configuration(self, configuration: Optional[dict[str, object]]) -> None:
-        """
-        Sets the system configuration.
-
-        Args:
-        """
-
-        __url = "/api/v1/system/configuration"
-
-        return self.___invoke(type(None), "PUT", __url, None, "application/json", json.dumps(JsonEncoder.encode(configuration, _json_encoder_options)))
 
 
 class UsersClient:
@@ -1388,12 +1388,34 @@ class SourcesAsyncClient:
 
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
+    def update_pipeline(self, pipeline_id: UUID, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> Awaitable[Response]:
+        """
+        Updates a data source pipeline.
+
+        Args:
+            pipeline_id: The identifier of the pipeline to update.
+            user_id: The optional user identifier. If not specified, the current user will be used.
+        """
+
+        __url = "/api/v1/sources/pipelines/{pipelineId}"
+        __url = __url.replace("{pipelineId}", quote(str(pipeline_id), safe=""))
+
+        __query_values: dict[str, str] = {}
+
+        if user_id is not None:
+            __query_values["userId"] = quote(_to_string(user_id), safe="")
+
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
+
+        return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
+
     def delete_pipeline(self, pipeline_id: UUID, user_id: Optional[str] = None) -> Awaitable[Response]:
         """
         Deletes a data source pipeline.
 
         Args:
-            pipeline_id: The identifier of the pipeline.
+            pipeline_id: The identifier of the pipeline to delete.
             user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
@@ -1440,28 +1462,6 @@ class SystemAsyncClient:
         __url = "/api/v1/system/help-link"
 
         return self.___invoke(str, "GET", __url, "application/json", None, None)
-
-    def get_configuration(self) -> Awaitable[Optional[dict[str, object]]]:
-        """
-        Gets the system configuration.
-
-        Args:
-        """
-
-        __url = "/api/v1/system/configuration"
-
-        return self.___invoke(dict[str, object], "GET", __url, "application/json", None, None)
-
-    def set_configuration(self, configuration: Optional[dict[str, object]]) -> Awaitable[None]:
-        """
-        Sets the system configuration.
-
-        Args:
-        """
-
-        __url = "/api/v1/system/configuration"
-
-        return self.___invoke(type(None), "PUT", __url, None, "application/json", json.dumps(JsonEncoder.encode(configuration, _json_encoder_options)))
 
 
 class UsersAsyncClient:
@@ -2159,7 +2159,7 @@ class DataSourceRegistration:
     resource_locator: Optional[str]
     """An optional URL which points to the data."""
 
-    configuration: Optional[dict[str, object]]
+    configuration: object
     """Configuration parameters for the instantiated source."""
 
     info_url: Optional[str]

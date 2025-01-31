@@ -102,7 +102,6 @@ public class DataWriterControllerTests(DataWriterFixture fixture)
             dataWriter,
             resourceLocator,
             default!,
-            default!,
             NullLogger<DataWriterController>.Instance);
 
         await controller.InitializeAsync(default!, CancellationToken.None);

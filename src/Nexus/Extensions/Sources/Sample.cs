@@ -4,14 +4,19 @@
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Nexus.Sources;
+
+internal record SampleSettings(
+    string HelloWorldMessage
+);
 
 [ExtensionDescription(
     "Provides catalogs with sample data.",
     "https://github.com/nexus-main/nexus",
     "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Sources/Sample.cs")]
-internal class Sample : IDataSource
+internal class Sample : IDataSource<SampleSettings?>
 {
     public static readonly Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
 
@@ -80,22 +85,32 @@ internal class Sample : IDataSource
     ];
 
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
+
     public const string RemoteCatalogId = "/SAMPLE/REMOTE";
 
     private const string LocalCatalogTitle = "Simulates a local catalog";
+
     private const string RemoteCatalogTitle = "Simulates a remote catalog";
 
     public const string RemoteUsername = "test";
+
     public const string RemotePassword = "1234";
 
-    private DataSourceContext Context { get; set; } = default!;
+    private DataSourceContext<SampleSettings?> Context { get; set; } = default!;
+
+    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration)
+        => Task.FromResult(configuration);
 
     public Task SetContextAsync(
-        DataSourceContext context,
+        DataSourceContext<SampleSettings?> context,
         ILogger logger,
         CancellationToken cancellationToken)
     {
+        if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" && context.SourceConfiguration is not null)
+            logger.LogWarning(context.SourceConfiguration.HelloWorldMessage);
+
         Context = context;
+
         return Task.CompletedTask;
     }
 

@@ -5,7 +5,6 @@ using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.IO.Pipelines;
-using System.Text.Json;
 
 namespace Nexus.Core;
 
@@ -27,9 +26,6 @@ internal record CatalogItemRequest(
     CatalogItem Item,
     CatalogItem? BaseItem,
     CatalogContainer Container);
-
-internal record NexusProject(
-    IReadOnlyDictionary<string, JsonElement>? SystemConfiguration);
 
 internal record CatalogState(
     CatalogContainer Root,
