@@ -64,6 +64,7 @@ internal class UpgradeConfigurationService(
                             throw new Exception("Data sources must implement IDataSource<T>.");
 
                         var configurationType = genericInterface.GenericTypeArguments[0];
+                        var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
                         /* Invoke InternalUpgradeAsync */
                         var methodInfo = typeof(UpgradeConfigurationService)
@@ -75,7 +76,8 @@ internal class UpgradeConfigurationService(
                         var upgradedConfiguration = await (Task<JsonElement>)genericMethod.Invoke(
                             default,
                             [
-                                registration.Configuration
+                                registration.Configuration,
+                                timeoutTokenSource.Token
                             ]
                         )!;
 
@@ -108,10 +110,12 @@ internal class UpgradeConfigurationService(
         }
     }
 
-    private static async Task<JsonElement> InternalUpgradeAsync<TSource, TConfiguration>(JsonElement configuration)
-        where TSource : IUpgradableDataSource
+    private static async Task<JsonElement> InternalUpgradeAsync<TSource, TConfiguration>(
+        JsonElement configuration,
+        CancellationToken cancellationToken
+    ) where TSource : IUpgradableDataSource
     {
-        var upgradedConfiguration = await TSource.UpgradeSourceConfigurationAsync(configuration);
+        var upgradedConfiguration = await TSource.UpgradeSourceConfigurationAsync(configuration, cancellationToken);
 
         /* ensure it can be deserialized */
         _ = JsonSerializer.Deserialize<TConfiguration>(upgradedConfiguration, JsonSerializerOptions.Web);

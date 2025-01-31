@@ -22,7 +22,10 @@ public class TestSource : IDataSource<TestSourceSettings?>, IUpgradableDataSourc
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
-    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration)
+    public static Task<JsonElement> UpgradeSourceConfigurationAsync(
+        JsonElement configuration,
+        CancellationToken cancellationToken
+    )
     {
         // Nothing to upgrade
         if (configuration.ValueKind == JsonValueKind.Null)

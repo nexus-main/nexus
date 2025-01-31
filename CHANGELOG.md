@@ -1,3 +1,6 @@
+## v2.0.0-beta.47 - 2025-01-31
+- Add missing cancellation token parameter
+
 ## v2.0.0-beta.46 - 2025-01-31
 - Prepare strongly typed data source configuration
 

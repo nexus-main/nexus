@@ -98,9 +98,6 @@ internal class Sample : IDataSource<SampleSettings?>
 
     private DataSourceContext<SampleSettings?> Context { get; set; } = default!;
 
-    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration)
-        => Task.FromResult(configuration);
-
     public Task SetContextAsync(
         DataSourceContext<SampleSettings?> context,
         ILogger logger,
