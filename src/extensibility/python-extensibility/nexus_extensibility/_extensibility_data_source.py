@@ -39,8 +39,9 @@ class ILogger(ABC):
     def log(self, log_level: LogLevel, message: str):
         pass
 
+# use this syntax in future (3.12+): DataSourceContext[T]
 @dataclass(frozen=True)
-class DataSourceContext[T]:
+class DataSourceContext(Generic[T]):
     """
     The starter package for a data source.
 
@@ -196,6 +197,7 @@ class IUpgradableDataSource(ABC):
         """
         pass
 
+# use this syntax in future (3.12+): SimpleDataSource[T](...
 class SimpleDataSource(Generic[T], IDataSource[T], ABC):
     """
     A simple implementation of a data source.
