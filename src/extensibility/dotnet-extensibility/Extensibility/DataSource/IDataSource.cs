@@ -40,7 +40,7 @@ public interface IDataSource
     /// <param name="catalogId">The catalog identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     /// <returns>The time range task.</returns>
-    Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
+    Task<CatalogTimeRange> GetTimeRangeAsync(
         string catalogId,
         CancellationToken cancellationToken
     );

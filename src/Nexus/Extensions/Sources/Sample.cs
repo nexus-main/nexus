@@ -4,7 +4,6 @@
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 
 namespace Nexus.Sources;
 
@@ -137,11 +136,11 @@ internal class Sample : IDataSource<SampleSettings?>
         return Task.FromResult(catalog.Merge(LoadCatalog(catalog.Id)));
     }
 
-    public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
+    public Task<CatalogTimeRange> GetTimeRangeAsync(
         string catalogId,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult((DateTime.MinValue, DateTime.MaxValue));
+        return Task.FromResult(new CatalogTimeRange(DateTime.MinValue, DateTime.MaxValue));
     }
 
     public Task<double> GetAvailabilityAsync(

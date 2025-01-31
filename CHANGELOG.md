@@ -1,3 +1,6 @@
+## v2.0.0-beta.48 - 2025-01-31
+- Avoid tuples in return types
+
 ## v2.0.0-beta.47 - 2025-01-31
 - Add missing cancellation token parameter
 

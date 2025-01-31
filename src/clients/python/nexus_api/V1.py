@@ -1907,7 +1907,7 @@ class PipelineInfo:
 @dataclass(frozen=True)
 class CatalogTimeRange:
     """
-    A catalog time range.
+    A data source time range.
 
     Args:
         begin: The date/time of the first data in the catalog.
