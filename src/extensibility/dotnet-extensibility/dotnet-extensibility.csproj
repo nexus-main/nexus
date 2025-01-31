@@ -27,6 +27,14 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    
+    <ProjectReference Include="../dotnet-extensibility-analyzers/dotnet-extensibility-analyzers.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(OutputPath.Replace('dotnet-extensibility', 'dotnet-extensibility-analyzers'))/$(AssemblyName).Analyzers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
 </Project>

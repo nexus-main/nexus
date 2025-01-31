@@ -58,7 +58,8 @@ internal class DataSourceController(
     IProcessingService processingService,
     ICacheService cacheService,
     DataOptions dataOptions,
-    ILogger<DataSourceController> logger) : IDataSourceController
+    ILogger<DataSourceController> logger
+) : IDataSourceController
 {
 
     internal readonly IReadOnlyDictionary<string, JsonElement>? _requestConfiguration = requestConfiguration;

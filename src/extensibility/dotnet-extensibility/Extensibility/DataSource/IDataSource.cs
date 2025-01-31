@@ -8,9 +8,8 @@ using Nexus.DataModel;
 namespace Nexus.Extensibility;
 
 /// <summary>
-/// For internal use only. Use IDataSource&gt;T&lt; instead.
+/// A base interface for IDataSource&gt;T&lt;.
 /// </summary>
-[Obsolete($"For internal use only. Use IDataSource<T> instead.")]
 public interface IDataSource
 {
     /// <summary>

@@ -401,7 +401,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         };
 
         /* IDataSource */
-        var dataSource = Mock.Of<IDataSource>();
+        var dataSource = Mock.Of<IDataSource<object?>>();
 
         Mock.Get(dataSource)
            .Setup(dataSource => dataSource.ReadAsync(
