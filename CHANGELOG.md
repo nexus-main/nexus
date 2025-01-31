@@ -1,3 +1,6 @@
+## v2.0.0-beta.46 - 2025-01-31
+- Prepare strongly typed data source configuration
+
 ## v2.0.0-beta.45 - 2025-01-25
 - Fix OIDC identifier claim definition
 
@@ -8,7 +11,7 @@
 - Follow Apollo3zehn.PackageManagement changes
 
 ## v2.0.0-beta.42 - 2025-01-16
-- Make Nexus.PackageManagement indepenent of Nexus.Extensibility
+- Make Nexus.PackageManagement independent of Nexus.Extensibility
 
 ## v2.0.0-beta.41 - 2025-01-15
 - Update Python libs

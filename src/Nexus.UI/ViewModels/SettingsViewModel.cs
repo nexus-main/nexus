@@ -188,7 +188,11 @@ public class SettingsViewModel : INotifyPropertyChanged
         var actualParameters = _appState.ExportParameters with
         {
             ResourcePaths = resourcePaths,
-            Configuration = _appState.Settings.Configuration.ToDictionary(entry => entry.Key, entry => JsonSerializer.SerializeToElement(entry.Value))
+            Configuration = _appState.Settings.Configuration
+                .ToDictionary(
+                    entry => entry.Key,
+                    entry => JsonSerializer.SerializeToElement(entry.Value)
+                )
         };
 
         return actualParameters;

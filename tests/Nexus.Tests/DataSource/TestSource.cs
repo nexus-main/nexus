@@ -4,18 +4,59 @@
 using Microsoft.Extensions.Logging;
 using Nexus.DataModel;
 using Nexus.Extensibility;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace DataSource;
+
+public record TestSourceSettings(
+    int Version,
+    double Bar
+);
 
 [ExtensionDescription(
     "Augments existing catalogs with more awesome data.",
     "https://github.com/nexus-main/nexus",
     "https://github.com/nexus-main/nexus/blob/master/tests/Nexus.Tests/DataSource/TestSource.cs")]
-public class TestSource : IDataSource
+public class TestSource : IDataSource<TestSourceSettings?>, IUpgradableDataSource
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
-    public Task SetContextAsync(DataSourceContext context, ILogger logger, CancellationToken cancellationToken)
+    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration)
+    {
+        // Nothing to upgrade
+        if (configuration.ValueKind == JsonValueKind.Null)
+            return Task.FromResult(configuration);
+
+        // If version exists, it should be equal to 2
+        if (configuration.TryGetProperty("version", out var versionElement))
+        {
+            if (versionElement.GetInt32() != 2)
+                throw new Exception("Invalid configuration");
+
+            return Task.FromResult(configuration);
+        }
+
+        // Else: upgrade
+        else
+        {
+            var configurationNode = (JsonSerializer.SerializeToNode(configuration) as JsonObject)!;
+
+            configurationNode["version"] = 2;
+            configurationNode["bar"] = configurationNode["foo"]!.GetValue<double>();
+            configurationNode.Remove("foo");
+
+            var upgradedConfiguration = JsonSerializer.SerializeToElement(configurationNode);
+
+            return Task.FromResult(upgradedConfiguration);
+        }
+    }
+
+    public Task SetContextAsync(
+        DataSourceContext<TestSourceSettings?> context,
+        ILogger logger,
+        CancellationToken cancellationToken
+    )
     {
         return Task.CompletedTask;
     }
@@ -25,7 +66,10 @@ public class TestSource : IDataSource
         return Task.FromResult(Array.Empty<CatalogRegistration>());
     }
 
-    public Task<ResourceCatalog> EnrichCatalogAsync(ResourceCatalog catalog, CancellationToken cancellationToken)
+    public Task<ResourceCatalog> EnrichCatalogAsync(
+        ResourceCatalog catalog,
+        CancellationToken cancellationToken
+    )
     {
         if (catalog.Resources is null)
             return Task.FromResult(catalog);
@@ -51,17 +95,32 @@ public class TestSource : IDataSource
         return Task.FromResult(newCatalog);
     }
 
-    public Task<double> GetAvailabilityAsync(string catalogId, DateTime begin, DateTime end, CancellationToken cancellationToken)
+    public Task<double> GetAvailabilityAsync(
+        string catalogId,
+        DateTime begin,
+        DateTime end,
+        CancellationToken cancellationToken
+    )
     {
         return Task.FromResult(double.NaN);
     }
 
-    public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(string catalogId, CancellationToken cancellationToken)
+    public Task<(DateTime Begin, DateTime End)> GetTimeRangeAsync(
+        string catalogId,
+        CancellationToken cancellationToken
+    )
     {
         return Task.FromResult((DateTime.MaxValue, DateTime.MinValue));
     }
 
-    public Task ReadAsync(DateTime begin, DateTime end, ReadRequest[] requests, ReadDataHandler readData, IProgress<double> progress, CancellationToken cancellationToken)
+    public Task ReadAsync(
+        DateTime begin,
+        DateTime end,
+        ReadRequest[] requests,
+        ReadDataHandler readData,
+        IProgress<double> progress,
+        CancellationToken cancellationToken
+    )
     {
         foreach (var request in requests)
         {

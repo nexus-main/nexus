@@ -66,7 +66,8 @@ internal class CatalogManager(
                         new(
                             Type: typeof(Sample).FullName!,
                             ResourceLocator: default,
-                            Configuration: default
+                            Configuration: JsonSerializer
+                                .SerializeToElement(new SampleSettings("Hello from Sample!"))
                         )
                     ]
                 ))
@@ -88,7 +89,7 @@ internal class CatalogManager(
                 foreach (var registration in pipeline.Registrations)
                 {
                     var packageReferenceIds = pipeline.Registrations
-                        .Select(registration => _sourcesExtensionHive.GetPackageReferenceId(registration.Type))
+                        .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
                         .ToArray();
 
                     foreach (var catalogRegistration in catalogRegistrations)
@@ -145,7 +146,7 @@ internal class CatalogManager(
                         var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
 
                         var packageReferenceIds = pipeline.Registrations
-                            .Select(registration => _sourcesExtensionHive.GetPackageReferenceId(registration.Type))
+                            .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
                             .ToArray();
 
                         foreach (var catalogRegistration in catalogRegistrations)

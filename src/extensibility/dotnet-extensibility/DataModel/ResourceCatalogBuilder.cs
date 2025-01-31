@@ -49,7 +49,6 @@ public record ResourceCatalogBuilder
     public ResourceCatalogBuilder WithProperty(string key, object value)
     {
         _properties ??= [];
-
         _properties[key] = JsonSerializer.SerializeToElement(value);
 
         return this;

@@ -191,34 +191,34 @@ public class CatalogManagerTests
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/A" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/A" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/B/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/B" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationB && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/B/B" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationB && container.Owner!.Identity!.Name! == userB.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/B2" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationB && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/B/B2" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationB && container.Owner!.Identity!.Name! == userB.Name);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/C/A" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationC && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/C/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationC && container.Owner!.Identity!.Name! == userB.Name);
 
         // assert 'A'
         Assert.Equal(2, ACatalogContainers.Length);
 
         Assert.Contains(
             ACatalogContainers,
-            container => container.Id == "/A/B" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A/B" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
 
         Assert.Contains(
             ACatalogContainers,
-            container => container.Id == "/A/C/A" && container.Pipeline.Registrations.Length == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A/C/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
     }
 
     [Fact]

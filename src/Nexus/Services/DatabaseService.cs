@@ -15,11 +15,6 @@ internal interface IDatabaseService
 
     Stream WriteCatalogMetadata(string catalogId);
 
-    /* /config/project.json */
-    bool TryReadProject([NotNullWhen(true)] out string? project);
-
-    Stream WriteProject();
-
     /* /config/users */
     IEnumerable<string> EnumerateUsers();
 
@@ -80,8 +75,6 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     private const string FILE_EXTENSION = ".json";
 
-    private const string PROJECT = "project";
-
     private const string TOKENS = "tokens";
 
     private const string PIPELINES = "pipelines";
@@ -112,29 +105,6 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
         var filePath = SafePathCombine(folderPath, catalogMetadataFileName);
 
-        return File.Open(filePath, FileMode.Create, FileAccess.Write);
-    }
-
-    /* /config/project.json */
-    public bool TryReadProject([NotNullWhen(true)] out string? project)
-    {
-        var filePath = Path.Combine(_pathsOptions.Config, PROJECT + FILE_EXTENSION);
-        project = default;
-
-        if (File.Exists(filePath))
-        {
-            project = File.ReadAllText(filePath);
-            return true;
-        }
-
-        return false;
-    }
-
-    public Stream WriteProject()
-    {
-        Directory.CreateDirectory(_pathsOptions.Config);
-
-        var filePath = Path.Combine(_pathsOptions.Config, PROJECT + FILE_EXTENSION);
         return File.Open(filePath, FileMode.Create, FileAccess.Write);
     }
 

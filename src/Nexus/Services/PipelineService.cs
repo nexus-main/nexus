@@ -4,7 +4,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
-using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Utilities;
 
@@ -12,14 +11,15 @@ namespace Nexus.Services;
 
 internal interface IPipelineService
 {
-    Task<Guid> PutAsync(
-        string userId,
-        DataSourcePipeline pipeline);
+    Task<Guid> PutAsync(string userId, DataSourcePipeline pipeline);
 
     bool TryGet(
         string userId,
         Guid pipelineId,
-        [NotNullWhen(true)] out DataSourcePipeline? pipeline);
+        [NotNullWhen(true)] out DataSourcePipeline? pipeline
+    );
+
+    Task<bool> TryUpdateAsync(string userId, Guid pipelineId, DataSourcePipeline pipeline);
 
     Task DeleteAsync(string userId, Guid pipelineId);
 
@@ -37,9 +37,7 @@ internal class PipelineService(IDatabaseService databaseService)
 
     private readonly IDatabaseService _databaseService = databaseService;
 
-    public Task<Guid> PutAsync(
-        string userId,
-        DataSourcePipeline pipeline)
+    public Task<Guid> PutAsync(string userId, DataSourcePipeline pipeline)
     {
         return InteractWithPipelineMapAsync(userId, pipelineMap =>
         {
@@ -58,11 +56,38 @@ internal class PipelineService(IDatabaseService databaseService)
     public bool TryGet(
         string userId,
         Guid pipelineId,
-        [NotNullWhen(true)] out DataSourcePipeline? pipeline)
+        [NotNullWhen(true)] out DataSourcePipeline? pipeline
+    )
     {
         var pipelineMap = GetPipelineMap(userId);
 
         return pipelineMap.TryGetValue(pipelineId, out pipeline);
+    }
+
+    public Task<bool> TryUpdateAsync(string userId, Guid pipelineId, DataSourcePipeline pipeline)
+    {
+        return InteractWithPipelineMapAsync(userId, pipelineMap =>
+        {
+            /* Proceed only if pipeline already exists! 
+             * We do not want pipeline IDs being set from
+             * outside.
+             */
+            if (pipelineMap.TryGetValue(pipelineId, out var oldPipeline))
+            {
+                pipelineMap.AddOrUpdate(
+                    pipelineId,
+                    pipeline,
+                    (key, _) => pipeline
+                );
+
+                return true;
+            }
+
+            else
+            {
+                return false;
+            }
+        }, saveChanges: true);
     }
 
     public Task DeleteAsync(string userId, Guid pipelineId)

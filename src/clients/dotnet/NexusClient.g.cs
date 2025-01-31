@@ -1971,16 +1971,33 @@ public interface ISourcesClient
     Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates a data source pipeline.
+    /// </summary>
+    /// <param name="pipelineId">The identifier of the pipeline to update.</param>
+    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    /// <param name="pipeline">The new pipeline.</param>
+    HttpResponseMessage UpdatePipeline(Guid pipelineId, DataSourcePipeline pipeline, string? userId = default);
+
+    /// <summary>
+    /// Updates a data source pipeline.
+    /// </summary>
+    /// <param name="pipelineId">The identifier of the pipeline to update.</param>
+    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    /// <param name="pipeline">The new pipeline.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> UpdatePipelineAsync(Guid pipelineId, DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes a data source pipeline.
     /// </summary>
-    /// <param name="pipelineId">The identifier of the pipeline.</param>
+    /// <param name="pipelineId">The identifier of the pipeline to delete.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     HttpResponseMessage DeletePipeline(Guid pipelineId, string? userId = default);
 
     /// <summary>
     /// Deletes a data source pipeline.
     /// </summary>
-    /// <param name="pipelineId">The identifier of the pipeline.</param>
+    /// <param name="pipelineId">The identifier of the pipeline to delete.</param>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<HttpResponseMessage> DeletePipelineAsync(Guid pipelineId, string? userId = default, CancellationToken cancellationToken = default);
@@ -2090,6 +2107,44 @@ public class SourcesClient : ISourcesClient
     }
 
     /// <inheritdoc />
+    public HttpResponseMessage UpdatePipeline(Guid pipelineId, DataSourcePipeline pipeline, string? userId = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/sources/pipelines/{pipelineId}");
+        __urlBuilder.Replace("{pipelineId}", Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!));
+
+        var __queryValues = new Dictionary<string, string>();
+
+        if (userId is not null)
+            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("PUT", __url, "application/octet-stream", "application/json", JsonContent.Create(pipeline, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> UpdatePipelineAsync(Guid pipelineId, DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/sources/pipelines/{pipelineId}");
+        __urlBuilder.Replace("{pipelineId}", Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!));
+
+        var __queryValues = new Dictionary<string, string>();
+
+        if (userId is not null)
+            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("PUT", __url, "application/octet-stream", "application/json", JsonContent.Create(pipeline, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+    /// <inheritdoc />
     public HttpResponseMessage DeletePipeline(Guid pipelineId, string? userId = default)
     {
         var __urlBuilder = new StringBuilder();
@@ -2156,30 +2211,6 @@ public interface ISystemClient
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<string> GetHelpLinkAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Gets the system configuration.
-    /// </summary>
-    IReadOnlyDictionary<string, JsonElement>? GetConfiguration();
-
-    /// <summary>
-    /// Gets the system configuration.
-    /// </summary>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, JsonElement>?> GetConfigurationAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Sets the system configuration.
-    /// </summary>
-    /// <param name="configuration"></param>
-    void SetConfiguration(IReadOnlyDictionary<string, JsonElement>? configuration);
-
-    /// <summary>
-    /// Sets the system configuration.
-    /// </summary>
-    /// <param name="configuration"></param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task SetConfigurationAsync(IReadOnlyDictionary<string, JsonElement>? configuration, CancellationToken cancellationToken = default);
-
 }
 
 /// <inheritdoc />
@@ -2230,46 +2261,6 @@ public class SystemClient : ISystemClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<string>("GET", __url, "application/json", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyDictionary<string, JsonElement>? GetConfiguration()
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/configuration");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyDictionary<string, JsonElement>?>("GET", __url, "application/json", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, JsonElement>?> GetConfigurationAsync(CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/configuration");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyDictionary<string, JsonElement>?>("GET", __url, "application/json", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public void SetConfiguration(IReadOnlyDictionary<string, JsonElement>? configuration)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/configuration");
-
-        var __url = __urlBuilder.ToString();
-        ___client.Invoke<object>("PUT", __url, default, "application/json", JsonContent.Create(configuration, options: Utilities.JsonOptions));
-    }
-
-    /// <inheritdoc />
-    public Task SetConfigurationAsync(IReadOnlyDictionary<string, JsonElement>? configuration, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/configuration");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<object>("PUT", __url, default, "application/json", JsonContent.Create(configuration, options: Utilities.JsonOptions), cancellationToken);
     }
 
 }
@@ -3143,7 +3134,7 @@ public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrat
 /// <param name="ResourceLocator">An optional URL which points to the data.</param>
 /// <param name="Configuration">Configuration parameters for the instantiated source.</param>
 /// <param name="InfoUrl">An optional info URL.</param>
-public record DataSourceRegistration(string Type, Uri? ResourceLocator, IReadOnlyDictionary<string, JsonElement>? Configuration, string? InfoUrl);
+public record DataSourceRegistration(string Type, Uri? ResourceLocator, JsonElement Configuration, string? InfoUrl);
 
 /// <summary>
 /// A me response.

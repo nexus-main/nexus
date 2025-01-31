@@ -16,13 +16,13 @@ public class SampleDataSourceTests
     public async Task ProvidesCatalog()
     {
         // arrange
-        var dataSource = new Sample() as IDataSource;
+        var dataSource = new Sample() as IDataSource<SampleSettings>;
 
-        var context = new DataSourceContext(
+        var context = new DataSourceContext<SampleSettings>(
             ResourceLocator: default,
-            SystemConfiguration: default!,
             SourceConfiguration: default!,
-            RequestConfiguration: default);
+            RequestConfiguration: default
+        );
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
@@ -49,13 +49,13 @@ public class SampleDataSourceTests
     [Fact]
     public async Task CanProvideTimeRange()
     {
-        var dataSource = new Sample() as IDataSource;
+        var dataSource = new Sample() as IDataSource<SampleSettings>;
 
-        var context = new DataSourceContext(
+        var context = new DataSourceContext<SampleSettings>(
             ResourceLocator: default,
-            SystemConfiguration: default!,
             SourceConfiguration: default!,
-            RequestConfiguration: default);
+            RequestConfiguration: default
+        );
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
@@ -68,13 +68,13 @@ public class SampleDataSourceTests
     [Fact]
     public async Task CanProvideAvailability()
     {
-        var dataSource = new Sample() as IDataSource;
+        var dataSource = new Sample() as IDataSource<SampleSettings>;
 
-        var context = new DataSourceContext(
+        var context = new DataSourceContext<SampleSettings>(
             ResourceLocator: default,
-            SystemConfiguration: default!,
             SourceConfiguration: default!,
-            RequestConfiguration: default);
+            RequestConfiguration: default
+        );
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
@@ -89,13 +89,13 @@ public class SampleDataSourceTests
     [Fact]
     public async Task CanReadFullDay()
     {
-        var dataSource = new Sample() as IDataSource;
+        var dataSource = new Sample() as IDataSource<SampleSettings>;
 
-        var context = new DataSourceContext(
+        var context = new DataSourceContext<SampleSettings>(
             ResourceLocator: default,
-            SystemConfiguration: default!,
             SourceConfiguration: default!,
-            RequestConfiguration: default);
+            RequestConfiguration: default
+        );
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 

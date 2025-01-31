@@ -7,6 +7,10 @@ using Nexus.Sources;
 
 namespace DataSource;
 
+public record GenericSourceSettings(
+    string Value
+);
+
 public class DataSourceControllerFixture
 {
     internal IDataSource DataSource1 { get; } = new Sample();

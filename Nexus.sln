@@ -48,6 +48,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "extensibility", "extensibil
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet-extensibility-tests", "tests\extensibility\dotnet-extensibility-tests\dotnet-extensibility-tests.csproj", "{25A65150-BC9F-4F92-9078-18ABA7444C21}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-extensibility-analyzers", "src\extensibility\dotnet-extensibility-analyzers\dotnet-extensibility-analyzers.csproj", "{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -154,6 +156,18 @@ Global
 		{25A65150-BC9F-4F92-9078-18ABA7444C21}.Release|x64.Build.0 = Release|Any CPU
 		{25A65150-BC9F-4F92-9078-18ABA7444C21}.Release|x86.ActiveCfg = Release|Any CPU
 		{25A65150-BC9F-4F92-9078-18ABA7444C21}.Release|x86.Build.0 = Release|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Debug|x64.Build.0 = Debug|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Debug|x86.Build.0 = Debug|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|x64.ActiveCfg = Release|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|x64.Build.0 = Release|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|x86.ActiveCfg = Release|Any CPU
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -171,6 +185,7 @@ Global
 		{322CA18D-4C04-41DB-9D17-283FC53849CA} = {1C0BDA12-25B4-42F8-87B5-C3B3BEF417B2}
 		{6B7A5EC5-213A-44CC-B279-3E0C33082FC8} = {3DBD52E4-26F8-413F-A954-2BE86E572F3E}
 		{25A65150-BC9F-4F92-9078-18ABA7444C21} = {6B7A5EC5-213A-44CC-B279-3E0C33082FC8}
+		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F} = {1C0BDA12-25B4-42F8-87B5-C3B3BEF417B2}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F998BD6D-3E2B-4AA0-A7A4-FD84100C45A4}

@@ -6,15 +6,14 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
-using Nexus.Utilities;
 using System.Reflection;
-using System.Text.Json;
 
 namespace Nexus.Services;
 
 internal class AppStateManager(
     AppState appState,
     IPackageService packageService,
+    IUpgradeConfigurationService upgradeConfigurationService,
     IExtensionHive<IDataSource> sourcesExtensionHive,
     IExtensionHive<IDataWriter> writersExtensionHive,
     ICatalogManager catalogManager,
@@ -22,6 +21,8 @@ internal class AppStateManager(
     ILogger<AppStateManager> logger)
 {
     private readonly IPackageService _packageService = packageService;
+
+    private readonly IUpgradeConfigurationService _upgradeConfigurationService = upgradeConfigurationService;
 
     private readonly IExtensionHive<IDataWriter> _writersExtensionHive = writersExtensionHive;
 
@@ -34,8 +35,6 @@ internal class AppStateManager(
     private readonly ILogger<AppStateManager> _logger = logger;
 
     private readonly SemaphoreSlim _refreshDatabaseSemaphore = new(initialCount: 1, maxCount: 1);
-
-    private readonly SemaphoreSlim _projectSemaphore = new(initialCount: 1, maxCount: 1);
 
     public AppState AppState { get; } = appState;
 
@@ -52,10 +51,10 @@ internal class AppStateManager(
 
             if (refreshDatabaseTask is null)
             {
-                /* create fresh app state */
+                /* create new catalog state */
                 AppState.CatalogState = new CatalogState(
                     Root: CatalogContainer.CreateRoot(_catalogManager, _databaseService),
-                    Cache: new CatalogCache()
+                    Cache: new()
                 );
 
                 /* load packages */
@@ -65,44 +64,28 @@ internal class AppStateManager(
 
                 refreshDatabaseTask = Task.Run(async () =>
                 {
-                    await _sourcesExtensionHive
-                        .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+                    try
+                    {
+                        await _sourcesExtensionHive
+                            .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
 
-                    await _writersExtensionHive
-                        .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+                        await _upgradeConfigurationService.UpgradeAsync();
 
-                    LoadDataWriters();
-                    AppState.ReloadPackagesTask = default;
-                    return Task.CompletedTask;
+                        await _writersExtensionHive
+                            .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+
+                        LoadDataWriters();
+                    }
+                    finally
+                    {
+                        AppState.ReloadPackagesTask = default;
+                    }
                 });
             }
         }
         finally
         {
             _refreshDatabaseSemaphore.Release();
-        }
-    }
-
-    public async Task PutSystemConfigurationAsync(IReadOnlyDictionary<string, JsonElement>? configuration)
-    {
-        await _projectSemaphore.WaitAsync();
-
-        try
-        {
-            var project = AppState.Project;
-
-            var newProject = project with
-            {
-                SystemConfiguration = configuration
-            };
-
-            await SaveProjectAsync(newProject);
-
-            AppState.Project = newProject;
-        }
-        finally
-        {
-            _projectSemaphore.Release();
         }
     }
 
@@ -123,7 +106,10 @@ internal class AppStateManager(
             }
 
             var additionalInformation = attribute.Description;
-            var label = (additionalInformation?.GetStringValue(UI.Core.Constants.DATA_WRITER_LABEL_KEY)) ?? throw new Exception($"The description of data writer {fullName} has no label property");
+
+            var label = additionalInformation?.GetStringValue(UI.Core.Constants.DATA_WRITER_LABEL_KEY)
+                ?? throw new Exception($"The description of data writer {fullName} has no label property");
+
             var version = dataWriterType.Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
                 .InformationalVersion;
@@ -160,11 +146,5 @@ internal class AppStateManager(
             .ToList();
 
         AppState.DataWriterDescriptions = dataWriterDescriptions;
-    }
-
-    private async Task SaveProjectAsync(NexusProject project)
-    {
-        using var stream = _databaseService.WriteProject();
-        await JsonSerializerHelper.SerializeIndentedAsync(stream, project);
     }
 }
