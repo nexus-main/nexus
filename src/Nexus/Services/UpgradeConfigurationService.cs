@@ -4,9 +4,7 @@
 using System.Reflection;
 using System.Text.Json;
 using Apollo3zehn.PackageManagement.Services;
-using Nexus.Core.V1;
 using Nexus.Extensibility;
-using Polly.Fallback;
 
 namespace Nexus.Services;
 
@@ -111,17 +109,16 @@ internal class UpgradeConfigurationService(
         /* Collect potential types in the inheritance chain */
         var upgradableDataSourceTypes = new List<Type>();
 
-        var nextType = sourceType;
+        var currentType1 = sourceType;
 
-        while (!(nextType is null || nextType == typeof(object)))
+        while (!(currentType1 is null || currentType1 == typeof(object)))
         {
-            var currentType = nextType;
-            var interfaceTypes = currentType.GetInterfaces();
+            var interfaceTypes = currentType1.GetInterfaces();
 
             if (interfaceTypes.Contains(typeof(IUpgradableDataSource)))
-                upgradableDataSourceTypes.Add(currentType);
+                upgradableDataSourceTypes.Add(currentType1);
 
-            nextType = nextType.BaseType;
+            currentType1 = currentType1.BaseType;
         }
 
         upgradableDataSourceTypes.Reverse();
@@ -129,12 +126,18 @@ internal class UpgradeConfigurationService(
         /* Invoke InternalUpgradeAsync */
         var upgradedConfiguration = configuration;
 
-        foreach (var currentType in upgradableDataSourceTypes)
+        foreach (var currentType2 in upgradableDataSourceTypes)
         {
             var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
-            var methodInfo = currentType
+            var methodInfo = currentType2
                 .GetMethod(nameof(IUpgradableDataSource.UpgradeSourceConfigurationAsync), BindingFlags.Public | BindingFlags.Static)!;
+
+            /* This happens when base class implements IUpgradableDataSource and
+             * sub class does not, which is fine.
+             */
+            if (methodInfo is null)
+                continue;
 
             upgradedConfiguration = await (Task<JsonElement>)methodInfo.Invoke(
                 default,
