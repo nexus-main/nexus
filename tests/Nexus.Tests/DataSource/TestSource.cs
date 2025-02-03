@@ -20,7 +20,7 @@ public class TestSourceBase : IUpgradableDataSource
     {
         var configurationNode = (JsonSerializer.SerializeToNode(configuration) as JsonObject)!;
 
-        configurationNode["baz"] = configurationNode["version"]!.GetValue<int>();
+        configurationNode["baz"] = "baz";
 
         var upgradedConfiguration = JsonSerializer.SerializeToElement(configurationNode);
 

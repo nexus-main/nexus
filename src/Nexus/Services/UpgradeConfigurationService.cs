@@ -108,19 +108,31 @@ internal class UpgradeConfigurationService(
         JsonElement configuration
     )
     {
-        var upgradedConfiguration = configuration;
+        /* Collect potential types in the inheritance chain */
+        var upgradableDataSourceTypes = new List<Type>();
 
-        /* For each type in the inheritance chain */
         var nextType = sourceType;
 
         while (!(nextType is null || nextType == typeof(object)))
         {
             var currentType = nextType;
-            nextType = nextType.BaseType;
+            var interfaceTypes = currentType.GetInterfaces();
 
+            if (interfaceTypes.Contains(typeof(IUpgradableDataSource)))
+                upgradableDataSourceTypes.Add(currentType);
+
+            nextType = nextType.BaseType;
+        }
+
+        upgradableDataSourceTypes.Reverse();
+
+        /* Invoke InternalUpgradeAsync */
+        var upgradedConfiguration = configuration;
+
+        foreach (var currentType in upgradableDataSourceTypes)
+        {
             var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
-            /* Invoke InternalUpgradeAsync */
             var methodInfo = currentType
                 .GetMethod(nameof(IUpgradableDataSource.UpgradeSourceConfigurationAsync), BindingFlags.Public | BindingFlags.Static)!;
 
