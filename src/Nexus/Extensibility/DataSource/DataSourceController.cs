@@ -1066,15 +1066,12 @@ internal class DataSourceController(
         CancellationToken cancellationToken
     )
     {
-        var sourceConfiguration = registration.Configuration.ValueKind == JsonValueKind.Undefined
-            ? default
-            : JsonSerializer
-                .Deserialize<T>(registration.Configuration);
+        var sourceConfiguration = JsonSerializer.Deserialize<T>(registration.Configuration);
 
         var context = new DataSourceContext<T?>(
             ResourceLocator: registration.ResourceLocator,
-            RequestConfiguration: _requestConfiguration,
-            SourceConfiguration: sourceConfiguration
+            SourceConfiguration: sourceConfiguration,
+            RequestConfiguration: _requestConfiguration
         );
 
         return dataSource.SetContextAsync(context, logger, cancellationToken);

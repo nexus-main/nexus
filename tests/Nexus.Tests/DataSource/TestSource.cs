@@ -14,15 +14,29 @@ public record TestSourceSettings(
     double Bar
 );
 
+public class TestSourceBase : IUpgradableDataSource
+{
+    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration, CancellationToken cancellationToken)
+    {
+        var configurationNode = (JsonSerializer.SerializeToNode(configuration) as JsonObject)!;
+
+        configurationNode["baz"] = configurationNode["version"]!.GetValue<int>();
+
+        var upgradedConfiguration = JsonSerializer.SerializeToElement(configurationNode);
+
+        return Task.FromResult(upgradedConfiguration);
+    }
+}
+
 [ExtensionDescription(
     "Augments existing catalogs with more awesome data.",
     "https://github.com/nexus-main/nexus",
     "https://github.com/nexus-main/nexus/blob/master/tests/Nexus.Tests/DataSource/TestSource.cs")]
-public class TestSource : IDataSource<TestSourceSettings?>, IUpgradableDataSource
+public class TestSource : TestSourceBase, IDataSource<TestSourceSettings?>, IUpgradableDataSource
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
-    public static Task<JsonElement> UpgradeSourceConfigurationAsync(
+    public static new Task<JsonElement> UpgradeSourceConfigurationAsync(
         JsonElement configuration,
         CancellationToken cancellationToken
     )

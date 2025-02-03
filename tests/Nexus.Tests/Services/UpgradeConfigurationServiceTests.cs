@@ -44,7 +44,8 @@ public class UpgradeConfigurationServiceTests
                         $$"""
                         {
                             "version": 2,
-                            "bar": 1.99
+                            "bar": 1.99,
+                            "baz": 2
                         }
                         """
                     ),

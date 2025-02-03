@@ -63,7 +63,7 @@ class DataSourceContext(Generic[T]):
 @dataclass(frozen=True)
 class CatalogTimeRange:
     """
-    A data source time range.
+    A catalog time range.
 
     Args:
         begin: The date/time of the first data in the catalog.
@@ -119,6 +119,7 @@ class ReadDataHandler(Protocol):
 
 ################# DATA SOURCE ###############
 
+# use this syntax in future (3.12+): IDataSource[T](ABC)
 class IDataSource(Generic[T], ABC):
     """
     A data source.

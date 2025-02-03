@@ -3004,7 +3004,7 @@ namespace Nexus.Api.V1
     public record PipelineInfo(Guid Id, IReadOnlyList<string> Types, IReadOnlyList<string?> InfoUrls);
 
     /// <summary>
-    /// A data source time range.
+    /// A catalog time range.
     /// </summary>
     /// <param name="Begin">The date/time of the first data in the catalog.</param>
     /// <param name="End">The date/time of the last data in the catalog.</param>

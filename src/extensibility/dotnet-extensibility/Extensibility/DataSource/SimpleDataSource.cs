@@ -25,7 +25,8 @@ public abstract class SimpleDataSource<T> : IDataSource<T>
     public Task SetContextAsync(
         DataSourceContext<T> context,
         ILogger logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         Context = context;
         Logger = logger;
@@ -36,17 +37,20 @@ public abstract class SimpleDataSource<T> : IDataSource<T>
     /// <inheritdoc />
     public abstract Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(
         string path,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 
     /// <inheritdoc />
     public abstract Task<ResourceCatalog> EnrichCatalogAsync(
         ResourceCatalog catalog,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 
     /// <inheritdoc />
     public virtual Task<CatalogTimeRange> GetTimeRangeAsync(
         string catalogId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         return Task.FromResult(new CatalogTimeRange(DateTime.MinValue, DateTime.MaxValue));
     }
@@ -68,5 +72,6 @@ public abstract class SimpleDataSource<T> : IDataSource<T>
         ReadRequest[] requests,
         ReadDataHandler readData,
         IProgress<double> progress,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 }

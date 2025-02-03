@@ -47,8 +47,15 @@ internal class UpgradeConfigurationService(
 
                     try
                     {
-                        /* Find generic parameters */
                         var sourceType = _extensionHive.GetExtensionType(sourceTypeName);
+
+                        /* Upgrade */
+                        var upgradedConfiguration = await InternalUpgradeAllAsync(
+                            sourceType,
+                            registration.Configuration
+                        );
+
+                        /* Ensure deserialization works */
                         var sourceInterfaceTypes = sourceType.GetInterfaces();
 
                         if (!sourceInterfaceTypes.Contains(typeof(IUpgradableDataSource)))
@@ -64,22 +71,8 @@ internal class UpgradeConfigurationService(
                             throw new Exception("Data sources must implement IDataSource<T>.");
 
                         var configurationType = genericInterface.GenericTypeArguments[0];
-                        var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
-                        /* Invoke InternalUpgradeAsync */
-                        var methodInfo = typeof(UpgradeConfigurationService)
-                            .GetMethod(nameof(InternalUpgradeAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
-
-                        var genericMethod = methodInfo
-                            .MakeGenericMethod(sourceType, configurationType);
-
-                        var upgradedConfiguration = await (Task<JsonElement>)genericMethod.Invoke(
-                            default,
-                            [
-                                registration.Configuration,
-                                timeoutTokenSource.Token
-                            ]
-                        )!;
+                        _ = JsonSerializer.Deserialize(upgradedConfiguration, configurationType, JsonSerializerOptions.Web);
 
                         /* Update pipeline */
                         if (!JsonElement.DeepEquals(registration.Configuration, upgradedConfiguration))
@@ -110,15 +103,35 @@ internal class UpgradeConfigurationService(
         }
     }
 
-    private static async Task<JsonElement> InternalUpgradeAsync<TSource, TConfiguration>(
-        JsonElement configuration,
-        CancellationToken cancellationToken
-    ) where TSource : IUpgradableDataSource
+    private static async Task<JsonElement> InternalUpgradeAllAsync(
+        Type sourceType,
+        JsonElement configuration
+    )
     {
-        var upgradedConfiguration = await TSource.UpgradeSourceConfigurationAsync(configuration, cancellationToken);
+        var upgradedConfiguration = configuration;
 
-        /* ensure it can be deserialized */
-        _ = JsonSerializer.Deserialize<TConfiguration>(upgradedConfiguration, JsonSerializerOptions.Web);
+        /* For each type in the inheritance chain */
+        var nextType = sourceType;
+
+        while (!(nextType is null || nextType == typeof(object)))
+        {
+            var currentType = nextType;
+            nextType = nextType.BaseType;
+
+            var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+
+            /* Invoke InternalUpgradeAsync */
+            var methodInfo = currentType
+                .GetMethod(nameof(IUpgradableDataSource.UpgradeSourceConfigurationAsync), BindingFlags.Public | BindingFlags.Static)!;
+
+            upgradedConfiguration = await (Task<JsonElement>)methodInfo.Invoke(
+                default,
+                [
+                    upgradedConfiguration,
+                    timeoutTokenSource.Token
+                ]
+            )!;
+        }
 
         return upgradedConfiguration;
     }
