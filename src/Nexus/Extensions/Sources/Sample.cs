@@ -7,15 +7,11 @@ using System.Runtime.InteropServices;
 
 namespace Nexus.Sources;
 
-internal record SampleSettings(
-    string HelloWorldMessage
-);
-
 [ExtensionDescription(
     "Provides catalogs with sample data.",
     "https://github.com/nexus-main/nexus",
     "https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Sources/Sample.cs")]
-internal class Sample : IDataSource<SampleSettings?>
+internal class Sample : IDataSource<object?>
 {
     public static readonly Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
 
@@ -95,16 +91,13 @@ internal class Sample : IDataSource<SampleSettings?>
 
     public const string RemotePassword = "1234";
 
-    private DataSourceContext<SampleSettings?> Context { get; set; } = default!;
+    private DataSourceContext<object?> Context { get; set; } = default!;
 
     public Task SetContextAsync(
-        DataSourceContext<SampleSettings?> context,
+        DataSourceContext<object?> context,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" && context.SourceConfiguration is not null)
-            logger.LogWarning(context.SourceConfiguration.HelloWorldMessage);
-
         Context = context;
 
         return Task.CompletedTask;

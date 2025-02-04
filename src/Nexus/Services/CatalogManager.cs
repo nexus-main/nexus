@@ -27,7 +27,8 @@ internal class CatalogManager(
     IServiceProvider serviceProvider,
     IExtensionHive<IDataSource> sourcesExtensionHive,
     IPipelineService pipelineService,
-    ILogger<CatalogManager> logger) : ICatalogManager
+    ILogger<CatalogManager> logger
+) : ICatalogManager
 {
     record CatalogPrototype(
         CatalogRegistration Registration,
@@ -66,8 +67,7 @@ internal class CatalogManager(
                         new(
                             Type: typeof(Sample).FullName!,
                             ResourceLocator: default,
-                            Configuration: JsonSerializer
-                                .SerializeToElement(new SampleSettings("Hello from Sample!"))
+                            Configuration: JsonSerializer.SerializeToElement<object?>(default)
                         )
                     ]
                 ))

@@ -16,9 +16,9 @@ public class SampleDataSourceTests
     public async Task ProvidesCatalog()
     {
         // arrange
-        var dataSource = new Sample() as IDataSource<SampleSettings>;
+        var dataSource = new Sample() as IDataSource<object?>;
 
-        var context = new DataSourceContext<SampleSettings>(
+        var context = new DataSourceContext<object?>(
             ResourceLocator: default,
             SourceConfiguration: default!,
             RequestConfiguration: default
@@ -49,9 +49,9 @@ public class SampleDataSourceTests
     [Fact]
     public async Task CanProvideTimeRange()
     {
-        var dataSource = new Sample() as IDataSource<SampleSettings>;
+        var dataSource = new Sample() as IDataSource<object?>;
 
-        var context = new DataSourceContext<SampleSettings>(
+        var context = new DataSourceContext<object?>(
             ResourceLocator: default,
             SourceConfiguration: default!,
             RequestConfiguration: default
@@ -68,9 +68,9 @@ public class SampleDataSourceTests
     [Fact]
     public async Task CanProvideAvailability()
     {
-        var dataSource = new Sample() as IDataSource<SampleSettings>;
+        var dataSource = new Sample() as IDataSource<object?>;
 
-        var context = new DataSourceContext<SampleSettings>(
+        var context = new DataSourceContext<object?>(
             ResourceLocator: default,
             SourceConfiguration: default!,
             RequestConfiguration: default
@@ -89,9 +89,9 @@ public class SampleDataSourceTests
     [Fact]
     public async Task CanReadFullDay()
     {
-        var dataSource = new Sample() as IDataSource<SampleSettings>;
+        var dataSource = new Sample() as IDataSource<object?>;
 
-        var context = new DataSourceContext<SampleSettings>(
+        var context = new DataSourceContext<object?>(
             ResourceLocator: default,
             SourceConfiguration: default!,
             RequestConfiguration: default

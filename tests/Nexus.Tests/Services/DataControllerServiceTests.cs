@@ -33,7 +33,8 @@ public class DataControllerServiceTests
         var registration = new DataSourceRegistration(
             Type: default!,
             new Uri("A", UriKind.Relative),
-            Configuration: default);
+            Configuration: JsonSerializer.SerializeToElement<object?>(null)
+        );
 
         var pipeline = new DataSourcePipeline([registration]);
 
@@ -80,7 +81,8 @@ public class DataControllerServiceTests
             default!,
             default!,
             Options.Create(new DataOptions()),
-            loggerFactory);
+            loggerFactory
+        );
 
         // Act
         var actual = await dataControllerService.GetDataSourceControllerAsync(pipeline, CancellationToken.None);

@@ -1,6 +1,7 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using System.Text.Json;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.Sources;
@@ -21,13 +22,13 @@ public class DataSourceControllerFixture
     (
         Type: typeof(Sample).FullName!,
         ResourceLocator: default,
-        Configuration: default
+        Configuration: JsonSerializer.SerializeToElement<object?>(default)
     );
 
     internal DataSourceRegistration Registration2 { get; } = new DataSourceRegistration
     (
         Type: typeof(TestSource).FullName!,
         ResourceLocator: default,
-        Configuration: default
+        Configuration: JsonSerializer.SerializeToElement<TestSourceSettings?>(null)
     );
 }

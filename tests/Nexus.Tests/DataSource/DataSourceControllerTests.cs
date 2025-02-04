@@ -502,7 +502,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var registration = new DataSourceRegistration(
             "a",
             new Uri("http://xyz"),
-            default,
+            JsonSerializer.SerializeToElement<object?>(default),
             default
         );
 
