@@ -204,7 +204,7 @@ class IUpgradableDataSource(ABC):
     """
 
     @abstractmethod
-    def upgrade_source_configuration(configuration: Any) -> Awaitable[Any]:
+    def upgrade_source_configuration(self, configuration: Any) -> Awaitable[Any]:
         """
         Upgrades the source configuration.
 
