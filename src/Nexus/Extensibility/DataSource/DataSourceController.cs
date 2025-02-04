@@ -93,18 +93,7 @@ internal class DataSourceController(
 
             /* Find generic parameter */
             var dataSourceType = dataSource.GetType();
-            var dataSourceInterfaceTypes = dataSourceType.GetInterfaces();
-
-            var genericInterface = dataSourceInterfaceTypes
-                .FirstOrDefault(x =>
-                    x.IsGenericType &&
-                    x.GetGenericTypeDefinition() == typeof(IDataSource<>)
-                );
-
-            if (genericInterface is null)
-                throw new Exception("Data sources must implement IDataSource<T>.");
-
-            var configurationType = genericInterface.GenericTypeArguments[0];
+            var configurationType = GetConfigurationType(dataSourceType);
 
             /* Invoke SetContextAsync */
             var methodInfo = typeof(DataSourceController)
@@ -777,6 +766,24 @@ internal class DataSourceController(
         }
 
         return [.. readUnits];
+    }
+
+    public static Type GetConfigurationType(Type dataSourceType)
+    {
+        var dataSourceInterfaceTypes = dataSourceType.GetInterfaces();
+
+        var genericInterface = dataSourceInterfaceTypes
+            .FirstOrDefault(x =>
+                x.IsGenericType &&
+                x.GetGenericTypeDefinition() == typeof(IDataSource<>)
+            );
+
+        if (genericInterface is null)
+            throw new Exception("Data sources must implement IDataSource<T>.");
+
+        var configurationType = genericInterface.GenericTypeArguments[0];
+
+        return configurationType;
     }
 
     public static async Task ReadAsync(

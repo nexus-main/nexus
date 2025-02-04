@@ -8,9 +8,11 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.Services;
+using NJsonSchema;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security.Claims;
+using System.Text.Json;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Controllers.V1;
@@ -132,20 +134,28 @@ internal class SourcesController(
     private static List<ExtensionDescription> GetExtensionDescriptions(
         IEnumerable<Type> extensions)
     {
-        return extensions.Select(type =>
+        return extensions.Select(dataSourceType =>
         {
-            var version = type.Assembly
+            var configurationType = DataSourceController.GetConfigurationType(dataSourceType);
+            var sourceConfigurationSchema = JsonSchema.FromType(configurationType);
+
+            var additionalInformation = new Dictionary<string, JsonElement>
+            {
+                [UI.Core.Constants.SOURCE_CONFIGURATION_SCHEMA_KEY] = JsonSerializer.Deserialize<JsonElement>(sourceConfigurationSchema.ToJson())
+            };
+
+            var version = dataSourceType.Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
                 .InformationalVersion;
 
-            var attribute = type
+            var attribute = dataSourceType
                 .GetCustomAttribute<ExtensionDescriptionAttribute>(inherit: false);
 
             if (attribute is null)
-                return new ExtensionDescription(type.FullName!, version, default, default, default, default);
+                return new ExtensionDescription(dataSourceType.FullName!, version, default, default, default, additionalInformation);
 
             else
-                return new ExtensionDescription(type.FullName!, version, attribute.Description, attribute.ProjectUrl, attribute.RepositoryUrl, default);
+                return new ExtensionDescription(dataSourceType.FullName!, version, attribute.Description, attribute.ProjectUrl, attribute.RepositoryUrl, additionalInformation);
         })
         .ToList();
     }
