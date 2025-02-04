@@ -203,7 +203,6 @@ class IUpgradableDataSource(ABC):
     Data sources which have configuration data to be upgraded should implement this interface.
     """
 
-    @staticmethod
     @abstractmethod
     def upgrade_source_configuration(configuration: Any) -> Awaitable[Any]:
         """

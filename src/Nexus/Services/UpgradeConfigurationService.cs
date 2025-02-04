@@ -41,20 +41,26 @@ internal class UpgradeConfigurationService(
 
                 foreach (var registration in pipeline.Registrations)
                 {
-                    var sourceTypeName = registration.Type;
+                    var dataSourceTypeName = registration.Type;
 
                     try
                     {
-                        var sourceType = _extensionHive.GetExtensionType(sourceTypeName);
+                        var dataSourceType = _extensionHive.GetExtensionType(dataSourceTypeName);
+
+                        if (!dataSourceType.IsAssignableTo(dataSourceType))
+                            continue;
 
                         /* Upgrade */
-                        var upgradedConfiguration = await InternalUpgradeAllAsync(
-                            sourceType,
-                            registration.Configuration
+                        var upgradableDataSource = (IUpgradableDataSource)Activator.CreateInstance(dataSourceType)!;
+                        var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+
+                        var upgradedConfiguration = await upgradableDataSource.UpgradeSourceConfigurationAsync(
+                            registration.Configuration,
+                            timeoutTokenSource.Token
                         );
 
                         /* Ensure deserialization works */
-                        var sourceInterfaceTypes = sourceType.GetInterfaces();
+                        var sourceInterfaceTypes = dataSourceType.GetInterfaces();
 
                         if (!sourceInterfaceTypes.Contains(typeof(IUpgradableDataSource)))
                             continue;
@@ -99,55 +105,5 @@ internal class UpgradeConfigurationService(
                     _ = _pipelineService.TryUpdateAsync(userId, pipelineId, pipeline with { Registrations = registrations });
             }
         }
-    }
-
-    private static async Task<JsonElement> InternalUpgradeAllAsync(
-        Type sourceType,
-        JsonElement configuration
-    )
-    {
-        /* Collect potential types in the inheritance chain */
-        var upgradableDataSourceTypes = new List<Type>();
-
-        var currentType1 = sourceType;
-
-        while (!(currentType1 is null || currentType1 == typeof(object)))
-        {
-            var interfaceTypes = currentType1.GetInterfaces();
-
-            if (interfaceTypes.Contains(typeof(IUpgradableDataSource)))
-                upgradableDataSourceTypes.Add(currentType1);
-
-            currentType1 = currentType1.BaseType;
-        }
-
-        upgradableDataSourceTypes.Reverse();
-
-        /* Invoke InternalUpgradeAsync */
-        var upgradedConfiguration = configuration;
-
-        foreach (var currentType2 in upgradableDataSourceTypes)
-        {
-            var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
-
-            var methodInfo = currentType2
-                .GetMethod(nameof(IUpgradableDataSource.UpgradeSourceConfigurationAsync), BindingFlags.Public | BindingFlags.Static)!;
-
-            /* This happens when base class implements IUpgradableDataSource and
-             * sub class does not, which is fine.
-             */
-            if (methodInfo is null)
-                continue;
-
-            upgradedConfiguration = await (Task<JsonElement>)methodInfo.Invoke(
-                default,
-                [
-                    upgradedConfiguration,
-                    timeoutTokenSource.Token
-                ]
-            )!;
-        }
-
-        return upgradedConfiguration;
     }
 }

@@ -16,9 +16,9 @@ public record TestSourceSettings(
 
 public class TestSourceBase : IUpgradableDataSource
 {
-    public static Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration, CancellationToken cancellationToken)
+    public virtual Task<JsonElement> UpgradeSourceConfigurationAsync(JsonElement configuration, CancellationToken cancellationToken)
     {
-        var configurationNode = (JsonSerializer.SerializeToNode(configuration) as JsonObject)!;
+        var configurationNode = (JsonObject)JsonSerializer.SerializeToNode(configuration)!;
 
         configurationNode["baz"] = "baz";
 
@@ -32,18 +32,20 @@ public class TestSourceBase : IUpgradableDataSource
     "Augments existing catalogs with more awesome data.",
     "https://github.com/nexus-main/nexus",
     "https://github.com/nexus-main/nexus/blob/master/tests/Nexus.Tests/DataSource/TestSource.cs")]
-public class TestSource : TestSourceBase, IDataSource<TestSourceSettings?>, IUpgradableDataSource
+public class TestSource : TestSourceBase, IDataSource<TestSourceSettings?>
 {
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
-    public static new Task<JsonElement> UpgradeSourceConfigurationAsync(
+    public override async Task<JsonElement> UpgradeSourceConfigurationAsync(
         JsonElement configuration,
         CancellationToken cancellationToken
     )
     {
+        configuration = await base.UpgradeSourceConfigurationAsync(configuration, cancellationToken);
+
         // Nothing to upgrade
         if (configuration.ValueKind == JsonValueKind.Null)
-            return Task.FromResult(configuration);
+            return configuration;
 
         // If version exists, it should be equal to 2
         if (configuration.TryGetProperty("version", out var versionElement))
@@ -51,13 +53,13 @@ public class TestSource : TestSourceBase, IDataSource<TestSourceSettings?>, IUpg
             if (versionElement.GetInt32() != 2)
                 throw new Exception("Invalid configuration");
 
-            return Task.FromResult(configuration);
+            return configuration;
         }
 
         // Else: upgrade
         else
         {
-            var configurationNode = (JsonSerializer.SerializeToNode(configuration) as JsonObject)!;
+            var configurationNode = (JsonObject)JsonSerializer.SerializeToNode(configuration)!;
 
             configurationNode["version"] = 2;
             configurationNode["bar"] = configurationNode["foo"]!.GetValue<double>();
@@ -65,7 +67,7 @@ public class TestSource : TestSourceBase, IDataSource<TestSourceSettings?>, IUpg
 
             var upgradedConfiguration = JsonSerializer.SerializeToElement(configurationNode);
 
-            return Task.FromResult(upgradedConfiguration);
+            return upgradedConfiguration;
         }
     }
 

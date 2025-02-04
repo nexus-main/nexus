@@ -115,7 +115,7 @@ public interface IUpgradableDataSource
     /// <param name="configuration">The configuration.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     /// <returns>The upgraded source configuration.</returns>
-    static abstract Task<JsonElement> UpgradeSourceConfigurationAsync(
+    Task<JsonElement> UpgradeSourceConfigurationAsync(
         JsonElement configuration,
         CancellationToken cancellationToken
     );
