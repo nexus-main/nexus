@@ -63,7 +63,7 @@ class DataSourceContext(Generic[T]):
 @dataclass(frozen=True)
 class CatalogTimeRange:
     """
-    A data source time range.
+    A catalog time range.
 
     Args:
         begin: The date/time of the first data in the catalog.
@@ -119,6 +119,7 @@ class ReadDataHandler(Protocol):
 
 ################# DATA SOURCE ###############
 
+# use this syntax in future (3.12+): IDataSource[T](ABC)
 class IDataSource(Generic[T], ABC):
     """
     A data source.
@@ -202,7 +203,6 @@ class IUpgradableDataSource(ABC):
     Data sources which have configuration data to be upgraded should implement this interface.
     """
 
-    @staticmethod
     @abstractmethod
     def upgrade_source_configuration(configuration: Any) -> Awaitable[Any]:
         """

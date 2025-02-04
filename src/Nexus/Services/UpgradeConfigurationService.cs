@@ -4,9 +4,7 @@
 using System.Reflection;
 using System.Text.Json;
 using Apollo3zehn.PackageManagement.Services;
-using Nexus.Core.V1;
 using Nexus.Extensibility;
-using Polly.Fallback;
 
 namespace Nexus.Services;
 
@@ -43,13 +41,26 @@ internal class UpgradeConfigurationService(
 
                 foreach (var registration in pipeline.Registrations)
                 {
-                    var sourceTypeName = registration.Type;
+                    var dataSourceTypeName = registration.Type;
 
                     try
                     {
-                        /* Find generic parameters */
-                        var sourceType = _extensionHive.GetExtensionType(sourceTypeName);
-                        var sourceInterfaceTypes = sourceType.GetInterfaces();
+                        var dataSourceType = _extensionHive.GetExtensionType(dataSourceTypeName);
+
+                        if (!dataSourceType.IsAssignableTo(dataSourceType))
+                            continue;
+
+                        /* Upgrade */
+                        var upgradableDataSource = (IUpgradableDataSource)Activator.CreateInstance(dataSourceType)!;
+                        var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+
+                        var upgradedConfiguration = await upgradableDataSource.UpgradeSourceConfigurationAsync(
+                            registration.Configuration,
+                            timeoutTokenSource.Token
+                        );
+
+                        /* Ensure deserialization works */
+                        var sourceInterfaceTypes = dataSourceType.GetInterfaces();
 
                         if (!sourceInterfaceTypes.Contains(typeof(IUpgradableDataSource)))
                             continue;
@@ -64,22 +75,8 @@ internal class UpgradeConfigurationService(
                             throw new Exception("Data sources must implement IDataSource<T>.");
 
                         var configurationType = genericInterface.GenericTypeArguments[0];
-                        var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
-                        /* Invoke InternalUpgradeAsync */
-                        var methodInfo = typeof(UpgradeConfigurationService)
-                            .GetMethod(nameof(InternalUpgradeAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
-
-                        var genericMethod = methodInfo
-                            .MakeGenericMethod(sourceType, configurationType);
-
-                        var upgradedConfiguration = await (Task<JsonElement>)genericMethod.Invoke(
-                            default,
-                            [
-                                registration.Configuration,
-                                timeoutTokenSource.Token
-                            ]
-                        )!;
+                        _ = JsonSerializer.Deserialize(upgradedConfiguration, configurationType, JsonSerializerOptions.Web);
 
                         /* Update pipeline */
                         if (!JsonElement.DeepEquals(registration.Configuration, upgradedConfiguration))
@@ -108,18 +105,5 @@ internal class UpgradeConfigurationService(
                     _ = _pipelineService.TryUpdateAsync(userId, pipelineId, pipeline with { Registrations = registrations });
             }
         }
-    }
-
-    private static async Task<JsonElement> InternalUpgradeAsync<TSource, TConfiguration>(
-        JsonElement configuration,
-        CancellationToken cancellationToken
-    ) where TSource : IUpgradableDataSource
-    {
-        var upgradedConfiguration = await TSource.UpgradeSourceConfigurationAsync(configuration, cancellationToken);
-
-        /* ensure it can be deserialized */
-        _ = JsonSerializer.Deserialize<TConfiguration>(upgradedConfiguration, JsonSerializerOptions.Web);
-
-        return upgradedConfiguration;
     }
 }

@@ -1,3 +1,6 @@
+## v2.0.0-beta.49 - 2025-02-04
+- Strongly typed settings: Switch to instance method to upgrade settings, it is much less hassle
+
 ## v2.0.0-beta.48 - 2025-01-31
 - Avoid tuples in return types
 
