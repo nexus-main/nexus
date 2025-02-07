@@ -477,12 +477,13 @@ internal class CatalogsController(
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
-        if (metadata.Overrides?.Id != catalogId)
-            return UnprocessableEntity("The catalog ID does not match the ID of the catalog to update.");
-
         var response = await ProtectCatalogNonGenericAsync(catalogId, ensureReadable: false, ensureWritable: true, async catalogContainer =>
         {
+            if (metadata.Overrides?.Id != catalogContainer.Id)
+                return UnprocessableEntity("The catalog ID does not match the ID of the catalog to update.");
+
             await catalogContainer.UpdateMetadataAsync(metadata);
+
             return Ok();
         }, cancellationToken);
 
