@@ -65,7 +65,8 @@ public static class Program
             Special_ConfigurationHeaderKey: "Nexus-Configuration",
             Special_WebAssemblySupport: true,
             Special_AccessTokenSupport: true,
-            Special_NexusFeatures: true);
+            Special_NexusFeatures: true
+        );
 
         // generate C# client
         var csharpGenerator = new CSharpGenerator(settings);

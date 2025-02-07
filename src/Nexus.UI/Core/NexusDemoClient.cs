@@ -539,7 +539,7 @@ public class WritersDemoClient : IWritersClient
 
     public Task<IReadOnlyList<ExtensionDescription>> GetDescriptionsAsync(CancellationToken cancellationToken = default)
     {
-        var additionalInformation = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(DESCRIPTION);
+        var additionalInformation = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(DESCRIPTION)!;
 
         var description = new ExtensionDescription(
             Type: "Nexus.Writers.Csv",

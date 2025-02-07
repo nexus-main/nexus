@@ -3102,10 +3102,10 @@ public enum TaskStatus
 public record ExportParameters(DateTime Begin, DateTime End, TimeSpan FilePeriod, string? Type, IReadOnlyList<string> ResourcePaths, IReadOnlyDictionary<string, JsonElement>? Configuration);
 
 /// <summary>
-/// 
+/// A package reference.
 /// </summary>
-/// <param name="Provider"></param>
-/// <param name="Configuration"></param>
+/// <param name="Provider">The provider which loads the package.</param>
+/// <param name="Configuration">The configuration of the package reference.</param>
 public record PackageReference(string Provider, IReadOnlyDictionary<string, string> Configuration);
 
 /// <summary>
@@ -3117,7 +3117,7 @@ public record PackageReference(string Provider, IReadOnlyDictionary<string, stri
 /// <param name="ProjectUrl">A nullable project website URL.</param>
 /// <param name="RepositoryUrl">A nullable source repository URL.</param>
 /// <param name="AdditionalInformation">Additional information about the extension.</param>
-public record ExtensionDescription(string Type, string Version, string? Description, string? ProjectUrl, string? RepositoryUrl, IReadOnlyDictionary<string, JsonElement>? AdditionalInformation);
+public record ExtensionDescription(string Type, string Version, string? Description, string? ProjectUrl, string? RepositoryUrl, IReadOnlyDictionary<string, JsonElement> AdditionalInformation);
 
 /// <summary>
 /// A data source pipeline.

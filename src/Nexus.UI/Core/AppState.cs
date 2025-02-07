@@ -78,6 +78,8 @@ public class AppState : INotifyPropertyChanged
             BeginAtZero = true;
     }
 
+    public bool IsHamburgerMenuOpen { get; set; }
+
     public bool IsDemo { get; }
 
     public ViewState ViewState

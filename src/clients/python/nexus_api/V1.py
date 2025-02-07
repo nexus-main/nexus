@@ -2073,18 +2073,18 @@ class ExportParameters:
 @dataclass(frozen=True)
 class PackageReference:
     """
-    
+    A package reference.
 
     Args:
-        provider: 
-        configuration: 
+        provider: The provider which loads the package.
+        configuration: The configuration of the package reference.
     """
 
     provider: str
-    """"""
+    """The provider which loads the package."""
 
     configuration: dict[str, str]
-    """"""
+    """The configuration of the package reference."""
 
 
 @dataclass(frozen=True)
@@ -2116,7 +2116,7 @@ class ExtensionDescription:
     repository_url: Optional[str]
     """A nullable source repository URL."""
 
-    additional_information: Optional[dict[str, object]]
+    additional_information: dict[str, object]
     """Additional information about the extension."""
 
 

@@ -133,7 +133,7 @@ internal class PipelineService(IDatabaseService databaseService)
             {
                 if (_databaseService.TryReadPipelineMap(userId, out var jsonString))
                 {
-                    return JsonSerializer.Deserialize<ConcurrentDictionary<Guid, DataSourcePipeline>>(jsonString)
+                    return JsonSerializer.Deserialize<ConcurrentDictionary<Guid, DataSourcePipeline>>(jsonString, JsonSerializerOptions.Web)
                         ?? throw new Exception("pipelineMap is null");
                 }
 

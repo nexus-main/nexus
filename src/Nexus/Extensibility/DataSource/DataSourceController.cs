@@ -1073,7 +1073,10 @@ internal class DataSourceController(
         CancellationToken cancellationToken
     )
     {
-        var sourceConfiguration = JsonSerializer.Deserialize<T>(registration.Configuration);
+        var sourceConfiguration = JsonSerializer.Deserialize<T>(
+            registration.Configuration,
+            JsonSerializerOptions.Web
+        );
 
         var context = new DataSourceContext<T?>(
             ResourceLocator: registration.ResourceLocator,

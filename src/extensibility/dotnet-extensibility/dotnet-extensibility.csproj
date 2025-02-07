@@ -2,6 +2,8 @@
   
   <PropertyGroup>
     <AssemblyName>Nexus.Extensibility</AssemblyName>
+    <!-- https://github.com/nexus-main/nexus/issues/193 -->
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <TargetFramework>$(TargetFrameworkVersion)</TargetFramework>
   </PropertyGroup>
 
