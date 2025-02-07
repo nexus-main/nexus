@@ -190,40 +190,40 @@
                     }
 
                 </div>
+                
+                @if (_rawMode)
+                {
+                    <div class="flex-1 min-h-0 gap-2 flex flex-col">
 
-                <ErrorBoundary>
-                    <ChildContent>
-                        @if (_rawMode)
-                        {
-                            <div class="flex-1 min-h-0 gap-2 flex flex-col">
+                        <div class="flex flex-col h-1/2">
+                            <div class="text-cyan-700 border-b mb-1">Input (JSON)</div>
+                            <textarea
+                            spellcheck="false"
+                            class="w-full flex-1 bg-gray-100 p-2 overflow-y-auto" 
+                            placeholder="Put your configuration here." 
+                            style="resize:none" 
+                            @bind="_jsonString"
+                            @bind:event="oninput"
+                            @bind:after="() => _isDirty = true">
+                            </textarea>
+                        </div>
 
-                                <div class="flex flex-col h-1/2">
-                                    <div class="text-cyan-700 border-b mb-1">Input (JSON)</div>
-                                    <textarea
-                                    spellcheck="false"
-                                    class="w-full flex-1 bg-gray-100 p-2 overflow-y-auto" 
-                                    placeholder="Put your configuration here." 
-                                    style="resize:none" 
-                                    @bind="_jsonString"
-                                    @bind:event="oninput"
-                                    @bind:after="() => _isDirty = true">
-                                    </textarea>
-                                </div>
+                        <div class="flex flex-col h-1/2">
+                            <div class="text-cyan-700 border-b mb-1 mt-2">Preview</div>
+                            <pre class="flex-1 p-2 text-gray-400 overflow-y-auto">
+                                <code>
+                                    @GetHighlightedCode()
+                                </code>
+                            </pre>
+                        </div>
 
-                                <div class="flex flex-col h-1/2">
-                                    <div class="text-cyan-700 border-b mb-1 mt-2">Preview</div>
-                                    <pre class="flex-1 p-2 text-gray-400 overflow-y-auto">
-                                        <code>
-                                            @GetHighlightedCode()
-                                        </code>
-                                    </pre>
-                                </div>
+                    </div>
+                }
 
-                            </div>
-                        }
-
-                        else
-                        {
+                else
+                {
+                    <ErrorBoundary>
+                        <ChildContent>
                             <div class="overflow-y-auto">
                                 <MudForm @ref="_form">
                                     <JsonForm 
@@ -232,12 +232,13 @@
                                     @bind-Data:after="() => _isDirty = true" />
                                 </MudForm>
                             </div>
-                        }
-                    </ChildContent>
-                    <ErrorContent>
-                        <div>Sorry, the data source settings could not be rendered.</div>
-                    </ErrorContent>
-                </ErrorBoundary>
+                        </ChildContent>
+                        <ErrorContent>
+                            <div>Sorry, the data source settings could not be rendered.</div>
+                        </ErrorContent>
+                    </ErrorBoundary>
+                }
+                    
             }
 
         </MudPaper>
@@ -653,8 +654,6 @@
             var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString, JsonSerializerOptions.Web);
             var formattedJson = JsonSerializer.Serialize(jsonElement, _options);
             var highlightedJson = JSRuntime.Invoke<string>("nexus.util.highlight", formattedJson, "json");
-
-            AppState.SetRequestConfiguration(jsonElement);
 
             return new MarkupString(highlightedJson);
         }
