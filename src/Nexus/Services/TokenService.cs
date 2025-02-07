@@ -123,7 +123,7 @@ internal class TokenService(IDatabaseService databaseService)
             {
                 if (_databaseService.TryReadTokenMap(userId, out var jsonString))
                 {
-                    return JsonSerializer.Deserialize<ConcurrentDictionary<string, InternalPersonalAccessToken>>(jsonString)
+                    return JsonSerializer.Deserialize<ConcurrentDictionary<string, InternalPersonalAccessToken>>(jsonString, JsonSerializerOptions.Web)
                         ?? throw new Exception("tokenMap is null");
                 }
 

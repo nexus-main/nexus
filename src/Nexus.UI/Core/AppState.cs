@@ -302,7 +302,7 @@ public class AppState : INotifyPropertyChanged
                     // save changes
                     metadata = metadata with
                     {
-                        Overrides = JsonSerializer.Deserialize<ResourceCatalog>(overrides)
+                        Overrides = JsonSerializer.Deserialize<ResourceCatalog>(overrides, JsonSerializerOptions.Web)
                     };
 
                     await _client.V1.Catalogs.SetMetadataAsync(catalogId, metadata, CancellationToken.None);

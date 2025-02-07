@@ -32,5 +32,5 @@ public record WriteRequest(
 public class DataWriterDescriptionAttribute(string description) : Attribute
 {
     internal IReadOnlyDictionary<string, JsonElement>? Description { get; }
-        = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(description);
+        = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(description, JsonSerializerOptions.Web);
 }

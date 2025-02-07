@@ -650,7 +650,7 @@
 
         try
         {
-            var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString);
+            var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString, JsonSerializerOptions.Web);
             var formattedJson = JsonSerializer.Serialize(jsonElement, _options);
             var highlightedJson = JSRuntime.Invoke<string>("nexus.util.highlight", formattedJson, "json");
 
@@ -702,7 +702,7 @@
         }
 
         var newConfiguration = _rawMode
-            ? JsonSerializer.Deserialize<JsonElement>(_jsonString ?? "null")
+            ? JsonSerializer.Deserialize<JsonElement>(_jsonString ?? "null", JsonSerializerOptions.Web)
             : JsonSerializer.SerializeToElement(_data);
 
         var newRegistration = _pipeline.Registrations[_registrationIndex.Value] with { Configuration = newConfiguration };

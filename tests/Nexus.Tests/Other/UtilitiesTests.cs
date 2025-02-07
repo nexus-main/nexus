@@ -173,8 +173,6 @@ public class UtilitiesTests
     public void CanGenericConvertToDouble<T>(T value, double expected)
         where T : unmanaged //, IEqualityComparer<T> (does not compile correctly)
     {
-        // Arrange
-
         // Act
         var actual = GenericToDouble<T>.ToDouble(value);
 
@@ -199,9 +197,6 @@ public class UtilitiesTests
     public void CanGenericBitOr<T>(T a, T b, T expected)
        where T : unmanaged //, IEqualityComparer<T> (does not compile correctly)
     {
-        // Arrange
-
-
         // Act
         var actual = GenericBitOr<T>.BitOr(a, b);
 
@@ -226,9 +221,6 @@ public class UtilitiesTests
     public void CanGenericBitAnd<T>(T a, T b, T expected)
        where T : unmanaged //, IEqualityComparer<T> (does not compile correctly)
     {
-        // Arrange
-
-
         // Act
         var actual = GenericBitAnd<T>.BitAnd(a, b);
 
@@ -246,9 +238,8 @@ public class UtilitiesTests
 
         // Act
         var jsonString = JsonSerializerHelper.SerializeIndented(expected);
-        var actual = JsonSerializer.Deserialize<MyType>(jsonString);
+        var actual = JsonSerializer.Deserialize<MyType>(jsonString, JsonSerializerOptions.Web);
 
-        // Assert
         Assert.Equal(expected, actual);
     }
 

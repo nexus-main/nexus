@@ -28,14 +28,14 @@ public class PipelineServiceTests
         var dataSourceRegistration1 = new DataSourceRegistration(
             Type: "foo",
             default!,
-            default!,
+            JsonSerializer.Deserialize<JsonElement>("null"),
             default!
         );
 
         var dataSourceRegistration2 = new DataSourceRegistration(
             Type: "bar",
             default!,
-            default!,
+            JsonSerializer.Deserialize<JsonElement>("null"),
             default!
         );
 
@@ -54,7 +54,7 @@ public class PipelineServiceTests
 
         // Assert
         var jsonString = File.ReadAllText(filePath);
-        var actualPipelineMap = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(jsonString)!;
+        var actualPipelineMap = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(jsonString, JsonSerializerOptions.Web)!;
         var entry = Assert.Single(actualPipelineMap);
 
         Assert.Equal(expectedId, entry.Key);
@@ -146,7 +146,7 @@ public class PipelineServiceTests
         // Assert
         Assert.True(success);
 
-        var actual = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(File.ReadAllText(filePath));
+        var actual = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(File.ReadAllText(filePath), JsonSerializerOptions.Web);
 
         Assert.Equivalent(expected, actual, strict: true);
     }

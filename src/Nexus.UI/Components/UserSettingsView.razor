@@ -437,7 +437,7 @@ MaxWidth="MaxWidth.Medium">
 
         try
         {
-            var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString);
+            var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString, JsonSerializerOptions.Web);
             var formattedJson = JsonSerializer.Serialize(jsonElement, _options);
             var highlightedJson = JSRuntime.Invoke<string>("nexus.util.highlight", formattedJson, "json");
 
