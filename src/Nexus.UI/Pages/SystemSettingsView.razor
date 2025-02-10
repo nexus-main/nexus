@@ -402,7 +402,7 @@
 
             if (description is null)
             {
-                Snackbar.Add($"The data source extension '{registration.Type}' could not be found by Nexus.");
+                Snackbar.Add($"The data source extension '{registration.Type}' could not be found by Nexus.", Severity.Error);
                 return;
             }
 

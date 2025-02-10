@@ -1,6 +1,7 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using System.Buffers;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 
@@ -54,6 +55,12 @@ internal class MemoryTracker : IMemoryTracker
         if (minimumByteCount > _dataOptions.TotalBufferMemoryConsumption)
             throw new Exception("The requested minimum byte count is greater than the total buffer memory consumption parameter.");
 
+        var maxBufferSize = MemoryPool<byte>.Shared.MaxBufferSize;
+
+        if (minimumByteCount > maxBufferSize)
+            throw new Exception("The requested minimum byte count is greater than the maximum buffer size.");
+
+        var actualMaximumByteCount = Math.Min(maximumByteCount, maxBufferSize);
         var myRetrySemaphore = default(SemaphoreSlim);
 
         // loop until registration is successful
@@ -68,8 +75,8 @@ internal class MemoryTracker : IMemoryTracker
 
                 long actualByteCount = 0;
 
-                if (fractionOfRemainingBytes >= maximumByteCount)
-                    actualByteCount = maximumByteCount;
+                if (fractionOfRemainingBytes >= actualMaximumByteCount)
+                    actualByteCount = actualMaximumByteCount;
 
                 else if (fractionOfRemainingBytes >= minimumByteCount)
                     actualByteCount = fractionOfRemainingBytes;
