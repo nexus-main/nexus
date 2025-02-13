@@ -309,7 +309,7 @@ internal class DataSourceController(
         /* preparation */
         var readUnits = PrepareReadUnits(catalogItemRequestPipeWriters);
         var readingTasks = new List<Task>(capacity: readUnits.Length);
-        var targetElementCount = ExtensibilityUtilities.CalculateElementCount(begin, end, samplePeriod);
+        var targetElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, samplePeriod);
         var targetByteCount = sizeof(double) * targetElementCount;
 
         // TODO: access to totalProgress (see below) is not thread safe
@@ -525,7 +525,7 @@ internal class DataSourceController(
         var targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
 
         /* read request */
-        var readElementCount = ExtensibilityUtilities.CalculateElementCount(begin, end, baseSamplePeriod);
+        var readElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, baseSamplePeriod);
 
         using var readRequestManager = new ReadRequestManager(baseItem, readElementCount);
         var readRequest = readRequestManager.Request;
@@ -662,18 +662,18 @@ internal class DataSourceController(
          *
          * Example:
          *
-         * - sample period = 1 s
+         * - base sample period = 1 s
          * - extract data from 00:00:00.200 to 00:00:01:700 @ sample period = 100 ms
          *
          *  _    ___ <- roundedBegin
          * |      |
          * | 1 s  x  <- offset: 200 ms
          * |      |
-         * |_    ___ <- roundedEnd
+         * |_    ___
          * |      |
          * | 1 s  x  <- end: length: 1500 ms
          * |      |
-         * |_    ___
+         * |_    ___ <- roundedEnd
          *
          * roundedBegin = 00:00:00
          * roundedEnd   = 00:00:02
@@ -683,7 +683,7 @@ internal class DataSourceController(
 
         var roundedBegin = begin.RoundDown(baseSamplePeriod);
         var roundedEnd = end.RoundUp(baseSamplePeriod);
-        var roundedElementCount = ExtensibilityUtilities.CalculateElementCount(roundedBegin, roundedEnd, baseSamplePeriod);
+        var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
 
         /* read request */
         using var readRequestManager = new ReadRequestManager(baseItem, roundedElementCount);

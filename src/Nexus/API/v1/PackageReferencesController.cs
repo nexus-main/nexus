@@ -6,7 +6,6 @@ using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Core;
-using Nexus.Extensibility;
 
 namespace Nexus.Controllers.V1;
 
