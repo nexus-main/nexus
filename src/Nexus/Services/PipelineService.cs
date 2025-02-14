@@ -116,7 +116,7 @@ internal class PipelineService(IDatabaseService databaseService)
         {
             if (_databaseService.TryReadPipelineMap(userId, out var jsonString))
             {
-                pipelineMap = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(jsonString)
+                pipelineMap = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(jsonString, JsonSerializerOptions.Web)
                     ?? throw new Exception("pipelineMap is null");
             }
 
