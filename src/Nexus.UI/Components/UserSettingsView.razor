@@ -34,39 +34,6 @@ MaxWidth="MaxWidth.Medium">
         Border="true"
         ApplyEffectsToContainer="true" PanelClass="pa-6">
 
-            <MudTabPanel Text="Database" Icon="@Icons.Material.Filled.Storage">
-                <div class="text-sm mb-3">Here you can refresh the database which causes all extensions to be reloaded and the root resource catalog to be reset.</div>
-
-                <div class="flex w-100 justify-center">
-
-                    @if (_isRefreshingDatabase)
-                    {
-                        <div class="group flex items-center mx-auto">
-                            <div class="group-hover:hidden">
-                                <MudProgressCircular 
-                                Color="Color.Primary"
-                                Value="_refreshDatabaseProgress"
-                                Max="1" />
-                            </div>
-                            <span class="p-2 hidden group-hover:inline text-xl mr-1 mdi mdi-close hover:text-orange-500 cursor-pointer"
-                            @onclick="() => _cts?.Cancel()">
-                            </span>
-                            <span class="ml-2 text-sm">Refreshing ...</span>
-                        </div>
-                    }
-
-                    <div class="@(_isRefreshingDatabase ? "hidden" : "")">
-                        <MudButton 
-                        OnClick="RefreshDatabaseAsync"
-                        Color="Color.Primary"
-                        StartIcon="@Icons.Material.Outlined.Refresh">
-                            Refresh Database
-                        </MudButton>
-                    </div>
-
-                </div>
-            </MudTabPanel>
-
             <MudTabPanel Text="Personal Access Tokens" Icon="@Icons.Material.Filled.Key">
                 <div class="text-cyan-700 border-b my-3 text-lg">New Token</div>
 
@@ -297,15 +264,19 @@ MaxWidth="MaxWidth.Medium">
         WriteIndented = true
     };
 
-    private double _refreshDatabaseProgress;
-    private bool _isRefreshingDatabase;
-    private CancellationTokenSource? _cts;
+
     private string? _jsonString;
+
     private string? _newAccessToken;
+
     private DateTime? _newAccessTokenExpiration;
+
     private bool _newAccessTokenIsAdmin;
+
     private string? _newAccessTokenDescription;
+
     private List<ClaimData> _newAccessTokenClaims = [new ClaimData(default, default)];
+
     private IReadOnlyDictionary<string, PersonalAccessToken>? _accessTokenMap;
 
     private bool _isRefreshingToken;
@@ -449,50 +420,6 @@ MaxWidth="MaxWidth.Medium">
         {
             AppState.ClearRequestConfiguration();
             return new MarkupString("Invalid JSON string.");
-        }
-    }
-
-    private async Task RefreshDatabaseAsync()
-    {
-        var cts = new CancellationTokenSource();
-
-        _cts = cts;
-        _refreshDatabaseProgress = 0;
-        _isRefreshingDatabase = true;
-
-        StateHasChanged();
-
-        try
-        {
-            cts.Token.ThrowIfCancellationRequested();
-
-            var job = await Client.V1.Jobs.RefreshDatabaseAsync(_cts.Token);
-
-            while (true)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
-
-                cts.Token.ThrowIfCancellationRequested();
-
-                var status = await Client.V1.Jobs.GetJobStatusAsync(job.Id, _cts.Token);
-                _refreshDatabaseProgress = status.Progress;
-
-                if (status.ExceptionMessage is not null)
-                    throw new Exception("stauts:"  + status.ExceptionMessage);
-
-                if (status.Status >= Api.V1.TaskStatus.RanToCompletion)
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            cts.Cancel();
-            AppState.AddError(ex, Snackbar);
-        }
-        finally
-        {
-            _isRefreshingDatabase = false;
-            StateHasChanged();
         }
     }
 }

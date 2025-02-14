@@ -458,6 +458,26 @@ class PackageReferencesClient:
 
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
 
+    def update(self, package_reference: PackageReference, id: Optional[UUID] = None) -> Response:
+        """
+        Updates a package reference.
+
+        Args:
+            id: The identifier of the package reference to update.
+        """
+
+        __url = "/api/v1/packagereferences"
+
+        __query_values: dict[str, str] = {}
+
+        if id is not None:
+            __query_values["id"] = quote(_to_string(id), safe="")
+
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
+
+        return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
+
     def delete(self, id: UUID) -> None:
         """
         Deletes a package reference.
@@ -1301,6 +1321,26 @@ class PackageReferencesAsyncClient:
         __url = "/api/v1/packagereferences"
 
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
+
+    def update(self, package_reference: PackageReference, id: Optional[UUID] = None) -> Awaitable[Response]:
+        """
+        Updates a package reference.
+
+        Args:
+            id: The identifier of the package reference to update.
+        """
+
+        __url = "/api/v1/packagereferences"
+
+        __query_values: dict[str, str] = {}
+
+        if id is not None:
+            __query_values["id"] = quote(_to_string(id), safe="")
+
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
+
+        return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
 
     def delete(self, id: UUID) -> Awaitable[None]:
         """

@@ -1803,6 +1803,21 @@ public interface IPackageReferencesClient
     Task<Guid> CreateAsync(PackageReference packageReference, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates a package reference.
+    /// </summary>
+    /// <param name="id">The identifier of the package reference to update.</param>
+    /// <param name="packageReference">The new package reference.</param>
+    HttpResponseMessage Update(PackageReference packageReference, Guid? id = default);
+
+    /// <summary>
+    /// Updates a package reference.
+    /// </summary>
+    /// <param name="id">The identifier of the package reference to update.</param>
+    /// <param name="packageReference">The new package reference.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> UpdateAsync(PackageReference packageReference, Guid? id = default, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes a package reference.
     /// </summary>
     /// <param name="id">The ID of the package reference.</param>
@@ -1878,6 +1893,42 @@ public class PackageReferencesClient : IPackageReferencesClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(packageReference, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public HttpResponseMessage Update(PackageReference packageReference, Guid? id = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/packagereferences");
+
+        var __queryValues = new Dictionary<string, string>();
+
+        if (id is not null)
+            __queryValues["id"] = Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("PUT", __url, "application/octet-stream", "application/json", JsonContent.Create(packageReference, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> UpdateAsync(PackageReference packageReference, Guid? id = default, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/packagereferences");
+
+        var __queryValues = new Dictionary<string, string>();
+
+        if (id is not null)
+            __queryValues["id"] = Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("PUT", __url, "application/octet-stream", "application/json", JsonContent.Create(packageReference, options: Utilities.JsonOptions), cancellationToken);
     }
 
     /// <inheritdoc />

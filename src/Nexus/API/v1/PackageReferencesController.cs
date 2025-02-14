@@ -41,10 +41,31 @@ internal class PackageReferencesController(
     /// </summary>
     /// <param name="packageReference">The package reference to create.</param>
     [HttpPost]
-    public Task<Guid> CreateAsync(
-        [FromBody] PackageReference packageReference)
+    public Task<Guid> CreateAsync(PackageReference packageReference)
     {
         return _packageService.PutAsync(packageReference);
+    }
+
+    /// <summary>
+    /// Updates a package reference.
+    /// </summary>
+    /// <param name="id">The identifier of the package reference to update.</param>
+    /// <param name="packageReference">The new package reference.</param>
+    [HttpPut]
+    public async Task<ActionResult> UpdateAsync(
+        Guid id,
+        PackageReference packageReference
+    )
+    {
+        if (!await _packageService.TryUpdateAsync(id, packageReference))
+        {
+            return NotFound($"The package reference with ID {id} does not exist.");
+        }
+
+        else
+        {
+            return Ok();
+        }
     }
 
     /// <summary>

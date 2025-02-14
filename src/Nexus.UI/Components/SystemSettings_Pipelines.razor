@@ -1,0 +1,744 @@
+@using BlazorJsonForm
+@using NJsonSchema
+@using System.Text.Json.Nodes
+@using System.Text.Encodings.Web
+
+@inject AppState AppState
+@inject INexusClient Client
+@inject ISnackbar Snackbar
+@inject IJSInProcessRuntime JSRuntime
+@inject IDialogService DialogService
+
+<div class="h-full grid grid-cols-[24rem,auto] gap-3">
+
+    <div class="flex-1 flex flex-col min-h-0 min-w-0 gap-3 p-3">
+
+        <MudText Typo="Typo.h5">Pipeline</MudText>
+
+        <MudPaper Elevation="5" Class="p-3">
+
+            <div class="flex items-center justify-around">
+
+                <div>
+                    <MudButton
+                    Variant="Variant.Outlined"
+                    Color="Color.Primary"
+                    OnClick="PreparePipelineSelectionAsync">
+                        Select @(_pipeline is null ? "" : "another")
+                    </MudButton>
+                </div>
+
+                <div>
+                    <MudIconButton
+                    Color="Color.Secondary"
+                    Icon="@Icons.Material.Filled.Add"
+                    OnClick="CreateNewDataSourcePipelineAsync" />
+                </div>
+
+            </div>
+
+        </MudPaper>
+
+        @if (_pipeline is not null)
+        {
+            <MudPaper Elevation="5" Class="flex-1 p-3 overflow-y-auto">
+
+                <div class="flex flex-col gap-2">
+
+                    <div class="flex justify-end gap-2">
+                        <MudIconButton 
+                        Icon="@Icons.Material.Filled.Save"
+                        Color="Color.Primary"
+                        Disabled="!_isDirty"
+                        Size="Size.Small"
+                        OnClick="CreateOrUpdatePipelineAsync" />
+
+                        <MudIconButton 
+                        Icon="@Icons.Material.Filled.Delete"
+                        Disabled="_pipelineId is null"
+                        Size="Size.Small"
+                        OnClick="DeletePipelineAsync" />
+                    </div>
+
+                    <div class="flex flex-col gap-3">
+
+                        <MudTextField
+                        @bind-Value:get="@_pipeline.ReleasePattern"
+                        @bind-Value:set="value => { _pipeline = _pipeline with { ReleasePattern = value }; _isDirty = true; }"
+                        Label="Release pattern"
+                        Variant="Variant.Text" />
+
+                        <MudTextField 
+                        @bind-Value:get="@_pipeline.VisibilityPattern"
+                        @bind-Value:set="value => { _pipeline = _pipeline with { VisibilityPattern = value }; _isDirty = true; }"
+                        Label="Visibility pattern"
+                        Variant="Variant.Text" />
+
+                    </div>
+
+                    <MudText Typo="Typo.h6" Class="mt-3 mb-0">Registrations</MudText>
+
+                    <div class="p-2 flex flex-col gap-3">
+
+                        @if (_pipeline.Registrations.Any())
+                        {
+                            @foreach (var (registration, i) in _pipeline.Registrations.Select((registration, i) => (registration, i)))
+                            {
+                                <div class="flex justify-between">
+                                    <MudText Typo="Typo.h6" Class="text-cyan-700 font-bold">
+                                        #@(i + 1)
+                                    </MudText>
+
+                                    <div class="flex gap-1">
+                                        <div>
+                                            <MudIconButton
+                                            Icon="@Icons.Material.Filled.Settings"
+                                            Color="Color.Primary"
+                                            Size="Size.Small"
+                                            OnClick="() => BeginEditDataSourceRegistrationAsync(i)" />
+                                        </div>
+                                        <div>
+                                            <MudIconButton 
+                                            Icon="@Icons.Material.Filled.Delete"
+                                            Size="Size.Small"
+                                            OnClick="() => DeleteDataSourceRegistrationAsync(i)" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <MudTextField 
+                                Value="@registration.Type"
+                                Label="Type"
+                                Variant="Variant.Text"
+                                ReadOnly="true"
+                                Disabled="true" />
+
+                                <MudTextField
+                                @bind-Value:get="@registration.ResourceLocator?.ToString()"
+                                @bind-Value:set="value => UpdateDataSourceRegistration(i, registration with { ResourceLocator = Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : default })"
+                                Label="Resource locator"
+                                Variant="Variant.Text" />
+
+                                <MudTextField 
+                                @bind-Value:get="@registration.InfoUrl"
+                                @bind-Value:set="value => UpdateDataSourceRegistration(i, registration with { InfoUrl = value })"
+                                Label="Info URL"
+                                Variant="Variant.Text" />
+                            }
+                        }
+
+                        else
+                        {
+                            <div class="text-center">
+                                <MudText Typo="Typo.body1" Class="text-gray-400">
+                                    Click on the plus icon to create a new data source registration
+                                </MudText>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="mx-auto">
+                        <MudIconButton 
+                        Icon="@Icons.Material.Filled.Add"
+                        Color="Color.Secondary"
+                        OnClick="() => 
+                            {
+                                _newDataSourceType = default;
+                                _newRegistrationDialogIsVisibile = true;
+                            }" />
+                    </div>
+
+                </div>
+
+            </MudPaper>
+        }
+
+    </div>
+
+    <div class="flex-1 flex flex-col min-h-0 min-w-0 gap-3 p-3">
+
+        <MudText Typo="Typo.h5">Registration configuration</MudText>
+
+        <MudPaper Elevation="5" Class="min-h-0 flex flex-col flex-1 p-3">
+
+            @if (_schema is null)
+            {
+                <div class="text-center">
+                    <MudText Typo="Typo.body1" Class="text-gray-400">No registration selected</MudText>
+                </div>
+            }
+
+            else
+            {
+                <div class="ml-auto">
+
+                    @if (_rawMode)
+                    {
+                        <MudIconButton
+                        Icon="@Icons.Material.Filled.Code"
+                        Color="Color.Secondary"
+                        OnClick="ToggleRawModeAsync" />
+                    }
+
+                    else
+                    {
+                        <MudIconButton
+                        Icon="@Icons.Material.Filled.Code"
+                        OnClick="ToggleRawModeAsync" />
+                    }
+
+                </div>
+                
+                @if (_rawMode)
+                {
+                    <div class="flex-1 min-h-0 gap-2 flex flex-col">
+
+                        <div class="flex flex-col h-1/2">
+                            <div class="text-cyan-700 border-b mb-1">Input (JSON)</div>
+                            <textarea
+                            spellcheck="false"
+                            class="w-full flex-1 bg-gray-100 p-2 overflow-y-auto" 
+                            placeholder="Put your configuration here." 
+                            style="resize:none" 
+                            @bind="_jsonString"
+                            @bind:event="oninput"
+                            @bind:after="() => _isDirty = true">
+                            </textarea>
+                        </div>
+
+                        <div class="flex flex-col h-1/2">
+                            <div class="text-cyan-700 border-b mb-1 mt-2">Preview</div>
+                            <pre class="flex-1 p-2 text-gray-400 overflow-y-auto">
+                                <code>
+                                    @GetHighlightedCode()
+                                </code>
+                            </pre>
+                        </div>
+
+                    </div>
+                }
+
+                else
+                {
+                    <ErrorBoundary>
+                        <ChildContent>
+                            <div class="overflow-y-auto">
+                                <MudForm @ref="_form">
+                                    <JsonForm 
+                                    Schema="_schema" 
+                                    @bind-Data="_data"
+                                    @bind-Data:after="() => _isDirty = true" />
+                                </MudForm>
+                            </div>
+                        </ChildContent>
+                        <ErrorContent>
+                            <div>Sorry, the data source settings could not be rendered.</div>
+                        </ErrorContent>
+                    </ErrorBoundary>
+                }
+                    
+            }
+
+        </MudPaper>
+
+    </div>
+
+</div>
+
+<UIDialog @bind-Visible="_newRegistrationDialogIsVisibile" MaxWidth="MaxWidth.Small">
+
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            New data source registration
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+
+        <UIAutocomplete 
+        T="string"
+        @bind-Value="_newDataSourceType"
+        FullWidth="true"
+        Label="Data source type"
+        CoerceValue="true"
+        SearchFunc="(_, _) => GetDataSourceTypesAsync()" />
+
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton
+        OnClick="CreateNewDataSourceRegistration"
+        Color="Color.Primary"
+        Disabled="string.IsNullOrWhiteSpace(_newDataSourceType)">
+            Create
+        </MudButton>
+    </DialogActions>
+
+</UIDialog>
+
+<UIDialog @bind-Visible="_selectPipelineDialogIsVisibile" MaxWidth="MaxWidth.Small">
+
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            Select a data source pipeline
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+
+        @if (_pipelineMap is null)
+        {
+            <div class="text-center">
+                <MudText Typo="Typo.body1" Class="text-gray-400">
+                    Sorry, there are no pipelines
+                </MudText>
+            </div>
+        }
+
+        else
+        {
+
+            <div class="flex flex-col gap-3 py-3">
+
+                @foreach (var (pipelineId, pipeline) in _pipelineMap)
+                {
+                    <div class="cursor-pointer" 
+                    @onclick="() => SelectPipeline(pipelineId, pipeline)">
+                        <MudPaper Elevation="5" Class="p-3 border hover:border-orange-500">
+
+                            @if (pipeline.Registrations.Any())
+                            {
+                                @foreach (var registration in pipeline.Registrations)
+                                {
+                                    <div class="flex flex-col gap-1">
+                                        <span class="font-bold">@registration.Type</span>
+                                        @if (registration.ResourceLocator is null)
+                                        {
+                                            <span>-</span>
+                                        }
+
+                                        else
+                                        {
+                                            <span>@registration.ResourceLocator</span>
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            else
+                            {
+                                <MudText Typo="Typo.body1" Class="text-gray-400">
+                                    This pipeline has no data source registrations configured
+                                </MudText>
+                            }
+
+                        </MudPaper>
+                    </div>
+                }
+
+            </div>
+        }
+
+    </DialogContent>
+
+</UIDialog>
+
+@code {
+
+    private static JsonSerializerOptions _options = new JsonSerializerOptions()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    private MudForm? _form;
+
+    private Lazy<Task<IReadOnlyList<ExtensionDescription>>> _getDataSourceDescriptions;
+
+    private string? _jsonString;
+
+    private JsonNode? _data;
+
+    private JsonSchema? _schema;
+
+    private Dictionary<string, DataSourcePipeline>? _pipelineMap;
+
+    private DataSourcePipeline? _pipeline;
+
+    private string? _pipelineId;
+
+    private int? _registrationIndex;
+
+    private bool _newRegistrationDialogIsVisibile;
+
+    private bool _selectPipelineDialogIsVisibile;
+
+    private bool _isDirty;
+
+    private bool _rawMode;
+    
+    private string? _newDataSourceType;
+
+    public SystemSettings_Pipelines()
+    {
+        _getDataSourceDescriptions = new Lazy<Task<IReadOnlyList<ExtensionDescription>>>(() => Client.V1.Sources.GetDescriptionsAsync());
+    }
+
+    private async Task BeginEditDataSourceRegistrationAsync(int registrationIndex)
+    {
+        if (_pipeline is null)
+            return;
+
+        try
+        {
+            await EnsureNoDataLossAsync();
+
+            var registration = _pipeline.Registrations[registrationIndex];
+            var descriptions = await _getDataSourceDescriptions.Value;
+            var description = descriptions.FirstOrDefault(x => x.Type == registration.Type);
+
+            if (description is null)
+            {
+                Snackbar.Add($"The data source extension '{registration.Type}' could not be found by Nexus.", Severity.Error);
+                return;
+            }
+
+            var schemaAsJson = JsonSerializer.Serialize(
+                description.AdditionalInformation!["source-configuration-schema"]!,
+                JsonSerializerOptions.Web
+            );
+
+            _schema = await JsonSchema
+                .FromJsonAsync(schemaAsJson);
+
+            _registrationIndex = registrationIndex;
+
+            UpdateDataSourceRegistrationData(registration);
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private async Task<IEnumerable<string>> GetDataSourceTypesAsync()
+    {
+        try
+        {
+            var descriptions = await _getDataSourceDescriptions.Value;
+
+            return descriptions
+                .Select(x => x.Type)
+                .Distinct();
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+            return Enumerable.Empty<string>();
+        }
+    }
+
+    private void CreateNewDataSourceRegistration()
+    {
+        if (_pipeline is null)
+            return;
+
+        try
+        {
+            var registration = new DataSourceRegistration(_newDataSourceType!, default, default, default);
+
+            var newRegistrations = _pipeline.Registrations
+                .Append(registration)
+                .ToList();
+
+            _pipeline = _pipeline with { Registrations = newRegistrations };
+            _schema = default;
+            _registrationIndex = default;
+            _isDirty = true;
+
+            Snackbar.Add("The data source registration has been created successfully.", Severity.Success);
+        }
+
+        finally
+        {
+            _newRegistrationDialogIsVisibile = false;
+        }
+    }
+
+    private void UpdateDataSourceRegistration(
+        int registrationIndex,
+        DataSourceRegistration newRegistration
+    )
+    {
+        if (_pipeline is null)
+            return;
+
+        var newRegistrations = _pipeline.Registrations.ToList();
+
+        newRegistrations[registrationIndex] = newRegistration;
+        _pipeline = _pipeline with { Registrations = newRegistrations };
+        _isDirty = true;
+    }
+
+    private async Task DeleteDataSourceRegistrationAsync(int registrationIndex)
+    {
+        if (_pipeline is null)
+            return;
+
+        var result = await DialogService.ShowMessageBox(
+            "Warning",
+            "Do you really want to delete the selected data source registration?",
+            yesText: "Delete", cancelText: "Cancel"
+        );
+
+        if (result.HasValue && result.Value)
+        {
+            var registration = _pipeline.Registrations[registrationIndex];
+
+            var newRegistrations = _pipeline.Registrations
+                .Where(x => x != registration)
+                .ToList();
+
+            _pipeline = _pipeline with { Registrations = newRegistrations };
+            _schema = default;
+            _registrationIndex = default;
+
+            Snackbar.Add("The data source registration has been deleted successfully.", Severity.Success);
+        }
+    }
+
+    private async Task PreparePipelineSelectionAsync()
+    {
+        try
+        {
+            await EnsureNoDataLossAsync();
+
+            var pipelineMap = await Client.V1.Sources.GetPipelinesAsync();
+
+            _pipelineMap = pipelineMap.ToDictionary(x => x.Key, x => x.Value);
+            _selectPipelineDialogIsVisibile = true;
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private async Task CreateNewDataSourcePipelineAsync()
+    {
+        try
+        {
+            await EnsureNoDataLossAsync();
+
+            _schema = default;
+            _registrationIndex = default;
+            _pipelineId = default; 
+            _pipeline = new DataSourcePipeline(new List<DataSourceRegistration>(), default, default);
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private async Task CreateOrUpdatePipelineAsync()
+    {
+        if (_pipeline is null)
+            return;
+
+        try
+        {
+            var success = await CommitEditorStateAsync();
+
+            if (!success)
+                return;
+
+            if (_pipelineId is null)
+            {
+                var newPipelineId = await Client.V1.Sources.CreatePipelineAsync(_pipeline, default, CancellationToken.None);
+                _pipelineId = newPipelineId.ToString();
+
+                Snackbar.Add("The pipeline has been created successfully.", Severity.Success);
+            }
+
+            else
+            {
+                if (Guid.TryParse(_pipelineId, out var _pipelineIdAsGuid))
+                {
+                    await Client.V1.Sources.UpdatePipelineAsync(
+                        _pipelineIdAsGuid, 
+                        _pipeline, 
+                        default, 
+                        CancellationToken.None
+                    );
+
+                    Snackbar.Add("The pipeline has been updated successfully.", Severity.Success);
+                }
+
+                else
+                {
+                    throw new Exception($"The pipeline ID {_pipelineId} is invalid");
+                }
+            }
+
+            _isDirty = false;
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private async Task DeletePipelineAsync()
+    {
+        if (_pipeline is null || _pipelineId is null)
+            return;
+
+        try
+        {
+            var result = await DialogService.ShowMessageBox(
+                "Warning",
+                "Do you really want so delete the selected data source pipeline?",
+                yesText: "Delete", cancelText: "Cancel"
+            );
+
+            if (result.HasValue && result.Value)
+            {
+                if (Guid.TryParse(_pipelineId, out var pipelineIdAsGuid))
+                    await Client.V1.Sources.DeletePipelineAsync(pipelineIdAsGuid, default, CancellationToken.None);
+
+                else
+                    throw new Exception($"The pipeline ID {_pipelineId} is invalid");
+
+                _schema = default;
+                _registrationIndex = default;
+                _pipeline = default;
+                _pipelineId = default;
+                _isDirty = false;
+
+                Snackbar.Add("The pipeline has been deleted successfully.", Severity.Success);
+            }
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private void SelectPipeline(string pipelineId, DataSourcePipeline pipeline)
+    {
+        _schema = default;
+        _registrationIndex = default;
+        _pipelineId = pipelineId; 
+        _pipeline = pipeline; 
+        _isDirty = false;
+        _selectPipelineDialogIsVisibile = false;
+    }
+
+    private MarkupString GetHighlightedCode()
+    {
+        if (string.IsNullOrWhiteSpace(_jsonString))
+            return new MarkupString("Please enter a valid JSON string.");
+
+        try
+        {
+            var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString, JsonSerializerOptions.Web);
+            var formattedJson = JsonSerializer.Serialize(jsonElement, _options);
+            var highlightedJson = JSRuntime.Invoke<string>("nexus.util.highlight", formattedJson, "json");
+
+            return new MarkupString(highlightedJson);
+        }
+        catch
+        {
+            AppState.ClearRequestConfiguration();
+            return new MarkupString("Invalid JSON string.");
+        }
+    }
+
+    private async Task ToggleRawModeAsync()
+    {
+        try
+        {
+            var success = await CommitEditorStateAsync();
+
+            if (success)
+                _rawMode = !_rawMode;
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private async Task<bool> CommitEditorStateAsync()
+    {
+        if (_pipeline is null || !_registrationIndex.HasValue)
+            return false;
+
+        if (_form is not null)
+        {
+            await _form.Validate();
+
+            if (!_form.IsValid)
+            {
+                Snackbar.Add(
+                    "There are validation errors: " + string.Join(", ", _form.Errors),
+                    Severity.Error
+                );
+
+                return false;
+            }
+        }
+
+        var newConfiguration = _rawMode
+            ? JsonSerializer.Deserialize<JsonElement>(_jsonString ?? "null", JsonSerializerOptions.Web)
+            : JsonSerializer.SerializeToElement(_data);
+
+        var newRegistration = _pipeline.Registrations[_registrationIndex.Value] with { Configuration = newConfiguration };
+
+        UpdateDataSourceRegistration(_registrationIndex.Value, newRegistration);
+        UpdateDataSourceRegistrationData(newRegistration);
+        
+        return true;
+    }
+
+    private void UpdateDataSourceRegistrationData(DataSourceRegistration registration)
+    {
+        _data = registration.Configuration.ValueKind == JsonValueKind.Undefined
+            ? default
+            : JsonSerializer.SerializeToNode(registration.Configuration, JsonSerializerOptions.Web);
+
+        _jsonString = JsonSerializer.Serialize(registration.Configuration, _options);
+    }
+
+    private async Task EnsureNoDataLossAsync()
+    {
+        if (_pipeline is not null && _isDirty)
+        {
+            var result = await DialogService.ShowMessageBox(
+                "Warning",
+                "Do you want so save your changes before creating a new data source pipeline?",
+                yesText: "Save", noText: "Discard", cancelText: "Cancel"
+            );
+
+            if (result.HasValue)
+            {
+                if (result.Value)
+                    await CreateOrUpdatePipelineAsync();
+            }
+
+            else
+            {
+                return;
+            }
+        }
+    }
+}

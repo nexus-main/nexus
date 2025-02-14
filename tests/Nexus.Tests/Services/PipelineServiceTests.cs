@@ -72,7 +72,7 @@ public class PipelineServiceTests
     }
 
     [Fact]
-    public void CanTryGetPipeline()
+    public async Task CanGetPipeline()
     {
         // Arrange
         var id1 = Guid.NewGuid();
@@ -96,11 +96,9 @@ public class PipelineServiceTests
         var pipelineService = GetPipelineService(default!, userToPipelinesMap);
 
         // Act
-        var success = pipelineService.TryGet(USERNAME_1, id2, out var actualPipeline);
+        var actualPipeline = await pipelineService.GetAsync(USERNAME_1, id2);
 
         // Assert
-        Assert.True(success);
-
         Assert.Equal(
             expected: JsonSerializer.Serialize(userToPipelinesMap[USERNAME_1][id2]),
             actual: JsonSerializer.Serialize(actualPipeline)
@@ -108,7 +106,7 @@ public class PipelineServiceTests
     }
 
     [Fact]
-    public async Task CanTryUpgradePipeline()
+    public async Task CanTryUpdatePipeline()
     {
         // Arrange
         var id1 = Guid.NewGuid();
@@ -137,7 +135,9 @@ public class PipelineServiceTests
             ReleasePattern: "foo"
         );
 
-        var expected = userToPipelinesMap[USERNAME_1];
+        var expected = userToPipelinesMap[USERNAME_1]
+            .ToDictionary(x => x.Key, x => x.Value);
+
         expected[id1] = newPipeline;
 
         // Act
@@ -146,7 +146,10 @@ public class PipelineServiceTests
         // Assert
         Assert.True(success);
 
-        var actual = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(File.ReadAllText(filePath), JsonSerializerOptions.Web);
+        var actual = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(
+            File.ReadAllText(filePath),
+            JsonSerializerOptions.Web
+        );
 
         Assert.Equivalent(expected, actual, strict: true);
     }
