@@ -1584,10 +1584,6 @@ html {
   background-color: var(--mud-palette-success) !important;
 }
 
-.hover\:visible:hover {
-  visibility: visible;
-}
-
 .hover\:scale-125:hover {
   --tw-scale-x: 1.25;
   --tw-scale-y: 1.25;
