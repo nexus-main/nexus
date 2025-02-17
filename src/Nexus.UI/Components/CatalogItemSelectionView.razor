@@ -46,13 +46,20 @@
 
             @foreach (var kind in _kinds)
             {
-                <MudChip
-                Selected="SelectedItem.Kinds.Contains(kind)"
-                SelectedChanged="selected => OnKindSelectionChanged(selected, kind)"
-                Size="Size.Small"
-                Value="kind"
-                Variant="Variant.Outlined"
-                SelectedColor="Color.Primary" />
+                <MudTooltip
+                    Text="@(_kindToTooltipMap.ContainsKey(kind) ? _kindToTooltipMap[kind] : kind.ToString())"
+                    Delay="1000">
+
+                    <MudChip
+                        Selected="SelectedItem.Kinds.Contains(kind)"
+                        SelectedChanged="selected => OnKindSelectionChanged(selected, kind)"
+                        Size="Size.Small"
+                        Value="kind"
+                        Text="@(_kindToDisplayNameMap.ContainsKey(kind) ? _kindToDisplayNameMap[kind] : kind.ToString())"
+                        Variant="Variant.Outlined"
+                        SelectedColor="Color.Primary" />
+
+                </MudTooltip>
             }
             
         </MudChipSet>
@@ -61,6 +68,30 @@
 </div>
 
 @code {
+
+    private Dictionary<RepresentationKind, string> _kindToDisplayNameMap = new()
+    {
+        [RepresentationKind.MeanPolarDeg] = "Mean polar (deg)",
+        [RepresentationKind.Std] = "STD",
+        [RepresentationKind.Rms] = "RMS",
+        [RepresentationKind.MinBitwise] = "Minimum (bitwise)",
+        [RepresentationKind.MaxBitwise] = "Maximum (bitwise)",
+    };
+
+    private Dictionary<RepresentationKind, string> _kindToTooltipMap = new()
+    {
+        [RepresentationKind.Original] = "Original frequency",
+        [RepresentationKind.Resampled] = "Resampled to the currently selected period",
+        [RepresentationKind.Mean] = "Arithmetic mean",
+        [RepresentationKind.MeanPolarDeg] = "Circular mean for angles in degrees",
+        [RepresentationKind.Min] = "Minimum",
+        [RepresentationKind.Max] = "Maximum",
+        [RepresentationKind.Std] = "Standard deviation",
+        [RepresentationKind.Rms] = "Root mean square",
+        [RepresentationKind.MinBitwise] = "Minimum of individual bits",
+        [RepresentationKind.MaxBitwise] = "Maximum of individual bits",
+        [RepresentationKind.Sum] = "Summation"
+    };
 
     private bool _aggregationKindPopupIsOpen;
 
