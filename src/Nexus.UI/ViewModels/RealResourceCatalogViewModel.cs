@@ -19,11 +19,7 @@ public class RealResourceCatalogViewModel : ResourceCatalogViewModel
         async Task<List<ResourceCatalogViewModel>> func()
         {
             var childCatalogInfos = await client.V1.Catalogs.GetChildCatalogInfosAsync(Id, CancellationToken.None);
-
-            return childCatalogInfos
-                .Where(childInfo => (childInfo.IsReleased && childInfo.IsVisible) || childInfo.IsOwner)
-                .Select(childInfo => (ResourceCatalogViewModel)new RealResourceCatalogViewModel(childInfo, Id, client, appState))
-                .ToList();
+            return PrepareChildCatalogs(childCatalogInfos, info.Id, client, appState);
         }
 
         ChildrenTask = new Lazy<Task<List<ResourceCatalogViewModel>>>(func);

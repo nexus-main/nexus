@@ -17,6 +17,7 @@ else
         <a class="flex p-0.5 items-center group"
             href="catalogs/@(Catalog.IsSelected ? default! : Utilities.EscapeDataString(Catalog.Id))"
             @onclick="Catalog.IsSelected ? () => Catalog.IsOpen = !Catalog.IsOpen : default!">
+
             <span class="
                 text-xl
                 mdi mr-1
@@ -77,9 +78,8 @@ else
 }
 
 @code {
+
     [Parameter]
     public ResourceCatalogViewModel Catalog { get; set; } = default!;
+
 }
-
-
-
