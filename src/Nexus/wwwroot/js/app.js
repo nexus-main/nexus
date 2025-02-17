@@ -7,7 +7,7 @@ nexus.util.log = function (message) {
 }
 
 nexus.util.highlight = function (code, language) {
-    return hljs.highlight(code, {language: language}).value
+    return hljs.highlight(code, { language: language }).value
 }
 
 nexus.util.blobSaveAs = function (filename, bytesBase64) {
@@ -24,26 +24,6 @@ nexus.util.blobSaveAs = function (filename, bytesBase64) {
 nexus.util.addMouseUpEvent = function (dotNetHelper) {
 
     window.addEventListener("mouseup", e => dotNetHelper.invokeMethodAsync("OnMouseUp"), {
-        once: true
-    });
-}
-
-nexus.util.addClickExceptSelfEvent = function (id, dotNetHelper) {
-
-    window.addEventListener("click", e => 
-    {
-        var container = document.getElementById(id);
-
-        if (container.contains(e.target)) {
-            /* re-register event listener */
-            nexus.util.addClickExceptSelfEvent(id, dotNetHelper)
-        }
-        else {
-            /* invoke callback */
-            dotNetHelper.invokeMethodAsync("OnClickExceptSelf")
-        }
-    }, {
-        /* fire only once */
         once: true
     });
 }

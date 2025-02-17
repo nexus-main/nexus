@@ -6,11 +6,11 @@
     <AuthorizeView>
 
         <Authorized>
-            <div class="h-full grid sm:grid-rows-[auto,1fr] bg-white">
+            <div class="h-full flex flex-col bg-white">
 
                 <Navbar OpenHamburgerMenu="() => AppState.IsHamburgerMenuOpen = true" />
 
-                <div class="min-h-0">
+                <div class="flex-1 min-h-0">
                     @Body
                 </div>
 

@@ -22,19 +22,49 @@
         @if (_kinds.Any())
         {
             <div class="invisible group-hover:visible">
-                <UISpecialSelect
-                    Label="+"
-                    Items="_kinds"
-                    OnItemSelected="(RepresentationKind newKind) => AddRepresentationKind(newKind)">
-                </UISpecialSelect>
+                <div @onclick="() => _aggregationKindPopupIsOpen = true" class="text-xs font-semibold rounded bg-teal-600 text-gray-300 hover:bg-teal-500 px-2.5 py-1">
+                    +
+                </div>
             </div>
         }
     </div>
+
+    <!-- https://github.com/MudBlazor/MudBlazor/issues/6357 -->
+    <MudOverlay @bind-Visible="_aggregationKindPopupIsOpen" AutoClose="true" />
+
+    <MudPopover
+        Open="_aggregationKindPopupIsOpen"
+        Class="p-4"
+        AnchorOrigin="Origin.TopRight"
+        TransformOrigin="Origin.TopLeft"
+        RelativeWidth="DropdownWidth.Relative">
+
+        <MudChipSet 
+            T="RepresentationKind"
+            SelectionMode="SelectionMode.MultiSelection"
+            CheckMark>
+
+            @foreach (var kind in _kinds)
+            {
+                <MudChip
+                Selected="SelectedItem.Kinds.Contains(kind)"
+                SelectedChanged="selected => OnKindSelectionChanged(selected, kind)"
+                Size="Size.Small"
+                Value="kind"
+                Variant="Variant.Outlined"
+                SelectedColor="Color.Primary" />
+            }
+            
+        </MudChipSet>
+
+    </MudPopover>
 </div>
 
 @code {
 
-    private Dictionary<RepresentationKind, string> _kinds = default!;
+    private bool _aggregationKindPopupIsOpen;
+
+    private IReadOnlyCollection<RepresentationKind> _kinds = default!;
 
     [Parameter]
     public CatalogItemSelectionViewModel SelectedItem { get; set; } = default!;
@@ -43,19 +73,40 @@
     {
         _kinds = GetKinds();
     }
-  
+
     private void CopyToClipboard(RepresentationKind kind)
     {
         var resourcePath = SelectedItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value);
         JSRuntime.InvokeVoid("nexus.util.copyToClipboard", resourcePath);
     }
 
-    private void AddRepresentationKind(RepresentationKind kind)
+    private IReadOnlyCollection<RepresentationKind> GetKinds()
     {
-        SelectedItem.Kinds.Add(kind);
-        _kinds = GetKinds();
-        AppState.Settings.CanExportChanged();
-        AppState.Settings.CanVisualizeChanged();
+        return Enum
+            .GetValues<RepresentationKind>()
+            .Where(kind => SelectedItem.IsValid(kind, AppState.Settings.SamplePeriod))
+            .ToList();
+    }
+
+    private bool IsValid(RepresentationKind kind)
+    {
+        return SelectedItem.IsValid(kind, AppState.Settings.SamplePeriod);
+    }
+
+    private void OnKindSelectionChanged(bool selected, RepresentationKind kind)
+    {
+        if (selected)
+        {
+            SelectedItem.Kinds.Add(kind);
+            _kinds = GetKinds();
+            AppState.Settings.CanExportChanged();
+            AppState.Settings.CanVisualizeChanged();
+        }
+
+        else
+        {
+            RemoveRepresentationKind(kind);
+        }
     }
 
     private void RemoveRepresentationKind(RepresentationKind kind)
@@ -64,38 +115,13 @@
         {
             AppState.Settings.ToggleCatalogItemSelection(SelectedItem);
         }
-        
+
         else
         {
             SelectedItem.Kinds.Remove(kind);
             _kinds = GetKinds();
             AppState.Settings.CanExportChanged();
-            AppState.Settings.CanVisualizeChanged();
+            AppState.Settings.CanVisualizeChanged();   
         }
     }
-
-    private string GetId()
-    {
-        return $"{@SelectedItem.BaseItem.Catalog.Id}/{@SelectedItem.BaseItem.Resource.Id}";
-    }
-
-    private Dictionary<RepresentationKind, string> GetKinds()
-    {
-        return Enum
-            .GetValues<RepresentationKind>()
-            .Where(kind => 
-                !SelectedItem.Kinds.Contains(kind) && 
-                SelectedItem.IsValid(kind, AppState.Settings.SamplePeriod))
-            .ToDictionary(kind => kind, kind => kind.ToString());
-    }
-
-    private bool IsValid(RepresentationKind kind)
-    {
-        return SelectedItem.IsValid(kind, AppState.Settings.SamplePeriod);
-    }
 }
-
-
-
-
-
