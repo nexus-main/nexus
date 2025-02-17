@@ -21,7 +21,7 @@ else
                     <div class="flex gap-2 items-center justify-between">
 
                         <ErrorBoundary>
-                            <MudText Typo="Typo.body2">@reference.Configuration[GetUrlKey(reference.Provider)].Split('/')[^1]</MudText>
+                            <MudText Typo="Typo.body2" class="font-semibold">@reference.Configuration[GetUrlKey(reference.Provider)].Split('/')[^1]</MudText>
                         </ErrorBoundary>
 
                         <div class="flex gap-1">

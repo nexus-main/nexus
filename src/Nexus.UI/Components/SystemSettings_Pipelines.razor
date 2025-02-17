@@ -13,9 +13,9 @@
 
     <div class="flex-1 flex flex-col min-h-0 min-w-0 gap-3 p-3">
 
-        <MudText Typo="Typo.h5">Pipeline</MudText>
+        <MudText Typo="Typo.h6">Pipeline</MudText>
 
-        <MudPaper Elevation="5" Class="p-3">
+        <MudPaper Elevation="4" Class="p-3">
 
             <div class="flex items-center justify-around">
 
@@ -30,7 +30,7 @@
 
                 <div>
                     <MudIconButton
-                    Color="Color.Secondary"
+                    Color="Color.Primary"
                     Icon="@Icons.Material.Filled.Add"
                     OnClick="CreateNewDataSourcePipelineAsync" />
                 </div>
@@ -41,7 +41,7 @@
 
         @if (_pipeline is not null)
         {
-            <MudPaper Elevation="5" Class="flex-1 p-3 overflow-y-auto">
+            <MudPaper Elevation="4" Class="flex-1 p-3 overflow-y-auto">
 
                 <div class="flex flex-col gap-2">
 
@@ -140,7 +140,7 @@
                     <div class="mx-auto">
                         <MudIconButton 
                         Icon="@Icons.Material.Filled.Add"
-                        Color="Color.Secondary"
+                        Color="Color.Primary"
                         OnClick="() => 
                             {
                                 _newDataSourceType = default;
@@ -157,13 +157,13 @@
 
     <div class="flex-1 flex flex-col min-h-0 min-w-0 gap-3 p-3">
 
-        <MudText Typo="Typo.h5">Registration configuration</MudText>
+        <MudText Typo="Typo.h6">Registration configuration</MudText>
 
-        <MudPaper Elevation="5" Class="min-h-0 flex flex-col flex-1 p-3">
+        <MudPaper Elevation="4" Class="min-h-0 flex flex-col flex-1 p-3">
 
             @if (_schema is null)
             {
-                <div class="text-center">
+                <div class="h-full flex items-center justify-center">
                     <MudText Typo="Typo.body1" Class="text-gray-400">No registration selected</MudText>
                 </div>
             }
@@ -188,7 +188,7 @@
                     }
 
                 </div>
-                
+
                 @if (_rawMode)
                 {
                     <div class="flex-1 min-h-0 gap-2 flex flex-col">
@@ -236,7 +236,7 @@
                         </ErrorContent>
                     </ErrorBoundary>
                 }
-                    
+
             }
 
         </MudPaper>
@@ -304,7 +304,7 @@
                 {
                     <div class="cursor-pointer" 
                     @onclick="() => SelectPipeline(pipelineId, pipeline)">
-                        <MudPaper Elevation="5" Class="p-3 border hover:border-orange-500">
+                        <MudPaper Elevation="4" Class="p-3 border hover:border-cyan-600">
 
                             @if (pipeline.Registrations.Any())
                             {
@@ -328,7 +328,7 @@
                             else
                             {
                                 <MudText Typo="Typo.body1" Class="text-gray-400">
-                                    This pipeline has no data source registrations configured
+                                    Empty pipeline
                                 </MudText>
                             }
 
@@ -377,7 +377,7 @@
     private bool _isDirty;
 
     private bool _rawMode;
-    
+
     private string? _newDataSourceType;
 
     public SystemSettings_Pipelines()
@@ -392,7 +392,7 @@
 
         try
         {
-            await EnsureNoDataLossAsync();
+            await CommitEditorStateAsync();
 
             var registration = _pipeline.Registrations[registrationIndex];
             var descriptions = await _getDataSourceDescriptions.Value;
@@ -448,7 +448,8 @@
 
         try
         {
-            var registration = new DataSourceRegistration(_newDataSourceType!, default, default, default);
+            var nullConfiguration = JsonSerializer.SerializeToElement<object?>(null, JsonSerializerOptions.Web);
+            var registration = new DataSourceRegistration(_newDataSourceType!, default, nullConfiguration, default);
 
             var newRegistrations = _pipeline.Registrations
                 .Append(registration)
@@ -458,8 +459,6 @@
             _schema = default;
             _registrationIndex = default;
             _isDirty = true;
-
-            Snackbar.Add("The data source registration has been created successfully.", Severity.Success);
         }
 
         finally
@@ -505,8 +504,6 @@
             _pipeline = _pipeline with { Registrations = newRegistrations };
             _schema = default;
             _registrationIndex = default;
-
-            Snackbar.Add("The data source registration has been deleted successfully.", Severity.Success);
         }
     }
 
@@ -514,7 +511,10 @@
     {
         try
         {
-            await EnsureNoDataLossAsync();
+            var proceeed = await EnsureNoDataLossAsync();
+
+            if (!proceeed)
+                return;
 
             var pipelineMap = await Client.V1.Sources.GetPipelinesAsync();
 
@@ -532,7 +532,10 @@
     {
         try
         {
-            await EnsureNoDataLossAsync();
+            var proceeed = await EnsureNoDataLossAsync();
+
+            if (!proceeed)
+                return;
 
             _schema = default;
             _registrationIndex = default;
@@ -553,10 +556,7 @@
 
         try
         {
-            var success = await CommitEditorStateAsync();
-
-            if (!success)
-                return;
+            await CommitEditorStateAsync();
 
             if (_pipelineId is null)
             {
@@ -666,10 +666,12 @@
     {
         try
         {
-            var success = await CommitEditorStateAsync();
+            var newRegistration = await CommitEditorStateAsync();
 
-            if (success)
-                _rawMode = !_rawMode;
+            if (newRegistration is not null)
+                UpdateDataSourceRegistrationData(newRegistration);
+
+            _rawMode = !_rawMode;
         }
 
         catch (Exception ex)
@@ -678,10 +680,10 @@
         }
     }
 
-    private async Task<bool> CommitEditorStateAsync()
+    private async Task<DataSourceRegistration?> CommitEditorStateAsync()
     {
         if (_pipeline is null || !_registrationIndex.HasValue)
-            return false;
+            return default;
 
         if (_form is not null)
         {
@@ -693,8 +695,6 @@
                     "There are validation errors: " + string.Join(", ", _form.Errors),
                     Severity.Error
                 );
-
-                return false;
             }
         }
 
@@ -702,12 +702,14 @@
             ? JsonSerializer.Deserialize<JsonElement>(_jsonString ?? "null", JsonSerializerOptions.Web)
             : JsonSerializer.SerializeToElement(_data);
 
-        var newRegistration = _pipeline.Registrations[_registrationIndex.Value] with { Configuration = newConfiguration };
+        var newRegistration = _pipeline.Registrations[_registrationIndex.Value] with 
+        { 
+            Configuration = newConfiguration 
+        };
 
         UpdateDataSourceRegistration(_registrationIndex.Value, newRegistration);
-        UpdateDataSourceRegistrationData(newRegistration);
-        
-        return true;
+
+        return newRegistration;
     }
 
     private void UpdateDataSourceRegistrationData(DataSourceRegistration registration)
@@ -719,26 +721,36 @@
         _jsonString = JsonSerializer.Serialize(registration.Configuration, _options);
     }
 
-    private async Task EnsureNoDataLossAsync()
+    private async Task<bool> EnsureNoDataLossAsync()
     {
         if (_pipeline is not null && _isDirty)
         {
             var result = await DialogService.ShowMessageBox(
                 "Warning",
-                "Do you want so save your changes before creating a new data source pipeline?",
+                "Do you want so save your current changes?",
                 yesText: "Save", noText: "Discard", cancelText: "Cancel"
             );
 
             if (result.HasValue)
             {
+                /* Save */
                 if (result.Value)
                     await CreateOrUpdatePipelineAsync();
+
+                return true;
             }
 
             else
             {
-                return;
+                /* Cancel */
+                return false;
             }
+        }
+
+        /* pipeline is null or !isDirty */
+        else
+        {
+            return true;
         }
     }
 }
