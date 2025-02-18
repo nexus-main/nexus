@@ -1,25 +1,33 @@
-﻿<MudThemeProvider Theme="_theme" />
+﻿@inject NexusJSInterop JsInterop
+
+<MudThemeProvider Theme="_theme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<Router AppAssembly="@typeof(Program).Assembly">
-    <Found Context="routeData">
-        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <PageTitle>Not found</PageTitle>
-        <div class="flex-1 flex justify-center items-center">
-            <a class="text-gray-400 opacity-50 flex flex-col items-center p-5 hover:text-orange-500 cursor-pointer" href="">
-                <span class="text-[150px] mdi mdi-robot-confused"></span>
-                <span class="text-xl font-bold tracking-widest">PAGE NOT FOUND</span>
-            </a>
-        </div>
-    </NotFound>
-</Router>
+@if (_show)
+{
+    <Router AppAssembly="@typeof(Program).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <div class="flex-1 flex justify-center items-center">
+                <a class="text-gray-400 opacity-50 flex flex-col items-center p-5 hover:text-orange-500 cursor-pointer" href="">
+                    <span class="text-[150px] mdi mdi-robot-confused"></span>
+                    <span class="text-xl font-bold tracking-widest">PAGE NOT FOUND</span>
+                </a>
+            </div>
+        </NotFound>
+    </Router>
+}
 
 @code {
+
+    private bool _show;
+
     private MudTheme _theme = new MudTheme()
     {
         PaletteLight = new PaletteLight()
@@ -29,4 +37,10 @@
             Success = "#059669", /* Tailwind emerald-600 */
         }
     };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await JsInterop.InitializeAsync();
+        _show = true;
+    }
 }

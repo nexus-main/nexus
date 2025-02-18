@@ -45,12 +45,13 @@ else
 builder.Services
     .AddCascadingAuthenticationState()
     .AddAuthorizationCore()
+    .AddSingleton<NexusJSInterop>()
     .AddSingleton(client)
     .AddSingleton(serviceProvider => (IJSInProcessRuntime)serviceProvider.GetRequiredService<IJSRuntime>())
     .AddSingleton(serviceProvider =>
     {
-        var jsRuntime = serviceProvider.GetRequiredService<IJSInProcessRuntime>();
-        var appState = new AppState(isDemo, client, jsRuntime);
+        var nexusJsInterop = serviceProvider.GetRequiredService<NexusJSInterop>();
+        var appState = new AppState(isDemo, client, nexusJsInterop);
 
         return appState;
     })

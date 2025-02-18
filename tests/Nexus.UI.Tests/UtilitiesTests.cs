@@ -70,7 +70,7 @@ public class UtilitiesTests
         // Act
 
         /* root */
-        var actual_root = Utilities.PrepareChildCatalogs(id_root, childCatalogInfos_1, nexusClient, appState);
+        var actual_root = Utilities.PrepareChildCatalogs(id_root, [], childCatalogInfos_1, nexusClient, appState);
 
         /* A */
         var id_A = actual_root[0].Id;
@@ -81,7 +81,7 @@ public class UtilitiesTests
             .Select(GetCatalogInfo)
             .ToList();
 
-        var actual_A = Utilities.PrepareChildCatalogs(id_A, childCatalogInfos_A, nexusClient, appState);
+        var actual_A = Utilities.PrepareChildCatalogs(id_A, [], childCatalogInfos_A, nexusClient, appState);
 
         /* AA */
         var id_AA = actual_A[0].Id;
@@ -92,7 +92,7 @@ public class UtilitiesTests
             .Select(GetCatalogInfo)
             .ToList();
 
-        var actual_AA = Utilities.PrepareChildCatalogs(id_AA, childCatalogInfos_AA, nexusClient, appState);
+        var actual_AA = Utilities.PrepareChildCatalogs(id_AA, [], childCatalogInfos_AA, nexusClient, appState);
 
         /* AB */
         var id_AB = actual_A[1].Id;
@@ -103,7 +103,7 @@ public class UtilitiesTests
             .Select(GetCatalogInfo)
             .ToList();
 
-        var actual_AB = Utilities.PrepareChildCatalogs(id_AB, childCatalogInfos_AB, nexusClient, appState);
+        var actual_AB = Utilities.PrepareChildCatalogs(id_AB, [], childCatalogInfos_AB, nexusClient, appState);
 
         // Assert
         Assert.Single(actual_root);

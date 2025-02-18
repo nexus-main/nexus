@@ -35,25 +35,6 @@ nexus.util.addClickEvent = function (dotNetHelper) {
     });
 }
 
-nexus.util.saveSetting = function (key, value) {
-    if (window.localStorage)
-        localStorage.setItem(key, JSON.stringify(value));
-}
-
-nexus.util.clearSetting = function (key, value) {
-    if (window.localStorage)
-        localStorage.removeItem(key);
-}
-
-nexus.util.loadSetting = function (key) {
-
-    if (window.localStorage)
-        return JSON.parse(localStorage.getItem(key));
-
-    else
-        return null
-}
-
 nexus.util.copyToClipboard = function (text) {
     navigator.clipboard.writeText(text)
 }

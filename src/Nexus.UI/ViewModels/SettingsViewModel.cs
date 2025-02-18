@@ -1,12 +1,12 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.ComponentModel;
-using System.Text.Json;
-using Microsoft.JSInterop;
 using Nexus.Api;
 using Nexus.Api.V1;
 using Nexus.UI.Core;
+using Nexus.UI.Services;
+using System.ComponentModel;
+using System.Text.Json;
 
 namespace Nexus.UI.ViewModels;
 
@@ -15,15 +15,19 @@ public class SettingsViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private TimeSpan _samplePeriod = TimeSpan.FromSeconds(1);
+
     private readonly AppState _appState;
+
     private readonly INexusClient _client;
-    private readonly IJSInProcessRuntime _jsRuntime;
+
+    private readonly NexusJSInterop _jsInterop;
+
     private List<CatalogItemSelectionViewModel> _selectedCatalogItems = [];
 
-    public SettingsViewModel(AppState appState, IJSInProcessRuntime jsRuntime, INexusClient client)
+    public SettingsViewModel(AppState appState, NexusJSInterop jsInterop, INexusClient client)
     {
         _appState = appState;
-        _jsRuntime = jsRuntime;
+        _jsInterop = jsInterop;
         _client = client;
 
         InitializeTask = new Lazy<Task>(InitializeAsync);
@@ -109,7 +113,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         {
             WriterDescription = WriterDescriptions.First(description => description.Type == value);
             _appState.ExportParameters = _appState.ExportParameters with { Type = value };
-            _jsRuntime.InvokeVoid("nexus.util.saveSetting", Constants.UI_FILE_TYPE_KEY, value);
+            _appState.UISettings = _appState.UISettings with { FileType = value };
         }
     }
 
@@ -281,7 +285,7 @@ public class SettingsViewModel : INotifyPropertyChanged
                 string? actualFileType = default;
 
                 // try restore saved file type
-                var expectedFileType = _jsRuntime.Invoke<string?>("nexus.util.loadSetting", Constants.UI_FILE_TYPE_KEY);
+                var expectedFileType = _appState.UISettings.FileType;
 
                 if (!string.IsNullOrWhiteSpace(expectedFileType) &&
                     writerDescriptions.Any(writerDescription => writerDescription.Type == expectedFileType))

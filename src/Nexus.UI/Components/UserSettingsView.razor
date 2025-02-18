@@ -34,6 +34,71 @@ MaxWidth="MaxWidth.Medium">
         Border="true"
         ApplyEffectsToContainer="true" PanelClass="pa-6">
 
+            <MudTabPanel Text="General" Icon="@Icons.Material.Filled.SettingsEthernet">
+
+                <div class="text-cyan-700 border-b my-3 text-lg">Hide catalogs</div>
+
+                <div class="flex flex-col gap-5">
+
+                    @if (AppState.UISettings.CatalogHidePatterns is not null)
+                    {
+                        <div class="flex flex-col gap-2">
+
+                            @for (int i = 0; i < AppState.UISettings.CatalogHidePatterns.Count; i++)
+                            {
+                                var local = i;
+
+                                <div class="flex items-end gap-3">
+                                    <MudTextField
+                                        Class="flex-1"
+                                        T="string" 
+                                        Variant="Variant.Text"
+                                        Placeholder="^/MY/CATALOG/PATH"
+                                        @bind-Value:get="AppState.UISettings.CatalogHidePatterns[local]"
+                                        @bind-Value:set="value =>
+                                        {
+                                            AppState.UISettings.CatalogHidePatterns[local] = value;
+                                            SaveUISettings();
+                                        }" />
+
+                                    <div>
+                                        <MudIconButton 
+                                            Icon="@Icons.Material.Filled.Delete"
+                                            Size="Size.Medium"
+                                            OnClick="() => 
+                                            {
+                                                AppState.UISettings.CatalogHidePatterns.RemoveAt(local);
+                                                SaveUISettings();
+                                            }" />
+                                    </div>
+                                </div>
+                            }
+
+                            <MudText Typo="Typo.caption">
+                                The catalog(s) you want to hide (regex pattern; reload page to apply changes)
+                            </MudText>
+
+                        </div>
+
+                        <div class="flex justify-center">
+                            <MudIconButton
+                                OnClick="() => 
+                                {
+                                    AppState.UISettings.CatalogHidePatterns.Add(default);
+                                    SaveUISettings();
+                                }"
+                                Color="Color.Primary"
+                                Icon="@Icons.Material.Outlined.Add">
+                                Add
+                            </MudIconButton>
+                        </div>
+
+                    }
+
+                </div>
+
+            </MudTabPanel>
+
             <MudTabPanel Text="Personal Access Tokens" Icon="@Icons.Material.Filled.Key">
                 <div class="text-cyan-700 border-b my-3 text-lg">New Token</div>
 
@@ -205,11 +270,11 @@ MaxWidth="MaxWidth.Medium">
                     <div class="flex flex-col h-1/2">
                         <div class="text-cyan-700 border-b mb-1">Input (JSON)</div>
                         <textarea 
-                            spellcheck="false"
-                            class="w-full flex-1 bg-gray-100 p-2" 
-                            placeholder="Put your configuration here." 
-                            style="resize:none" 
-                            @bind="_jsonString" @bind:event="oninput">
+                        spellcheck="false"
+                        class="w-full flex-1 bg-gray-100 p-2" 
+                        placeholder="Put your configuration here." 
+                        style="resize:none" 
+                        @bind="_jsonString" @bind:event="oninput">
                         </textarea>
                     </div>
 
@@ -222,7 +287,7 @@ MaxWidth="MaxWidth.Medium">
                             </code>
                         </pre>
                     </div>
-                    
+
                 </div>
             </MudTabPanel>
 
@@ -264,7 +329,6 @@ MaxWidth="MaxWidth.Medium">
         WriteIndented = true
     };
 
-
     private string? _jsonString;
 
     private string? _newAccessToken;
@@ -292,7 +356,10 @@ MaxWidth="MaxWidth.Medium">
     {
         _authenticationState = await GetAuthenticationStateTask;
 
-        var jsonElement = JSRuntime.Invoke<JsonElement?>("nexus.util.loadSetting", Constants.REQUEST_CONFIGURATION_KEY);
+        if (AppState.UISettings.CatalogHidePatterns is null)
+            AppState.UISettings = AppState.UISettings with { CatalogHidePatterns = new() };
+
+        var jsonElement = AppState.UISettings.RequestConfiguration;
 
         _jsonString = JsonSerializer
             .Serialize(jsonElement, _options);
@@ -305,6 +372,11 @@ MaxWidth="MaxWidth.Medium">
         {
             AppState.AddError(ex, Snackbar);
         }
+    }
+
+    private void SaveUISettings()
+    {
+        AppState.UISettings = AppState.UISettings;
     }
 
     private bool IsAdmin(ClaimsPrincipal user)

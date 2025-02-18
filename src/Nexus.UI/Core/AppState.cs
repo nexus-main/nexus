@@ -9,6 +9,7 @@ using Microsoft.JSInterop;
 using MudBlazor;
 using Nexus.Api;
 using Nexus.Api.V1;
+using Nexus.UI.Services;
 using Nexus.UI.ViewModels;
 
 namespace Nexus.UI.Core;
@@ -82,24 +83,26 @@ public class AppState : INotifyPropertyChanged, IAppState
 
     private bool _beginAtZero;
 
+    private UISettings? _uiSettings;
+
     private string? _searchString;
 
     private const string GROUP_KEY = "groups";
 
-    private readonly IJSInProcessRuntime _jsRuntime;
+    private readonly NexusJSInterop _jsInterop;
 
     private IDisposable? _requestConfiguration;
 
     public AppState(
         bool isDemo,
         INexusClient client,
-        IJSInProcessRuntime jsRuntime
+        NexusJSInterop jsInterop
     )
     {
         IsDemo = isDemo;
         _client = client;
-        _jsRuntime = jsRuntime;
-        Settings = new SettingsViewModel(this, jsRuntime, client);
+        _jsInterop = jsInterop;
+        Settings = new SettingsViewModel(this, jsInterop, client);
 
         var childCatalogInfosTask = client.V1.Catalogs.GetChildCatalogInfosAsync(ResourceCatalogViewModel.ROOT_CATALOG_ID, CancellationToken.None);
 
@@ -117,7 +120,14 @@ public class AppState : INotifyPropertyChanged, IAppState
             PackageReferenceIds: default!,
             PipelineInfo: default!);
 
-        RootCatalog = new FakeResourceCatalogViewModel(rootInfo, "", client, this, childCatalogInfosTask);
+        RootCatalog = new FakeResourceCatalogViewModel(
+            rootInfo,
+            "",
+            UISettings.CatalogHidePatterns,
+            client,
+            this,
+            childCatalogInfosTask
+        );
 
         // export parameters
         ExportParameters = new ExportParameters(
@@ -130,7 +140,7 @@ public class AppState : INotifyPropertyChanged, IAppState
         );
 
         // request configuration
-        var configuration = _jsRuntime.Invoke<JsonElement?>("nexus.util.loadSetting", Constants.REQUEST_CONFIGURATION_KEY);
+        var configuration = UISettings.RequestConfiguration;
 
         if (configuration is not null)
             _requestConfiguration = _client.AttachConfiguration(configuration);
@@ -143,6 +153,24 @@ public class AppState : INotifyPropertyChanged, IAppState
     public bool IsHamburgerMenuOpen { get; set; }
 
     public bool IsDemo { get; }
+
+    public UISettings UISettings
+    {
+        get
+        {
+            _uiSettings ??= _jsInterop.LoadSetting<UISettings>("ui-settings")
+                ?? new UISettings();
+
+            return _uiSettings;
+        }
+        set
+        {
+            _jsInterop.SaveSetting("ui-settings", value);
+            _uiSettings = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UISettings)));
+        }
+    }
+
 
     public ViewState ViewState
     {
@@ -451,12 +479,12 @@ public class AppState : INotifyPropertyChanged, IAppState
     public void SetRequestConfiguration(JsonElement configuration)
     {
         _requestConfiguration?.Dispose();
-        _jsRuntime.InvokeVoid("nexus.util.saveSetting", Constants.REQUEST_CONFIGURATION_KEY, configuration);
+        UISettings = UISettings with { RequestConfiguration = configuration };
         _requestConfiguration = _client.AttachConfiguration(configuration);
     }
 
     public void ClearRequestConfiguration()
     {
-        _jsRuntime.InvokeVoid("nexus.util.clearSetting", Constants.REQUEST_CONFIGURATION_KEY);
+        UISettings = UISettings with { RequestConfiguration = default };
     }
 }

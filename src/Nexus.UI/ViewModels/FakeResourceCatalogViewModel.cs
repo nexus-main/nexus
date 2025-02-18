@@ -12,6 +12,7 @@ public class FakeResourceCatalogViewModel : ResourceCatalogViewModel
     public FakeResourceCatalogViewModel(
         CatalogInfo info,
         string parentId,
+        List<string?>? hideCatalogPatterns,
         INexusClient client,
         IAppState appState,
         Task<IReadOnlyList<CatalogInfo>> childCatalogInfosTask
@@ -22,7 +23,7 @@ public class FakeResourceCatalogViewModel : ResourceCatalogViewModel
         async Task<List<ResourceCatalogViewModel>> func()
         {
             var childCatalogInfo = await childCatalogInfosTask;
-            return Utilities.PrepareChildCatalogs(id, childCatalogInfo, client, appState);
+            return Utilities.PrepareChildCatalogs(id, hideCatalogPatterns, childCatalogInfo, client, appState);
         }
 
         ChildrenTask = new Lazy<Task<List<ResourceCatalogViewModel>>>(func);
