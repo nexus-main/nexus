@@ -14,12 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="BlazorJsonForm" Version="1.0.0-beta.4" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.2" />
-    <PackageReference Include="MudBlazor" Version="8.2.0" />
-    <PackageReference Include="SkiaSharp" Version="3.118.0-preview.2.3" />
-    <PackageReference Include="SkiaSharp.Views.Blazor" Version="3.118.0-preview.2.3" />
+    <PackageReference Include="BlazorJsonForm" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.Views.Blazor" />
   </ItemGroup>
 
   <ItemGroup>

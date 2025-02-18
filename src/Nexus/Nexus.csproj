@@ -5,63 +5,33 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Apollo3zehn.PackageManagement" Version="1.0.0-beta.9" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" Version="5.1.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0">
+    <PackageReference Include="Apollo3zehn.PackageManagement" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" >
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
 
     <!-- Temporary workaround for NJsonSchema: https://github.com/RicoSuter/Namotion.Reflection/pull/162 -->
-    <PackageReference Include="Namotion.Reflection" Version="3.2.4" />
-    <PackageReference Include="NJsonSchema" Version="11.0.2" />
-    <PackageReference Include="NSwag.AspNetCore" Version="14.1.0" />
-    <PackageReference Include="OpenIddict" Version="5.8.0" />
-	  <PackageReference Include="OpenIddict.AspNetCore" Version="5.8.0" />
-    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="5.8.0" />
-    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
-    <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.1.2" />
-    <PackageReference Include="Serilog.Enrichers.CorrelationId" Version="3.0.1" />
-    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
-    <PackageReference Include="Serilog.Expressions" Version="5.0.0" />
-    <PackageReference Include="Serilog.Sinks.Grafana.Loki" Version="8.3.0" />
-    <PackageReference Include="Serilog.Sinks.Seq" Version="8.0.0" />
-    <PackageReference Include="SharpZipLib" Version="1.4.2" />
-
-    <!-- 
-      Package 'System.Text.Encodings.Web' 4.5.0 has a known critical severity 
-      vulnerability, https://github.com/advisories/GHSA-ghhp-997w-qr28
-
-      dotnet nuget why src/Nexus/Nexus.csproj System.Text.Encodings.Web
-
-      TODO: Check if still required
-    -->
-    <PackageReference Include="System.Text.Encodings.Web" Version="4.5.1" />
-
-    <!-- 
-      Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity
-      vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj
-      
-      dotnet nuget why src/Nexus/Nexus.csproj System.Security.Cryptography.Xml
-
-      TODO: Check if still required
-    -->
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="4.7.1" />
-
-    <!-- 
-      Package 'System.Drawing.Common' 4.7.1 has a known critical severity vulnerability,
-      https://github.com/advisories/GHSA-rxg9-xrhp-64gj
-      
-      dotnet nuget why src/Nexus/Nexus.csproj System.Drawing.Common
-
-      TODO: Check if still required
-    -->
-    <PackageReference Include="System.Drawing.Common" Version="4.7.2" />
+    <PackageReference Include="Namotion.Reflection" />
+    <PackageReference Include="NJsonSchema" />
+    <PackageReference Include="NSwag.AspNetCore" />
+    <PackageReference Include="OpenIddict" />
+	  <PackageReference Include="OpenIddict.AspNetCore" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Enrichers.ClientInfo" />
+    <PackageReference Include="Serilog.Enrichers.CorrelationId" />
+    <PackageReference Include="Serilog.Enrichers.Environment" />
+    <PackageReference Include="Serilog.Expressions" />
+    <PackageReference Include="Serilog.Sinks.Grafana.Loki" />
+    <PackageReference Include="Serilog.Sinks.Seq" />
+    <PackageReference Include="SharpZipLib" />
   </ItemGroup>
 
   <ItemGroup>
