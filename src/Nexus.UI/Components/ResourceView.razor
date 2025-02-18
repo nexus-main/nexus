@@ -1,45 +1,46 @@
 ﻿@implements IDisposable
 @inject AppState AppState
 
-<div class="flex w-full h-full">
-    <div class="flex flex-col p-2 select-none w-36 sm:w-72 gap-2">
+<div class="flex flex-col h-full">
+
+    <div class="flex flex-col p-2 select-none gap-2">
 
         <MudTextField
-        @bind-Value="AppState.SearchString"
-        Label="Search"
-        Adornment="Adornment.End"
-        AdornmentColor="Color.Primary"
-        AdornmentIcon="@_searchIcon"
-        OnAdornmentClick="() => AppState.SearchString = default"
-        Immediate="true"
-        Margin="Margin.Dense" />
+            @bind-Value="AppState.SearchString"
+            Label="Search"
+            Adornment="Adornment.End"
+            AdornmentColor="Color.Primary"
+            AdornmentIcon="@_searchIcon"
+            OnAdornmentClick="() => AppState.SearchString = default"
+            Immediate="true"
+            Margin="Margin.Dense" />
 
-        <div class="overflow-y-auto">
-            @if (AppState.CatalogItemsMap is not null)
-            {
-                @foreach (var entry in AppState.CatalogItemsMap)
+
+        @if (AppState.CatalogItemsMap is not null)
+        {
+            <MudChipSet
+                Class="flex flex-wrap"
+                T="List<CatalogItemViewModel>"
+                SelectedValue="AppState.CatalogItemsGroup">
+
+                @foreach (var (groupId, group) in AppState.CatalogItemsMap)
                 {
-                    @if (entry.Value == AppState.CatalogItemsGroup)
-                    {
-                        <div class="flex justify-between items-end py-0.5 cursor-pointer">
-                            <span class="font-bold text-orange-500">@entry.Key</span>
-                            <span class="text-sm text-gray-500">@entry.Value.Count</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="group flex justify-between items-end py-0.5 cursor-pointer"
-                        @onclick="() => AppState.CatalogItemsGroup = entry.Value">
-                            <span class="group-hover:text-cyan-500 font-bold text-cyan-700">@entry.Key</span>
-                            <span class="text-sm text-gray-500">@entry.Value.Count</span>
-                        </div>
-                    }
+                    <MudChip
+                        OnClick="() => AppState.CatalogItemsGroup = group"
+                        SelectedColor="Color.Secondary"
+                        Value="group"
+                        Size="Size.Small"
+                        Variant="Variant.Outlined">
+                        @groupId &nbsp;<span class="text-gray-500">(@group.Count)</span>
+                    </MudChip>
                 }
-            }
-        </div>
+
+            </MudChipSet>
+        }
+
     </div>
 
-    <div class="flex-1 p-2 h-full min-w-0">
+    <div class="flex-1 p-2 overflow-y-auto">
         @if (AppState.CatalogItemsGroup is not null)
         {
             <div class="select-none h-full">
@@ -53,30 +54,46 @@
                 I would have preferred `flex-1` but there is not option to apply it.
                 -->
                 <MudDataGrid
-                Class="h-full flex flex-col"
-                Height="100%"
-                T="CatalogItemViewModel"
-                FixedHeader="true"
-                FixedFooter="true"
-                Items="AppState.CatalogItemsGroup"
-                ReadOnly=@(!AppState.EditModeCatalogMap.ContainsKey(AppState.SelectedCatalog!.Id))
-                EditMode="DataGridEditMode.Cell"
-                EditTrigger="DataGridEditTrigger.OnRowClick"
-                CommittedItemChanges="CommittedItemChanges"
-                Filterable="true"
-                QuickFilter="QuickFilter"
-                RowClick="RowClicked"
-                RowStyleFunc="RowStyleFunc"
-                RowContextMenuClick="OpenGridContextMenu"
-                Dense="true">
+                    Class="h-full flex flex-col"
+                    Height="100%"
+                    T="CatalogItemViewModel"
+                    FixedHeader="true"
+                    FixedFooter="true"
+                    Items="AppState.CatalogItemsGroup"
+                    ReadOnly=@(!AppState.EditModeCatalogMap.ContainsKey(AppState.SelectedCatalog!.Id))
+                    EditMode="DataGridEditMode.Cell"
+                    EditTrigger="DataGridEditTrigger.OnRowClick"
+                    CommittedItemChanges="CommittedItemChanges"
+                    Filterable="true"
+                    QuickFilter="QuickFilter"
+                    RowClick="RowClicked"
+                    RowStyleFunc="RowStyleFunc"
+                    RowContextMenuClick="OpenGridContextMenu"
+                    Dense="true">
 
                     <Columns>
                         @* StickyLeft="true" does not work properly with the currently available version of MatBlazor: https://github.com/MudBlazor/MudBlazor/pull/10151 *@
-                        <PropertyColumn Property="x => x.Resource.Id" Title="ID" Editable="false" />
-                        <PropertyColumn Property="x => x.Description" Title="Description" />
-                        <PropertyColumn Property="x => x.Unit" Title="Unit"/>
-                        <PropertyColumn Property="x => x.Warning" Title="Warning"/>
-                        <PropertyColumn Property="x => Utilities.ToUnitString(x.Representation.SamplePeriod, false)" Title="Sample Period"/>
+                        <TemplateColumn Filterable="false" Title="ID" Editable="false">
+                            <CellTemplate>
+                                <div class="flex gap-1 items-end">
+                                    @context.Item.Resource.Id
+
+                                    @if (context.Item.Warning is not null)
+                                    {
+                                        <MudTooltip Delay="600" Text="@context.Item.Warning">
+                                            <MudIcon 
+                                                Icon="@Icons.Material.Filled.WarningAmber" 
+                                                Color="Color.Warning"
+                                                Size="Size.Small" />
+                                        </MudTooltip>
+                                    }
+                                </div>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <PropertyColumn Filterable="false" Property="x => x.Unit" Title="Unit"/>
+                        <PropertyColumn Filterable="false" Property="x => Utilities.ToUnitString(x.Representation.SamplePeriod, false)" Title="Sample Period"/>
+                        <PropertyColumn Filterable="false" Property="x => x.Description" Title="Description" />
+                        <PropertyColumn Filterable="false" Property="x => x.Warning" Title="Warning" />
                     </Columns>
 
                     <PagerContent>

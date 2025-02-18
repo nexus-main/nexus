@@ -881,10 +881,6 @@ video {
   width: 0.75rem;
 }
 
-.w-36 {
-  width: 9rem;
-}
-
 .w-5 {
   width: 1.25rem;
 }
@@ -1701,10 +1697,6 @@ html {
 
   .sm\:w-40 {
     width: 10rem;
-  }
-
-  .sm\:w-72 {
-    width: 18rem;
   }
 
   .sm\:grid-cols-\[auto\2c 1fr\2c 1fr\2c auto\] {

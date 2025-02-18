@@ -32,7 +32,8 @@ else
             <Chart LineSeriesData="_lineSeriesData" BeginAtZero="AppState.BeginAtZero" />
 
             <MudOverlay Visible="_showReloadButton" DarkBackground AutoClose Absolute>
-                <MudButton 
+                <MudButton
+                StartIcon="@Icons.Material.Filled.Refresh"
                 Variant="Variant.Filled"
                 Color="Color.Secondary"
                 OnClick="LoadDataAsync">
