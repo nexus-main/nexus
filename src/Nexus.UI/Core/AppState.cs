@@ -13,26 +13,88 @@ using Nexus.UI.ViewModels;
 
 namespace Nexus.UI.Core;
 
-public class AppState : INotifyPropertyChanged
+public interface IAppState
+{
+    ViewState ViewState { get; set; }
+
+    ExportParameters ExportParameters { get; set; }
+
+    SettingsViewModel Settings { get; }
+
+    ResourceCatalogViewModel RootCatalog { get; }
+
+    ResourceCatalogViewModel? SelectedCatalog { get; set; }
+
+    SortedDictionary<string, List<CatalogItemViewModel>>? CatalogItemsMap { get; }
+
+    List<CatalogItemViewModel>? CatalogItemsGroup { get; set; }
+
+    IReadOnlyList<(DateTime, Exception)> Errors { get; }
+
+    IReadOnlyDictionary<string, Dictionary<EditModeItem, string?>> EditModeCatalogMap { get; }
+
+    bool IsHamburgerMenuOpen { get; set; }
+
+    bool IsDemo { get; }
+
+    bool HasUnreadErrors { get; set; }
+
+    bool BeginAtZero { get; set; }
+
+    string? SearchString { get; set; }
+
+    ObservableCollection<JobViewModel> Jobs { get; set; }
+
+    event PropertyChangedEventHandler? PropertyChanged;
+
+    void AddEditModeCatalog(string catalogId);
+
+    void AddError(Exception error, ISnackbar? snackbar);
+
+    void AddJob(JobViewModel job);
+
+    void CancelJob(JobViewModel job);
+
+    void ClearRequestConfiguration();
+
+    Task SaveAndRemoveEditModeCatalogAsync(string catalogId, ISnackbar snackbar);
+
+    Task SelectCatalogAsync(string? catalogId);
+
+    void SetRequestConfiguration(JsonElement configuration);
+}
+
+public class AppState : INotifyPropertyChanged, IAppState
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private ResourceCatalogViewModel? _selectedCatalog;
+
     private ViewState _viewState = ViewState.Normal;
+
     private ExportParameters _exportParameters = default!;
+
     private readonly INexusClient _client;
+
     private readonly List<(DateTime, Exception)> _errors = [];
+
     private readonly Dictionary<string, Dictionary<EditModeItem, string?>> _editModeCatalogMap = [];
+
     private bool _beginAtZero;
+
     private string? _searchString;
+
     private const string GROUP_KEY = "groups";
+
     private readonly IJSInProcessRuntime _jsRuntime;
+
     private IDisposable? _requestConfiguration;
 
     public AppState(
         bool isDemo,
         INexusClient client,
-        IJSInProcessRuntime jsRuntime)
+        IJSInProcessRuntime jsRuntime
+    )
     {
         IsDemo = isDemo;
         _client = client;

@@ -9,15 +9,20 @@ namespace Nexus.UI.ViewModels;
 
 public class FakeResourceCatalogViewModel : ResourceCatalogViewModel
 {
-    public FakeResourceCatalogViewModel(CatalogInfo info, string parentId, INexusClient client, AppState appState, Task<IReadOnlyList<CatalogInfo>> childCatalogInfosTask)
-        : base(info, parentId, appState)
+    public FakeResourceCatalogViewModel(
+        CatalogInfo info,
+        string parentId,
+        INexusClient client,
+        IAppState appState,
+        Task<IReadOnlyList<CatalogInfo>> childCatalogInfosTask
+    ) : base(info, parentId, appState)
     {
         var id = Id;
 
         async Task<List<ResourceCatalogViewModel>> func()
         {
             var childCatalogInfo = await childCatalogInfosTask;
-            return PrepareChildCatalogs(childCatalogInfo, id, client, appState);
+            return Utilities.PrepareChildCatalogs(id, childCatalogInfo, client, appState);
         }
 
         ChildrenTask = new Lazy<Task<List<ResourceCatalogViewModel>>>(func);
