@@ -1,4 +1,5 @@
 ﻿@using System.Globalization
+
 <div
 class="mb-7 pt-3 pb-2 px-3 relative @(_hasFocus ? "border-b-2 border-orange-500" : "border-b border-white") hover:border-orange-500">
 
@@ -6,7 +7,7 @@ class="mb-7 pt-3 pb-2 px-3 relative @(_hasFocus ? "border-b-2 border-orange-500"
 
     @* Why onchange? With @bind-value there was an issue similar to this one
     https://github.com/dotnet/aspnetcore/issues/38471 *@
-    <input value="@GetDate()" @onchange="StoreDate" @onfocus="OnFocus" @onblur="OnBlur"
+    <input value="@GetDate()" @onchange="StoreDate" @onfocus="() => _hasFocus = true" @onblur="() => _hasFocus = false"
     class="w-full pt-2 focus:outline-none text-gray-200 placeholder-gray-400 bg-transparent" type="datetime-local"
     placeholder="@Label" step="1">
 
@@ -18,8 +19,6 @@ class="mb-7 pt-3 pb-2 px-3 relative @(_hasFocus ? "border-b-2 border-orange-500"
 @code {
 
     private bool _hasFocus;
-
-    private DateTime _tmp;
 
     [Parameter]
     public DateTime Value { get; set; }
@@ -53,29 +52,24 @@ class="mb-7 pt-3 pb-2 px-3 relative @(_hasFocus ? "border-b-2 border-orange-500"
             return Value.ToString("yyyy-MM-ddTHH:mm");
     }
 
-    private void OnFocus()
-    {
-        _hasFocus = true;
-        _tmp = Value;
-    }
-
-    private void OnBlur()
-    {
-        _hasFocus = false;
-        Value = _tmp;
-
-        if (ValueChanged.HasDelegate)
-            ValueChanged.InvokeAsync(Value);
-    }
-
     private void StoreDate(ChangeEventArgs e)
     {
         var rawValue = (string)e.Value!;
+        var hasChanged = false;
 
         if (rawValue.Length == 16)
-            _tmp = DateTime.ParseExact(rawValue, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture);
+        {
+            Value = DateTime.ParseExact(rawValue, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture);
+            hasChanged = true;
+        }
 
         else if (rawValue.Length == 19)
-            _tmp = DateTime.ParseExact(rawValue, "yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+        {
+            Value = DateTime.ParseExact(rawValue, "yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+            hasChanged = true;
+        }
+
+        if (hasChanged && ValueChanged.HasDelegate)
+            ValueChanged.InvokeAsync(Value);
     }
 }

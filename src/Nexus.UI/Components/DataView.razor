@@ -15,20 +15,30 @@
 }
 else
 {
-    @if (_lineSeriesData is null)
+    if (_lineSeriesData is null)
     {
         <div class="h-full flex justify-center items-center mx-auto">
             <MudProgressCircular 
-                Color="Color.Primary"
-                Value="_progress"
-                Max="1" />
+            Color="Color.Primary"
+            Value="_progress"
+            Max="1" />
             <span class="ml-3 text-gray-400">Loading data ...</span>
         </div>
     }
+
     else
     {
-        <div class="h-full p-5">
+        <div class="h-full p-5 relative">
             <Chart LineSeriesData="_lineSeriesData" BeginAtZero="AppState.BeginAtZero" />
+
+            <MudOverlay Visible="_showReloadButton" DarkBackground AutoClose Absolute>
+                <MudButton 
+                Variant="Variant.Filled"
+                Color="Color.Secondary"
+                OnClick="LoadDataAsync">
+                    Reload
+                </MudButton>
+            </MudOverlay>
         </div>
     }
 }
@@ -36,10 +46,17 @@ else
 @code {
 
     private PropertyChangedEventHandler _handler;
+
     private bool _sizeLimitExceeded;
+
     private bool _isLoading;
+
     private double _progress;
+
+    private bool _showReloadButton;
+
     private LineSeriesData? _lineSeriesData;
+
     private CancellationTokenSource? _cts;
 
     public DataView()
@@ -47,10 +64,19 @@ else
         _handler = (sender, e) =>
         {
             if (e.PropertyName == nameof(AppState.BeginAtZero))
+            {
                 StateHasChanged();
+            }
 
-            else if (e.PropertyName == nameof(AppState.Settings.CanVisualize) && AppState.Settings.CanVisualize)
-                _ = LoadDataAsync();
+            else if (e.PropertyName == nameof(AppState.Settings.CanVisualize))
+            {
+                var byteCount = AppState.Settings.GetTotalByteCount();
+
+                _sizeLimitExceeded = byteCount > 20 * 1000 * 1000;
+                _showReloadButton = !_sizeLimitExceeded && AppState.Settings.CanVisualize;
+
+                StateHasChanged();
+            }
         };
     }
 
@@ -64,17 +90,11 @@ else
 
     private async Task LoadDataAsync()
     {
+        _showReloadButton = false;
+
         var receivedBytes = 0L;
         var byteCount = AppState.Settings.GetTotalByteCount();
 
-        if (byteCount > 20 * 1000 * 1000)
-        {
-            _sizeLimitExceeded = true;
-            StateHasChanged();
-            return;
-        }
-
-        _sizeLimitExceeded = false;
         _progress = 0;
         _lineSeriesData = null;
         _isLoading = true;
@@ -207,6 +227,7 @@ else
         where TTo : struct
     {
         private readonly TFrom[] _from;
+
         private GCHandle _gcHandle;
 
         public CastMemoryManager(TFrom[] from) => _from = from;
@@ -243,7 +264,3 @@ else
         AppState.Settings.PropertyChanged -= _handler;
     }
 }
-
-
-
-
