@@ -52,7 +52,7 @@
                 "pipeProgram": "ssh",
                 "pipeArgs": [
                     "-T",
-                    "app@ensyno.iwes.fraunhofer.de",
+                    "app@<container host>",
                     "-p",
                     "2222"
                 ], // replace <container host>
