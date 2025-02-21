@@ -1343,6 +1343,28 @@
         }
       }
     },
+    "/api/v1/users/reauthenticate": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Allows the user to reauthenticate in case of modified claims.",
+        "operationId": "Users_ReAuthenticate",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/tokens/create": {
       "post": {
         "tags": [

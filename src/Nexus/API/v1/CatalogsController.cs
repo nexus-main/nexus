@@ -30,7 +30,8 @@ namespace Nexus.Controllers.V1;
 internal class CatalogsController(
     AppState appState,
     IDatabaseService databaseService,
-    IDataControllerService dataControllerService) : ControllerBase
+    IDataControllerService dataControllerService
+) : ControllerBase
 {
     // POST     /api/catalogs/search-items
     // GET      /api/catalogs/{catalogId}

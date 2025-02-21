@@ -719,6 +719,17 @@ class UsersClient:
 
         return self.___invoke(MeResponse, "GET", __url, "application/json", None, None)
 
+    def re_authenticate(self) -> Response:
+        """
+        Allows the user to reauthenticate in case of modified claims.
+
+        Args:
+        """
+
+        __url = "/api/v1/users/reauthenticate"
+
+        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
+
     def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> str:
         """
         Creates a personal access token.
@@ -1582,6 +1593,17 @@ class UsersAsyncClient:
         __url = "/api/v1/users/me"
 
         return self.___invoke(MeResponse, "GET", __url, "application/json", None, None)
+
+    def re_authenticate(self) -> Awaitable[Response]:
+        """
+        Allows the user to reauthenticate in case of modified claims.
+
+        Args:
+        """
+
+        __url = "/api/v1/users/reauthenticate"
+
+        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
     def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> Awaitable[str]:
         """

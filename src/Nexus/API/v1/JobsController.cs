@@ -48,7 +48,7 @@ internal class JobsController(
     [HttpGet]
     public ActionResult<List<Job>> GetJobs()
     {
-        var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
+        var isAdmin = User.IsInRole(NexusRoles.Administrator.ToString());
         var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
         var result = _jobService
             .GetJobs()
@@ -69,7 +69,7 @@ internal class JobsController(
     {
         if (_jobService.TryGetJob(jobId, out var jobControl))
         {
-            var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
+            var isAdmin = User.IsInRole(NexusRoles.Administrator.ToString());
             var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
             if (jobControl.Job.Owner == username || isAdmin)
             {
@@ -99,7 +99,7 @@ internal class JobsController(
     {
         if (_jobService.TryGetJob(jobId, out var jobControl))
         {
-            var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
+            var isAdmin = User.IsInRole(NexusRoles.Administrator.ToString());
             var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
 
             if (jobControl.Job.Owner == username || isAdmin)

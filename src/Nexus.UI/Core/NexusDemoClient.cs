@@ -493,6 +493,16 @@ public class UsersDemoClient : IUsersClient
         throw new NotImplementedException();
     }
 
+    public HttpResponseMessage ReAuthenticate()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
     public void SignOut(string returnUrl)
     {
         throw new NotImplementedException();

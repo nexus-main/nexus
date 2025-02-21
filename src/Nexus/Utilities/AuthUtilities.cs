@@ -35,8 +35,8 @@ internal static class AuthUtilities
             catalogMetadata,
             owner,
             user,
-            singleClaimType: NexusClaims.CAN_READ_CATALOG,
-            groupClaimType: NexusClaims.CAN_READ_CATALOG_GROUP,
+            singleClaimType: NexusClaims.CanReadCatalog.ToString(),
+            groupClaimType: NexusClaims.CanReadCatalogGroup.ToString(),
             checkImplicitAccess: true
         );
     }
@@ -51,8 +51,8 @@ internal static class AuthUtilities
             catalogMetadata,
             owner: default,
             user,
-            singleClaimType: NexusClaims.CAN_WRITE_CATALOG,
-            groupClaimType: NexusClaims.CAN_WRITE_CATALOG_GROUP,
+            singleClaimType: NexusClaims.CanWriteCatalog.ToString(),
+            groupClaimType: NexusClaims.CanWriteCatalogGroup.ToString(),
             checkImplicitAccess: false
         );
     }
@@ -87,8 +87,8 @@ internal static class AuthUtilities
             if (identity.AuthenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme)
             {
                 var isAdmin = identity.HasClaim(
-                    NexusClaims.ToPatUserClaimType(Claims.Role),
-                    NexusRoles.ADMINISTRATOR);
+                    NexusClaimsHelper.ToPatUserClaimType(Claims.Role),
+                    NexusRoles.Administrator.ToString());
 
                 if (isAdmin)
                     return true;
@@ -110,8 +110,8 @@ internal static class AuthUtilities
                         catalogMetadata,
                         owner,
                         identity,
-                        NexusClaims.ToPatUserClaimType(singleClaimType),
-                        NexusClaims.ToPatUserClaimType(groupClaimType));
+                        NexusClaimsHelper.ToPatUserClaimType(singleClaimType),
+                        NexusClaimsHelper.ToPatUserClaimType(groupClaimType));
                 }
             }
 
@@ -120,7 +120,7 @@ internal static class AuthUtilities
             {
                 var isAdmin = identity.HasClaim(
                     Claims.Role,
-                    NexusRoles.ADMINISTRATOR);
+                    NexusRoles.Administrator.ToString());
 
                 if (isAdmin)
                     return true;

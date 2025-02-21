@@ -53,15 +53,15 @@ internal class PersonalAccessTokenAuthHandler(
                         return AuthenticateResult.NoResult();
 
                     var userClaims = user.Claims
-                        .Select(claim => new Claim(NexusClaims.ToPatUserClaimType(claim.Type), claim.Value));
+                        .Select(claim => new Claim(NexusClaimsHelper.ToPatUserClaimType(claim.Type), claim.Value));
 
                     var tokenClaimsRead = token.Claims
-                        .Where(claim => claim.Type == NexusClaims.CAN_READ_CATALOG)
-                        .Select(claim => new Claim(NexusClaims.CAN_READ_CATALOG, claim.Value));
+                        .Where(claim => claim.Type == NexusClaims.CanReadCatalog.ToString())
+                        .Select(claim => new Claim(NexusClaims.CanReadCatalog.ToString(), claim.Value));
 
                     var tokenClaimsWrite = token.Claims
-                        .Where(claim => claim.Type == NexusClaims.CAN_WRITE_CATALOG)
-                        .Select(claim => new Claim(NexusClaims.CAN_WRITE_CATALOG, claim.Value));
+                        .Where(claim => claim.Type == NexusClaims.CanWriteCatalog.ToString())
+                        .Select(claim => new Claim(NexusClaims.CanWriteCatalog.ToString(), claim.Value));
 
                     var tokenClaimsRole = token.Claims
                         .Where(tokenClaim =>
@@ -72,7 +72,7 @@ internal class PersonalAccessTokenAuthHandler(
                     var claims = Enumerable.Empty<Claim>()
                         .Append(new Claim(Claims.Subject, userId))
                         .Append(new Claim(Claims.Name, user.Name))
-                        .Append(new Claim(Claims.Role, NexusRoles.USER))
+                        .Append(new Claim(Claims.Role, NexusRoles.User.ToString()))
                         .Concat(userClaims)
                         .Concat(tokenClaimsRead)
                         .Concat(tokenClaimsWrite)

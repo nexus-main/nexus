@@ -26,6 +26,7 @@ MaxWidth="MaxWidth.Medium">
     </TitleContent>
 
     <DialogContent>
+
         <MudTabs 
         Class="min-h-[20rem]"
         Outlined="true" 
@@ -35,6 +36,21 @@ MaxWidth="MaxWidth.Medium">
         ApplyEffectsToContainer="true" PanelClass="pa-6">
 
             <MudTabPanel Text="General" Icon="@Icons.Material.Filled.SettingsEthernet">
+
+                <div class="text-cyan-700 border-b my-3 text-lg">Permissions</div>
+
+                <div>
+                    <MudText>Click on this button to update your permissions.</MudText>
+                    <form action="/api/v1/users/reauthenticate" class="flex justify-center">
+                        <MudButton 
+                            ButtonType="ButtonType.Submit"
+                            Color="Color.Primary"
+                            StartIcon="@Icons.Material.Filled.Refresh"
+                            Variant="Variant.Text">
+                            Update
+                        </MudButton>
+                    </form>
+                </div>
 
                 <div class="text-cyan-700 border-b my-3 text-lg">Hide catalogs</div>
 

@@ -41,22 +41,22 @@ public class UtilitiesTests
         var isPAT = authenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme;
 
         var roleClaimType = isPAT
-            ? NexusClaims.ToPatUserClaimType(Claims.Role)
+            ? NexusClaimsHelper.ToPatUserClaimType(Claims.Role)
             : Claims.Role;
 
         var catalogId = "/A/B/C";
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(roleClaimType, NexusRoles.ADMINISTRATOR)]
+            ? [new Claim(roleClaimType, NexusRoles.Administrator.ToString())]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
                 claims: adminClaim
-                    .Concat(canReadCatalog.Select(value => new Claim(NexusClaims.CAN_READ_CATALOG, value)))
-                    .Concat(canReadCatalogGroup.Select(value => new Claim(NexusClaims.CAN_READ_CATALOG_GROUP, value)))
-                    .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaims.ToPatUserClaimType(NexusClaims.CAN_READ_CATALOG), value))),
+                    .Concat(canReadCatalog.Select(value => new Claim(NexusClaims.CanReadCatalog.ToString(), value)))
+                    .Concat(canReadCatalogGroup.Select(value => new Claim(NexusClaims.CanReadCatalogGroup.ToString(), value)))
+                    .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(NexusClaims.CanReadCatalog.ToString()), value))),
                 authenticationType,
                 nameType: Claims.Name,
                 roleType: Claims.Role));
@@ -95,22 +95,22 @@ public class UtilitiesTests
         var isPAT = authenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme;
 
         var roleClaimType = isPAT
-            ? NexusClaims.ToPatUserClaimType(Claims.Role)
+            ? NexusClaimsHelper.ToPatUserClaimType(Claims.Role)
             : Claims.Role;
 
         var catalogId = "/A/B/C";
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(roleClaimType, NexusRoles.ADMINISTRATOR)]
+            ? [new Claim(roleClaimType, NexusRoles.Administrator.ToString())]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
                 claims: adminClaim
-                    .Concat(canWriteCatalog.Select(value => new Claim(NexusClaims.CAN_WRITE_CATALOG, value)))
-                    .Concat(canWriteCatalogGroup.Select(value => new Claim(NexusClaims.CAN_WRITE_CATALOG_GROUP, value)))
-                    .Concat(patUserCanWriteCatalog.Select(value => new Claim(NexusClaims.ToPatUserClaimType(NexusClaims.CAN_WRITE_CATALOG), value))),
+                    .Concat(canWriteCatalog.Select(value => new Claim(NexusClaims.CanWriteCatalog.ToString(), value)))
+                    .Concat(canWriteCatalogGroup.Select(value => new Claim(NexusClaims.CanWriteCatalogGroup.ToString(), value)))
+                    .Concat(patUserCanWriteCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(NexusClaims.CanWriteCatalog.ToString()), value))),
                 authenticationType,
                 nameType: Claims.Name,
                 roleType: Claims.Role));

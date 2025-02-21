@@ -2374,6 +2374,17 @@ public interface IUsersClient
     Task<MeResponse> GetMeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Allows the user to reauthenticate in case of modified claims.
+    /// </summary>
+    HttpResponseMessage ReAuthenticate();
+
+    /// <summary>
+    /// Allows the user to reauthenticate in case of modified claims.
+    /// </summary>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Creates a personal access token.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
@@ -2641,6 +2652,26 @@ public class UsersClient : IUsersClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<MeResponse>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public HttpResponseMessage ReAuthenticate()
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/users/reauthenticate");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/users/reauthenticate");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default, cancellationToken);
     }
 
     /// <inheritdoc />

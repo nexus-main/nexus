@@ -175,7 +175,7 @@ internal class SourcesController(
         out string userId,
         [NotNullWhen(returnValue: false)] out ActionResult? response)
     {
-        var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
+        var isAdmin = User.IsInRole(NexusRoles.Administrator.ToString());
         var currentId = User.FindFirstValue(Claims.Subject) ?? throw new Exception("The sub claim is null.");
 
         if (isAdmin || requestedId is null || requestedId == currentId)
