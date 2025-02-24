@@ -5,11 +5,11 @@ using Nexus.UI.Charts;
 
 namespace Nexus.UI.Pages;
 
-public partial class ChartTest
+public partial class ChartTestPage
 {
     private readonly LineSeriesData _lineSeriesData;
 
-    public ChartTest()
+    public ChartTestPage()
     {
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2020, 01, 01, 0, 1, 0, DateTimeKind.Utc);
