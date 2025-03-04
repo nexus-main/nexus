@@ -1,0 +1,133 @@
+@page "/settings"
+@page "/settings/{Page:int}"
+
+@using System.Security.Claims
+
+@inject INexusClient Client
+@inject NavigationManager NavigationManager
+@inject AppState AppState
+@inject ISnackbar Snackbar
+
+<MudTabs 
+    Class="h-full"
+    PanelClass="pa-6"
+    @bind-ActivePanelIndex="Page"
+    @bind-ActivePanelIndex:after="@(() => NavigationManager.NavigateTo($"/settings/{Page}"))">
+
+    <MudTabPanel Text="Database" Icon="@Icons.Material.Filled.Storage">
+        <div class="text-sm mb-3">Here you can refresh the database which causes all extensions to be reloaded and the root resource catalog to be reset.</div>
+
+        <div class="flex w-100 justify-center">
+
+            @if (_isRefreshingDatabase)
+            {
+                <div class="group flex items-center mx-auto">
+                    <div class="group-hover:hidden">
+                        <MudProgressCircular 
+                        Color="Color.Primary"
+                        Value="_refreshDatabaseProgress"
+                        Max="1" />
+                    </div>
+                    <span class="p-2 hidden group-hover:inline text-xl mr-1 mdi mdi-close hover:text-orange-500 cursor-pointer"
+                    @onclick="() => _cts?.Cancel()">
+                    </span>
+                    <span class="ml-2 text-sm">Refreshing ...</span>
+                </div>
+            }
+
+            <div class="@(_isRefreshingDatabase ? "hidden" : "")">
+                <MudButton 
+                OnClick="RefreshDatabaseAsync"
+                Color="Color.Primary"
+                StartIcon="@Icons.Material.Outlined.Refresh">
+                    Refresh Database
+                </MudButton>
+            </div>
+
+        </div>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Pipelines" Icon="@Icons.Material.Filled.StackedLineChart">
+        <SystemSettings_Pipelines />
+    </MudTabPanel>
+
+    @if (IsAdmin(_authenticationState.User))
+    {
+        <MudTabPanel Text="Packages" Icon="@Icons.Material.Outlined.Inbox">
+            <SystemSettings_Packages />
+        </MudTabPanel>
+    }
+
+</MudTabs>
+
+@code {
+
+    private CancellationTokenSource? _cts;
+
+    private double _refreshDatabaseProgress;
+    
+    private bool _isRefreshingDatabase;
+
+    private AuthenticationState _authenticationState = default!;
+
+    [CascadingParameter]
+    public Task<AuthenticationState> GetAuthenticationStateTask { get; set; } = default!;
+
+    [Parameter]
+    public int Page { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _authenticationState = await GetAuthenticationStateTask;
+    }
+
+    private bool IsAdmin(ClaimsPrincipal user)
+    {
+        return user
+            .IsInRole("Administrator");
+    }
+
+    private async Task RefreshDatabaseAsync()
+    {
+        var cts = new CancellationTokenSource();
+
+        _cts = cts;
+        _refreshDatabaseProgress = 0;
+        _isRefreshingDatabase = true;
+
+        StateHasChanged();
+
+        try
+        {
+            cts.Token.ThrowIfCancellationRequested();
+
+            var job = await Client.V1.Jobs.RefreshDatabaseAsync(_cts.Token);
+
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+
+                cts.Token.ThrowIfCancellationRequested();
+
+                var status = await Client.V1.Jobs.GetJobStatusAsync(job.Id, _cts.Token);
+                _refreshDatabaseProgress = status.Progress;
+
+                if (status.ExceptionMessage is not null)
+                    throw new Exception("stauts:"  + status.ExceptionMessage);
+
+                if (status.Status >= Api.V1.TaskStatus.RanToCompletion)
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            cts.Cancel();
+            AppState.AddError(ex, Snackbar);
+        }
+        finally
+        {
+            _isRefreshingDatabase = false;
+            StateHasChanged();
+        }
+    }
+}

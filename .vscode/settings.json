@@ -5,6 +5,9 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "editor.formatOnSave": true,
+    "[razor]": {
+        "editor.formatOnSave": false
+    },
     "[aspnetcorerazor]": {
         "editor.formatOnSave": false
     }

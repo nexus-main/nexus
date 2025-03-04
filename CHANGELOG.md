@@ -1,3 +1,6 @@
+## v2.0.0-beta.51 - 2025-03-04
+- UI improvements
+
 ## v2.0.0-beta.50 - 2025-02-04
 - Add missing self paramter in IUpgradableDataSource
 

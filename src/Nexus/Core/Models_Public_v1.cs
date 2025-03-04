@@ -83,7 +83,8 @@ public record PersonalAccessToken(
 /// <param name="Value">The claim value.</param>
 public record TokenClaim(
     string Type,
-    string Value);
+    string Value
+);
 
 /// <summary>
 /// Describes an OpenID connect provider.
@@ -92,7 +93,8 @@ public record TokenClaim(
 /// <param name="DisplayName">The display name.</param>
 public record AuthenticationSchemeDescription(
     string Scheme,
-    string DisplayName);
+    string DisplayName
+);
 
 /// <summary>
 /// A structure for export parameters.
@@ -109,7 +111,8 @@ public record ExportParameters(
     TimeSpan FilePeriod,
     string? Type,
     string[] ResourcePaths,
-    IReadOnlyDictionary<string, JsonElement>? Configuration);
+    IReadOnlyDictionary<string, JsonElement>? Configuration
+);
 
 /// <summary>
 /// An extension description.
@@ -126,7 +129,8 @@ public record ExtensionDescription(
     string? Description,
     string? ProjectUrl,
     string? RepositoryUrl,
-    IReadOnlyDictionary<string, JsonElement>? AdditionalInformation);
+    IReadOnlyDictionary<string, JsonElement> AdditionalInformation
+);
 
 /// <summary>
 /// A structure for catalog information.
@@ -155,7 +159,8 @@ public record CatalogInfo(
     bool IsVisible,
     bool IsOwner,
     Guid[] PackageReferenceIds,
-    PipelineInfo PipelineInfo);
+    PipelineInfo PipelineInfo
+);
 
 /// <summary>
 /// A structure for pipeline information.
@@ -166,7 +171,8 @@ public record CatalogInfo(
 public record PipelineInfo(
     Guid Id,
     string[] Types,
-    string?[] InfoUrls);
+    string?[] InfoUrls
+);
 
 /// <summary>
 /// A structure for catalog metadata.
@@ -177,14 +183,16 @@ public record PipelineInfo(
 public record CatalogMetadata(
     string? Contact,
     string[]? GroupMemberships,
-    ResourceCatalog? Overrides);
+    ResourceCatalog? Overrides
+);
 
 /// <summary>
 /// The catalog availability.
 /// </summary>
 /// <param name="Data">The actual availability data.</param>
 public record CatalogAvailability(
-    double[] Data);
+    double[] Data
+);
 
 /// <summary>
 /// A data source pipeline.
@@ -195,7 +203,8 @@ public record CatalogAvailability(
 public record DataSourcePipeline(
     IReadOnlyList<DataSourceRegistration> Registrations,
     string? ReleasePattern = default,
-    string? VisibilityPattern = default);
+    string? VisibilityPattern = default
+);
 
 /// <summary>
 /// A data source registration.
@@ -208,7 +217,8 @@ public record DataSourceRegistration(
     string Type,
     Uri? ResourceLocator,
     JsonElement Configuration,
-    string? InfoUrl = default);
+    string? InfoUrl = default
+);
 
 /// <summary>
 /// Description of a job.
@@ -221,7 +231,8 @@ public record Job(
     Guid Id,
     string Type,
     string Owner,
-    object? Parameters);
+    object? Parameters
+);
 
 /// <summary>
 /// Describes the status of the job.
@@ -236,7 +247,8 @@ public record JobStatus(
     TaskStatus Status,
     double Progress,
     string? ExceptionMessage,
-    object? Result);
+    object? Result
+);
 
 /// <summary>
 /// A me response.
@@ -249,4 +261,5 @@ public record MeResponse(
     string UserId,
     NexusUser User,
     bool IsAdmin,
-    IReadOnlyDictionary<Guid, PersonalAccessToken> PersonalAccessTokens);
+    IReadOnlyDictionary<Guid, PersonalAccessToken> PersonalAccessTokens
+);

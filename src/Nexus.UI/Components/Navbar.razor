@@ -1,5 +1,6 @@
-﻿@inject INexusClient Client;
-@inject AppState AppState;
+﻿@inject AppState AppState;
+@inject INexusClient Client;
+@inject NavigationManager NavigationManager
 
 @using System.Security.Claims
 
@@ -13,17 +14,34 @@
         <ErrorsView />
         @if (!AppState.IsDemo)
         {
-            <a class="text-sm font-semibold px-3 py-0.5 rounded text-cyan-700 hover:text-orange-500" href="api" target="_blank">
-                API
-            </a>
+            <MudTooltip Text="API">
+                <MudIconButton
+                    Href="api"
+                    Target="_blank"
+                    Icon="@Icons.Material.Filled.Api" />
+            </MudTooltip>
+
             @if (_authenticationState is not null)
             {
-                @if (IsAdmin(_authenticationState.User))
-                {
-                    <span class="mx-3 text-xs font-semibold px-2.5 py-0.5 rounded bg-orange-500 text-gray-100">
-                        admin
-                    </span>
-                }
+                <MudTooltip Text="Settings">
+
+                    @if (NavigationManager.ToBaseRelativePath(NavigationManager.Uri) == "settings")
+                    {
+                        <MudIconButton
+                            Color="Color.Secondary"
+                            Href="/"
+                            Icon="@Icons.Material.Filled.Settings" />
+                    }
+
+                    else
+                    {
+                        <MudIconButton 
+                            Href="settings"
+                            Icon="@Icons.Material.Filled.Settings" />
+                    }
+
+                </MudTooltip>
+
                 <UserSettingsView />
             }
         }

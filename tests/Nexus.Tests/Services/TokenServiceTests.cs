@@ -42,7 +42,7 @@ public class TokenServiceTests
 
         // Assert
         var jsonString = File.ReadAllText(filePath);
-        var actualTokenMap = JsonSerializer.Deserialize<Dictionary<string, InternalPersonalAccessToken>>(jsonString)!;
+        var actualTokenMap = JsonSerializer.Deserialize<Dictionary<string, InternalPersonalAccessToken>>(jsonString, JsonSerializerOptions.Web)!;
 
         var entry1 = Assert.Single(actualTokenMap);
         Assert.Equal(description, entry1.Value.Description);

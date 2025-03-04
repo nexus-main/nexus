@@ -25,7 +25,7 @@ internal static class DataSourceControllerExtensions
         // Otherwise the PipeReader.AsStream() would be sufficient.
 
         var samplePeriod = request.Item.Representation.SamplePeriod;
-        var elementCount = ExtensibilityUtilities.CalculateElementCount(begin, end, samplePeriod);
+        var elementCount = ExtensibilityUtilities.CalculateElementCountLong(begin, end, samplePeriod);
         var totalLength = elementCount * NexusUtilities.SizeOf(NexusDataType.FLOAT64);
         var pipe = new Pipe();
         var stream = new DataSourceDoubleStream(totalLength, pipe.Reader);

@@ -3,8 +3,9 @@
 
 namespace Nexus.Core;
 
-internal static class NexusRoles
+internal enum NexusRoles
 {
-    public const string ADMINISTRATOR = "Administrator";
-    public const string USER = "User";
+    Administrator,
+
+    User
 }

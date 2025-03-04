@@ -107,11 +107,13 @@
 
     private async Task DeleteAttachmentAsync(string attachment)
     {
-        bool? result = await DialogService.ShowMessageBox(
+        var result = await DialogService.ShowMessageBox(
             "Warning",
             "Do you really want to delete the selected attachment?",
-            yesText:"Delete!", cancelText:"Cancel");
-        bool deleteConfirmed = result == null ? false : true;
+            yesText: "Delete", cancelText: "Cancel"
+        );
+
+        var deleteConfirmed = result == null ? false : true;
 
         try
         {

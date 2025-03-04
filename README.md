@@ -69,6 +69,18 @@ The following Jupyter Notebooks export the data into a `.csv` file, downloads it
 
 - [This script](https://github.com/nexus-main/nexus/blob/dev/samples/matlab/sample_export.m) exports the data into a `.csv` file, downloads it as `.zip` file including the license (if available) and extracts the data to your local disk
 
+# Develop
+
+```bash
+git clone https://github.com/nexus-main/nexus
+cd nexus
+(cd src/Nexus && libman restore)
+dotnet workload restore
+dotnet run --project src/Nexus/Nexus.csproj
+```
+
+In a browser, navigate to http://localhost:5000.
+
 ___________
 
 > [!Note]

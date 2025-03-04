@@ -493,6 +493,16 @@ public class UsersDemoClient : IUsersClient
         throw new NotImplementedException();
     }
 
+    public HttpResponseMessage ReAuthenticate()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
     public void SignOut(string returnUrl)
     {
         throw new NotImplementedException();
@@ -539,7 +549,7 @@ public class WritersDemoClient : IWritersClient
 
     public Task<IReadOnlyList<ExtensionDescription>> GetDescriptionsAsync(CancellationToken cancellationToken = default)
     {
-        var additionalInformation = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(DESCRIPTION);
+        var additionalInformation = JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(DESCRIPTION, JsonSerializerOptions.Web)!;
 
         var description = new ExtensionDescription(
             Type: "Nexus.Writers.Csv",

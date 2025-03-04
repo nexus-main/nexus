@@ -11,9 +11,9 @@ public abstract class ResourceCatalogViewModel
 {
     public const string ROOT_CATALOG_ID = "/";
 
-    private readonly AppState _appState;
+    private readonly IAppState _appState;
 
-    public ResourceCatalogViewModel(CatalogInfo info, string parentId, AppState appState)
+    public ResourceCatalogViewModel(CatalogInfo info, string parentId, IAppState appState)
     {
         Info = info;
         Id = info.Id;
@@ -33,9 +33,10 @@ public abstract class ResourceCatalogViewModel
     public bool IsOpen { get; set; }
 
     public ResourceCatalog? Catalog { get; private set; }
+
     public List<ResourceCatalogViewModel>? Children { get; private set; }
 
-    protected Lazy<Task<List<ResourceCatalogViewModel>>> ChildrenTask { get; set; } = default!;
+    internal Lazy<Task<List<ResourceCatalogViewModel>>> ChildrenTask { get; set; } = default!;
 
     public Lazy<Task<ResourceCatalog>> CatalogTask { get; protected set; } = default!;
 

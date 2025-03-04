@@ -104,7 +104,7 @@ public class CatalogManagerTests
         var userAClaims = new List<NexusClaim>
         {
             new(Guid.NewGuid(), Claims.Name, usernameA),
-            new(Guid.NewGuid(), Claims.Role, NexusRoles.ADMINISTRATOR)
+            new(Guid.NewGuid(), Claims.Role, NexusRoles.Administrator.ToString())
         };
 
         var userA = new NexusUser(

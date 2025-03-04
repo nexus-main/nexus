@@ -47,7 +47,7 @@ internal class UpgradeConfigurationService(
                     {
                         var dataSourceType = _extensionHive.GetExtensionType(dataSourceTypeName);
 
-                        if (!dataSourceType.IsAssignableTo(dataSourceType))
+                        if (!dataSourceType.IsAssignableTo(typeof(IUpgradableDataSource)))
                             continue;
 
                         /* Upgrade */

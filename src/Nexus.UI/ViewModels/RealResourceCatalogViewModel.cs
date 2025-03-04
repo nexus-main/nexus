@@ -11,19 +11,20 @@ public class RealResourceCatalogViewModel : ResourceCatalogViewModel
 {
     private readonly INexusClient _client;
 
-    public RealResourceCatalogViewModel(CatalogInfo info, string parentId, INexusClient client, AppState appState)
-        : base(info, parentId, appState)
+    public RealResourceCatalogViewModel(
+        CatalogInfo info,
+        string parentId,
+        List<string?>? hideCatalogPatterns,
+        INexusClient client,
+        IAppState appState
+    ) : base(info, parentId, appState)
     {
         _client = client;
 
         async Task<List<ResourceCatalogViewModel>> func()
         {
             var childCatalogInfos = await client.V1.Catalogs.GetChildCatalogInfosAsync(Id, CancellationToken.None);
-
-            return childCatalogInfos
-                .Where(childInfo => (childInfo.IsReleased && childInfo.IsVisible) || childInfo.IsOwner)
-                .Select(childInfo => (ResourceCatalogViewModel)new RealResourceCatalogViewModel(childInfo, Id, client, appState))
-                .ToList();
+            return Utilities.PrepareChildCatalogs(info.Id, hideCatalogPatterns, childCatalogInfos, client, appState);
         }
 
         ChildrenTask = new Lazy<Task<List<ResourceCatalogViewModel>>>(func);

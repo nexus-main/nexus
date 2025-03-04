@@ -8,14 +8,16 @@
 @inject IJSInProcessRuntime JSRuntime
 @inject NavigationManager NavigationManager
 
-<div class="mx-3 w-9 h-9 flex justify-center items-center rounded-full text-white bg-cyan-900 hover:bg-cyan-700 cursor-pointer select-none"
-    @onclick="ShowUserSettingsDialog">
+<div class="
+    mx-3 w-9 h-9 flex justify-center items-center rounded-full text-white bg-cyan-900 hover:bg-cyan-700 cursor-pointer select-none
+    @(IsAdmin(_authenticationState.User) ? "border-2 border-orange-500" : "")"
+@onclick="ShowUserSettingsDialog">
     @GetInitials(_authenticationState.User.Identity!.Name!)
 </div>
 
 <UIDialog 
-    @bind-Visible="_showUserSettingsDialog" 
-    MaxWidth="MaxWidth.Medium">
+@bind-Visible="_showUserSettingsDialog" 
+MaxWidth="MaxWidth.Medium">
 
     <TitleContent>
         <MudText Typo="Typo.h6">
@@ -24,45 +26,93 @@
     </TitleContent>
 
     <DialogContent>
+
         <MudTabs 
-            Class="min-h-[20rem]"
-            Outlined="true" 
-            Position="MudBlazor.Position.Top" 
-            Rounded="true" 
-            Border="true"
-            ApplyEffectsToContainer="true" PanelClass="pa-6">
+        Class="min-h-[20rem]"
+        Outlined="true" 
+        Position="MudBlazor.Position.Top" 
+        Rounded="true" 
+        Border="true"
+        ApplyEffectsToContainer="true" PanelClass="pa-6">
 
-            <MudTabPanel Text="Database" Icon="@Icons.Material.Filled.Storage">
-                <div class="text-sm mb-3">Here you can refresh the database which causes all extensions to be reloaded and the root resource catalog to be reset.</div>
+            <MudTabPanel Text="General" Icon="@Icons.Material.Filled.SettingsEthernet">
 
-                <div class="flex w-100 justify-center">
+                <div class="text-cyan-700 border-b my-3 text-lg">Permissions</div>
 
-                    @if (_isRefreshingDatabase)
-                    {
-                        <div class="group flex items-center mx-auto">
-                            <div class="group-hover:hidden">
-                                <MudProgressCircular 
-                                    Color="Color.Primary"
-                                    Value="_refreshDatabaseProgress"
-                                    Max="1" />
-                            </div>
-                            <span class="p-2 hidden group-hover:inline text-xl mr-1 mdi mdi-close hover:text-orange-500 cursor-pointer"
-                                @onclick="() => _cts?.Cancel()">
-                            </span>
-                            <span class="ml-2 text-sm">Refreshing ...</span>
-                        </div>
-                    }
-                
-                    <div class="@(_isRefreshingDatabase ? "hidden" : "")">
+                <div>
+                    <MudText>Click on this button to update your permissions.</MudText>
+                    <form action="/api/v1/users/reauthenticate" class="flex justify-center">
                         <MudButton 
-                            OnClick="RefreshDatabaseAsync"
+                            ButtonType="ButtonType.Submit"
                             Color="Color.Primary"
-                            StartIcon="@Icons.Material.Outlined.Refresh">
-                            Refresh Database
+                            StartIcon="@Icons.Material.Filled.Refresh"
+                            Variant="Variant.Text">
+                            Update
                         </MudButton>
-                    </div>
+                    </form>
+                </div>
+
+                <div class="text-cyan-700 border-b my-3 text-lg">Hide catalogs</div>
+
+                <div class="flex flex-col gap-5">
+
+                    @if (AppState.UISettings.CatalogHidePatterns is not null)
+                    {
+                        <div class="flex flex-col gap-2">
+
+                            @for (int i = 0; i < AppState.UISettings.CatalogHidePatterns.Count; i++)
+                            {
+                                var local = i;
+
+                                <div class="flex items-end gap-3">
+                                    <MudTextField
+                                        Class="flex-1"
+                                        T="string" 
+                                        Variant="Variant.Text"
+                                        Placeholder="^/MY/CATALOG/PATH"
+                                        @bind-Value:get="AppState.UISettings.CatalogHidePatterns[local]"
+                                        @bind-Value:set="value =>
+                                        {
+                                            AppState.UISettings.CatalogHidePatterns[local] = value;
+                                            SaveUISettings();
+                                        }" />
+
+                                    <div>
+                                        <MudIconButton 
+                                            Icon="@Icons.Material.Filled.Delete"
+                                            Size="Size.Medium"
+                                            OnClick="() => 
+                                            {
+                                                AppState.UISettings.CatalogHidePatterns.RemoveAt(local);
+                                                SaveUISettings();
+                                            }" />
+                                    </div>
+                                </div>
+                            }
+
+                            <MudText Typo="Typo.caption">
+                                The catalog(s) you want to hide (regex pattern; reload page to apply changes)
+                            </MudText>
+
+                        </div>
+
+                        <div class="flex justify-center">
+                            <MudIconButton
+                                OnClick="() => 
+                                {
+                                    AppState.UISettings.CatalogHidePatterns.Add(default);
+                                    SaveUISettings();
+                                }"
+                                Color="Color.Primary"
+                                Icon="@Icons.Material.Outlined.Add">
+                                Add
+                            </MudIconButton>
+                        </div>
+
+                    }
 
                 </div>
+
             </MudTabPanel>
 
             <MudTabPanel Text="Personal Access Tokens" Icon="@Icons.Material.Filled.Key">
@@ -86,33 +136,33 @@
                         {
                             <div class="flex items-center mx-auto">
                                 <MudProgressCircular 
-                                    Color="Color.Primary"
-                                    Indeterminate=true />
+                                Color="Color.Primary"
+                                Indeterminate=true />
                                 <span class="ml-3 text-gray-400">Creating ...</span>
                             </div>
                         }
                         else
                         {
                             <div class="flex flex-col gap-5">
-                                    
+
                                 <div class="flex-1 flex flex-col gap-5">
 
                                     <div class="flex gap-5">
 
                                         <MudTextField
-                                            Class="flex-1"
-                                            T="string" 
-                                            Placeholder="Enter your description here ..."
-                                            Variant="Variant.Text" 
-                                            Immediate="true"
-                                            @bind-Text="@_newAccessTokenDescription" />
+                                        Class="flex-1"
+                                        T="string" 
+                                        Placeholder="Enter your description here ..."
+                                        Variant="Variant.Text" 
+                                        Immediate="true"
+                                        @bind-Text="@_newAccessTokenDescription" />
 
                                         <div class="flex flex-col">
-                                        
+
                                             <MudDatePicker 
-                                                Label="Expiration"
-                                                Clearable="true"
-                                                @bind-Date="_newAccessTokenExpiration" />
+                                            Label="Expiration"
+                                            Clearable="true"
+                                            @bind-Date="_newAccessTokenExpiration" />
 
                                             @if (_newAccessTokenExpiration is null)
                                             {
@@ -127,9 +177,9 @@
                                     {
                                         <div class="flex gap-5">
                                             <MudSwitch
-                                                Color="Color.Primary"
-                                                Label="Privileged"
-                                                @bind-Value="_newAccessTokenIsAdmin" />
+                                            Color="Color.Primary"
+                                            Label="Privileged"
+                                            @bind-Value="_newAccessTokenIsAdmin" />
                                         </div>
                                     }
 
@@ -141,22 +191,22 @@
 
                                             <div class="flex items-end gap-3">
                                                 <MudTextField
-                                                    Class="flex-1"
-                                                    T="string" 
-                                                    Variant="Variant.Text"
-                                                    Placeholder="^/MY/CATALOG/PATH"
-                                                    @bind-Value="_newAccessTokenClaims[local].CatalogPattern" />
+                                                Class="flex-1"
+                                                T="string" 
+                                                Variant="Variant.Text"
+                                                Placeholder="^/MY/CATALOG/PATH"
+                                                @bind-Value="_newAccessTokenClaims[local].CatalogPattern" />
 
                                                 <MudSwitch
-                                                    Color="Color.Primary"
-                                                    Label="Write Access"
-                                                    @bind-Value="_newAccessTokenClaims[local].WriteAccess" />
+                                                Color="Color.Primary"
+                                                Label="Write Access"
+                                                @bind-Value="_newAccessTokenClaims[local].WriteAccess" />
 
                                                 <div>
                                                     <MudIconButton 
-                                                        Icon="@Icons.Material.Filled.Delete"
-                                                        Size="Size.Medium"
-                                                        OnClick="() => _newAccessTokenClaims.RemoveAt(local)" />
+                                                    Icon="@Icons.Material.Filled.Delete"
+                                                    Size="Size.Medium"
+                                                    OnClick="() => _newAccessTokenClaims.RemoveAt(local)" />
                                                 </div>
                                             </div>
                                         }
@@ -171,19 +221,19 @@
 
                                 <div class="flex justify-center">
                                     <MudIconButton
-                                        OnClick="() => _newAccessTokenClaims.Add(new ClaimData(default, default))"
-                                        Color="Color.Primary"
-                                        Icon="@Icons.Material.Outlined.Add">
+                                    OnClick="() => _newAccessTokenClaims.Add(new ClaimData(default, default))"
+                                    Color="Color.Primary"
+                                    Icon="@Icons.Material.Outlined.Add">
                                         Add
                                     </MudIconButton>
                                 </div>
 
                                 <div class="flex justify-center">
                                     <MudButton
-                                        OnClick="CreateTokenAsync"
-                                        Color="Color.Primary"
-                                        Variant="Variant.Outlined"
-                                        Disabled="string.IsNullOrWhiteSpace(_newAccessTokenDescription)">
+                                    OnClick="CreateTokenAsync"
+                                    Color="Color.Primary"
+                                    Variant="Variant.Outlined"
+                                    Disabled="string.IsNullOrWhiteSpace(_newAccessTokenDescription)">
                                         Create Token
                                     </MudButton>
                                 </div>
@@ -200,8 +250,8 @@
                 {
                     <div class="flex items-center mx-auto">
                         <MudProgressCircular 
-                            Color="Color.Primary"
-                            Indeterminate=true />
+                        Color="Color.Primary"
+                        Indeterminate=true />
                         <span class="ml-3 text-gray-400">Acquiring access tokens ...</span>
                     </div>
                 }
@@ -218,30 +268,33 @@
                                     <div class="text-sm font-bold">@(accessToken.Expires == DateTime.MaxValue ? "expires never" : "expires on " + accessToken.Expires.Date.ToString("yyyy-MM-dd"))</div>
                                 </div>
                                 <MudIconButton
-                                    OnClick="() => DeleteTokenAsync(Guid.Parse(id))"
-                                    Icon="@Icons.Material.Filled.Delete"
-                                    Class="ml-auto" />
+                                OnClick="() => DeleteTokenAsync(Guid.Parse(id))"
+                                Icon="@Icons.Material.Filled.Delete"
+                                Class="ml-auto" />
                             </div>
                         }
 
                     </div>
                 }
             </MudTabPanel>
-              
+
             <MudTabPanel Text="Request Configuration" Icon="@Icons.Custom.FileFormats.FileCode">
                 <div class="text-sm mb-3">In the text area below you can add your user specific configuration which will be sent to the Nexus backend on every request.</div>
 
                 <div class="flex-1">
-                    
+
                     <div class="flex flex-col h-1/2">
                         <div class="text-cyan-700 border-b mb-1">Input (JSON)</div>
                         <textarea 
-                            class="w-full flex-1 bg-gray-100 p-2" 
-                            placeholder="Put your configuration here." 
-                            style="resize:none" 
-                            @bind="_jsonString" @bind:event="oninput">
+                        spellcheck="false"
+                        class="w-full flex-1 bg-gray-100 p-2" 
+                        placeholder="Put your configuration here." 
+                        style="resize:none" 
+                        @bind="_jsonString" @bind:event="oninput">
                         </textarea>
                     </div>
+
+
                     <div class="h-1/2">
                         <div class="text-cyan-700 border-b mb-1 mt-2">Preview</div>
                         <pre class="p-2 text-gray-400">
@@ -250,6 +303,7 @@
                             </code>
                         </pre>
                     </div>
+
                 </div>
             </MudTabPanel>
 
@@ -260,9 +314,9 @@
     <DialogActions>
         <form action="/api/v1/users/signout?returnUrl=@(WebUtility.UrlEncode(NavigationManager.Uri))" method="post">
             <MudButton 
-                ButtonType="ButtonType.Submit"
-                Color="Color.Primary"
-                StartIcon="@Icons.Material.Outlined.Logout">
+            ButtonType="ButtonType.Submit"
+            Color="Color.Primary"
+            StartIcon="@Icons.Material.Outlined.Logout">
                 Sign-Out
             </MudButton>
         </form>
@@ -291,15 +345,18 @@
         WriteIndented = true
     };
 
-    private double _refreshDatabaseProgress;
-    private bool _isRefreshingDatabase;
-    private CancellationTokenSource? _cts;
     private string? _jsonString;
+
     private string? _newAccessToken;
+
     private DateTime? _newAccessTokenExpiration;
+
     private bool _newAccessTokenIsAdmin;
+
     private string? _newAccessTokenDescription;
+
     private List<ClaimData> _newAccessTokenClaims = [new ClaimData(default, default)];
+
     private IReadOnlyDictionary<string, PersonalAccessToken>? _accessTokenMap;
 
     private bool _isRefreshingToken;
@@ -315,7 +372,10 @@
     {
         _authenticationState = await GetAuthenticationStateTask;
 
-        var jsonElement = JSRuntime.Invoke<JsonElement?>("nexus.util.loadSetting", Constants.REQUEST_CONFIGURATION_KEY);
+        if (AppState.UISettings.CatalogHidePatterns is null)
+            AppState.UISettings = AppState.UISettings with { CatalogHidePatterns = new() };
+
+        var jsonElement = AppState.UISettings.RequestConfiguration;
 
         _jsonString = JsonSerializer
             .Serialize(jsonElement, _options);
@@ -328,6 +388,11 @@
         {
             AppState.AddError(ex, Snackbar);
         }
+    }
+
+    private void SaveUISettings()
+    {
+        AppState.UISettings = AppState.UISettings;
     }
 
     private bool IsAdmin(ClaimsPrincipal user)
@@ -431,7 +496,7 @@
 
         try
         {
-            var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString!);
+            var jsonElement = JsonSerializer.Deserialize<JsonElement>(_jsonString, JsonSerializerOptions.Web);
             var formattedJson = JsonSerializer.Serialize(jsonElement, _options);
             var highlightedJson = JSRuntime.Invoke<string>("nexus.util.highlight", formattedJson, "json");
 
@@ -443,50 +508,6 @@
         {
             AppState.ClearRequestConfiguration();
             return new MarkupString("Invalid JSON string.");
-        }
-    }
-
-    private async Task RefreshDatabaseAsync()
-    {
-        var cts = new CancellationTokenSource();
-
-        _cts = cts;
-        _refreshDatabaseProgress = 0;
-        _isRefreshingDatabase = true;
-
-        StateHasChanged();
-
-        try
-        {
-            cts.Token.ThrowIfCancellationRequested();
-
-            var job = await Client.V1.Jobs.RefreshDatabaseAsync(_cts.Token);
-
-            while (true)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
-
-                cts.Token.ThrowIfCancellationRequested();
-
-                var status = await Client.V1.Jobs.GetJobStatusAsync(job.Id, _cts.Token);
-                _refreshDatabaseProgress = status.Progress;
-
-                if (status.ExceptionMessage is not null)
-                    throw new Exception("stauts:"  + status.ExceptionMessage);
-
-                if (status.Status >= Api.V1.TaskStatus.RanToCompletion)
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            cts.Cancel();
-            AppState.AddError(ex, Snackbar);
-        }
-        finally
-        {
-            _isRefreshingDatabase = false;
-            StateHasChanged();
         }
     }
 }

@@ -458,6 +458,26 @@ class PackageReferencesClient:
 
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
 
+    def update(self, package_reference: PackageReference, id: Optional[UUID] = None) -> Response:
+        """
+        Updates a package reference.
+
+        Args:
+            id: The identifier of the package reference to update.
+        """
+
+        __url = "/api/v1/packagereferences"
+
+        __query_values: dict[str, str] = {}
+
+        if id is not None:
+            __query_values["id"] = quote(_to_string(id), safe="")
+
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
+
+        return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
+
     def delete(self, id: UUID) -> None:
         """
         Deletes a package reference.
@@ -698,6 +718,17 @@ class UsersClient:
         __url = "/api/v1/users/me"
 
         return self.___invoke(MeResponse, "GET", __url, "application/json", None, None)
+
+    def re_authenticate(self) -> Response:
+        """
+        Allows the user to reauthenticate in case of modified claims.
+
+        Args:
+        """
+
+        __url = "/api/v1/users/reauthenticate"
+
+        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
     def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> str:
         """
@@ -1302,6 +1333,26 @@ class PackageReferencesAsyncClient:
 
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
 
+    def update(self, package_reference: PackageReference, id: Optional[UUID] = None) -> Awaitable[Response]:
+        """
+        Updates a package reference.
+
+        Args:
+            id: The identifier of the package reference to update.
+        """
+
+        __url = "/api/v1/packagereferences"
+
+        __query_values: dict[str, str] = {}
+
+        if id is not None:
+            __query_values["id"] = quote(_to_string(id), safe="")
+
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
+
+        return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
+
     def delete(self, id: UUID) -> Awaitable[None]:
         """
         Deletes a package reference.
@@ -1542,6 +1593,17 @@ class UsersAsyncClient:
         __url = "/api/v1/users/me"
 
         return self.___invoke(MeResponse, "GET", __url, "application/json", None, None)
+
+    def re_authenticate(self) -> Awaitable[Response]:
+        """
+        Allows the user to reauthenticate in case of modified claims.
+
+        Args:
+        """
+
+        __url = "/api/v1/users/reauthenticate"
+
+        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
     def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> Awaitable[str]:
         """
@@ -2073,18 +2135,18 @@ class ExportParameters:
 @dataclass(frozen=True)
 class PackageReference:
     """
-    
+    A package reference.
 
     Args:
-        provider: 
-        configuration: 
+        provider: The provider which loads the package.
+        configuration: The configuration of the package reference.
     """
 
     provider: str
-    """"""
+    """The provider which loads the package."""
 
     configuration: dict[str, str]
-    """"""
+    """The configuration of the package reference."""
 
 
 @dataclass(frozen=True)
@@ -2116,7 +2178,7 @@ class ExtensionDescription:
     repository_url: Optional[str]
     """A nullable source repository URL."""
 
-    additional_information: Optional[dict[str, object]]
+    additional_information: dict[str, object]
     """Additional information about the extension."""
 
 

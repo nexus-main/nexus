@@ -5,6 +5,8 @@ using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Nexus.Api;
+using Nexus.Api.V1;
 using Nexus.UI.ViewModels;
 
 namespace Nexus.UI.Core;
@@ -328,12 +330,122 @@ public static partial class Utilities
     {
         if (element.ValueKind == JsonValueKind.Object &&
             element.TryGetProperty(propertyName, out var propertyValue) &&
-            propertyValue.ValueKind == JsonValueKind.Object)
+            propertyValue.ValueKind == JsonValueKind.Object
+        )
+        {
             return propertyValue
                 .EnumerateObject()
                 .Where(current => current.Value.ValueKind == JsonValueKind.String)
                 .ToDictionary(current => current.Name, current => current.Value.GetString()!);
+        }
 
         return default;
+    }
+
+    public static List<ResourceCatalogViewModel> PrepareChildCatalogs(
+        string id,
+        List<string?>? hideCatalogPatterns,
+        IReadOnlyList<CatalogInfo> childCatalogInfos,
+        INexusClient client,
+        IAppState appState
+    )
+    {
+        /* This methods creates intermediate fake catalogs (marked with a *)
+         * to group child catalogs. Example:
+         *
+         *   /A/A/A
+         *   /A/A/B
+         *   /A/B
+         *   -> /* + /A* (/A/A, /A/B) + /A/A* (/A/A/A, /A/A/B)
+         */
+
+        id = id == "/"
+            ? ""
+            : id;
+
+        var result = new List<ResourceCatalogViewModel>();
+
+        var groupedPublishedInfos = childCatalogInfos
+            .Where(info => !ShouldHide(info.Id, hideCatalogPatterns) && ((info.IsReleased && info.IsVisible) || info.IsOwner))
+            .GroupBy(childInfo => childInfo.Id[id.Length..].Split('/', count: 3)[1]);
+
+        foreach (var group in groupedPublishedInfos)
+        {
+            if (!group.Any())
+            {
+                // do nothing
+            }
+
+            else if (group.Count() == 1)
+            {
+                var childInfo = group.First();
+
+                result.Add(
+                    new RealResourceCatalogViewModel(
+                        childInfo,
+                        id,
+                        hideCatalogPatterns,
+                        client,
+                        appState
+                    )
+                );
+            }
+
+            else
+            {
+                var childId = id + "/" + group.Key;
+
+                var childInfo = new CatalogInfo(
+                    Id: childId,
+                    Title: default!,
+                    Contact: default,
+                    Readme: default,
+                    License: default,
+                    IsReadable: true,
+                    IsWritable: false,
+                    IsReleased: true,
+                    IsVisible: true,
+                    IsOwner: false,
+                    PackageReferenceIds: default!,
+                    PipelineInfo: default!
+                );
+
+                var childCatalogInfosTask = Task.FromResult((IReadOnlyList<CatalogInfo>)group.ToList());
+
+                result.Add(
+                    new FakeResourceCatalogViewModel(
+                        childInfo,
+                        id,
+                        hideCatalogPatterns,
+                        client,
+                        appState,
+                        childCatalogInfosTask
+                    )
+                );
+            }
+        }
+
+        result = result
+            .OrderBy(catalog => catalog.Id)
+            .ToList();
+
+        return result;
+    }
+
+    private static bool ShouldHide(string id, List<string?>? hideCatalogPatterns)
+    {
+        if (hideCatalogPatterns is not null)
+        {
+            foreach (var hideCatalogPattern in hideCatalogPatterns)
+            {
+                if (hideCatalogPattern is null)
+                    continue;
+
+                if (Regex.IsMatch(id, hideCatalogPattern))
+                    return true;
+            }
+        }
+
+        return false;
     }
 }

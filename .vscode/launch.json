@@ -42,7 +42,7 @@
              *
              * 3. Replace <container host> below with the actual host
              *
-             * 4. Test the connection: ssh root@<container host> -p 2222
+             * 4. Test the connection: ssh app@<container host> -p 2222
              */
             "name": "Attach to Nexus (Docker)",
             "type": "coreclr",

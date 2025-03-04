@@ -160,9 +160,9 @@ internal static class NexusAuthExtensions
                             var isFirstUser = !dbContext.Users.Any();
 
                             if (isFirstUser)
-                                newClaims.Add(new NexusClaim(Guid.NewGuid(), Claims.Role, NexusRoles.ADMINISTRATOR));
+                                newClaims.Add(new NexusClaim(Guid.NewGuid(), Claims.Role, NexusRoles.Administrator.ToString()));
 
-                            newClaims.Add(new NexusClaim(Guid.NewGuid(), Claims.Role, NexusRoles.USER));
+                            newClaims.Add(new NexusClaim(Guid.NewGuid(), Claims.Role, NexusRoles.User.ToString()));
 
                             user = new NexusUser(
                                 id: uniqueUserId,
@@ -215,11 +215,11 @@ internal static class NexusAuthExtensions
         services.AddAuthorizationBuilder()
             .SetDefaultPolicy(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
-                .RequireRole(NexusRoles.USER)
+                .RequireRole(NexusRoles.User.ToString())
                 .AddAuthenticationSchemes(authenticationSchemes)
                 .Build())
             .AddPolicy(NexusPolicies.RequireAdmin, policy => policy
-                .RequireRole(NexusRoles.ADMINISTRATOR)
+                .RequireRole(NexusRoles.Administrator.ToString())
                 .AddAuthenticationSchemes(authenticationSchemes));
 
         return services;

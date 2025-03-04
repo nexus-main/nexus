@@ -9,6 +9,7 @@ using Nexus.Core.V1;
 using Nexus.Extensibility;
 using Nexus.Services;
 using NJsonSchema;
+using NJsonSchema.Generation;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security.Claims;
@@ -38,6 +39,14 @@ internal class SourcesController(
     private readonly IExtensionHive<IDataSource> _extensionHive = extensionHive;
 
     private readonly IPipelineService _pipelineService = pipelineService;
+
+    private static readonly SystemTextJsonSchemaGeneratorSettings _jsonSchemaGeneratorSettings = new()
+    {
+        SerializerOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        }
+    };
 
     /// <summary>
     /// Gets the list of source descriptions.
@@ -137,7 +146,7 @@ internal class SourcesController(
         return extensions.Select(dataSourceType =>
         {
             var configurationType = DataSourceController.GetConfigurationType(dataSourceType);
-            var sourceConfigurationSchema = JsonSchema.FromType(configurationType);
+            var sourceConfigurationSchema = JsonSchema.FromType(configurationType, _jsonSchemaGeneratorSettings);
 
             var additionalInformation = new Dictionary<string, JsonElement>
             {
@@ -166,7 +175,7 @@ internal class SourcesController(
         out string userId,
         [NotNullWhen(returnValue: false)] out ActionResult? response)
     {
-        var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
+        var isAdmin = User.IsInRole(NexusRoles.Administrator.ToString());
         var currentId = User.FindFirstValue(Claims.Subject) ?? throw new Exception("The sub claim is null.");
 
         if (isAdmin || requestedId is null || requestedId == currentId)

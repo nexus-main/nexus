@@ -36,6 +36,7 @@ internal class UsersController(
 
     // [authenticated]
     // GET      /api/users/me
+    // GET      /api/users/reauthenticate
     // GET      /api/users/accept-license?catalogId=X
     // POST     /api/users/tokens/create
     // DELETE   /api/users/tokens/{tokenId}
@@ -126,7 +127,7 @@ internal class UsersController(
 
         var isAdmin = user.Claims.Any(
             claim => claim.Type == Claims.Role &&
-                     claim.Value == NexusRoles.ADMINISTRATOR);
+                     claim.Value == NexusRoles.Administrator.ToString());
 
         var tokenMap = await _tokenService.GetAllAsync(userId);
 
@@ -141,7 +142,50 @@ internal class UsersController(
             user.Id,
             user,
             isAdmin,
-            translatedTokenMap);
+            translatedTokenMap
+        );
+    }
+
+    /// <summary>
+    /// Allows the user to reauthenticate in case of modified claims.
+    /// </summary>
+    [HttpGet("reauthenticate")]
+    public async Task<ActionResult> ReAuthenticateAsync()
+    {
+        var userId = User.FindFirst(Claims.Subject)!.Value;
+        var user = await _dbService.FindUserAsync(userId);
+
+        if (user is null)
+            return NotFound($"Could not find user {userId}.");
+
+        string[] nexusClaimTypes =
+        [
+            .. Enum.GetNames<NexusClaims>(),
+            "role"
+        ];
+
+        foreach (var identity in User.Identities)
+        {
+            if (identity is null)
+                continue;
+
+            /* clear all */
+            foreach (var claim in identity.Claims.ToList())
+            {
+                if (nexusClaimTypes.Contains(claim.Type))
+                    identity.RemoveClaim(claim);
+            }
+
+            /* add current */
+            foreach (var claim in user.Claims)
+            {
+                identity.AddClaim(new Claim(claim.Type, claim.Value));
+            }
+        }
+
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, User);
+
+        return Redirect("/");
     }
 
     /// <summary>
@@ -215,7 +259,7 @@ internal class UsersController(
         if (user is null)
             return NotFound($"Could not find user {userId}.");
 
-        var claim = new NexusClaim(Guid.NewGuid(), NexusClaims.CAN_READ_CATALOG, catalogId);
+        var claim = new NexusClaim(Guid.NewGuid(), NexusClaims.CanReadCatalog.ToString(), catalogId);
         user.Claims.Add(claim);
 
         /* When the primary key is != Guid.Empty, EF thinks the entity
@@ -226,7 +270,7 @@ internal class UsersController(
 
         foreach (var identity in User.Identities)
         {
-            identity?.AddClaim(new Claim(NexusClaims.CAN_READ_CATALOG, catalogId));
+            identity?.AddClaim(new Claim(NexusClaims.CanReadCatalog.ToString(), catalogId));
         }
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, User);
@@ -384,7 +428,7 @@ internal class UsersController(
         out string userId,
         [NotNullWhen(returnValue: false)] out ActionResult? response)
     {
-        var isAdmin = User.IsInRole(NexusRoles.ADMINISTRATOR);
+        var isAdmin = User.IsInRole(NexusRoles.Administrator.ToString());
         var currentId = User.FindFirstValue(Claims.Subject) ?? throw new Exception("The sub claim is null.");
 
         if (isAdmin || requestedId is null || requestedId == currentId)

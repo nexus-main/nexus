@@ -20,7 +20,7 @@ public static class ExtensibilityUtilities
     /// <returns>The data and status buffers.</returns>
     public static (Memory<byte>, Memory<byte>) CreateBuffers(Representation representation, DateTime begin, DateTime end)
     {
-        var elementCount = CalculateElementCount(begin, end, representation.SamplePeriod);
+        var elementCount = CalculateElementCountInt32(begin, end, representation.SamplePeriod);
 
         var dataOwner = MemoryPool<byte>.Shared.Rent(elementCount * representation.ElementSize);
         var data = dataOwner.Memory[..(elementCount * representation.ElementSize)];
@@ -33,8 +33,18 @@ public static class ExtensibilityUtilities
         return (data, status);
     }
 
-    internal static int CalculateElementCount(DateTime begin, DateTime end, TimeSpan samplePeriod)
+    internal static int CalculateElementCountInt32(DateTime begin, DateTime end, TimeSpan samplePeriod)
     {
-        return (int)((end.Ticks - begin.Ticks) / samplePeriod.Ticks);
+        var elementCount = (end.Ticks - begin.Ticks) / samplePeriod.Ticks;
+
+        if (elementCount > int.MaxValue)
+            throw new Exception("The number of elements is > int.MaxValue");
+
+        return (int)elementCount;
+    }
+
+    internal static long CalculateElementCountLong(DateTime begin, DateTime end, TimeSpan samplePeriod)
+    {
+        return (end.Ticks - begin.Ticks) / samplePeriod.Ticks;
     }
 }

@@ -9,35 +9,100 @@ using Microsoft.JSInterop;
 using MudBlazor;
 using Nexus.Api;
 using Nexus.Api.V1;
+using Nexus.UI.Services;
 using Nexus.UI.ViewModels;
 
 namespace Nexus.UI.Core;
 
-public class AppState : INotifyPropertyChanged
+public interface IAppState
+{
+    ViewState ViewState { get; set; }
+
+    ExportParameters ExportParameters { get; set; }
+
+    SettingsViewModel Settings { get; }
+
+    ResourceCatalogViewModel RootCatalog { get; }
+
+    ResourceCatalogViewModel? SelectedCatalog { get; set; }
+
+    SortedDictionary<string, List<CatalogItemViewModel>>? CatalogItemsMap { get; }
+
+    List<CatalogItemViewModel>? CatalogItemsGroup { get; set; }
+
+    IReadOnlyList<(DateTime, Exception)> Errors { get; }
+
+    IReadOnlyDictionary<string, Dictionary<EditModeItem, string?>> EditModeCatalogMap { get; }
+
+    bool IsHamburgerMenuOpen { get; set; }
+
+    bool IsDemo { get; }
+
+    bool HasUnreadErrors { get; set; }
+
+    bool BeginAtZero { get; set; }
+
+    string? SearchString { get; set; }
+
+    ObservableCollection<JobViewModel> Jobs { get; set; }
+
+    event PropertyChangedEventHandler? PropertyChanged;
+
+    void AddEditModeCatalog(string catalogId);
+
+    void AddError(Exception error, ISnackbar? snackbar);
+
+    void AddJob(JobViewModel job);
+
+    void CancelJob(JobViewModel job);
+
+    void ClearRequestConfiguration();
+
+    Task SaveAndRemoveEditModeCatalogAsync(string catalogId, ISnackbar snackbar);
+
+    Task SelectCatalogAsync(string? catalogId);
+
+    void SetRequestConfiguration(JsonElement configuration);
+}
+
+public class AppState : INotifyPropertyChanged, IAppState
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private ResourceCatalogViewModel? _selectedCatalog;
+
     private ViewState _viewState = ViewState.Normal;
+
     private ExportParameters _exportParameters = default!;
+
     private readonly INexusClient _client;
+
     private readonly List<(DateTime, Exception)> _errors = [];
+
     private readonly Dictionary<string, Dictionary<EditModeItem, string?>> _editModeCatalogMap = [];
+
     private bool _beginAtZero;
+
+    private UISettings? _uiSettings;
+
     private string? _searchString;
+
     private const string GROUP_KEY = "groups";
-    private readonly IJSInProcessRuntime _jsRuntime;
+
+    private readonly NexusJSInterop _jsInterop;
+
     private IDisposable? _requestConfiguration;
 
     public AppState(
         bool isDemo,
         INexusClient client,
-        IJSInProcessRuntime jsRuntime)
+        NexusJSInterop jsInterop
+    )
     {
         IsDemo = isDemo;
         _client = client;
-        _jsRuntime = jsRuntime;
-        Settings = new SettingsViewModel(this, jsRuntime, client);
+        _jsInterop = jsInterop;
+        Settings = new SettingsViewModel(this, jsInterop, client);
 
         var childCatalogInfosTask = client.V1.Catalogs.GetChildCatalogInfosAsync(ResourceCatalogViewModel.ROOT_CATALOG_ID, CancellationToken.None);
 
@@ -55,7 +120,14 @@ public class AppState : INotifyPropertyChanged
             PackageReferenceIds: default!,
             PipelineInfo: default!);
 
-        RootCatalog = new FakeResourceCatalogViewModel(rootInfo, "", client, this, childCatalogInfosTask);
+        RootCatalog = new FakeResourceCatalogViewModel(
+            rootInfo,
+            "",
+            UISettings.CatalogHidePatterns,
+            client,
+            this,
+            childCatalogInfosTask
+        );
 
         // export parameters
         ExportParameters = new ExportParameters(
@@ -68,7 +140,7 @@ public class AppState : INotifyPropertyChanged
         );
 
         // request configuration
-        var configuration = _jsRuntime.Invoke<JsonElement?>("nexus.util.loadSetting", Constants.REQUEST_CONFIGURATION_KEY);
+        var configuration = UISettings.RequestConfiguration;
 
         if (configuration is not null)
             _requestConfiguration = _client.AttachConfiguration(configuration);
@@ -78,7 +150,27 @@ public class AppState : INotifyPropertyChanged
             BeginAtZero = true;
     }
 
+    public bool IsHamburgerMenuOpen { get; set; }
+
     public bool IsDemo { get; }
+
+    public UISettings UISettings
+    {
+        get
+        {
+            _uiSettings ??= _jsInterop.LoadSetting<UISettings>("ui-settings")
+                ?? new UISettings();
+
+            return _uiSettings;
+        }
+        set
+        {
+            _jsInterop.SaveSetting("ui-settings", value);
+            _uiSettings = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UISettings)));
+        }
+    }
+
 
     public ViewState ViewState
     {
@@ -300,7 +392,7 @@ public class AppState : INotifyPropertyChanged
                     // save changes
                     metadata = metadata with
                     {
-                        Overrides = JsonSerializer.Deserialize<ResourceCatalog>(overrides)
+                        Overrides = JsonSerializer.Deserialize<ResourceCatalog>(overrides, JsonSerializerOptions.Web)
                     };
 
                     await _client.V1.Catalogs.SetMetadataAsync(catalogId, metadata, CancellationToken.None);
@@ -387,12 +479,12 @@ public class AppState : INotifyPropertyChanged
     public void SetRequestConfiguration(JsonElement configuration)
     {
         _requestConfiguration?.Dispose();
-        _jsRuntime.InvokeVoid("nexus.util.saveSetting", Constants.REQUEST_CONFIGURATION_KEY, configuration);
+        UISettings = UISettings with { RequestConfiguration = configuration };
         _requestConfiguration = _client.AttachConfiguration(configuration);
     }
 
     public void ClearRequestConfiguration()
     {
-        _jsRuntime.InvokeVoid("nexus.util.clearSetting", Constants.REQUEST_CONFIGURATION_KEY);
+        UISettings = UISettings with { RequestConfiguration = default };
     }
 }

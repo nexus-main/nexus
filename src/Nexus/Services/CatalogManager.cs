@@ -247,7 +247,7 @@ internal class CatalogManager(
     private CatalogMetadata LoadMetadata(string catalogId)
     {
         if (_databaseService.TryReadCatalogMetadata(catalogId, out var jsonString))
-            return JsonSerializer.Deserialize<CatalogMetadata>(jsonString) ?? throw new Exception("catalogMetadata is null");
+            return JsonSerializer.Deserialize<CatalogMetadata>(jsonString, JsonSerializerOptions.Web) ?? throw new Exception("catalogMetadata is null");
 
         else
             return new CatalogMetadata(default, default, default);

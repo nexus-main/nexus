@@ -1,0 +1,186 @@
+﻿@implements IDisposable
+@inject AppState AppState
+@inject ISnackbar Snackbar
+@page "/"
+@page "/catalogs/"
+@page "/catalogs/{catalogId}"
+
+<PageTitle>Nexus</PageTitle>
+
+<div class="h-full grid sm:grid-cols-[auto,1fr,1fr,auto] sm:grid-rows-[auto,1fr]">
+
+    <div class="col-start-1 row-start-1 row-span-2 bg-cyan-900 hidden xl:flex flex-col justify-between p-3 w-72">
+        <Leftbar_Settings />
+        <div class="flex-1 overflow-y-auto styled-scrollbars">
+            <Leftbar_CatalogItems />
+        </div>
+        <Leftbar_ChartSettings />
+        <Leftbar_Actions />
+    </div>
+
+    @if (AppState.ViewState != ViewState.Data)
+    {
+        <div class="sm:row-start-1 sm:col-start-2 m-2 h-32 sm:h-72 overflow-auto flex flex-col">
+            <ResourceCatalogView Catalog="AppState.RootCatalog" />
+        </div>
+
+        <div class="sm:row-start-1 sm:col-start-3 m-2 h-40 sm:h-72 min-w-0">
+            @if (AppState.SelectedCatalog is null || AppState.SelectedCatalog.GetType() == typeof(FakeResourceCatalogViewModel))
+            {
+                /* nothing */
+            }
+            else
+            {
+                <ResourceCatalogDetailView Catalog="AppState.SelectedCatalog" />
+            }
+        </div>
+
+        <div class="sm:row-start-2 sm:col-start-2 sm:col-span-2 border-t border-gray-300 bg-gray-100 min-h-[250px]">
+
+            @if (AppState.ViewState == ViewState.Normal)
+            {
+                @if (_isLoading)
+                {
+                    <div class="h-full flex justify-center items-center mx-auto">
+                        <MudProgressCircular
+                            Color="Color.Primary"
+                            Indeterminate=true />
+                        <span class="ml-3 text-gray-400">Loading catalog ...</span>
+                    </div>
+                }
+                else if (AppState.SelectedCatalog is null || AppState.SelectedCatalog.GetType() == typeof(FakeResourceCatalogViewModel))
+                {
+                    <div class="h-full flex justify-center items-center text-gray-400">
+                        <span class="mr-3 text-4xl mdi mdi-pac-man"></span>
+                        <span>no data available</span>
+                    </div>
+                }
+                else if (!AppState.SelectedCatalog.Info.IsReadable)
+                {
+                    <div class="flex flex-col">
+                        @if (_license is null)
+                        {
+                            <div class="flex-1 flex justify-center items-center">
+                                You do not have access to this catalog.
+                                @if (!string.IsNullOrWhiteSpace(AppState.SelectedCatalog.Info.Contact))
+                                {
+                                    @: Please contact @(AppState.SelectedCatalog.Info.Contact) to request permission.
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="w-full text-center font-bold text-cyan-700 text-2xl mb-2">License</span>
+                            <div class="border border-cyan-700 bg-white p-3 text-xl">
+                                <MarkdownRenderer MarkdownString="@_license"></MarkdownRenderer>
+                            </div>
+                            <div class="flex justify-center m-3">
+                                <form action="/api/v1/users/accept-license">
+                                    <input type="hidden" name="catalogId" value="@AppState.SelectedCatalog.Id" />
+                                    <input class="w-20 p-1 rounded bg-cyan-700 flex justify-center items-center text-gray-200 cursor-pointer hover:bg-cyan-600" type="submit" value="Accept" />
+                                </form>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <ResourceView />
+                }
+            }
+            else if (AppState.ViewState == ViewState.Availability)
+            {
+                <AvailabilityView />
+            }
+
+        </div>
+    }
+    else
+    {
+        <div class="sm:row-start-1 sm:col-start-2 sm:col-span-2 sm:row-span-2">
+            <DataView />
+        </div>
+    }
+
+    <div class="col-start-4 row-start-1 row-span-2 bg-cyan-900 hidden xl:flex flex-col p-3 w-72">
+        <Rightbar_Settings />
+        <div class="mt-auto my-3">
+            <Rightbar_Jobs />
+        </div>
+        <Rightbar_Actions />
+    </div>
+
+</div>
+
+@code {
+
+    private bool _isLoading;
+    private PropertyChangedEventHandler _handler;
+    private string? _license;
+
+    public IndexPage()
+    {
+        _handler = (sender, e) =>
+        {
+            if (e.PropertyName == nameof(AppState.ViewState))
+                StateHasChanged();
+        };
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += _handler;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            await AppState.SelectCatalogAsync(CatalogId);
+
+            var catalog = AppState.SelectedCatalog;
+
+            _license = catalog is null
+                ? default
+                : catalog.Info.License;
+
+            if (catalog is not null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        _license = await catalog.LicenseTask.Value;
+
+                        StateHasChanged();
+                    }
+                    catch (Exception ex)
+                    {
+                        AppState.AddError(ex, Snackbar);
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    [Parameter]
+    public string? CatalogId { get; set; }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= _handler;
+    }
+}
+
+

@@ -1,8 +1,9 @@
 ﻿@implements IDisposable
 @inject AppState AppState
 
-<div class="flex w-full h-full">
-    <div class="flex flex-col p-2 select-none w-36 sm:w-72 gap-2">
+<div class="flex flex-col h-full">
+
+    <div class="flex flex-col p-2 select-none gap-2">
 
         <MudTextField
             @bind-Value="AppState.SearchString"
@@ -14,71 +15,100 @@
             Immediate="true"
             Margin="Margin.Dense" />
 
-        <div class="overflow-y-auto">
-            @if (AppState.CatalogItemsMap is not null)
-            {
-                @foreach (var entry in AppState.CatalogItemsMap)
+        @if (AppState.CatalogItemsMap is not null)
+        {
+            <MudChipSet
+                Class="flex flex-wrap"
+                T="List<CatalogItemViewModel>"
+                SelectedValue="AppState.CatalogItemsGroup">
+
+                @foreach (var (groupId, group) in AppState.CatalogItemsMap)
                 {
-                    @if (entry.Value == AppState.CatalogItemsGroup)
-                    {
-                        <div class="flex justify-between items-end py-0.5 cursor-pointer">
-                            <span class="font-bold text-orange-500">@entry.Key</span>
-                            <span class="text-sm text-gray-500">@entry.Value.Count</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="group flex justify-between items-end py-0.5 cursor-pointer"
-                            @onclick="() => AppState.CatalogItemsGroup = entry.Value">
-                            <span class="group-hover:text-cyan-500 font-bold text-cyan-700">@entry.Key</span>
-                            <span class="text-sm text-gray-500">@entry.Value.Count</span>
-                        </div>
-                    }
+                    <MudChip
+                        OnClick="() => AppState.CatalogItemsGroup = group"
+                        SelectedColor="Color.Secondary"
+                        Value="group"
+                        Size="Size.Small"
+                        Variant="Variant.Outlined">
+                        @groupId &nbsp;<span class="text-gray-500">(@group.Count)</span>
+                    </MudChip>
                 }
-            }
-        </div>
+
+            </MudChipSet>
+        }
+
     </div>
 
-    <div class="flex-1 p-2 h-full min-w-0">
-        <div class="select-none h-full">
-            <!-- 
+    <div class="flex-1 p-2 overflow-y-auto">
+        @if (AppState.CatalogItemsGroup is not null)
+        {
+            <div class="select-none h-full">
+                <!-- 
                 Aim: we want to always see header and footer, the rest should scroll
 
                 - 'Class="h-full flex flex-col"' is applied to outer container
 
                 - 'Height="100%"' is applied to inner container. 
-                    Without it the footer looks weird. Don't know why it works. 
-                    I would have preferred `flex-1` but there is not option to apply it.
-            -->
-            <MudDataGrid
-                Class="h-full flex flex-col"
-                Height="100%"
-                T="CatalogItemViewModel"
-                FixedHeader="true"
-                FixedFooter="true"
-                Items="AppState.CatalogItemsGroup"
-                ReadOnly=@(!AppState.EditModeCatalogMap.ContainsKey(AppState.SelectedCatalog!.Id))
-                EditMode="DataGridEditMode.Cell"
-                EditTrigger="DataGridEditTrigger.OnRowClick"
-                CommittedItemChanges="CommittedItemChanges"
-                Filterable="true"
-                QuickFilter="QuickFilter"
-                RowClick="RowClicked"
-                RowStyleFunc="RowStyleFunc"
-                RowContextMenuClick="OpenGridContextMenu">
-                <Columns>
-                    @* StickyLeft="true" does not work properly with the currently available version of MatBlazor: https://github.com/MudBlazor/MudBlazor/pull/10151 *@
-                    <PropertyColumn Property="x => x.Resource.Id" Title="ID" Editable="false" />
-                    <PropertyColumn Property="x => x.Description" Title="Description" />
-                    <PropertyColumn Property="x => x.Unit" Title="Unit"/>
-                    <PropertyColumn Property="x => x.Warning" Title="Warning"/>
-                    <PropertyColumn Property="x => Utilities.ToUnitString(x.Representation.SamplePeriod, false)" Title="Sample Period"/>
-                </Columns>
-                <PagerContent>
-                    <MudDataGridPager T="CatalogItemViewModel" />
-                </PagerContent>
-            </MudDataGrid>
-        </div>
+                Without it the footer looks weird. Don't know why it works. 
+                I would have preferred `flex-1` but there is not option to apply it.
+                -->
+                <MudDataGrid
+                    Class="h-full flex flex-col"
+                    Height="100%"
+                    T="CatalogItemViewModel"
+                    FixedHeader="true"
+                    FixedFooter="true"
+                    Items="AppState.CatalogItemsGroup"
+                    ReadOnly=@(!AppState.EditModeCatalogMap.ContainsKey(AppState.SelectedCatalog!.Id))
+                    EditMode="DataGridEditMode.Cell"
+                    EditTrigger="DataGridEditTrigger.OnRowClick"
+                    CommittedItemChanges="CommittedItemChanges"
+                    Filterable="true"
+                    QuickFilter="QuickFilter"
+                    RowClick="RowClicked"
+                    RowStyleFunc="RowStyleFunc"
+                    RowContextMenuClick="OpenGridContextMenu"
+                    RowsPerPage="100"
+                    Dense="true">
+
+                    <Columns>
+                        @* StickyLeft="true" does not work properly with the currently available version of MatBlazor: https://github.com/MudBlazor/MudBlazor/pull/10151 *@
+                        <TemplateColumn Filterable="false" Title="ID" Editable="false">
+                            <CellTemplate>
+                                <div class="flex gap-1 items-end">
+                                    @context.Item.Resource.Id
+
+                                    @if (context.Item.Warning is not null)
+                                    {
+                                        <MudTooltip Delay="600" Text="@context.Item.Warning">
+                                            <MudIcon 
+                                                Icon="@Icons.Material.Filled.WarningAmber" 
+                                                Color="Color.Warning"
+                                                Size="Size.Small" />
+                                        </MudTooltip>
+                                    }
+                                </div>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <PropertyColumn Filterable="false" Property="x => x.Unit" Title="Unit"/>
+                        <PropertyColumn Filterable="false" Property="x => Utilities.ToUnitString(x.Representation.SamplePeriod, false)" Title="Sample Period"/>
+                        <PropertyColumn Filterable="false" Property="x => x.Description" Title="Description" />
+                        <PropertyColumn Filterable="false" Property="x => x.Warning" Title="Warning" />
+                    </Columns>
+
+                    <PagerContent>
+                        @if (AppState.CatalogItemsGroup.Count > 100)
+                        {
+                            <MudDataGridPager 
+                            T="CatalogItemViewModel"
+                            PageSizeOptions="new int[] { 100 }"
+                            PageSizeSelector="false" />
+                        }
+                    </PagerContent>
+
+                </MudDataGrid>
+            </div>
+        }
     </div>
 </div>
 
@@ -92,8 +122,8 @@
 </UIContextMenu>
 
 <UIDialog
-    @bind-Visible="_isParametersDialogOpen" 
-    MaxWidth="MaxWidth.ExtraSmall">
+@bind-Visible="_isParametersDialogOpen" 
+MaxWidth="MaxWidth.ExtraSmall">
     <TitleContent>
         <MudText Typo="Typo.h6">
             Parameters
@@ -105,19 +135,19 @@
             @foreach (var (key, argument) in _parametersCatalogItem!.Representation.Parameters!)
             {
                 @if (argument.ValueKind == JsonValueKind.Object &&
-                    argument.TryGetStringValue("type", out var type) && type == "input-integer" &&
-                    argument.TryGetStringValue("label", out var label) &&
-                    argument.TryGetIntegerValue("default", out var defaultValue) &&
-                    argument.TryGetIntegerValue("minimum", out var minimum) &&
-                    argument.TryGetIntegerValue("maximum", out var maximum))
+                   argument.TryGetStringValue("type", out var type) && type == "input-integer" &&
+                   argument.TryGetStringValue("label", out var label) &&
+                   argument.TryGetIntegerValue("default", out var defaultValue) &&
+                   argument.TryGetIntegerValue("minimum", out var minimum) &&
+                   argument.TryGetIntegerValue("maximum", out var maximum))
                 {
                     <UIOption Key="@key" DefaultValue="defaultValue.Value" Store="_parametersArgumentMap">
                         <ChildContent>
                             <MudNumericField
-                                @bind-Value="@context.Value"
-                                Label="@label"
-                                Min="minimum.Value"
-                                Max="maximum.Value" />
+                            @bind-Value="@context.Value"
+                            Label="@label"
+                            Min="minimum.Value"
+                            Max="maximum.Value" />
                         </ChildContent>
                     </UIOption>
                 }
@@ -128,11 +158,11 @@
                 {
                     <UIOption Key="@key" DefaultValue="defaultValue2" Store="_parametersArgumentMap">
                         <UISelect
-                            T="string"
-                            @bind-Value="@context.Value"
-                            Label="@label2"
-                            Items="@((argument.GetStringDictionary("items") ?? new Dictionary<string, string>()).Keys)"
-                            ToStringFunc="@(item => argument.GetStringDictionary("items")![item])" />
+                        T="string"
+                        @bind-Value="@context.Value"
+                        Label="@label2"
+                        Items="@((argument.GetStringDictionary("items") ?? new Dictionary<string, string>()).Keys)"
+                        ToStringFunc="@(item => argument.GetStringDictionary("items")![item])" />
                     </UIOption>
                 }
                 else
@@ -144,9 +174,9 @@
     </DialogContent>
     <DialogActions>
         <MudButton
-            OnClick="SelectParameterizedCatalogItem"
-            Color="Color.Primary"
-            StartIcon="@Icons.Material.Outlined.Add">
+        OnClick="SelectParameterizedCatalogItem"
+        Color="Color.Primary"
+        StartIcon="@Icons.Material.Outlined.Add">
             Add
         </MudButton>
     </DialogActions>
@@ -158,22 +188,37 @@
 }
 
 @code {
+
     private PropertyChangedEventHandler _handler;
+
     private string _searchIcon = Icons.Material.Filled.Search;
+
     private bool _isPropertiesViewDialogOpen;
+
     private bool _isParametersDialogOpen;
+
     private bool _isContextMenuOpen;
+
     private double _contextMenuTop;
+
     private double _contextMenuLeft;
+
     private CatalogItemViewModel? _contextMenuCatalogItem;
+
     private CatalogItemViewModel? _parametersCatalogItem;
+
     private IDictionary<string, string>? _parametersArgumentMap;
 
     public ResourceView()
     {
         _handler = (sender, e) =>
         {
-            if (e.PropertyName == nameof(AppState.SearchString))
+            if (e.PropertyName == nameof(AppState.CatalogItemsMap))
+            {
+                StateHasChanged();
+            }
+
+            else if (e.PropertyName == nameof(AppState.SearchString))
             {
                 _searchIcon = string.IsNullOrWhiteSpace(AppState.SearchString)
                     ? Icons.Material.Filled.Search

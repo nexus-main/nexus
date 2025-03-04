@@ -48,7 +48,7 @@ internal static class NexusIdentityProviderExtensions
                 options
                     .SetAuthorizationEndpointUris("/connect/authorize")
                     .SetTokenEndpointUris("/connect/token")
-                    .SetLogoutEndpointUris("/connect/logout");
+                    .SetEndSessionEndpointUris("/connect/logout");
 
                 options
                     .RegisterScopes(
@@ -58,7 +58,7 @@ internal static class NexusIdentityProviderExtensions
                 var aspNetCoreBuilder = options
                     .UseAspNetCore()
                     .EnableAuthorizationEndpointPassthrough()
-                    .EnableLogoutEndpointPassthrough()
+                    .EnableEndSessionEndpointPassthrough()
                     .EnableTokenEndpointPassthrough();
 
                 var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
@@ -212,7 +212,7 @@ internal class HostedService(IServiceProvider serviceProvider) : IHostedService
                     // endpoints
                     Permissions.Endpoints.Authorization,
                     Permissions.Endpoints.Token,
-                    Permissions.Endpoints.Logout,
+                    Permissions.Endpoints.EndSession,
 
                     // grant types
                     Permissions.GrantTypes.AuthorizationCode,

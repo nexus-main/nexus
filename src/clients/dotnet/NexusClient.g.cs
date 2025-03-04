@@ -1803,6 +1803,21 @@ public interface IPackageReferencesClient
     Task<Guid> CreateAsync(PackageReference packageReference, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates a package reference.
+    /// </summary>
+    /// <param name="id">The identifier of the package reference to update.</param>
+    /// <param name="packageReference">The new package reference.</param>
+    HttpResponseMessage Update(PackageReference packageReference, Guid? id = default);
+
+    /// <summary>
+    /// Updates a package reference.
+    /// </summary>
+    /// <param name="id">The identifier of the package reference to update.</param>
+    /// <param name="packageReference">The new package reference.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> UpdateAsync(PackageReference packageReference, Guid? id = default, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes a package reference.
     /// </summary>
     /// <param name="id">The ID of the package reference.</param>
@@ -1878,6 +1893,42 @@ public class PackageReferencesClient : IPackageReferencesClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(packageReference, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public HttpResponseMessage Update(PackageReference packageReference, Guid? id = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/packagereferences");
+
+        var __queryValues = new Dictionary<string, string>();
+
+        if (id is not null)
+            __queryValues["id"] = Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("PUT", __url, "application/octet-stream", "application/json", JsonContent.Create(packageReference, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> UpdateAsync(PackageReference packageReference, Guid? id = default, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/packagereferences");
+
+        var __queryValues = new Dictionary<string, string>();
+
+        if (id is not null)
+            __queryValues["id"] = Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("PUT", __url, "application/octet-stream", "application/json", JsonContent.Create(packageReference, options: Utilities.JsonOptions), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -2323,6 +2374,17 @@ public interface IUsersClient
     Task<MeResponse> GetMeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Allows the user to reauthenticate in case of modified claims.
+    /// </summary>
+    HttpResponseMessage ReAuthenticate();
+
+    /// <summary>
+    /// Allows the user to reauthenticate in case of modified claims.
+    /// </summary>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Creates a personal access token.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
@@ -2590,6 +2652,26 @@ public class UsersClient : IUsersClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<MeResponse>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public HttpResponseMessage ReAuthenticate()
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/users/reauthenticate");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/users/reauthenticate");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -3102,10 +3184,10 @@ public enum TaskStatus
 public record ExportParameters(DateTime Begin, DateTime End, TimeSpan FilePeriod, string? Type, IReadOnlyList<string> ResourcePaths, IReadOnlyDictionary<string, JsonElement>? Configuration);
 
 /// <summary>
-/// 
+/// A package reference.
 /// </summary>
-/// <param name="Provider"></param>
-/// <param name="Configuration"></param>
+/// <param name="Provider">The provider which loads the package.</param>
+/// <param name="Configuration">The configuration of the package reference.</param>
 public record PackageReference(string Provider, IReadOnlyDictionary<string, string> Configuration);
 
 /// <summary>
@@ -3117,7 +3199,7 @@ public record PackageReference(string Provider, IReadOnlyDictionary<string, stri
 /// <param name="ProjectUrl">A nullable project website URL.</param>
 /// <param name="RepositoryUrl">A nullable source repository URL.</param>
 /// <param name="AdditionalInformation">Additional information about the extension.</param>
-public record ExtensionDescription(string Type, string Version, string? Description, string? ProjectUrl, string? RepositoryUrl, IReadOnlyDictionary<string, JsonElement>? AdditionalInformation);
+public record ExtensionDescription(string Type, string Version, string? Description, string? ProjectUrl, string? RepositoryUrl, IReadOnlyDictionary<string, JsonElement> AdditionalInformation);
 
 /// <summary>
 /// A data source pipeline.

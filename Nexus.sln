@@ -28,11 +28,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nexus.Tests", "tests\Nexus.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nexus", "src\Nexus\Nexus.csproj", "{6DDD84D7-8FCF-4E49-A5DB-EAF95B0E040F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet", "src\clients\dotnet\client.csproj", "{FD8E5EA0-674B-492D-8D1E-1D0B8374B71D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "client", "src\clients\dotnet\client.csproj", "{FD8E5EA0-674B-492D-8D1E-1D0B8374B71D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nexus.UI", "src\Nexus.UI\Nexus.UI.csproj", "{121840FD-19CC-4C48-86DE-AF0B6C70A089}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet-tests", "tests\clients\dotnet-tests\client-tests.csproj", "{AFCE2F13-F54D-439A-B796-DC3F32E1A12B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "client-tests", "tests\clients\dotnet-tests\client-tests.csproj", "{AFCE2F13-F54D-439A-B796-DC3F32E1A12B}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nexus.ClientGenerator", "src\Nexus.ClientGenerator\Nexus.ClientGenerator.csproj", "{E12BE061-CCEF-48AF-8442-BC23A1C4D3F2}"
 EndProject
@@ -49,6 +49,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet-extensibility-tests", "tests\extensibility\dotnet-extensibility-tests\dotnet-extensibility-tests.csproj", "{25A65150-BC9F-4F92-9078-18ABA7444C21}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-extensibility-analyzers", "src\extensibility\dotnet-extensibility-analyzers\dotnet-extensibility-analyzers.csproj", "{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nexus.UI.Tests", "tests\Nexus.UI.Tests\Nexus.UI.Tests.csproj", "{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -168,6 +170,18 @@ Global
 		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|x64.Build.0 = Release|Any CPU
 		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|x86.ActiveCfg = Release|Any CPU
 		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F}.Release|x86.Build.0 = Release|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Debug|x64.Build.0 = Debug|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Debug|x86.Build.0 = Debug|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Release|x64.ActiveCfg = Release|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Release|x64.Build.0 = Release|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Release|x86.ActiveCfg = Release|Any CPU
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -186,6 +200,7 @@ Global
 		{6B7A5EC5-213A-44CC-B279-3E0C33082FC8} = {3DBD52E4-26F8-413F-A954-2BE86E572F3E}
 		{25A65150-BC9F-4F92-9078-18ABA7444C21} = {6B7A5EC5-213A-44CC-B279-3E0C33082FC8}
 		{FCA09ED9-A1B3-4BA9-AD9B-7381F999A83F} = {1C0BDA12-25B4-42F8-87B5-C3B3BEF417B2}
+		{D25220A5-8A3A-4CA8-A9D1-2198624A1B00} = {3DBD52E4-26F8-413F-A954-2BE86E572F3E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F998BD6D-3E2B-4AA0-A7A4-FD84100C45A4}

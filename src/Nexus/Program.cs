@@ -209,7 +209,7 @@ void ConfigurePipeline(WebApplication app)
         app.UseWebAssemblyDebugging();
 
     // static files
-    app.UseStaticFiles();
+    app.MapStaticAssets();
 
     // Open API
     var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();

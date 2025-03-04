@@ -1,0 +1,285 @@
+@inject INexusClient Client
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AppState AppState
+
+@if (_packageReferenceMap is null)
+{
+    <span>Loading ...</span>
+}
+
+else
+{
+    <div class="flex flex-wrap gap-5">
+
+        @foreach (var (id, reference) in _packageReferenceMap)
+        {
+            <MudPaper Elevation="4" Class="p-2 w-72 group">
+
+                <MudForm Spacing="3">
+
+                    <div class="flex gap-2 items-center justify-between">
+
+                        <ErrorBoundary>
+                            <MudText Typo="Typo.body2" class="font-semibold">@reference.Configuration[GetUrlKey(reference.Provider)].Split('/')[^1]</MudText>
+                        </ErrorBoundary>
+
+                        <div class="flex gap-1">
+
+                            <MudIconButton
+                            Class="invisible group-hover:visible"
+                            OnClick="() => OpenPackageReferenceDialog_Edit(id, reference)"
+                            Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" />
+
+                            <MudIconButton
+                            Class="invisible group-hover:visible"
+                            OnClick="() => DeletePackageReferenceAsync(id)"
+                            Color="Color.Error"
+                            Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex justify-between">
+                        <MudText Typo="Typo.caption">@reference.Provider</MudText>
+
+                        <ErrorBoundary>
+                            <MudText Typo="Typo.caption">@reference.Configuration[GetVersionKey(reference.Provider)]</MudText>
+                        </ErrorBoundary>
+                    </div>
+
+                </MudForm>
+
+            </MudPaper>
+        }
+
+        <MudPaper Elevation="4" Class="p-2 w-72 flex justify-center items-center">
+
+            <MudIconButton
+                Color="Color.Primary"
+                OnClick="OpenPackageReferenceDialog_New"
+                Icon="@Icons.Material.Filled.Add" />
+
+        </MudPaper>
+
+    </div>
+}
+
+<UIDialog @bind-Visible="_newOrEditPackageReferenceDialogIsVisibile" MaxWidth="MaxWidth.ExtraSmall">
+
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            @(_packageReferenceId is null ? "New" : "Edit") package reference
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+
+        <MudSelect
+            @bind-Value="_newProvider"
+            Label="Provider"
+            FullWidth="true"
+            HelperText="The type of the extension distribution">
+            @foreach (var provider in new string[] { "local", "git-tag" })
+            {
+                <MudSelectItem Value="provider">@provider</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudTextField
+            @bind-Value="_newUrl"
+            Label="URL"
+            HelperText="git-tag: https or git url, local: file path" />
+
+        <MudTextField
+            @bind-Value="_newVersion"
+            Label="Version"
+            HelperText="git-tag: tag name, local: name of the version folder" />
+
+        <MudTextField
+            @bind-Value="_newEntrypoint"
+            Label="Entrypoint"
+            HelperText="Relative path to the .csproj file in the repository" />
+
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton
+            Color="Color.Primary"
+            OnClick="AddOrUpdatePackageReferenceAsync"
+            Disabled="string.IsNullOrWhiteSpace(_newProvider) || string.IsNullOrWhiteSpace(_newUrl) || string.IsNullOrWhiteSpace(_newVersion) || string.IsNullOrWhiteSpace(_newEntrypoint)">
+            @(_packageReferenceId is null ? "Create" : "Update")
+        </MudButton>
+    </DialogActions>
+
+</UIDialog>
+
+@code {
+
+    private string? _packageReferenceId;
+
+    private string? _newProvider;
+
+    private string? _newUrl;
+
+    private string? _newVersion;
+
+    private string? _newEntrypoint;
+
+    private bool _newOrEditPackageReferenceDialogIsVisibile;
+
+    private IReadOnlyDictionary<string, PackageReference>? _packageReferenceMap;
+
+    protected override Task OnParametersSetAsync()
+    {
+        return LoadPackageReferencesAsync();
+    }
+
+    private async Task LoadPackageReferencesAsync()
+    {
+        _packageReferenceMap = await Client.V1.PackageReferences.GetAsync();
+    }
+
+    private string GetVersionKey(string provider)
+    {
+        if (provider == "local")
+            return "version";
+
+        else if (provider == "git-tag")
+            return "tag";
+
+        else
+            throw new Exception($"Package reference provider '{provider}' is not supported");
+    }
+
+    private string GetUrlKey(string provider)
+    {
+        if (provider == "local")
+            return "path";
+
+        else if (provider == "git-tag")
+            return "repository";
+
+        else
+            throw new Exception($"Package reference provider '{provider}' is not supported");
+    }
+
+    private void OpenPackageReferenceDialog_New()
+    {
+        _packageReferenceId = default;
+
+        _newProvider = default;
+        _newUrl = default;
+        _newVersion = default;
+        _newEntrypoint = default;
+
+        _newOrEditPackageReferenceDialogIsVisibile = true;
+    }
+
+    private void OpenPackageReferenceDialog_Edit(string id, PackageReference packageReference)
+    {
+        _packageReferenceId = id;
+
+        var config = packageReference.Configuration;
+
+        _newProvider = packageReference.Provider;
+        _newUrl = config[GetUrlKey(packageReference.Provider)];
+        _newVersion = config[GetVersionKey(packageReference.Provider)];
+        _newEntrypoint = config["entrypoint"];
+
+        _newOrEditPackageReferenceDialogIsVisibile = true;
+    }
+
+    private async Task DeletePackageReferenceAsync(string id)
+    {
+        try
+        {
+            var result = await DialogService.ShowMessageBox(
+                "Warning",
+                "Do you really want to delete the selected package reference?",
+                yesText: "Delete", cancelText: "Cancel"
+            );
+
+            if (result.HasValue && result.Value)
+            {
+                if (Guid.TryParse(id, out var idAsGuid))
+                {
+                    await Client.V1.PackageReferences.DeleteAsync(idAsGuid, CancellationToken.None);
+                    await LoadPackageReferencesAsync();
+                }
+
+                else
+                {
+                    throw new Exception($"The package reference ID {id} is invalid");
+                }
+
+                Snackbar.Add("The package reference has been deleted successfully.", Severity.Success);
+            }
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+
+    private async Task AddOrUpdatePackageReferenceAsync()
+    {
+        if (_newProvider is null ||
+            _newUrl is null ||
+            _newVersion is null ||
+            _newEntrypoint is null
+        )
+        {
+            return;
+        }
+
+        var newPackageReference = new PackageReference(
+            _newProvider,
+            new Dictionary<string, string>()
+            {
+                [GetUrlKey(_newProvider)] = _newUrl,
+                [GetVersionKey(_newProvider)] = _newVersion,
+                ["entrypoint"] = _newEntrypoint,
+            }
+        );
+
+        try
+        {
+            if (_packageReferenceId is null)
+            {
+                await Client.V1.PackageReferences.CreateAsync(
+                    newPackageReference,
+                    CancellationToken.None
+                );
+            }
+
+            else
+            {
+                if (Guid.TryParse(_packageReferenceId, out var idAsGuid))
+                {
+                    await Client.V1.PackageReferences.UpdateAsync(
+                        newPackageReference,
+                        idAsGuid,
+                        CancellationToken.None
+                    );
+                }
+
+                else
+                {
+                    throw new Exception($"The package reference ID {_packageReferenceId} is invalid");
+                }
+            }
+
+            await LoadPackageReferencesAsync();
+
+            _newOrEditPackageReferenceDialogIsVisibile = false;
+        }
+
+        catch (Exception ex)
+        {
+            AppState.AddError(ex, Snackbar);
+        }
+    }
+}

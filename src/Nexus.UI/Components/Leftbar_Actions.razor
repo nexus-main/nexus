@@ -63,7 +63,7 @@
         try
         {
             using var stream = e.File.OpenReadStream(maxAllowedSize: long.MaxValue);
-            var exportParameters = await JsonSerializer.DeserializeAsync<ExportParameters>(stream);
+            var exportParameters = await JsonSerializer.DeserializeAsync<ExportParameters>(stream, JsonSerializerOptions.Web);
 
             if (exportParameters is not null)
             {

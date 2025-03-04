@@ -1,5 +1,8 @@
 # use "dotnet/sdk" to get the compiler for extensions
 FROM mcr.microsoft.com/dotnet/sdk:9.0
+
+ENV NUGET_XMLDOC_MODE=none
+
 WORKDIR /app
 COPY app .
 

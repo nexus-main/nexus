@@ -31,7 +31,8 @@ public class UpgradeConfigurationServiceTests
                 {
                     "foo": 1.99
                 }
-                """
+                """,
+                JsonSerializerOptions.Web
             ),
             default
         );
@@ -47,8 +48,9 @@ public class UpgradeConfigurationServiceTests
                             "version": 2,
                             "bar": 1.99
                         }
-                        """
-                    ),
+                        """,
+                        JsonSerializerOptions.Web
+                    )
                 }
             ]
         );
