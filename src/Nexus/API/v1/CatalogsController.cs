@@ -48,7 +48,9 @@ internal class CatalogsController(
     // PUT      /api/catalogs/{catalogId}/metadata
 
     private readonly AppState _appState = appState;
+
     private readonly IDatabaseService _databaseService = databaseService;
+
     private readonly IDataControllerService _dataControllerService = dataControllerService;
 
     /// <summary>

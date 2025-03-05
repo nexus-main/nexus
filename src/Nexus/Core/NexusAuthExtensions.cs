@@ -162,7 +162,7 @@ internal static class NexusAuthExtensions
                             if (isFirstUser)
                                 newClaims.Add(new NexusClaim(Guid.NewGuid(), Claims.Role, nameof(NexusRoles.Administrator)));
 
-                            newClaims.Add(new NexusClaim(Guid.NewGuid(), Claims.Role, nameof(NexusRoles.Administrator)));
+                            newClaims.Add(new NexusClaim(Guid.NewGuid(), Claims.Role, nameof(NexusRoles.User)));
 
                             user = new NexusUser(
                                 id: uniqueUserId,
@@ -198,7 +198,8 @@ internal static class NexusAuthExtensions
                             claims,
                             authenticationType: context.Scheme.Name,
                             nameType: Claims.Name,
-                            roleType: Claims.Role);
+                            roleType: Claims.Role
+                        );
 
                         principal.AddIdentity(appIdentity);
                     }
@@ -216,7 +217,7 @@ internal static class NexusAuthExtensions
 
             .SetDefaultPolicy(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
-                .RequireRole(nameof(NexusRoles.Administrator))
+                .RequireRole(nameof(NexusRoles.User))
                 .AddAuthenticationSchemes(authenticationSchemes)
                 .Build())
 

@@ -45,7 +45,8 @@ internal class DataService(
     IDatabaseService databaseService,
     IMemoryTracker memoryTracker,
     ILogger<DataService> logger,
-    ILoggerFactory loggerFactory) : IDataService
+    ILoggerFactory loggerFactory
+) : IDataService
 {
     private readonly AppState _appState = appState;
     private readonly IMemoryTracker _memoryTracker = memoryTracker;
@@ -63,7 +64,8 @@ internal class DataService(
        string resourcePath,
        DateTime begin,
        DateTime end,
-       CancellationToken cancellationToken)
+       CancellationToken cancellationToken
+    )
     {
         begin = DateTime.SpecifyKind(begin, DateTimeKind.Utc);
         end = DateTime.SpecifyKind(end, DateTimeKind.Utc);
@@ -108,7 +110,8 @@ internal class DataService(
        DateTime begin,
        DateTime end,
        Memory<double> buffer,
-       CancellationToken cancellationToken)
+       CancellationToken cancellationToken
+    )
     {
         var stream = await ReadAsStreamAsync(
             resourcePath,

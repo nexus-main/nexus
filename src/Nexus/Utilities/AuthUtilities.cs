@@ -28,7 +28,8 @@ internal static class AuthUtilities
         string catalogId,
         CatalogMetadata catalogMetadata,
         ClaimsPrincipal? owner,
-        ClaimsPrincipal user)
+        ClaimsPrincipal user
+    )
     {
         return InternalIsCatalogAccessible(
             catalogId,
@@ -44,7 +45,8 @@ internal static class AuthUtilities
     public static bool IsCatalogWritable(
         string catalogId,
         CatalogMetadata catalogMetadata,
-        ClaimsPrincipal user)
+        ClaimsPrincipal user
+    )
     {
         return InternalIsCatalogAccessible(
             catalogId,
@@ -64,7 +66,8 @@ internal static class AuthUtilities
         ClaimsPrincipal user,
         string singleClaimType,
         string groupClaimType,
-        bool checkImplicitAccess)
+        bool checkImplicitAccess
+    )
     {
         foreach (var identity in user.Identities)
         {
@@ -111,7 +114,8 @@ internal static class AuthUtilities
                         owner,
                         identity,
                         NexusClaimsHelper.ToPatUserClaimType(singleClaimType),
-                        NexusClaimsHelper.ToPatUserClaimType(groupClaimType));
+                        NexusClaimsHelper.ToPatUserClaimType(groupClaimType)
+                    );
                 }
             }
 
@@ -132,7 +136,8 @@ internal static class AuthUtilities
                     owner,
                     identity,
                     singleClaimType,
-                    groupClaimType);
+                    groupClaimType
+                );
             }
 
             /* leave loop when access is granted */
@@ -152,22 +157,28 @@ internal static class AuthUtilities
         string groupClaimType
     )
     {
+        var oidcProvider = identity.BootstrapContext as OpenIdConnectProvider;
+        var isCatalogEnabledForScheme = oidcProvider is not null && Regex.IsMatch(catalogId, oidcProvider.EnabledCatalogsPattern);
+
+        if (!isCatalogEnabledForScheme)
+            return false;
+
         var isOwner =
             owner is not null &&
             owner?.FindFirstValue(Claims.Subject) == identity.FindFirst(Claims.Subject)?.Value;
 
-        var canReadCatalog = identity.HasClaim(
+        var canAccessCatalog = identity.HasClaim(
             claim =>
                 claim.Type == singleClaimType &&
                 Regex.IsMatch(catalogId, claim.Value)
         );
 
-        var canReadCatalogGroup = catalogMetadata.GroupMemberships is not null && identity.HasClaim(
+        var canAccessCatalogGroup = catalogMetadata.GroupMemberships is not null && identity.HasClaim(
             claim =>
                 claim.Type == groupClaimType &&
                 catalogMetadata.GroupMemberships.Any(group => Regex.IsMatch(group, claim.Value))
         );
 
-        return isOwner || canReadCatalog || canReadCatalogGroup;
+        return isOwner || canAccessCatalog || canAccessCatalogGroup;
     }
 }

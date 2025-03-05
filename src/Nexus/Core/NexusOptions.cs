@@ -101,7 +101,8 @@ internal record OpenIdConnectProvider(
     string Authority,
     string ClientId,
     string ClientSecret,
-    string IdentifierClaim = Claims.Subject
+    string IdentifierClaim = Claims.Subject,
+    string EnabledCatalogsPattern = "" /* "" == match all */
 );
 
 internal partial record SecurityOptions() : NexusOptionsBase

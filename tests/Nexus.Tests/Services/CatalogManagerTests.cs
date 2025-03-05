@@ -4,6 +4,7 @@
 using Apollo3zehn.PackageManagement.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Nexus.Core;
 using Nexus.Core.V1;
@@ -27,11 +28,10 @@ public class CatalogManagerTests
         // Test case:
         // User A, admin,
         //      /   => /A, /B/A
-        //      /A/ => /A/B, /A/B/C (should be ignored), /A/C/A
+        //      /A/ => /A/B, /A/B/C (ignore), /A/C/A
         //
         // User B, no admin,
-        //      /  => /A (should be ignored because no admin), /B/B, /B/B2, /C/A, 
-        //         => /D (should be ignored due to missing NexusClaims.CanUseResourceLocator)
+        //      /  => /A (ignore because no admin), /B/B, /B/B2, /C/A, /D (ignore because of missing NexusClaims.CanUseResourceLocator), /E (ignore because of no matching EnabledCatalogsPattern)
 
         /* dataControllerService */
         var dataControllerService = Mock.Of<IDataControllerService>();
@@ -54,7 +54,8 @@ public class CatalogManagerTests
                             ("A", "/A/") => Task.FromResult(new CatalogRegistration[] { new("/A/B", string.Empty), new("/A/B/C", string.Empty), new("/A/C/A", string.Empty) }),
                             ("B", "/") => Task.FromResult(new CatalogRegistration[] { new("/A", string.Empty), new("/B/B", string.Empty), new("/B/B2", string.Empty) }),
                             ("C", "/") => Task.FromResult(new CatalogRegistration[] { new("/C/A", string.Empty) }),
-                            ("D", "/") => Task.FromResult(new CatalogRegistration[0]),
+                            ("D", "/") => Task.FromResult(new CatalogRegistration[] { new("/D", string.Empty) }),
+                            ("E", "/") => Task.FromResult(new CatalogRegistration[] { new("/E", string.Empty) }),
                             ("Nexus.Sources." + nameof(Sample), "/") => Task.FromResult(Array.Empty<CatalogRegistration>()),
                             _ => throw new Exception("Unsupported combination.")
                         };
@@ -102,6 +103,7 @@ public class CatalogManagerTests
 
         /* => User A */
         var usernameA = "UserA";
+        var schemeA = "scheme-A";
 
         var userAClaims = new List<NexusClaim>
         {
@@ -110,7 +112,7 @@ public class CatalogManagerTests
         };
 
         var userA = new NexusUser(
-            id: string.Empty,
+            id: "userA@" + schemeA,
             name: usernameA)
         {
             Claims = userAClaims
@@ -118,16 +120,18 @@ public class CatalogManagerTests
 
         /* => User B */
         var usernameB = "UserB";
+        var schemeB = "scheme-B";
 
         var userBClaims = new List<NexusClaim>
         {
             new(Guid.NewGuid(), Claims.Name, usernameB),
+            new(Guid.NewGuid(), nameof(NexusClaims.CanWriteCatalog), ""),
             new(Guid.NewGuid(), nameof(NexusClaims.CanUseResourceLocator), "match-me-1"),
-            new(Guid.NewGuid(), nameof(NexusClaims.CanUseResourceLocator), "match-me-2"),
+            new(Guid.NewGuid(), nameof(NexusClaims.CanUseResourceLocator), "match-me-2")
         };
 
         var userB = new NexusUser(
-            id: string.Empty,
+            id: "userB@" + schemeB,
             name: usernameB)
         {
             Claims = userBClaims
@@ -151,10 +155,11 @@ public class CatalogManagerTests
         var extensionHive = Mock.Of<IExtensionHive<IDataSource>>();
 
         /* pipelineService */
-        var registrationA = new DataSourceRegistration(Type: "A", default, default);
+        var registrationA = new DataSourceRegistration(Type: "A", new Uri("https://match-me-1"), default);
         var registrationB = new DataSourceRegistration(Type: "B", new Uri("https://match-me-1"), default);
         var registrationC = new DataSourceRegistration(Type: "C", new Uri("https://match-me-2"), default);
         var registrationD = new DataSourceRegistration(Type: "D", new Uri("https://do-not-match-me"), default);
+        var registrationE = new DataSourceRegistration(Type: "E", new Uri("https://match-me-1"), default);
 
         var pipelineService = Mock.Of<IPipelineService>();
 
@@ -173,10 +178,34 @@ public class CatalogManagerTests
                     {
                         [Guid.NewGuid()] = new DataSourcePipeline([registrationB]),
                         [Guid.NewGuid()] = new DataSourcePipeline([registrationC]),
-                        [Guid.NewGuid()] = new DataSourcePipeline([registrationD])
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationD]),
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationE])
                     }
                 };
             });
+
+        /* SecurityOptions */
+        var securityOptions = Options.Create(new SecurityOptions
+        {
+            OidcProviders = [
+                new OpenIdConnectProvider(
+                    Scheme: schemeA,
+                    default!,
+                    default!,
+                    default!,
+                    default!
+                ),
+
+                new OpenIdConnectProvider(
+                    Scheme: schemeB,
+                    default!,
+                    default!,
+                    default!,
+                    default!,
+                    EnabledCatalogsPattern: "^/(?:A|B|C|D)"
+                )
+            ]
+        });
 
         /* catalogManager */
         var catalogManager = new CatalogManager(
@@ -185,6 +214,7 @@ public class CatalogManagerTests
             serviceProvider,
             extensionHive,
             pipelineService,
+            securityOptions,
             NullLogger<CatalogManager>.Instance
         );
 

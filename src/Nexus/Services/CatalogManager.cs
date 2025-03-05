@@ -2,12 +2,14 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Apollo3zehn.PackageManagement.Services;
+using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Sources;
 using Nexus.Utilities;
+using OpenIddict.Abstractions;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -19,7 +21,8 @@ internal interface ICatalogManager
 {
     Task<CatalogContainer[]> GetCatalogContainersAsync(
         CatalogContainer parent,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 }
 
 internal class CatalogManager(
@@ -28,6 +31,7 @@ internal class CatalogManager(
     IServiceProvider serviceProvider,
     IExtensionHive<IDataSource> sourcesExtensionHive,
     IPipelineService pipelineService,
+    IOptions<SecurityOptions> _securityOptions,
     ILogger<CatalogManager> logger
 ) : ICatalogManager
 {
@@ -37,13 +41,15 @@ internal class CatalogManager(
         DataSourcePipeline Pipeline,
         Guid[] PackageReferenceIds,
         CatalogMetadata Metadata,
-        ClaimsPrincipal? Owner);
+        ClaimsPrincipal? Owner
+    );
 
     private readonly IDataControllerService _dataControllerService = dataControllerService;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
     private readonly IPipelineService _pipelineService = pipelineService;
+    private readonly SecurityOptions _securityOptions = _securityOptions.Value;
     private readonly ILogger<CatalogManager> _logger = logger;
 
     public async Task<CatalogContainer[]> GetCatalogContainersAsync(
@@ -128,15 +134,23 @@ internal class CatalogManager(
                     .Select(claim => new Claim(claim.Type, claim.Value))
                     .ToList();
 
-                claims
-                    .Add(new Claim(Claims.Subject, userId));
+                var scheme = user.Id.Split('@', count: 2)[1];
+
+                var oidcProvider = _securityOptions.OidcProviders
+                    .First(x => x.Scheme == scheme);
+
+                claims.Add(new Claim(Claims.Subject, userId));
 
                 var owner = new ClaimsPrincipal(
                     new ClaimsIdentity(
                         claims,
-                        authenticationType: "Fake authentication type",
+                        authenticationType: scheme,
                         nameType: Claims.Name,
-                        roleType: Claims.Role)
+                        roleType: Claims.Role
+                    )
+                    {
+                        BootstrapContext = oidcProvider
+                    }
                 );
 
                 /* For each pipeline */
@@ -183,7 +197,8 @@ internal class CatalogManager(
                                 pipeline,
                                 packageReferenceIds,
                                 metadata,
-                                owner);
+                                owner
+                            );
 
                             catalogPrototypes.Add(prototype);
                         }
@@ -242,7 +257,8 @@ internal class CatalogManager(
     }
 
     private CatalogContainer[] ProcessCatalogPrototypes(
-        IEnumerable<CatalogPrototype> catalogPrototypes)
+        IEnumerable<CatalogPrototype> catalogPrototypes
+    )
     {
         /* clean up */
         catalogPrototypes = EnsureNoHierarchy(catalogPrototypes);
@@ -278,7 +294,8 @@ internal class CatalogManager(
     }
 
     private CatalogPrototype[] EnsureNoHierarchy(
-        IEnumerable<CatalogPrototype> catalogPrototypes)
+        IEnumerable<CatalogPrototype> catalogPrototypes
+    )
     {
         // Background:
         //
@@ -305,7 +322,17 @@ internal class CatalogManager(
 
         foreach (var catalogPrototype in catalogPrototypes)
         {
-            var referenceIndex = catalogPrototypesToKeep.FindIndex(
+            var owner = catalogPrototype.Owner;
+            var ownerCanWrite = owner is null
+                || AuthUtilities.IsCatalogWritable(catalogPrototype.Registration.Path, catalogPrototype.Metadata, owner);
+
+            if (!ownerCanWrite)
+            {
+                _logger.LogWarning("User '{UserId}' has no permissions to create catalog {CatalogId}", catalogPrototype.Owner?.GetClaim(Claims.Subject), catalogPrototype.Registration.Path);
+                continue;
+            }
+
+            var duplicateIndex = catalogPrototypesToKeep.FindIndex(
                 current =>
                     {
                         var currentCatalogId = current.Registration.Path + '/';
@@ -316,27 +343,23 @@ internal class CatalogManager(
                     });
 
             /* nothing found */
-            if (referenceIndex < 0)
+            if (duplicateIndex < 0)
             {
                 catalogPrototypesToKeep.Add(catalogPrototype);
             }
 
-            /* reference found */
+            /* duplicate found */
             else
             {
-                var owner = catalogPrototype.Owner;
-                var ownerCanWrite = owner is null
-                    || AuthUtilities.IsCatalogWritable(catalogPrototype.Registration.Path, catalogPrototype.Metadata, owner);
-
-                var otherPrototype = catalogPrototypesToKeep[referenceIndex];
+                var otherPrototype = catalogPrototypesToKeep[duplicateIndex];
                 var otherOwner = otherPrototype.Owner;
                 var otherOwnerCanWrite = otherOwner is null
                     || AuthUtilities.IsCatalogWritable(otherPrototype.Registration.Path, catalogPrototype.Metadata, otherOwner);
 
-                if (!otherOwnerCanWrite && ownerCanWrite)
+                if (!otherOwnerCanWrite)
                 {
-                    _logger.LogWarning("Duplicate catalog {CatalogId}", catalogPrototypesToKeep[referenceIndex]);
-                    catalogPrototypesToKeep[referenceIndex] = catalogPrototype;
+                    _logger.LogWarning("Duplicate catalog {CatalogId}", catalogPrototypesToKeep[duplicateIndex]);
+                    catalogPrototypesToKeep[duplicateIndex] = catalogPrototype;
                 }
             }
         }

@@ -29,7 +29,7 @@ public class NexusAuthenticationStateProvider(INexusClient client) : Authenticat
 
             identity = new ClaimsIdentity(
                 claims,
-                authenticationType: meResponse.UserId.Split(['@'], count: 2)[1],
+                authenticationType: meResponse.UserId.Split('@', count: 2)[1],
                 nameType: NAME_CLAIM,
                 roleType: ROLE_CLAIM
             );
