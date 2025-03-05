@@ -138,7 +138,7 @@ internal class CatalogManager(
                 var userIdParts = user.Id.Split('@', count: 2);
                 var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
-                var oidcProvider = environmentName == "Development"
+                var oidcProvider = environmentName == "Development" && !_securityOptions.OidcProviders.Any()
 
                     ? NexusAuthExtensions.DefaultProvider
 
@@ -154,7 +154,7 @@ internal class CatalogManager(
                 var owner = new ClaimsPrincipal(
                     new ClaimsIdentity(
                         claims,
-                        authenticationType: default,
+                        authenticationType: "__internal",
                         nameType: Claims.Name,
                         roleType: Claims.Role
                     )
@@ -240,8 +240,7 @@ internal class CatalogManager(
                 var catalogRegistrations = await controller
                     .GetCatalogRegistrationsAsync(parent.Id + "/", cancellationToken);
 
-                var prototypes = catalogRegistrations
-                    .Select(catalogRegistration =>
+                var prototypes = catalogRegistrations.Select(catalogRegistration =>
                 {
                     var metadata = LoadMetadata(catalogRegistration.Path);
 
