@@ -11,7 +11,9 @@ internal enum NexusClaims
 
     CanReadCatalogGroup,
 
-    CanWriteCatalogGroup
+    CanWriteCatalogGroup,
+
+    CanUseResourceLocator
 }
 
 internal static class NexusClaimsHelper

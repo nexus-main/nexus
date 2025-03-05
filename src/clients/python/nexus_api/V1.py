@@ -2235,35 +2235,39 @@ class MeResponse:
 
     Args:
         user_id: The user id.
-        user: The user.
-        is_admin: A boolean which indicates if the user is an administrator.
+        user_name: The user name.
+        claims: A map of claims.
         personal_access_tokens: A list of personal access tokens.
     """
 
     user_id: str
     """The user id."""
 
-    user: NexusUser
-    """The user."""
+    user_name: str
+    """The user name."""
 
-    is_admin: bool
-    """A boolean which indicates if the user is an administrator."""
+    claims: dict[str, NexusClaim]
+    """A map of claims."""
 
     personal_access_tokens: dict[str, PersonalAccessToken]
     """A list of personal access tokens."""
 
 
 @dataclass(frozen=True)
-class NexusUser:
+class NexusClaim:
     """
-    Represents a user.
+    Represents a claim.
 
     Args:
-        name: The user name.
+        type: The claim type.
+        value: The claim value.
     """
 
-    name: str
-    """The user name."""
+    type: str
+    """The claim type."""
+
+    value: str
+    """The claim value."""
 
 
 @dataclass(frozen=True)
@@ -2305,20 +2309,16 @@ class TokenClaim:
 
 
 @dataclass(frozen=True)
-class NexusClaim:
+class NexusUser:
     """
-    Represents a claim.
+    Represents a user.
 
     Args:
-        type: The claim type.
-        value: The claim value.
+        name: The user name.
     """
 
-    type: str
-    """The claim type."""
-
-    value: str
-    """The claim value."""
+    name: str
+    """The user name."""
 
 
 

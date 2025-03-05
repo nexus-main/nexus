@@ -10,6 +10,7 @@ using Nexus.Sources;
 using Nexus.Utilities;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Services;
@@ -135,11 +136,34 @@ internal class CatalogManager(
                         claims,
                         authenticationType: "Fake authentication type",
                         nameType: Claims.Name,
-                        roleType: Claims.Role));
+                        roleType: Claims.Role)
+                );
 
-                /* for each pipeline */
+                /* For each pipeline */
                 foreach (var (pipelineId, pipeline) in pipelines)
                 {
+                    /* Ensure current user is allowed to use specific resource locators */
+                    var isAdmin = user.Claims.Any(claim =>
+                        claim.Type == Claims.Role &&
+                        claim.Value == nameof(NexusRoles.Administrator)
+                    );
+
+                    var canUseResourceLocatorClaims = owner.Claims
+                        .Where(x => x.Type == nameof(NexusClaims.CanUseResourceLocator))
+                        .Select(x => x.Value)
+                        .ToList();
+
+                    var isPipelineAccepted = isAdmin || pipeline.Registrations
+                        .Where(x => x.ResourceLocator is not null)
+                        .All(x => canUseResourceLocatorClaims.Any(pattern => Regex.IsMatch(x.ResourceLocator!.ToString(), pattern)));
+
+                    if (!isPipelineAccepted)
+                    {
+                        _logger.LogWarning($"Pipeline {pipelineId} of user {userId} contains one or more source registrations, with unauthorized resource locator. Set claim '{nameof(NexusClaims.CanUseResourceLocator)}' to a proper value to avoid this. The pipeline will be ignored.");
+                        continue;
+                    }
+
+                    /* Continue */
                     try
                     {
                         using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);

@@ -254,12 +254,12 @@ public record JobStatus(
 /// A me response.
 /// </summary>
 /// <param name="UserId">The user id.</param>
-/// <param name="User">The user.</param>
-/// <param name="IsAdmin">A boolean which indicates if the user is an administrator.</param>
+/// <param name="UserName">The user name.</param>
+/// <param name="Claims">A map of claims.</param>
 /// <param name="PersonalAccessTokens">A list of personal access tokens.</param>
 public record MeResponse(
     string UserId,
-    NexusUser User,
-    bool IsAdmin,
+    string UserName,
+    IReadOnlyDictionary<string, NexusClaim> Claims,
     IReadOnlyDictionary<Guid, PersonalAccessToken> PersonalAccessTokens
 );

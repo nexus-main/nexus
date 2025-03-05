@@ -35,8 +35,8 @@ internal static class AuthUtilities
             catalogMetadata,
             owner,
             user,
-            singleClaimType: NexusClaims.CanReadCatalog.ToString(),
-            groupClaimType: NexusClaims.CanReadCatalogGroup.ToString(),
+            singleClaimType: nameof(NexusClaims.CanReadCatalog),
+            groupClaimType: nameof(NexusClaims.CanReadCatalogGroup),
             checkImplicitAccess: true
         );
     }
@@ -51,8 +51,8 @@ internal static class AuthUtilities
             catalogMetadata,
             owner: default,
             user,
-            singleClaimType: NexusClaims.CanWriteCatalog.ToString(),
-            groupClaimType: NexusClaims.CanWriteCatalogGroup.ToString(),
+            singleClaimType: nameof(NexusClaims.CanWriteCatalog),
+            groupClaimType: nameof(NexusClaims.CanWriteCatalogGroup),
             checkImplicitAccess: false
         );
     }
@@ -88,7 +88,7 @@ internal static class AuthUtilities
             {
                 var isAdmin = identity.HasClaim(
                     NexusClaimsHelper.ToPatUserClaimType(Claims.Role),
-                    NexusRoles.Administrator.ToString());
+                    nameof(NexusRoles.Administrator));
 
                 if (isAdmin)
                     return true;
@@ -120,7 +120,7 @@ internal static class AuthUtilities
             {
                 var isAdmin = identity.HasClaim(
                     Claims.Role,
-                    NexusRoles.Administrator.ToString());
+                    nameof(NexusRoles.Administrator));
 
                 if (isAdmin)
                     return true;

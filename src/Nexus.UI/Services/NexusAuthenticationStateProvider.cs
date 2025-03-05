@@ -22,19 +22,17 @@ public class NexusAuthenticationStateProvider(INexusClient client) : Authenticat
         {
             var meResponse = await _client.V1.Users.GetMeAsync();
 
-            var claims = new List<Claim>
-            {
-                new(NAME_CLAIM, meResponse.User.Name)
-            };
-
-            if (meResponse.IsAdmin)
-                claims.Add(new Claim(ROLE_CLAIM, "Administrator"));
+            List<Claim> claims = [
+                new(NAME_CLAIM, meResponse.UserName),
+                .. meResponse.Claims.Select(x => new Claim(x.Value.Type, x.Value.Value))
+            ];
 
             identity = new ClaimsIdentity(
                 claims,
                 authenticationType: meResponse.UserId.Split(['@'], count: 2)[1],
                 nameType: NAME_CLAIM,
-                roleType: ROLE_CLAIM);
+                roleType: ROLE_CLAIM
+            );
         }
         catch (Exception)
         {

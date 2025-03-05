@@ -56,12 +56,12 @@ internal class PersonalAccessTokenAuthHandler(
                         .Select(claim => new Claim(NexusClaimsHelper.ToPatUserClaimType(claim.Type), claim.Value));
 
                     var tokenClaimsRead = token.Claims
-                        .Where(claim => claim.Type == NexusClaims.CanReadCatalog.ToString())
-                        .Select(claim => new Claim(NexusClaims.CanReadCatalog.ToString(), claim.Value));
+                        .Where(claim => claim.Type == nameof(NexusClaims.CanReadCatalog))
+                        .Select(claim => new Claim(nameof(NexusClaims.CanReadCatalog), claim.Value));
 
                     var tokenClaimsWrite = token.Claims
-                        .Where(claim => claim.Type == NexusClaims.CanWriteCatalog.ToString())
-                        .Select(claim => new Claim(NexusClaims.CanWriteCatalog.ToString(), claim.Value));
+                        .Where(claim => claim.Type == nameof(NexusClaims.CanWriteCatalog))
+                        .Select(claim => new Claim(nameof(NexusClaims.CanWriteCatalog), claim.Value));
 
                     var tokenClaimsRole = token.Claims
                         .Where(tokenClaim =>
@@ -72,7 +72,7 @@ internal class PersonalAccessTokenAuthHandler(
                     var claims = Enumerable.Empty<Claim>()
                         .Append(new Claim(Claims.Subject, userId))
                         .Append(new Claim(Claims.Name, user.Name))
-                        .Append(new Claim(Claims.Role, NexusRoles.User.ToString()))
+                        .Append(new Claim(Claims.Role, nameof(NexusRoles.Administrator)))
                         .Concat(userClaims)
                         .Concat(tokenClaimsRead)
                         .Concat(tokenClaimsWrite)

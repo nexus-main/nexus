@@ -2,6 +2,7 @@
 @using NJsonSchema
 @using System.Text.Json.Nodes
 @using System.Text.Encodings.Web
+@using System.Text.RegularExpressions
 
 @inject AppState AppState
 @inject INexusClient Client
@@ -9,241 +10,246 @@
 @inject IJSInProcessRuntime JSRuntime
 @inject IDialogService DialogService
 
-<div class="h-full grid grid-cols-[24rem,auto] gap-3">
+@if (_authenticationState is not null)
+{
 
-    <div class="flex-1 flex flex-col min-h-0 min-w-0 gap-3 p-3">
+    <div class="h-full grid grid-cols-[24rem,auto] gap-3">
 
-        <MudText Typo="Typo.h6">Pipeline</MudText>
+        <div class="flex-1 flex flex-col min-h-0 min-w-0 gap-3 p-3">
 
-        <MudPaper Elevation="4" Class="p-3">
+            <MudText Typo="Typo.h6">Pipeline</MudText>
 
-            <div class="flex items-center justify-around">
+            <MudPaper Elevation="4" Class="p-3">
 
-                <div>
-                    <MudButton
-                    Variant="Variant.Outlined"
-                    Color="Color.Primary"
-                    OnClick="PreparePipelineSelectionAsync">
-                        Select @(_pipeline is null ? "" : "another")
-                    </MudButton>
-                </div>
+                <div class="flex items-center justify-around">
 
-                <div>
-                    <MudIconButton
-                    Color="Color.Primary"
-                    Icon="@Icons.Material.Filled.Add"
-                    OnClick="CreateNewDataSourcePipelineAsync" />
-                </div>
-
-            </div>
-
-        </MudPaper>
-
-        @if (_pipeline is not null)
-        {
-            <MudPaper Elevation="4" Class="flex-1 p-3 overflow-y-auto">
-
-                <div class="flex flex-col gap-2">
-
-                    <div class="flex justify-end gap-2">
-                        <MudIconButton 
-                        Icon="@Icons.Material.Filled.Save"
+                    <div>
+                        <MudButton
+                        Variant="Variant.Outlined"
                         Color="Color.Primary"
-                        Disabled="!_isDirty"
-                        Size="Size.Small"
-                        OnClick="CreateOrUpdatePipelineAsync" />
-
-                        <MudIconButton 
-                        Icon="@Icons.Material.Filled.Delete"
-                        Disabled="_pipelineId is null"
-                        Size="Size.Small"
-                        OnClick="DeletePipelineAsync" />
+                        OnClick="PreparePipelineSelectionAsync">
+                            Select @(_pipeline is null ? "" : "another")
+                        </MudButton>
                     </div>
 
-                    <div class="flex flex-col gap-3">
-
-                        <MudTextField
-                        @bind-Value:get="@_pipeline.ReleasePattern"
-                        @bind-Value:set="value => { _pipeline = _pipeline with { ReleasePattern = value }; _isDirty = true; }"
-                        Label="Release pattern"
-                        Variant="Variant.Text" />
-
-                        <MudTextField 
-                        @bind-Value:get="@_pipeline.VisibilityPattern"
-                        @bind-Value:set="value => { _pipeline = _pipeline with { VisibilityPattern = value }; _isDirty = true; }"
-                        Label="Visibility pattern"
-                        Variant="Variant.Text" />
-
-                    </div>
-
-                    <MudText Typo="Typo.h6" Class="mt-3 mb-0">Registrations</MudText>
-
-                    <div class="p-2 flex flex-col gap-3">
-
-                        @if (_pipeline.Registrations.Any())
-                        {
-                            @foreach (var (registration, i) in _pipeline.Registrations.Select((registration, i) => (registration, i)))
-                            {
-                                <div class="flex justify-between">
-                                    <MudText Typo="Typo.h6" Class="text-cyan-700 font-bold">
-                                        #@(i + 1)
-                                    </MudText>
-
-                                    <div class="flex gap-1">
-                                        <div>
-                                            <MudIconButton
-                                            Icon="@Icons.Material.Filled.Settings"
-                                            Color="Color.Primary"
-                                            Size="Size.Small"
-                                            OnClick="() => BeginEditDataSourceRegistrationAsync(i)" />
-                                        </div>
-                                        <div>
-                                            <MudIconButton 
-                                            Icon="@Icons.Material.Filled.Delete"
-                                            Size="Size.Small"
-                                            OnClick="() => DeleteDataSourceRegistrationAsync(i)" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <MudTextField 
-                                Value="@registration.Type"
-                                Label="Type"
-                                Variant="Variant.Text"
-                                ReadOnly="true"
-                                Disabled="true" />
-
-                                <MudTextField
-                                @bind-Value:get="@registration.ResourceLocator?.ToString()"
-                                @bind-Value:set="value => UpdateDataSourceRegistration(i, registration with { ResourceLocator = Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : default })"
-                                Label="Resource locator"
-                                Variant="Variant.Text" />
-
-                                <MudTextField 
-                                @bind-Value:get="@registration.InfoUrl"
-                                @bind-Value:set="value => UpdateDataSourceRegistration(i, registration with { InfoUrl = value })"
-                                Label="Info URL"
-                                Variant="Variant.Text" />
-                            }
-                        }
-
-                        else
-                        {
-                            <div class="text-center">
-                                <MudText Typo="Typo.body1" Class="text-gray-400">
-                                    Click on the plus icon to create a new data source registration
-                                </MudText>
-                            </div>
-                        }
-                    </div>
-
-                    <div class="mx-auto">
-                        <MudIconButton 
+                    <div>
+                        <MudIconButton
+                        Color="Color.Primary"
                         Icon="@Icons.Material.Filled.Add"
-                        Color="Color.Primary"
-                        OnClick="() => 
-                            {
-                                _newDataSourceType = default;
-                                _newRegistrationDialogIsVisibile = true;
-                            }" />
+                        OnClick="CreateNewDataSourcePipelineAsync" />
                     </div>
 
                 </div>
 
             </MudPaper>
-        }
 
-    </div>
-
-    <div class="flex-1 flex flex-col min-h-0 min-w-0 gap-3 p-3">
-
-        <MudText Typo="Typo.h6">Registration configuration</MudText>
-
-        <MudPaper Elevation="4" Class="min-h-0 flex flex-col flex-1 p-3">
-
-            @if (_schema is null)
+            @if (_pipeline is not null)
             {
-                <div class="h-full flex items-center justify-center">
-                    <MudText Typo="Typo.body1" Class="text-gray-400">No registration selected</MudText>
-                </div>
+                <MudPaper Elevation="4" Class="flex-1 p-3 overflow-y-auto">
+
+                    <div class="flex flex-col gap-2">
+
+                        <div class="flex justify-end gap-2">
+                            <MudIconButton 
+                            Icon="@Icons.Material.Filled.Save"
+                            Color="Color.Primary"
+                            Disabled="!_isDirty"
+                            Size="Size.Small"
+                            OnClick="CreateOrUpdatePipelineAsync" />
+
+                            <MudIconButton 
+                            Icon="@Icons.Material.Filled.Delete"
+                            Disabled="_pipelineId is null"
+                            Size="Size.Small"
+                            OnClick="DeletePipelineAsync" />
+                        </div>
+
+                        <div class="flex flex-col gap-3">
+
+                            <MudTextField
+                            @bind-Value:get="@_pipeline.ReleasePattern"
+                            @bind-Value:set="value => { _pipeline = _pipeline with { ReleasePattern = value }; _isDirty = true; }"
+                            Label="Release pattern"
+                            Variant="Variant.Text" />
+
+                            <MudTextField 
+                            @bind-Value:get="@_pipeline.VisibilityPattern"
+                            @bind-Value:set="value => { _pipeline = _pipeline with { VisibilityPattern = value }; _isDirty = true; }"
+                            Label="Visibility pattern"
+                            Variant="Variant.Text" />
+
+                        </div>
+
+                        <MudText Typo="Typo.h6" Class="mt-3 mb-0">Registrations</MudText>
+
+                        <div class="p-2 flex flex-col gap-3">
+
+                            @if (_pipeline.Registrations.Any())
+                            {
+                                @foreach (var (registration, i) in _pipeline.Registrations.Select((registration, i) => (registration, i)))
+                                {
+                                    <div class="flex justify-between">
+                                        <MudText Typo="Typo.h6" Class="text-cyan-700 font-bold">
+                                            #@(i + 1)
+                                        </MudText>
+
+                                        <div class="flex gap-1">
+                                            <div>
+                                                <MudIconButton
+                                                Icon="@Icons.Material.Filled.Settings"
+                                                Color="Color.Primary"
+                                                Size="Size.Small"
+                                                OnClick="() => BeginEditDataSourceRegistrationAsync(i)" />
+                                            </div>
+                                            <div>
+                                                <MudIconButton 
+                                                Icon="@Icons.Material.Filled.Delete"
+                                                Size="Size.Small"
+                                                OnClick="() => DeleteDataSourceRegistrationAsync(i)" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <MudTextField 
+                                    Value="@registration.Type"
+                                    Label="Type"
+                                    Variant="Variant.Text"
+                                    ReadOnly="true"
+                                    Disabled="true" />
+
+                                    <MudTextField
+                                    @bind-Value:get="@registration.ResourceLocator?.ToString()"
+                                    @bind-Value:set="value => UpdateDataSourceRegistration(i, registration with { ResourceLocator = Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : default })"
+                                    Label="Resource locator"
+                                    Variant="Variant.Text"
+                                    Validation="(object)ValidateResourceLocator" />
+
+                                    <MudTextField 
+                                    @bind-Value:get="@registration.InfoUrl"
+                                    @bind-Value:set="value => UpdateDataSourceRegistration(i, registration with { InfoUrl = value })"
+                                    Label="Info URL"
+                                    Variant="Variant.Text" />
+                                }
+                            }
+
+                            else
+                            {
+                                <div class="text-center">
+                                    <MudText Typo="Typo.body1" Class="text-gray-400">
+                                        Click on the plus icon to create a new data source registration
+                                    </MudText>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mx-auto">
+                            <MudIconButton 
+                            Icon="@Icons.Material.Filled.Add"
+                            Color="Color.Primary"
+                            OnClick="() => 
+                                {
+                                    _newDataSourceType = default;
+                                    _newRegistrationDialogIsVisibile = true;
+                                }" />
+                        </div>
+
+                    </div>
+
+                </MudPaper>
             }
 
-            else
-            {
-                <div class="ml-auto">
+        </div>
 
-                    @if (_rawMode)
-                    {
-                        <MudIconButton
-                        Icon="@Icons.Material.Filled.Code"
-                        Color="Color.Secondary"
-                        OnClick="ToggleRawModeAsync" />
-                    }
+        <div class="flex-1 flex flex-col min-h-0 min-w-0 gap-3 p-3">
 
-                    else
-                    {
-                        <MudIconButton
-                        Icon="@Icons.Material.Filled.Code"
-                        OnClick="ToggleRawModeAsync" />
-                    }
+            <MudText Typo="Typo.h6">Registration configuration</MudText>
 
-                </div>
+            <MudPaper Elevation="4" Class="min-h-0 flex flex-col flex-1 p-3">
 
-                @if (_rawMode)
+                @if (_schema is null)
                 {
-                    <div class="flex-1 min-h-0 gap-2 flex flex-col">
-
-                        <div class="flex flex-col h-1/2">
-                            <div class="text-cyan-700 border-b mb-1">Input (JSON)</div>
-                            <textarea
-                            spellcheck="false"
-                            class="w-full flex-1 bg-gray-100 p-2 overflow-y-auto" 
-                            placeholder="Put your configuration here." 
-                            style="resize:none" 
-                            @bind="_jsonString"
-                            @bind:event="oninput"
-                            @bind:after="() => _isDirty = true">
-                            </textarea>
-                        </div>
-
-                        <div class="flex flex-col h-1/2">
-                            <div class="text-cyan-700 border-b mb-1 mt-2">Preview</div>
-                            <pre class="flex-1 p-2 text-gray-400 overflow-y-auto">
-                                <code>
-                                    @GetHighlightedCode()
-                                </code>
-                            </pre>
-                        </div>
-
+                    <div class="h-full flex items-center justify-center">
+                        <MudText Typo="Typo.body1" Class="text-gray-400">No registration selected</MudText>
                     </div>
                 }
 
                 else
                 {
-                    <ErrorBoundary>
-                        <ChildContent>
-                            <div class="overflow-y-auto">
-                                <MudForm @ref="_form">
-                                    <JsonForm 
-                                    Schema="_schema" 
-                                    @bind-Data="_data"
-                                    @bind-Data:after="() => _isDirty = true" />
-                                </MudForm>
+                    <div class="ml-auto">
+
+                        @if (_rawMode)
+                        {
+                            <MudIconButton
+                            Icon="@Icons.Material.Filled.Code"
+                            Color="Color.Secondary"
+                            OnClick="ToggleRawModeAsync" />
+                        }
+
+                        else
+                        {
+                            <MudIconButton
+                            Icon="@Icons.Material.Filled.Code"
+                            OnClick="ToggleRawModeAsync" />
+                        }
+
+                    </div>
+
+                    @if (_rawMode)
+                    {
+                        <div class="flex-1 min-h-0 gap-2 flex flex-col">
+
+                            <div class="flex flex-col h-1/2">
+                                <div class="text-cyan-700 border-b mb-1">Input (JSON)</div>
+                                <textarea
+                                spellcheck="false"
+                                class="w-full flex-1 bg-gray-100 p-2 overflow-y-auto" 
+                                placeholder="Put your configuration here." 
+                                style="resize:none" 
+                                @bind="_jsonString"
+                                @bind:event="oninput"
+                                @bind:after="() => _isDirty = true">
+                                </textarea>
                             </div>
-                        </ChildContent>
-                        <ErrorContent>
-                            <div>Sorry, the data source settings could not be rendered.</div>
-                        </ErrorContent>
-                    </ErrorBoundary>
+
+                            <div class="flex flex-col h-1/2">
+                                <div class="text-cyan-700 border-b mb-1 mt-2">Preview</div>
+                                <pre class="flex-1 p-2 text-gray-400 overflow-y-auto">
+                                    <code>
+                                        @GetHighlightedCode()
+                                    </code>
+                                </pre>
+                            </div>
+
+                        </div>
+                    }
+
+                    else
+                    {
+                        <ErrorBoundary>
+                            <ChildContent>
+                                <div class="overflow-y-auto">
+                                    <MudForm @ref="_form">
+                                        <JsonForm 
+                                        Schema="_schema" 
+                                        @bind-Data="_data"
+                                        @bind-Data:after="() => _isDirty = true" />
+                                    </MudForm>
+                                </div>
+                            </ChildContent>
+                            <ErrorContent>
+                                <div>Sorry, the data source settings could not be rendered.</div>
+                            </ErrorContent>
+                        </ErrorBoundary>
+                    }
+
                 }
 
-            }
+            </MudPaper>
 
-        </MudPaper>
+        </div>
 
     </div>
-
-</div>
+}
 
 <UIDialog @bind-Visible="_newRegistrationDialogIsVisibile" MaxWidth="MaxWidth.Small">
 
@@ -380,9 +386,50 @@
 
     private string? _newDataSourceType;
 
+    private AuthenticationState? _authenticationState;
+
     public SystemSettings_Pipelines()
     {
         _getDataSourceDescriptions = new Lazy<Task<IReadOnlyList<ExtensionDescription>>>(() => Client.V1.Sources.GetDescriptionsAsync());
+    }
+
+    [CascadingParameter]
+    public Task<AuthenticationState> GetAuthenticationStateTask { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _authenticationState = await GetAuthenticationStateTask;
+    }
+
+    private IEnumerable<string> ValidateResourceLocator(string? value)
+    {
+        if (value is null)
+            yield break;
+
+        var user = _authenticationState!.User;
+
+        var isAdmin = false;
+
+        @* var isAdmin = user.Claims.Any(claim =>
+            claim.Type == "role" &&
+            claim.Value == "Administrator"
+        ); *@
+
+        var canUseResourceLocatorClaims = user.Claims
+            .Where(x => x.Type == "CanUseResourceLocator")
+            .Select(x => x.Value)
+            .ToList();
+
+        var isResourceLocatorAccepted = isAdmin || canUseResourceLocatorClaims.Any(pattern => Regex.IsMatch(value, pattern));
+
+        if (!isResourceLocatorAccepted)
+        {
+            if (canUseResourceLocatorClaims.Any())
+                yield return $"The current value matches none of the following 'CanUseResourceLocator' patterns: {string.Join(", ", canUseResourceLocatorClaims)}";
+
+            else
+                yield return "You have no permissions to specify resource locators.";
+        }
     }
 
     private async Task BeginEditDataSourceRegistrationAsync(int registrationIndex)

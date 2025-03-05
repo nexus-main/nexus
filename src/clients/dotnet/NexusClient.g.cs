@@ -3222,16 +3222,17 @@ public record DataSourceRegistration(string Type, Uri? ResourceLocator, JsonElem
 /// A me response.
 /// </summary>
 /// <param name="UserId">The user id.</param>
-/// <param name="User">The user.</param>
-/// <param name="IsAdmin">A boolean which indicates if the user is an administrator.</param>
+/// <param name="UserName">The user name.</param>
+/// <param name="Claims">A map of claims.</param>
 /// <param name="PersonalAccessTokens">A list of personal access tokens.</param>
-public record MeResponse(string UserId, NexusUser User, bool IsAdmin, IReadOnlyDictionary<string, PersonalAccessToken> PersonalAccessTokens);
+public record MeResponse(string UserId, string UserName, IReadOnlyDictionary<string, NexusClaim> Claims, IReadOnlyDictionary<string, PersonalAccessToken> PersonalAccessTokens);
 
 /// <summary>
-/// Represents a user.
+/// Represents a claim.
 /// </summary>
-/// <param name="Name">The user name.</param>
-public record NexusUser(string Name);
+/// <param name="Type">The claim type.</param>
+/// <param name="Value">The claim value.</param>
+public record NexusClaim(string Type, string Value);
 
 /// <summary>
 /// A personal access token.
@@ -3249,11 +3250,10 @@ public record PersonalAccessToken(string Description, DateTime Expires, IReadOnl
 public record TokenClaim(string Type, string Value);
 
 /// <summary>
-/// Represents a claim.
+/// Represents a user.
 /// </summary>
-/// <param name="Type">The claim type.</param>
-/// <param name="Value">The claim value.</param>
-public record NexusClaim(string Type, string Value);
+/// <param name="Name">The user name.</param>
+public record NexusUser(string Name);
 
 
 

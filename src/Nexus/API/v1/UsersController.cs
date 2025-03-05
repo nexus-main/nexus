@@ -125,9 +125,12 @@ internal class UsersController(
         if (user is null)
             return NotFound($"Could not find user {userId}.");
 
-        var isAdmin = user.Claims.Any(
-            claim => claim.Type == Claims.Role &&
-                     claim.Value == NexusRoles.Administrator.ToString());
+        var translatedClaimsMap = user.Claims
+            .ToDictionary(entry => entry.Value, entry => new NexusClaim(
+                id: default,
+                type: entry.Type,
+                value: entry.Value
+            ));
 
         var tokenMap = await _tokenService.GetAllAsync(userId);
 
@@ -140,8 +143,8 @@ internal class UsersController(
 
         return new MeResponse(
             user.Id,
-            user,
-            isAdmin,
+            user.Name,
+            translatedClaimsMap,
             translatedTokenMap
         );
     }
@@ -259,7 +262,7 @@ internal class UsersController(
         if (user is null)
             return NotFound($"Could not find user {userId}.");
 
-        var claim = new NexusClaim(Guid.NewGuid(), NexusClaims.CanReadCatalog.ToString(), catalogId);
+        var claim = new NexusClaim(Guid.NewGuid(), nameof(NexusClaims.CanReadCatalog), catalogId);
         user.Claims.Add(claim);
 
         /* When the primary key is != Guid.Empty, EF thinks the entity
@@ -270,7 +273,7 @@ internal class UsersController(
 
         foreach (var identity in User.Identities)
         {
-            identity?.AddClaim(new Claim(NexusClaims.CanReadCatalog.ToString(), catalogId));
+            identity?.AddClaim(new Claim(nameof(NexusClaims.CanReadCatalog), catalogId));
         }
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, User);
@@ -428,7 +431,7 @@ internal class UsersController(
         out string userId,
         [NotNullWhen(returnValue: false)] out ActionResult? response)
     {
-        var isAdmin = User.IsInRole(NexusRoles.Administrator.ToString());
+        var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
         var currentId = User.FindFirstValue(Claims.Subject) ?? throw new Exception("The sub claim is null.");
 
         if (isAdmin || requestedId is null || requestedId == currentId)

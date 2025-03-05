@@ -2280,17 +2280,16 @@
             "type": "string",
             "description": "The user id."
           },
-          "user": {
-            "description": "The user.",
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/NexusUser"
-              }
-            ]
+          "userName": {
+            "type": "string",
+            "description": "The user name."
           },
-          "isAdmin": {
-            "type": "boolean",
-            "description": "A boolean which indicates if the user is an administrator."
+          "claims": {
+            "type": "object",
+            "description": "A map of claims.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NexusClaim"
+            }
           },
           "personalAccessTokens": {
             "type": "object",
@@ -2301,14 +2300,18 @@
           }
         }
       },
-      "NexusUser": {
+      "NexusClaim": {
         "type": "object",
-        "description": "Represents a user.",
+        "description": "Represents a claim.",
         "additionalProperties": false,
         "properties": {
-          "name": {
+          "type": {
             "type": "string",
-            "description": "The user name."
+            "description": "The claim type."
+          },
+          "value": {
+            "type": "string",
+            "description": "The claim value."
           }
         }
       },
@@ -2350,18 +2353,14 @@
           }
         }
       },
-      "NexusClaim": {
+      "NexusUser": {
         "type": "object",
-        "description": "Represents a claim.",
+        "description": "Represents a user.",
         "additionalProperties": false,
         "properties": {
-          "type": {
+          "name": {
             "type": "string",
-            "description": "The claim type."
-          },
-          "value": {
-            "type": "string",
-            "description": "The claim value."
+            "description": "The user name."
           }
         }
       }

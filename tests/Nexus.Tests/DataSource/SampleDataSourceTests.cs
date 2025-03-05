@@ -15,7 +15,7 @@ public class SampleDataSourceTests
     [Fact]
     public async Task ProvidesCatalog()
     {
-        // arrange
+        // Arrange
         var dataSource = new Sample() as IDataSource<object?>;
 
         var context = new DataSourceContext<object?>(
@@ -26,10 +26,10 @@ public class SampleDataSourceTests
 
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
-        // act
+        // Act
         var actual = await dataSource.EnrichCatalogAsync(new ResourceCatalog(Sample.LocalCatalogId), CancellationToken.None);
 
-        // assert
+        // Assert
         var actualIds = actual.Resources!.Select(resource => resource.Id).ToList();
         var actualUnits = actual.Resources!.Select(resource => resource.Properties?.GetStringValue(DataModelExtensions.UnitKey)).ToList();
         var actualGroups = actual.Resources!.SelectMany(resource => resource.Properties?.GetStringArray(DataModelExtensions.GroupsKey) ?? []);

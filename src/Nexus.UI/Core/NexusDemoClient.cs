@@ -459,14 +459,10 @@ public class UsersDemoClient : IUsersClient
 
     public Task<MeResponse> GetMeAsync(CancellationToken cancellationToken = default)
     {
-        var user = new NexusUser(
-            Name: "Star Lord"
-        );
-
         var meResponse = new MeResponse(
             UserId: "test@nexus",
-            User: user,
-            IsAdmin: false,
+            UserName: "Star Lord",
+            Claims: new Dictionary<string, NexusClaim>(),
             PersonalAccessTokens: new Dictionary<string, PersonalAccessToken>()
         );
 

@@ -48,15 +48,15 @@ public class UtilitiesTests
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(roleClaimType, NexusRoles.Administrator.ToString())]
+            ? [new Claim(roleClaimType, nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
                 claims: adminClaim
-                    .Concat(canReadCatalog.Select(value => new Claim(NexusClaims.CanReadCatalog.ToString(), value)))
-                    .Concat(canReadCatalogGroup.Select(value => new Claim(NexusClaims.CanReadCatalogGroup.ToString(), value)))
-                    .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(NexusClaims.CanReadCatalog.ToString()), value))),
+                    .Concat(canReadCatalog.Select(value => new Claim(nameof(NexusClaims.CanReadCatalog), value)))
+                    .Concat(canReadCatalogGroup.Select(value => new Claim(nameof(NexusClaims.CanReadCatalogGroup), value)))
+                    .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanReadCatalog)), value))),
                 authenticationType,
                 nameType: Claims.Name,
                 roleType: Claims.Role));
@@ -102,15 +102,15 @@ public class UtilitiesTests
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(roleClaimType, NexusRoles.Administrator.ToString())]
+            ? [new Claim(roleClaimType, nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
                 claims: adminClaim
-                    .Concat(canWriteCatalog.Select(value => new Claim(NexusClaims.CanWriteCatalog.ToString(), value)))
-                    .Concat(canWriteCatalogGroup.Select(value => new Claim(NexusClaims.CanWriteCatalogGroup.ToString(), value)))
-                    .Concat(patUserCanWriteCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(NexusClaims.CanWriteCatalog.ToString()), value))),
+                    .Concat(canWriteCatalog.Select(value => new Claim(nameof(NexusClaims.CanWriteCatalog), value)))
+                    .Concat(canWriteCatalogGroup.Select(value => new Claim(nameof(NexusClaims.CanWriteCatalogGroup), value)))
+                    .Concat(patUserCanWriteCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanWriteCatalog)), value))),
                 authenticationType,
                 nameType: Claims.Name,
                 roleType: Claims.Role));
