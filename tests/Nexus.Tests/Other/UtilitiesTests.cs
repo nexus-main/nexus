@@ -16,26 +16,30 @@ public class UtilitiesTests
 {
     [Theory]
 
-    [InlineData("Basic", true, new string[0], new string[0], new string[0], true)]
-    [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], new string[0], true)]
-    [InlineData("Basic", false, new string[] { "^/A/B/.*" }, new string[0], new string[0], true)]
-    [InlineData("Basic", false, new string[0], new string[] { "A" }, new string[0], true)]
+    [InlineData("Basic", true, "", new string[0], new string[0], new string[0], true)]
+    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], new string[0], true)]
+    [InlineData("Basic", false, "", new string[] { "^/A/B/.*" }, new string[0], new string[0], true)]
+    [InlineData("Basic", false, "", new string[0], new string[] { "A" }, new string[0], true)]
+    [InlineData("Basic", false, "/A", new string[] { "/A/B/C" }, new string[0], new string[0], true)]
 
-    [InlineData("Basic", false, new string[0], new string[0], new string[0], false)]
-    [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], new string[0], false)]
-    [InlineData("Basic", false, new string[0], new string[] { "A2" }, new string[0], false)]
-    [InlineData(null, true, new string[0], new string[0], new string[0], false)]
+    [InlineData("Basic", false, "", new string[0], new string[0], new string[0], false)]
+    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], new string[0], false)]
+    [InlineData("Basic", false, "", new string[0], new string[] { "A2" }, new string[0], false)]
+    [InlineData("Basic", false, "/A2", new string[] { "/A/B/C" }, new string[0], new string[0], false)]
+    [InlineData(null, true, "", new string[0], new string[0], new string[0], false)]
 
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, true, new string[0], new string[0], new string[0], true)]
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
+    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, true, "", new string[0], new string[0], new string[0], true)]
+    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
+    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
     public void CanDetermineCatalogReadability(
         string? authenticationType,
         bool isAdmin,
+        string enabledCatalogsPattern,
         string[] canReadCatalog,
         string[] canReadCatalogGroup,
         string[] patUserCanReadCatalog,
-        bool expected)
+        bool expected
+    )
     {
         // Arrange
         var isPAT = authenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme;
@@ -59,7 +63,19 @@ public class UtilitiesTests
                     .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanReadCatalog)), value))),
                 authenticationType,
                 nameType: Claims.Name,
-                roleType: Claims.Role));
+                roleType: Claims.Role
+            )
+            {
+                BootstrapContext = new OpenIdConnectProvider(
+                    Scheme: "Basic",
+                    default!,
+                    default!,
+                    default!,
+                    default!,
+                    EnabledCatalogsPattern: enabledCatalogsPattern
+                )
+            }
+        );
 
         // Act
         var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
@@ -70,26 +86,30 @@ public class UtilitiesTests
 
     [Theory]
 
-    [InlineData("Basic", true, new string[0], new string[0], new string[0], true)]
-    [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], new string[0], true)]
-    [InlineData("Basic", false, new string[] { "^/A/B/.*" }, new string[0], new string[0], true)]
-    [InlineData("Basic", false, new string[0], new string[] { "A" }, new string[0], true)]
+    [InlineData("Basic", true, "", new string[0], new string[0], new string[0], true)]
+    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], new string[0], true)]
+    [InlineData("Basic", false, "", new string[] { "^/A/B/.*" }, new string[0], new string[0], true)]
+    [InlineData("Basic", false, "", new string[0], new string[] { "A" }, new string[0], true)]
+    [InlineData("Basic", false, "/A", new string[] { "/A/B/C" }, new string[0], new string[0], true)]
 
-    [InlineData("Basic", false, new string[0], new string[0], new string[0], false)]
-    [InlineData("Basic", false, new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], new string[0], false)]
-    [InlineData("Basic", false, new string[0], new string[] { "A2" }, new string[0], false)]
-    [InlineData(null, true, new string[0], new string[0], new string[0], false)]
+    [InlineData("Basic", false, "", new string[0], new string[0], new string[0], false)]
+    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], new string[0], false)]
+    [InlineData("Basic", false, "", new string[0], new string[] { "A2" }, new string[0], false)]
+    [InlineData("Basic", false, "/A2", new string[] { "/A/B/C" }, new string[0], new string[0], false)]
+    [InlineData(null, true, "", new string[0], new string[0], new string[0], false)]
 
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, true, new string[0], new string[0], new string[0], true)]
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
+    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, true, "", new string[0], new string[0], new string[0], true)]
+    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
+    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
     public void CanDetermineCatalogWritability(
         string? authenticationType,
         bool isAdmin,
+        string enabledCatalogsPattern,
         string[] canWriteCatalog,
         string[] canWriteCatalogGroup,
         string[] patUserCanWriteCatalog,
-        bool expected)
+        bool expected
+    )
     {
         // Arrange
         var isPAT = authenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme;
@@ -113,7 +133,19 @@ public class UtilitiesTests
                     .Concat(patUserCanWriteCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanWriteCatalog)), value))),
                 authenticationType,
                 nameType: Claims.Name,
-                roleType: Claims.Role));
+                roleType: Claims.Role
+            )
+            {
+                BootstrapContext = new OpenIdConnectProvider(
+                    Scheme: "Basic",
+                    default!,
+                    default!,
+                    default!,
+                    default!,
+                    EnabledCatalogsPattern: enabledCatalogsPattern
+                )
+            }
+        );
 
         // Act
         var actual = AuthUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);

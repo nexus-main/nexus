@@ -31,7 +31,7 @@ public class CatalogManagerTests
         //      /A/ => /A/B, /A/B/C (ignore), /A/C/A
         //
         // User B, no admin,
-        //      /  => /A (ignore because no admin), /B/B, /B/B2, /C/A, /D (ignore because of missing NexusClaims.CanUseResourceLocator), /E (ignore because of no matching EnabledCatalogsPattern)
+        //      /  => /A (ignore because no admin), /B/B, /B/B2, /C/A, /D (ignore because of missing NexusClaims.CanUseResourceLocator)
 
         /* dataControllerService */
         var dataControllerService = Mock.Of<IDataControllerService>();
@@ -55,7 +55,6 @@ public class CatalogManagerTests
                             ("B", "/") => Task.FromResult(new CatalogRegistration[] { new("/A", string.Empty), new("/B/B", string.Empty), new("/B/B2", string.Empty) }),
                             ("C", "/") => Task.FromResult(new CatalogRegistration[] { new("/C/A", string.Empty) }),
                             ("D", "/") => Task.FromResult(new CatalogRegistration[] { new("/D", string.Empty) }),
-                            ("E", "/") => Task.FromResult(new CatalogRegistration[] { new("/E", string.Empty) }),
                             ("Nexus.Sources." + nameof(Sample), "/") => Task.FromResult(Array.Empty<CatalogRegistration>()),
                             _ => throw new Exception("Unsupported combination.")
                         };
@@ -201,8 +200,7 @@ public class CatalogManagerTests
                     default!,
                     default!,
                     default!,
-                    default!,
-                    EnabledCatalogsPattern: "^/(?:A|B|C|D)"
+                    default!
                 )
             ]
         });
