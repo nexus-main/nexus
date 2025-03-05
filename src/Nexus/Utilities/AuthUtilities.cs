@@ -158,7 +158,12 @@ internal static class AuthUtilities
     )
     {
         var oidcProvider = identity.BootstrapContext as OpenIdConnectProvider;
-        var isCatalogEnabledForScheme = oidcProvider is not null && Regex.IsMatch(catalogId, oidcProvider.EnabledCatalogsPattern);
+
+        var enabledCatalogsPattern = oidcProvider is null /* This is the case for Nexus internal users */
+            ? ""
+            : oidcProvider.EnabledCatalogsPattern;
+
+        var isCatalogEnabledForScheme = Regex.IsMatch(catalogId, enabledCatalogsPattern);
 
         if (!isCatalogEnabledForScheme)
             return false;

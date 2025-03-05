@@ -7,9 +7,14 @@ using System.Security.Claims;
 
 namespace Nexus.UI.Services;
 
-public class NexusAuthenticationStateProvider(INexusClient client) : AuthenticationStateProvider
+public class NexusAuthenticationStateProvider(
+    INexusClient client,
+    ILogger<NexusAuthenticationStateProvider> logger
+) : AuthenticationStateProvider
 {
     private readonly INexusClient _client = client;
+
+    private readonly ILogger _logger = logger;
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
@@ -34,8 +39,9 @@ public class NexusAuthenticationStateProvider(INexusClient client) : Authenticat
                 roleType: ROLE_CLAIM
             );
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Authentication failed");
             identity = new ClaimsIdentity();
         }
 

@@ -109,7 +109,8 @@ internal class CatalogManager(
                             pipeline,
                             packageReferenceIds,
                             metadata,
-                            null);
+                            null
+                        );
 
                         catalogPrototypes.Add(catalogPrototype);
                     }
@@ -134,17 +135,26 @@ internal class CatalogManager(
                     .Select(claim => new Claim(claim.Type, claim.Value))
                     .ToList();
 
-                var scheme = user.Id.Split('@', count: 2)[1];
+                var userIdParts = user.Id.Split('@', count: 2);
+                var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
-                var oidcProvider = _securityOptions.OidcProviders
-                    .First(x => x.Scheme == scheme);
+                var oidcProvider = environmentName == "Development"
+
+                    ? NexusAuthExtensions.DefaultProvider
+
+                    : userIdParts.Length == 2
+
+                        ? _securityOptions.OidcProviders
+                            .First(x => x.Scheme == userIdParts[1])
+
+                        : default;
 
                 claims.Add(new Claim(Claims.Subject, userId));
 
                 var owner = new ClaimsPrincipal(
                     new ClaimsIdentity(
                         claims,
-                        authenticationType: scheme,
+                        authenticationType: default,
                         nameType: Claims.Name,
                         roleType: Claims.Role
                     )
