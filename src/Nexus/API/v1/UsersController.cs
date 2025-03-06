@@ -126,7 +126,7 @@ internal class UsersController(
             return NotFound($"Could not find user {userId}.");
 
         var translatedClaimsMap = user.Claims
-            .ToDictionary(entry => entry.Value, entry => new NexusClaim(
+            .ToDictionary(entry => entry.Id, entry => new NexusClaim(
                 id: default,
                 type: entry.Type,
                 value: entry.Value

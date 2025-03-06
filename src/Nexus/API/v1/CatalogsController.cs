@@ -145,10 +145,10 @@ internal class CatalogsController(
         var response = await ProtectCatalogAsync<CatalogInfo[]>(catalogId, ensureReadable: false, ensureWritable: false, async catalogContainer =>
         {
             var childContainers = await catalogContainer.GetChildCatalogContainersAsync(cancellationToken);
-            var isAdmin = AuthUtilities.IsAdmin(User);
+            var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
 
             return childContainers
-                .Where(childContainer => isAdmin || AuthUtilities.IsCatalogEnabled(catalogContainer.Id, User))
+                .Where(childContainer => isAdmin || AuthUtilities.IsCatalogEnabled(childContainer.Id, User))
                 .Select(childContainer =>
                 {
                     // TODO: Create CatalogInfo along with CatalogContainer to improve performance and reduce GC pressure?

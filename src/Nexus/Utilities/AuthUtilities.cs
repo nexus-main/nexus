@@ -91,14 +91,6 @@ internal static class AuthUtilities
         return Regex.IsMatch(catalogId, enabledCatalogsPattern);
     }
 
-    public static bool IsAdmin(ClaimsPrincipal user)
-    {
-        return user.HasClaim(
-            Claims.Role,
-            nameof(NexusRoles.Administrator)
-        );
-    }
-
     private static bool InternalIsCatalogAccessible(
         string catalogId,
         CatalogMetadata catalogMetadata,
@@ -109,7 +101,7 @@ internal static class AuthUtilities
         bool checkImplicitAccess
     )
     {
-        var isAdmin = IsAdmin(user);
+        var isAdmin = user.IsInRole(nameof(NexusRoles.Administrator));
         var isCatalogEnabled = IsCatalogEnabled(catalogId, user);
 
         foreach (var identity in user.Identities)

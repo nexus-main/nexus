@@ -260,6 +260,6 @@ public record JobStatus(
 public record MeResponse(
     string UserId,
     string UserName,
-    IReadOnlyDictionary<string, NexusClaim> Claims,
+    IReadOnlyDictionary<Guid, NexusClaim> Claims,
     IReadOnlyDictionary<Guid, PersonalAccessToken> PersonalAccessTokens
 );
