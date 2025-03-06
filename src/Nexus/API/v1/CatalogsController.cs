@@ -3,6 +3,7 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Nexus.Core;
 using Nexus.Core.V1;
@@ -136,15 +137,18 @@ internal class CatalogsController(
     [HttpGet("{catalogId}/child-catalog-infos")]
     public async Task<ActionResult<CatalogInfo[]>> GetChildCatalogInfosAsync(
         string catalogId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         catalogId = WebUtility.UrlDecode(catalogId);
 
         var response = await ProtectCatalogAsync<CatalogInfo[]>(catalogId, ensureReadable: false, ensureWritable: false, async catalogContainer =>
         {
             var childContainers = await catalogContainer.GetChildCatalogContainersAsync(cancellationToken);
+            var isAdmin = AuthUtilities.IsAdmin(User);
 
             return childContainers
+                .Where(childContainer => isAdmin || AuthUtilities.IsCatalogEnabled(catalogContainer.Id, User))
                 .Select(childContainer =>
                 {
                     // TODO: Create CatalogInfo along with CatalogContainer to improve performance and reduce GC pressure?
@@ -331,7 +335,7 @@ internal class CatalogsController(
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpPut("{catalogId}/attachments/{attachmentId}")]
     [DisableRequestSizeLimit]
-    public Task<ActionResult> UploadAttachmentAsync(
+    public Task<IActionResult> UploadAttachmentAsync(
         string catalogId,
         string attachmentId,
         [FromBody] Stream content,
@@ -379,7 +383,7 @@ internal class CatalogsController(
     /// <param name="attachmentId">The attachment identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpDelete("{catalogId}/attachments/{attachmentId}")]
-    public Task<ActionResult> DeleteAttachmentAsync(
+    public Task<IActionResult> DeleteAttachmentAsync(
         string catalogId,
         string attachmentId,
         CancellationToken cancellationToken)
@@ -393,11 +397,11 @@ internal class CatalogsController(
             {
                 _databaseService.DeleteAttachment(catalogId, attachmentId);
 
-                return Task.FromResult<ActionResult>(Ok());
+                return Task.FromResult<ActionResult<object>>(Ok());
             }
             catch (IOException ex)
             {
-                return Task.FromResult<ActionResult>(
+                return Task.FromResult<ActionResult<object>>(
                     StatusCode(StatusCodes.Status423Locked, ex.Message));
             }
         }, cancellationToken);
@@ -412,7 +416,7 @@ internal class CatalogsController(
     /// <param name="attachmentId">The attachment identifier.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpGet("{catalogId}/attachments/{attachmentId}/content")]
-    public Task<ActionResult> GetAttachmentStreamAsync(
+    public Task<IActionResult> GetAttachmentStreamAsync(
         string catalogId,
         string attachmentId,
         CancellationToken cancellationToken)
@@ -427,18 +431,18 @@ internal class CatalogsController(
                 if (_databaseService.TryReadAttachment(catalogId, attachmentId, out var attachmentStream))
                 {
                     Response.Headers.ContentLength = attachmentStream.Length;
-                    return Task.FromResult<ActionResult>(
+                    return Task.FromResult<ActionResult<object>>(
                         File(attachmentStream, "application/octet-stream", attachmentId));
                 }
                 else
                 {
-                    return Task.FromResult<ActionResult>(
+                    return Task.FromResult<ActionResult<object>>(
                         NotFound($"Could not find attachment {attachmentId} for catalog {catalogId}."));
                 }
             }
             catch (IOException ex)
             {
-                return Task.FromResult<ActionResult>(
+                return Task.FromResult<ActionResult<object>>(
                     StatusCode(StatusCodes.Status423Locked, ex.Message));
             }
         }, cancellationToken);
@@ -473,7 +477,7 @@ internal class CatalogsController(
     /// <param name="metadata">The catalog metadata to set.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     [HttpPut("{catalogId}/metadata")]
-    public async Task<ActionResult> SetMetadataAsync(
+    public async Task<IActionResult> SetMetadataAsync(
         string catalogId,
         [FromBody] CatalogMetadata metadata,
         CancellationToken cancellationToken)
@@ -498,9 +502,9 @@ internal class CatalogsController(
         bool ensureReadable,
         bool ensureWritable,
         Func<CatalogContainer, Task<ActionResult<T>>> action,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
-        /* KEEP IN SYNC WITH ProtectCatalogNonGenericAsync! */
         var root = _appState.CatalogState.Root;
 
         var catalogContainer = catalogId == CatalogContainer.RootCatalogId
@@ -533,43 +537,15 @@ internal class CatalogsController(
         }
     }
 
-    private async Task<ActionResult> ProtectCatalogNonGenericAsync(
+    private async Task<IActionResult> ProtectCatalogNonGenericAsync(
         string catalogId,
         bool ensureReadable,
         bool ensureWritable,
-        Func<CatalogContainer, Task<ActionResult>> action,
-        CancellationToken cancellationToken)
+        Func<CatalogContainer, Task<ActionResult<object>>> action,
+        CancellationToken cancellationToken
+    )
     {
-        /* KEEP IN SYNC WITH ProtectCatalogAsync! */
-        var root = _appState.CatalogState.Root;
-
-        var catalogContainer = catalogId == CatalogContainer.RootCatalogId
-            ? root
-            : await root.TryFindCatalogContainerAsync(root, catalogId, cancellationToken);
-
-        if (catalogContainer is not null)
-        {
-            if (ensureReadable && !AuthUtilities.IsCatalogReadable(
-                catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
-            {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    $"The current user is not permitted to read the catalog {catalogId}.");
-            }
-
-            if (ensureWritable && !AuthUtilities.IsCatalogWritable(
-                catalogContainer.Id, catalogContainer.Metadata, User))
-            {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    $"The current user is not permitted to modify the catalog {catalogId}.");
-            }
-
-            return await action.Invoke(catalogContainer);
-        }
-        else
-        {
-            return NotFound(catalogId);
-        }
+        var actionResult = await ProtectCatalogAsync(catalogId, ensureReadable, ensureWritable, action, cancellationToken);
+        return ((IConvertToActionResult)actionResult).Convert();
     }
 }

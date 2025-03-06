@@ -5,6 +5,7 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Utilities;
+using OpenIddict.Abstractions;
 using System.Security.Claims;
 using System.Text.Json;
 using Xunit;
@@ -16,66 +17,97 @@ public class UtilitiesTests
 {
     [Theory]
 
-    [InlineData("Basic", true, "", new string[0], new string[0], new string[0], true)]
-    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], new string[0], true)]
-    [InlineData("Basic", false, "", new string[] { "^/A/B/.*" }, new string[0], new string[0], true)]
-    [InlineData("Basic", false, "", new string[0], new string[] { "A" }, new string[0], true)]
-    [InlineData("Basic", false, "/A", new string[] { "/A/B/C" }, new string[0], new string[0], true)]
+    [InlineData("Basic", true, "", new string[0], new string[0], true)]
+    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], true)]
+    [InlineData("Basic", false, "", new string[] { "^/A/B/.*" }, new string[0], true)]
+    [InlineData("Basic", false, "", new string[0], new string[] { "A" }, true)]
+    [InlineData("Basic", false, "/A", new string[] { "/A/B/C" }, new string[0], true)]
 
-    [InlineData("Basic", false, "", new string[0], new string[0], new string[0], false)]
-    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], new string[0], false)]
-    [InlineData("Basic", false, "", new string[0], new string[] { "A2" }, new string[0], false)]
-    [InlineData("Basic", false, "/A2", new string[] { "/A/B/C" }, new string[0], new string[0], false)]
-    [InlineData(null, true, "", new string[0], new string[0], new string[0], false)]
-
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, true, "", new string[0], new string[0], new string[0], true)]
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
+    [InlineData("Basic", false, "", new string[0], new string[0], false)]
+    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], false)]
+    [InlineData("Basic", false, "", new string[0], new string[] { "A2" }, false)]
+    [InlineData("Basic", false, "/A2", new string[] { "/A/B/C" }, new string[0], false)]
+    [InlineData(null, true, "", new string[0], new string[0], false)]
     public void CanDetermineCatalogReadability(
         string? authenticationType,
         bool isAdmin,
         string enabledCatalogsPattern,
         string[] canReadCatalog,
         string[] canReadCatalogGroup,
-        string[] patUserCanReadCatalog,
         bool expected
     )
     {
         // Arrange
-        var isPAT = authenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme;
-
-        var roleClaimType = isPAT
-            ? NexusClaimsHelper.ToPatUserClaimType(Claims.Role)
-            : Claims.Role;
-
         var catalogId = "/A/B/C";
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(roleClaimType, nameof(NexusRoles.Administrator))]
+            ? [new Claim(Claims.Role, nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
                 claims: adminClaim
                     .Concat(canReadCatalog.Select(value => new Claim(nameof(NexusClaims.CanReadCatalog), value)))
-                    .Concat(canReadCatalogGroup.Select(value => new Claim(nameof(NexusClaims.CanReadCatalogGroup), value)))
-                    .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanReadCatalog)), value))),
+                    .Concat(canReadCatalogGroup.Select(value => new Claim(nameof(NexusClaims.CanReadCatalogGroup), value))),
                 authenticationType,
                 nameType: Claims.Name,
                 roleType: Claims.Role
             )
-            {
-                BootstrapContext = new OpenIdConnectProvider(
-                    Scheme: "Basic",
-                    default!,
-                    default!,
-                    default!,
-                    default!,
-                    EnabledCatalogsPattern: enabledCatalogsPattern
-                )
-            }
         );
+
+        principal.SetResources(enabledCatalogsPattern);
+
+        // Act
+        var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData(true, true, "", new string[0], new string[0], new string[0], true)]
+    [InlineData(false, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
+
+    [InlineData(true, false, "", new string[0], new string[0], new string[0], false)]
+    [InlineData(false, true, "", new string[0], new string[0], new string[0], false)]
+    [InlineData(false, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
+    public void CanDetermineCatalogReadability_PAT(
+        bool isAdmin,
+        bool claimsToBeAdmin,
+        string enabledCatalogsPattern,
+        string[] patCanReadCatalog,
+        string[] patCanReadCatalogGroup,
+        string[] patUserCanReadCatalog,
+        bool expected
+    )
+    {
+        // Arrange
+        var catalogId = "/A/B/C";
+        var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
+
+        var adminClaim = isAdmin
+            ? [new Claim(Claims.Role, nameof(NexusRoles.Administrator))]
+            : Array.Empty<Claim>();
+
+        var claimsToBeAdminClaim = claimsToBeAdmin
+            ? [new Claim(NexusClaimsHelper.ToPatClaimType(Claims.Role), nameof(NexusRoles.Administrator))]
+            : Array.Empty<Claim>();
+
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                claims: adminClaim
+                    .Concat(claimsToBeAdminClaim)
+                    .Concat(patCanReadCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatClaimType(nameof(NexusClaims.CanReadCatalog)), value)))
+                    .Concat(patCanReadCatalogGroup.Select(value => new Claim(NexusClaimsHelper.ToPatClaimType(nameof(NexusClaims.CanReadCatalogGroup)), value)))
+                    .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanReadCatalog)), value))),
+                PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme,
+                nameType: Claims.Name,
+                roleType: Claims.Role
+            )
+        );
+
+        principal.SetResources(enabledCatalogsPattern);
 
         // Act
         var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
@@ -86,24 +118,65 @@ public class UtilitiesTests
 
     [Theory]
 
-    [InlineData("Basic", true, "", new string[0], new string[0], new string[0], true)]
-    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], new string[0], true)]
-    [InlineData("Basic", false, "", new string[] { "^/A/B/.*" }, new string[0], new string[0], true)]
-    [InlineData("Basic", false, "", new string[0], new string[] { "A" }, new string[0], true)]
-    [InlineData("Basic", false, "/A", new string[] { "/A/B/C" }, new string[0], new string[0], true)]
+    [InlineData("Basic", true, "", new string[0], new string[0], true)]
+    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C", "/G/H/I" }, new string[0], true)]
+    [InlineData("Basic", false, "", new string[] { "^/A/B/.*" }, new string[0], true)]
+    [InlineData("Basic", false, "", new string[0], new string[] { "A" }, true)]
+    [InlineData("Basic", false, "/A", new string[] { "/A/B/C" }, new string[0], true)]
 
-    [InlineData("Basic", false, "", new string[0], new string[0], new string[0], false)]
-    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], new string[0], false)]
-    [InlineData("Basic", false, "", new string[0], new string[] { "A2" }, new string[0], false)]
-    [InlineData("Basic", false, "/A2", new string[] { "/A/B/C" }, new string[0], new string[0], false)]
-    [InlineData(null, true, "", new string[0], new string[0], new string[0], false)]
-
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, true, "", new string[0], new string[0], new string[0], true)]
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
-    [InlineData(PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
+    [InlineData("Basic", false, "", new string[0], new string[0], false)]
+    [InlineData("Basic", false, "", new string[] { "/D/E/F", "/A/B/C2", "/G/H/I" }, new string[0], false)]
+    [InlineData("Basic", false, "", new string[0], new string[] { "A2" }, false)]
+    [InlineData("Basic", false, "/A2", new string[] { "/A/B/C" }, new string[0], false)]
+    [InlineData(null, true, "", new string[0], new string[0], false)]
     public void CanDetermineCatalogWritability(
         string? authenticationType,
         bool isAdmin,
+        string enabledCatalogsPattern,
+        string[] canWriteCatalog,
+        string[] canWriteCatalogGroup,
+        bool expected
+    )
+    {
+        // Arrange
+        var catalogId = "/A/B/C";
+        var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
+
+        var adminClaim = isAdmin
+            ? [new Claim(Claims.Role, nameof(NexusRoles.Administrator))]
+            : Array.Empty<Claim>();
+
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                claims: adminClaim
+                    .Concat(canWriteCatalog.Select(value => new Claim(nameof(NexusClaims.CanWriteCatalog), value)))
+                    .Concat(canWriteCatalogGroup.Select(value => new Claim(nameof(NexusClaims.CanWriteCatalogGroup), value))),
+                authenticationType,
+                nameType: Claims.Name,
+                roleType: Claims.Role
+            )
+        );
+
+        principal.SetResources(enabledCatalogsPattern);
+
+        // Act
+        var actual = AuthUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+
+    [InlineData(true, true, "", new string[0], new string[0], new string[0], true)]
+    [InlineData(false, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/A/B/" }, true)]
+
+    [InlineData(true, false, "", new string[0], new string[0], new string[0], false)]
+    [InlineData(false, true, "", new string[0], new string[0], new string[0], false)]
+    [InlineData(false, false, "", new string[] { "/A/B/C" }, new string[0], new string[] { "/D/E/" }, false)]
+    public void CanDetermineCatalogWritability_PAT(
+        bool isAdmin,
+        bool claimsToBeAdmin,
         string enabledCatalogsPattern,
         string[] canWriteCatalog,
         string[] canWriteCatalogGroup,
@@ -112,40 +185,31 @@ public class UtilitiesTests
     )
     {
         // Arrange
-        var isPAT = authenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme;
-
-        var roleClaimType = isPAT
-            ? NexusClaimsHelper.ToPatUserClaimType(Claims.Role)
-            : Claims.Role;
-
         var catalogId = "/A/B/C";
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(roleClaimType, nameof(NexusRoles.Administrator))]
+            ? [new Claim(Claims.Role, nameof(NexusRoles.Administrator))]
+            : Array.Empty<Claim>();
+
+        var claimsToBeAdminClaim = claimsToBeAdmin
+            ? [new Claim(NexusClaimsHelper.ToPatClaimType(Claims.Role), nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
                 claims: adminClaim
-                    .Concat(canWriteCatalog.Select(value => new Claim(nameof(NexusClaims.CanWriteCatalog), value)))
-                    .Concat(canWriteCatalogGroup.Select(value => new Claim(nameof(NexusClaims.CanWriteCatalogGroup), value)))
+                    .Concat(claimsToBeAdminClaim)
+                    .Concat(canWriteCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatClaimType(nameof(NexusClaims.CanWriteCatalog)), value)))
+                    .Concat(canWriteCatalogGroup.Select(value => new Claim(NexusClaimsHelper.ToPatClaimType(nameof(NexusClaims.CanWriteCatalogGroup)), value)))
                     .Concat(patUserCanWriteCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanWriteCatalog)), value))),
-                authenticationType,
+                PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme,
                 nameType: Claims.Name,
                 roleType: Claims.Role
             )
-            {
-                BootstrapContext = new OpenIdConnectProvider(
-                    Scheme: "Basic",
-                    default!,
-                    default!,
-                    default!,
-                    default!,
-                    EnabledCatalogsPattern: enabledCatalogsPattern
-                )
-            }
         );
+
+        principal.SetResources(enabledCatalogsPattern);
 
         // Act
         var actual = AuthUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);

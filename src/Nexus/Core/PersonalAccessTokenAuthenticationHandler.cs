@@ -19,10 +19,14 @@ internal static class PersonalAccessTokenAuthenticationDefaults
 internal class PersonalAccessTokenAuthHandler(
     ITokenService tokenService,
     IDBService dbService,
+    IOptions<SecurityOptions> securityOptions,
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
-    UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    UrlEncoder encoder
+) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
+    private readonly SecurityOptions _securityOptions = securityOptions.Value;
+
     private readonly ITokenService _tokenService = tokenService;
 
     private readonly IDBService _dbService = dbService;
@@ -57,17 +61,17 @@ internal class PersonalAccessTokenAuthHandler(
 
                     var tokenClaimsRead = token.Claims
                         .Where(claim => claim.Type == nameof(NexusClaims.CanReadCatalog))
-                        .Select(claim => new Claim(nameof(NexusClaims.CanReadCatalog), claim.Value));
+                        .Select(claim => new Claim(NexusClaimsHelper.ToPatClaimType(nameof(NexusClaims.CanReadCatalog)), claim.Value));
 
                     var tokenClaimsWrite = token.Claims
                         .Where(claim => claim.Type == nameof(NexusClaims.CanWriteCatalog))
-                        .Select(claim => new Claim(nameof(NexusClaims.CanWriteCatalog), claim.Value));
+                        .Select(claim => new Claim(NexusClaimsHelper.ToPatClaimType(nameof(NexusClaims.CanWriteCatalog)), claim.Value));
 
                     var tokenClaimsRole = token.Claims
                         .Where(tokenClaim =>
                             tokenClaim.Type == Claims.Role &&
                             user.Claims.Any(userClaim => userClaim.Type == Claims.Role && userClaim.Value == tokenClaim.Value))
-                        .Select(claim => new Claim(Claims.Role, claim.Value));
+                        .Select(claim => new Claim(NexusClaimsHelper.ToPatClaimType(Claims.Role), claim.Value));
 
                     var claims = Enumerable.Empty<Claim>()
                         .Append(new Claim(Claims.Subject, userId))
@@ -78,15 +82,26 @@ internal class PersonalAccessTokenAuthHandler(
                         .Concat(tokenClaimsWrite)
                         .Concat(tokenClaimsRole);
 
+                    var claimsToBeAdmin = token.Claims
+                        .Any(claim => claim.Type == Claims.Role && claim.Value == nameof(NexusRoles.Administrator));
+
+                    var isAdmin = user.Claims
+                        .Any(claim => claim.Type == Claims.Role && claim.Value == nameof(NexusRoles.Administrator));
+
+                    if (claimsToBeAdmin && isAdmin)
+                        claims = claims.Append(new Claim(Claims.Role, nameof(NexusRoles.Administrator)));
+
                     var identity = new ClaimsIdentity(
                         claims,
                         Scheme.Name,
                         nameType: Claims.Name,
-                        roleType: Claims.Role);
+                        roleType: Claims.Role
+                    );
 
                     principal ??= new ClaimsPrincipal();
-
                     principal.AddIdentity(identity);
+
+                    AuthUtilities.AddEnabledCatalogPattern(principal, Scheme.Name, _securityOptions);
                 }
             }
         }

@@ -4,6 +4,7 @@
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Sources;
+using OpenIddict.Abstractions;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -12,6 +13,25 @@ namespace Nexus.Utilities;
 
 internal static class AuthUtilities
 {
+    public static void AddEnabledCatalogPattern(ClaimsPrincipal principal, string? scheme, SecurityOptions options)
+    {
+        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+        if (scheme is null)
+        {
+            principal.SetResources(OpenIdConnectProvider.DEFAULT_ENABLED_CATALOGS_PATTERN);
+        }
+
+        else
+        {
+            var oidcProvider = environmentName == "Development" && !options.OidcProviders.Any()
+                ? NexusAuthExtensions.DefaultProvider
+                : options.OidcProviders.First(x => x.Scheme == scheme);
+
+            principal.SetResources(oidcProvider.EnabledCatalogsPattern);
+        }
+    }
+
     public static string ComponentsToTokenValue(string userId, string secret)
     {
         return $"{secret}_{userId}";
@@ -59,6 +79,26 @@ internal static class AuthUtilities
         );
     }
 
+    public static bool IsCatalogEnabled(
+        string catalogId,
+        ClaimsPrincipal user
+    )
+    {
+        var enabledCatalogsPattern = user
+            .GetResources()
+            .First();
+
+        return Regex.IsMatch(catalogId, enabledCatalogsPattern);
+    }
+
+    public static bool IsAdmin(ClaimsPrincipal user)
+    {
+        return user.HasClaim(
+            Claims.Role,
+            nameof(NexusRoles.Administrator)
+        );
+    }
+
     private static bool InternalIsCatalogAccessible(
         string catalogId,
         CatalogMetadata catalogMetadata,
@@ -69,6 +109,9 @@ internal static class AuthUtilities
         bool checkImplicitAccess
     )
     {
+        var isAdmin = IsAdmin(user);
+        var isCatalogEnabled = IsCatalogEnabled(catalogId, user);
+
         foreach (var identity in user.Identities)
         {
             if (identity is null || !identity.IsAuthenticated)
@@ -89,17 +132,13 @@ internal static class AuthUtilities
             /* PAT */
             if (identity.AuthenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme)
             {
-                var isAdmin = identity.HasClaim(
-                    NexusClaimsHelper.ToPatUserClaimType(Claims.Role),
-                    nameof(NexusRoles.Administrator));
-
-                if (isAdmin)
-                    return true;
-
                 /* The token alone can access the catalog ... */
-                var canAccessCatalog = identity.HasClaim(
+                var claimsToBeAdmin = identity.Claims
+                    .Any(claim => claim.Type == NexusClaimsHelper.ToPatClaimType(Claims.Role) && claim.Value == nameof(NexusRoles.Administrator));
+
+                var canAccessCatalog = claimsToBeAdmin || identity.HasClaim(
                     claim =>
-                        claim.Type == singleClaimType &&
+                        claim.Type == NexusClaimsHelper.ToPatClaimType(singleClaimType) &&
                         Regex.IsMatch(catalogId, claim.Value)
                 );
 
@@ -108,6 +147,15 @@ internal static class AuthUtilities
                  * the user can access that catalog as well. */
                 if (canAccessCatalog)
                 {
+                    /* Admins are allowed to access everything */
+                    if (isAdmin)
+                        return true;
+
+                    /* User is no admin and specific catalog is not enabled */
+                    if (!isCatalogEnabled)
+                        return false;
+
+                    /* Ensure that user can access the catalog */
                     result = CanUserAccessCatalog(
                         catalogId,
                         catalogMetadata,
@@ -119,17 +167,18 @@ internal static class AuthUtilities
                 }
             }
 
-            /* cookie */
+            /* Other auth schemes */
             else
             {
-                var isAdmin = identity.HasClaim(
-                    Claims.Role,
-                    nameof(NexusRoles.Administrator));
-
+                /* Admins are allowed to access everything */
                 if (isAdmin)
                     return true;
 
-                /* ensure that user can read that catalog */
+                /* User is no admin and specific catalog is not enabled */
+                if (!isCatalogEnabled)
+                    return false;
+
+                /* Ensure that user can access the catalog */
                 result = CanUserAccessCatalog(
                     catalogId,
                     catalogMetadata,
@@ -140,7 +189,7 @@ internal static class AuthUtilities
                 );
             }
 
-            /* leave loop when access is granted */
+            /* Leave loop when access is granted */
             if (result)
                 return true;
         }
@@ -157,16 +206,6 @@ internal static class AuthUtilities
         string groupClaimType
     )
     {
-        var oidcProvider = identity.BootstrapContext as OpenIdConnectProvider;
-
-        /* oidcProvider is null for for Nexus internal users */
-        var isCatalogEnabledForScheme = oidcProvider is null
-            ? true
-            : Regex.IsMatch(catalogId, oidcProvider.EnabledCatalogsPattern);
-
-        if (!isCatalogEnabledForScheme)
-            return false;
-
         var isOwner =
             owner is not null &&
             owner?.FindFirstValue(Claims.Subject) == identity.FindFirst(Claims.Subject)?.Value;

@@ -102,8 +102,11 @@ internal record OpenIdConnectProvider(
     string ClientId,
     string ClientSecret,
     string IdentifierClaim = Claims.Subject,
-    string EnabledCatalogsPattern = "" /* "" == match all */
-);
+    string EnabledCatalogsPattern = OpenIdConnectProvider.DEFAULT_ENABLED_CATALOGS_PATTERN
+)
+{
+    public const string DEFAULT_ENABLED_CATALOGS_PATTERN = "" /* == match all */;
+};
 
 internal partial record SecurityOptions() : NexusOptionsBase
 {

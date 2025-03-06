@@ -19,6 +19,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 internal static class NexusAuthExtensions
 {
+    public const string INTERNAL_AUTH_SCHEME = "__internal";
+
     public static OpenIdConnectProvider DefaultProvider { get; } = new OpenIdConnectProvider
     (
         Scheme: "nexus",
@@ -31,7 +33,8 @@ internal static class NexusAuthExtensions
     public static IServiceCollection AddNexusAuth(
         this IServiceCollection services,
         PathsOptions pathsOptions,
-        SecurityOptions securityOptions)
+        SecurityOptions securityOptions
+    )
     {
         /* https://stackoverflow.com/a/52493428/1636629 */
 
@@ -118,14 +121,13 @@ internal static class NexusAuthExtensions
                          * (https://stackoverflow.com/a/69047119/1636629) where 1 kB, or 50%,
                          * comes from the id_token.
                          */
-                        context.Properties!.StoreTokens(new[]
-                        {
+                        context.Properties!.StoreTokens([
                             new AuthenticationToken
                             {
                                 Name = "id_token",
                                 Value = context.TokenEndpointResponse.IdToken
                             }
-                        });
+                        ]);
 
                         return Task.CompletedTask;
                     },
@@ -196,12 +198,14 @@ internal static class NexusAuthExtensions
 
                         var appIdentity = new ClaimsIdentity(
                             claims,
-                            authenticationType: context.Scheme.Name,
+                            authenticationType: INTERNAL_AUTH_SCHEME,
                             nameType: Claims.Name,
                             roleType: Claims.Role
                         );
 
                         principal.AddIdentity(appIdentity);
+
+                        AuthUtilities.AddEnabledCatalogPattern(principal, context.Scheme.Name, securityOptions);
                     }
                 };
             });

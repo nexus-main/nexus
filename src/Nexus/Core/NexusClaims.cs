@@ -22,4 +22,9 @@ internal static class NexusClaimsHelper
     {
         return $"pat_user_{claimType}";
     }
+
+    public static string ToPatClaimType(string claimType)
+    {
+        return $"pat_{claimType}";
+    }
 }

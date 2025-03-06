@@ -45,11 +45,17 @@ internal class CatalogManager(
     );
 
     private readonly IDataControllerService _dataControllerService = dataControllerService;
+
     private readonly IDatabaseService _databaseService = databaseService;
+
     private readonly IServiceProvider _serviceProvider = serviceProvider;
+
     private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
+
     private readonly IPipelineService _pipelineService = pipelineService;
+
     private readonly SecurityOptions _securityOptions = _securityOptions.Value;
+
     private readonly ILogger<CatalogManager> _logger = logger;
 
     public async Task<CatalogContainer[]> GetCatalogContainersAsync(
@@ -86,7 +92,7 @@ internal class CatalogManager(
 
             /* => for the built-in pipelines */
 
-            // TODO: Load Parallel?
+            // TODO: Load parallel?
             /* for each pipeline */
             foreach (var (pipelineId, pipeline) in builtinPipelines)
             {
@@ -135,33 +141,21 @@ internal class CatalogManager(
                     .Select(claim => new Claim(claim.Type, claim.Value))
                     .ToList();
 
-                var userIdParts = user.Id.Split('@', count: 2);
-                var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-
-                var oidcProvider = environmentName == "Development" && !_securityOptions.OidcProviders.Any()
-
-                    ? NexusAuthExtensions.DefaultProvider
-
-                    : userIdParts.Length == 2
-
-                        ? _securityOptions.OidcProviders
-                            .First(x => x.Scheme == userIdParts[1])
-
-                        : default;
-
                 claims.Add(new Claim(Claims.Subject, userId));
 
                 var owner = new ClaimsPrincipal(
                     new ClaimsIdentity(
                         claims,
-                        authenticationType: "__internal",
+                        authenticationType: NexusAuthExtensions.INTERNAL_AUTH_SCHEME,
                         nameType: Claims.Name,
                         roleType: Claims.Role
                     )
-                    {
-                        BootstrapContext = oidcProvider
-                    }
                 );
+
+                var userIdParts = user.Id.Split('@', count: 2);
+                var scheme = userIdParts.Length == 2 ? userIdParts[1] : default;
+
+                AuthUtilities.AddEnabledCatalogPattern(owner, scheme, _securityOptions);
 
                 /* For each pipeline */
                 foreach (var (pipelineId, pipeline) in pipelines)
