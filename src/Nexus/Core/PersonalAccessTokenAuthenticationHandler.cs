@@ -101,7 +101,7 @@ internal class PersonalAccessTokenAuthHandler(
                     principal ??= new ClaimsPrincipal();
                     principal.AddIdentity(identity);
 
-                    AuthUtilities.AddEnabledCatalogPattern(principal, Scheme.Name, _securityOptions);
+                    AuthUtilities.AddEnabledCatalogPatternClaim(principal, Scheme.Name, _securityOptions);
                 }
             }
         }

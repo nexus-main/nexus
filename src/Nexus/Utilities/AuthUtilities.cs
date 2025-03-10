@@ -13,13 +13,16 @@ namespace Nexus.Utilities;
 
 internal static class AuthUtilities
 {
-    public static void AddEnabledCatalogPattern(ClaimsPrincipal principal, string? scheme, SecurityOptions options)
+    public static void AddEnabledCatalogPatternClaim(ClaimsPrincipal principal, string? scheme, SecurityOptions options)
     {
         var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
         if (scheme is null)
         {
-            principal.SetResources(OpenIdConnectProvider.DEFAULT_ENABLED_CATALOGS_PATTERN);
+            principal.AddClaim(
+                NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM,
+                OpenIdConnectProvider.DEFAULT_ENABLED_CATALOGS_PATTERN
+            );
         }
 
         else
@@ -28,7 +31,10 @@ internal static class AuthUtilities
                 ? NexusAuthExtensions.DefaultProvider
                 : options.OidcProviders.First(x => x.Scheme == scheme);
 
-            principal.SetResources(oidcProvider.EnabledCatalogsPattern);
+            principal.AddClaim(
+                NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM,
+                oidcProvider.EnabledCatalogsPattern
+            );
         }
     }
 
@@ -85,10 +91,9 @@ internal static class AuthUtilities
     )
     {
         var enabledCatalogsPattern = user
-            .GetResources()
-            .First();
+            .GetClaim(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM);
 
-        return Regex.IsMatch(catalogId, enabledCatalogsPattern);
+        return enabledCatalogsPattern is not null && Regex.IsMatch(catalogId, enabledCatalogsPattern);
     }
 
     private static bool InternalIsCatalogAccessible(

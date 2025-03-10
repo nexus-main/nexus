@@ -155,7 +155,7 @@ internal class CatalogManager(
                 var userIdParts = user.Id.Split('@', count: 2);
                 var scheme = userIdParts.Length == 2 ? userIdParts[1] : default;
 
-                AuthUtilities.AddEnabledCatalogPattern(owner, scheme, _securityOptions);
+                AuthUtilities.AddEnabledCatalogPatternClaim(owner, scheme, _securityOptions);
 
                 /* For each pipeline */
                 foreach (var (pipelineId, pipeline) in pipelines)

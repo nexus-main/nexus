@@ -27,7 +27,8 @@ namespace Nexus.Controllers.V1;
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class UsersController(
     IDBService dBService,
-    ITokenService tokenService) : ControllerBase
+    ITokenService tokenService
+) : ControllerBase
 {
     // [anonymous]
     // GET      /api/users/authenticate
@@ -217,7 +218,8 @@ internal class UsersController(
                     actualUserId,
                     token.Description,
                     utcExpires,
-                    token.Claims);
+                    token.Claims
+                );
 
             var tokenValue = AuthUtilities.ComponentsToTokenValue(actualUserId, secret);
 

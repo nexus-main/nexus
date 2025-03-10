@@ -3,6 +3,11 @@
 
 namespace Nexus.Core;
 
+internal static class NexusClaimsConstants
+{
+    public const string ENABLED_CATALOGS_PATTERN_CLAIM = "EnabledCatalogsPattern";
+}
+
 internal enum NexusClaims
 {
     CanReadCatalog,

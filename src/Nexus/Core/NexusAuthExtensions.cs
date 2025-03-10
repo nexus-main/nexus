@@ -56,6 +56,8 @@ internal static class NexusAuthExtensions
                 options.SlidingExpiration = false;
 
                 options.LoginPath = "/login";
+
+                options.EventsType = typeof(CustomCookieAuthenticationEvents);
             })
 
             .AddScheme<AuthenticationSchemeOptions, PersonalAccessTokenAuthHandler>(
@@ -204,8 +206,6 @@ internal static class NexusAuthExtensions
                         );
 
                         principal.AddIdentity(appIdentity);
-
-                        AuthUtilities.AddEnabledCatalogPattern(principal, context.Scheme.Name, securityOptions);
                     }
                 };
             });

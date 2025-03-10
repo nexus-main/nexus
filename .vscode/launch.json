@@ -19,7 +19,6 @@
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "env": {
-                "NEXUS_SECURITY__OIDCIDENTIFIERCLAIM": "email",
                 "ASPNETCORE_ENVIRONMENT": "Development"
             }
         },

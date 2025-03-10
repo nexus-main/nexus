@@ -56,7 +56,7 @@ public class UtilitiesTests
             )
         );
 
-        principal.SetResources(enabledCatalogsPattern);
+        principal.AddClaim(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM, enabledCatalogsPattern);
 
         // Act
         var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
@@ -107,7 +107,7 @@ public class UtilitiesTests
             )
         );
 
-        principal.SetResources(enabledCatalogsPattern);
+        principal.AddClaim(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM, enabledCatalogsPattern);
 
         // Act
         var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
@@ -157,7 +157,7 @@ public class UtilitiesTests
             )
         );
 
-        principal.SetResources(enabledCatalogsPattern);
+        principal.AddClaim(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM, enabledCatalogsPattern);
 
         // Act
         var actual = AuthUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);
@@ -209,7 +209,7 @@ public class UtilitiesTests
             )
         );
 
-        principal.SetResources(enabledCatalogsPattern);
+        principal.AddClaim(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM, enabledCatalogsPattern);
 
         // Act
         var actual = AuthUtilities.IsCatalogWritable(catalogId, catalogMetadata, principal);
