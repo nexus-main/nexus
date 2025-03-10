@@ -106,7 +106,6 @@ internal static class AuthUtilities
         bool checkImplicitAccess
     )
     {
-        var isAdmin = user.IsInRole(nameof(NexusRoles.Administrator));
         var isCatalogEnabled = IsCatalogEnabled(catalogId, user);
 
         foreach (var identity in user.Identities)
@@ -144,6 +143,15 @@ internal static class AuthUtilities
                  * the user can access that catalog as well. */
                 if (canAccessCatalog)
                 {
+                    /* User.IsInRole() does not work here reliably because the corrsponding claim is only
+                     * set when then token claims to be admin and user is admin. This is to avoid the token
+                     * to become too powerful. However, it is OK here, for catalogs, to grant admin access
+                     * if user is admin which requires to check for
+                     * NexusClaimsHelper.ToPatUserClaimType(Claims.Role).
+                     */
+                    var isAdmin = identity.Claims
+                        .Any(claim => claim.Type == NexusClaimsHelper.ToPatUserClaimType(Claims.Role) && claim.Value == nameof(NexusRoles.Administrator));
+
                     /* Admins are allowed to access everything */
                     if (isAdmin)
                         return true;
@@ -167,6 +175,8 @@ internal static class AuthUtilities
             /* Other auth schemes */
             else
             {
+                var isAdmin = user.IsInRole(nameof(NexusRoles.Administrator));
+
                 /* Admins are allowed to access everything */
                 if (isAdmin)
                     return true;

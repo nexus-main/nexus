@@ -87,7 +87,7 @@ public class UtilitiesTests
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(Claims.Role, nameof(NexusRoles.Administrator))]
+            ? [new Claim(NexusClaimsHelper.ToPatUserClaimType(Claims.Role), nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var claimsToBeAdminClaim = claimsToBeAdmin
@@ -189,7 +189,7 @@ public class UtilitiesTests
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(Claims.Role, nameof(NexusRoles.Administrator))]
+            ? [new Claim(NexusClaimsHelper.ToPatUserClaimType(Claims.Role), nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var claimsToBeAdminClaim = claimsToBeAdmin

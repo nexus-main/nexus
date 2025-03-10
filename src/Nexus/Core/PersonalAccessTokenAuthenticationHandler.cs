@@ -88,6 +88,7 @@ internal class PersonalAccessTokenAuthHandler(
                     var isAdmin = user.Claims
                         .Any(claim => claim.Type == Claims.Role && claim.Value == nameof(NexusRoles.Administrator));
 
+                    /* Only act as admin if you claim to be one and you are one, otherwise the PAT would be too powerful */
                     if (claimsToBeAdmin && isAdmin)
                         claims = claims.Append(new Claim(Claims.Role, nameof(NexusRoles.Administrator)));
 
