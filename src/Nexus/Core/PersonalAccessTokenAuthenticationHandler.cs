@@ -102,7 +102,10 @@ internal class PersonalAccessTokenAuthHandler(
                     principal ??= new ClaimsPrincipal();
                     principal.AddIdentity(identity);
 
-                    AuthUtilities.AddEnabledCatalogPatternClaim(principal, Scheme.Name, _securityOptions);
+                    var userIdParts = userId.Split('@', count: 2);
+                    var scheme = userIdParts.Length == 2 ? userIdParts[1] : default;
+
+                    AuthUtilities.AddEnabledCatalogPatternClaim(principal, scheme, _securityOptions);
                 }
             }
         }
