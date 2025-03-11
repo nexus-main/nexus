@@ -16,7 +16,15 @@ internal class CustomCookieAuthenticationEvents(IOptions<SecurityOptions> option
         if (context.Principal is null)
             return Task.CompletedTask;
 
-        AuthUtilities.AddEnabledCatalogPatternClaim(context.Principal, context.Scheme.Name, _securityOptions);
+        if (context.Principal.Identities.Count() != 2)
+            context.RejectPrincipal();
+
+        var scheme = context.Principal.Identities.First().AuthenticationType;
+
+        if (scheme is null)
+            context.RejectPrincipal();
+
+        AuthUtilities.AddEnabledCatalogPatternClaim(context.Principal, scheme, _securityOptions);
 
         return base.ValidatePrincipal(context);
     }
