@@ -28,8 +28,8 @@ public class NexusAuthenticationStateProvider(
             var meResponse = await _client.V1.Users.GetMeAsync();
 
             List<Claim> claims = [
-                new(NAME_CLAIM, meResponse.UserName),
-                .. meResponse.Claims.Select(x => new Claim(x.Value.Type, x.Value.Value))
+                new(NAME_CLAIM, meResponse.User.Name),
+                .. meResponse.User.Claims.Select(x => new Claim(x.Type, x.Value))
             ];
 
             identity = new ClaimsIdentity(

@@ -39,6 +39,7 @@ internal class UsersController(
     // GET      /api/users/me
     // GET      /api/users/reauthenticate
     // GET      /api/users/accept-license?catalogId=X
+    // GET      /api/users/tokens
     // POST     /api/users/tokens/create
     // DELETE   /api/users/tokens/{tokenId}
 
@@ -50,8 +51,6 @@ internal class UsersController(
     // GET      /api/users/{userId}/claims
     // POST     /api/users/{userId}/claims
     // DELETE   /api/users/claims/{claimId}
-
-    // GET      /api/users/{userId}/tokens
 
     private readonly IDBService _dbService = dBService;
 
@@ -126,27 +125,9 @@ internal class UsersController(
         if (user is null)
             return NotFound($"Could not find user {userId}.");
 
-        var translatedClaimsMap = user.Claims
-            .ToDictionary(entry => entry.Id, entry => new NexusClaim(
-                id: default,
-                type: entry.Type,
-                value: entry.Value
-            ));
-
-        var tokenMap = await _tokenService.GetAllAsync(userId);
-
-        var translatedTokenMap = tokenMap
-            .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
-                entry.Value.Description,
-                entry.Value.Expires,
-                entry.Value.Claims
-            ));
-
         return new MeResponse(
             user.Id,
-            user.Name,
-            translatedClaimsMap,
-            translatedTokenMap
+            user
         );
     }
 
@@ -190,6 +171,41 @@ internal class UsersController(
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, User);
 
         return Redirect("/");
+    }
+
+    /// <summary>
+    /// Gets all personal access tokens.
+    /// </summary>
+    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
+    [HttpGet("tokens")]
+    public async Task<ActionResult<IReadOnlyDictionary<Guid, PersonalAccessToken>>> GetTokensAsync(
+        [FromQuery] string? userId = default
+    )
+    {
+        if (TryAuthenticate(userId, out var actualUserId, out var response))
+        {
+            var user = await _dbService.FindUserAsync(actualUserId);
+
+            if (user is null)
+                return NotFound($"Could not find user {userId}.");
+
+            var tokenMap = await _tokenService.GetAllAsync(actualUserId);
+
+            var translatedTokenMap = tokenMap
+                .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
+                    entry.Value.Description,
+                    entry.Value.Expires,
+                    entry.Value.Claims
+                ));
+
+            return translatedTokenMap;
+        }
+
+        else
+        {
+            return response;
+        }
     }
 
     /// <summary>
@@ -400,32 +416,6 @@ internal class UsersController(
         await _dbService.SaveChangesAsync();
 
         return Ok();
-    }
-
-    /// <summary>
-    /// Gets all personal access tokens.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    [Authorize(Policy = NexusPolicies.RequireAdmin)]
-    [HttpGet("{userId}/tokens")]
-    public async Task<ActionResult<IReadOnlyDictionary<Guid, PersonalAccessToken>>> GetTokensAsync(
-        string userId)
-    {
-        var user = await _dbService.FindUserAsync(userId);
-
-        if (user is null)
-            return NotFound($"Could not find user {userId}.");
-
-        var tokenMap = await _tokenService.GetAllAsync(userId);
-
-        var translatedTokenMap = tokenMap
-            .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
-                entry.Value.Description,
-                entry.Value.Expires,
-                entry.Value.Claims
-            ));
-
-        return translatedTokenMap;
     }
 
     private bool TryAuthenticate(

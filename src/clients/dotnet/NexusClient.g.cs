@@ -2385,6 +2385,19 @@ public interface IUsersClient
     Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets all personal access tokens.
+    /// </summary>
+    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string? userId = default);
+
+    /// <summary>
+    /// Gets all personal access tokens.
+    /// </summary>
+    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string? userId = default, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Creates a personal access token.
     /// </summary>
     /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
@@ -2502,19 +2515,6 @@ public interface IUsersClient
     /// <param name="claimId">The identifier of the claim.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<HttpResponseMessage> DeleteClaimAsync(Guid claimId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets all personal access tokens.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string userId);
-
-    /// <summary>
-    /// Gets all personal access tokens.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string userId, CancellationToken cancellationToken = default);
 
 }
 
@@ -2672,6 +2672,42 @@ public class UsersClient : IUsersClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string? userId = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/users/tokens");
+
+        var __queryValues = new Dictionary<string, string>();
+
+        if (userId is not null)
+            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<IReadOnlyDictionary<string, PersonalAccessToken>>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string? userId = default, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/users/tokens");
+
+        var __queryValues = new Dictionary<string, string>();
+
+        if (userId is not null)
+            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
+
+        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
+        __urlBuilder.Append(__query);
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<IReadOnlyDictionary<string, PersonalAccessToken>>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -2892,28 +2928,6 @@ public class UsersClient : IUsersClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string userId)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/{userId}/tokens");
-        __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyDictionary<string, PersonalAccessToken>>("GET", __url, "application/json", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/{userId}/tokens");
-        __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyDictionary<string, PersonalAccessToken>>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
 }
@@ -3222,10 +3236,15 @@ public record DataSourceRegistration(string Type, Uri? ResourceLocator, JsonElem
 /// A me response.
 /// </summary>
 /// <param name="UserId">The user id.</param>
-/// <param name="UserName">The user name.</param>
-/// <param name="Claims">A map of claims.</param>
-/// <param name="PersonalAccessTokens">A list of personal access tokens.</param>
-public record MeResponse(string UserId, string UserName, IReadOnlyDictionary<string, NexusClaim> Claims, IReadOnlyDictionary<string, PersonalAccessToken> PersonalAccessTokens);
+/// <param name="User">The user.</param>
+public record MeResponse(string UserId, NexusUser User);
+
+/// <summary>
+/// Represents a user.
+/// </summary>
+/// <param name="Name">The user name.</param>
+/// <param name="Claims">The list of claims.</param>
+public record NexusUser(string Name, IReadOnlyList<NexusClaim> Claims);
 
 /// <summary>
 /// Represents a claim.
@@ -3248,12 +3267,6 @@ public record PersonalAccessToken(string Description, DateTime Expires, IReadOnl
 /// <param name="Type">The claim type.</param>
 /// <param name="Value">The claim value.</param>
 public record TokenClaim(string Type, string Value);
-
-/// <summary>
-/// Represents a user.
-/// </summary>
-/// <param name="Name">The user name.</param>
-public record NexusUser(string Name);
 
 
 

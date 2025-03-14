@@ -3,6 +3,7 @@
 
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Security.Claims;
 using System.Text.Json;
 using Nexus.Api;
 using Nexus.Api.V1;
@@ -461,20 +462,18 @@ public class UsersDemoClient : IUsersClient
     {
         var meResponse = new MeResponse(
             UserId: "test@nexus",
-            UserName: "Star Lord",
-            Claims: new Dictionary<string, NexusClaim>(),
-            PersonalAccessTokens: new Dictionary<string, PersonalAccessToken>()
+            new NexusUser("Star Lord", Enumerable.Empty<NexusClaim>().ToList())
         );
 
         return Task.FromResult(meResponse);
     }
 
-    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string userId)
+    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string? userId)
     {
         throw new NotImplementedException();
     }
 
-    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string userId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string? userId, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }

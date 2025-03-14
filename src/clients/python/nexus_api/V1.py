@@ -730,6 +730,26 @@ class UsersClient:
 
         return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
+    def get_tokens(self, user_id: Optional[str] = None) -> dict[str, PersonalAccessToken]:
+        """
+        Gets all personal access tokens.
+
+        Args:
+            user_id: The optional user identifier. If not specified, the current user will be used.
+        """
+
+        __url = "/api/v1/users/tokens"
+
+        __query_values: dict[str, str] = {}
+
+        if user_id is not None:
+            __query_values["userId"] = quote(_to_string(user_id), safe="")
+
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
+
+        return self.___invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
+
     def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> str:
         """
         Creates a personal access token.
@@ -855,19 +875,6 @@ class UsersClient:
         __url = __url.replace("{claimId}", quote(str(claim_id), safe=""))
 
         return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
-
-    def get_tokens(self, user_id: str) -> dict[str, PersonalAccessToken]:
-        """
-        Gets all personal access tokens.
-
-        Args:
-            user_id: The identifier of the user.
-        """
-
-        __url = "/api/v1/users/{userId}/tokens"
-        __url = __url.replace("{userId}", quote(str(user_id), safe=""))
-
-        return self.___invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
 
 class WritersClient:
@@ -1605,6 +1612,26 @@ class UsersAsyncClient:
 
         return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
+    def get_tokens(self, user_id: Optional[str] = None) -> Awaitable[dict[str, PersonalAccessToken]]:
+        """
+        Gets all personal access tokens.
+
+        Args:
+            user_id: The optional user identifier. If not specified, the current user will be used.
+        """
+
+        __url = "/api/v1/users/tokens"
+
+        __query_values: dict[str, str] = {}
+
+        if user_id is not None:
+            __query_values["userId"] = quote(_to_string(user_id), safe="")
+
+        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
+        __url += __query
+
+        return self.___invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
+
     def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> Awaitable[str]:
         """
         Creates a personal access token.
@@ -1730,19 +1757,6 @@ class UsersAsyncClient:
         __url = __url.replace("{claimId}", quote(str(claim_id), safe=""))
 
         return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
-
-    def get_tokens(self, user_id: str) -> Awaitable[dict[str, PersonalAccessToken]]:
-        """
-        Gets all personal access tokens.
-
-        Args:
-            user_id: The identifier of the user.
-        """
-
-        __url = "/api/v1/users/{userId}/tokens"
-        __url = __url.replace("{userId}", quote(str(user_id), safe=""))
-
-        return self.___invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
 
 class WritersAsyncClient:
@@ -2235,22 +2249,31 @@ class MeResponse:
 
     Args:
         user_id: The user id.
-        user_name: The user name.
-        claims: A map of claims.
-        personal_access_tokens: A list of personal access tokens.
+        user: The user.
     """
 
     user_id: str
     """The user id."""
 
-    user_name: str
+    user: NexusUser
+    """The user."""
+
+
+@dataclass(frozen=True)
+class NexusUser:
+    """
+    Represents a user.
+
+    Args:
+        name: The user name.
+        claims: The list of claims.
+    """
+
+    name: str
     """The user name."""
 
-    claims: dict[str, NexusClaim]
-    """A map of claims."""
-
-    personal_access_tokens: dict[str, PersonalAccessToken]
-    """A list of personal access tokens."""
+    claims: list[NexusClaim]
+    """The list of claims."""
 
 
 @dataclass(frozen=True)
@@ -2306,19 +2329,6 @@ class TokenClaim:
 
     value: str
     """The claim value."""
-
-
-@dataclass(frozen=True)
-class NexusUser:
-    """
-    Represents a user.
-
-    Args:
-        name: The user name.
-    """
-
-    name: str
-    """The user name."""
 
 
 

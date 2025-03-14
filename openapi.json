@@ -1365,6 +1365,42 @@
         }
       }
     },
+    "/api/v1/users/tokens": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Gets all personal access tokens.",
+        "operationId": "Users_GetTokens",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "description": "The optional user identifier. If not specified, the current user will be used.",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/PersonalAccessToken"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/tokens/create": {
       "post": {
         "tags": [
@@ -1679,42 +1715,6 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/{userId}/tokens": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Gets all personal access tokens.",
-        "operationId": "Users_GetTokens",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the user.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/components/schemas/PersonalAccessToken"
-                  }
                 }
               }
             }
@@ -2280,22 +2280,30 @@
             "type": "string",
             "description": "The user id."
           },
-          "userName": {
+          "user": {
+            "description": "The user.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NexusUser"
+              }
+            ]
+          }
+        }
+      },
+      "NexusUser": {
+        "type": "object",
+        "description": "Represents a user.",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
             "type": "string",
             "description": "The user name."
           },
           "claims": {
-            "type": "object",
-            "description": "A map of claims.",
-            "additionalProperties": {
+            "type": "array",
+            "description": "The list of claims.",
+            "items": {
               "$ref": "#/components/schemas/NexusClaim"
-            }
-          },
-          "personalAccessTokens": {
-            "type": "object",
-            "description": "A list of personal access tokens.",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/PersonalAccessToken"
             }
           }
         }
@@ -2350,17 +2358,6 @@
           "value": {
             "type": "string",
             "description": "The claim value."
-          }
-        }
-      },
-      "NexusUser": {
-        "type": "object",
-        "description": "Represents a user.",
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "The user name."
           }
         }
       }

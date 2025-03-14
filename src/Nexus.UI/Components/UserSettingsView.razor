@@ -382,7 +382,7 @@ MaxWidth="MaxWidth.Medium">
 
         try
         {
-            _accessTokenMap = (await Client.V1.Users.GetMeAsync()).PersonalAccessTokens;
+            _accessTokenMap = await Client.V1.Users.GetTokensAsync();
         }
         catch (Exception ex)
         {
@@ -452,7 +452,7 @@ MaxWidth="MaxWidth.Medium">
             _newAccessTokenIsAdmin = false;
             _newAccessTokenClaims.Clear();
             _newAccessTokenClaims.Add(new ClaimData(default, default));
-            _accessTokenMap = (await Client.V1.Users.GetMeAsync()).PersonalAccessTokens;
+            _accessTokenMap = await Client.V1.Users.GetTokensAsync();
         }
         catch (Exception ex)
         {
@@ -468,7 +468,7 @@ MaxWidth="MaxWidth.Medium">
         try
         {
             await Client.V1.Users.DeleteTokenAsync(id, CancellationToken.None);
-            _accessTokenMap = (await Client.V1.Users.GetMeAsync()).PersonalAccessTokens;
+            _accessTokenMap = await Client.V1.Users.GetTokensAsync();
         }
         catch (Exception ex)
         {
