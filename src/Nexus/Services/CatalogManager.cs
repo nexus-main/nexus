@@ -2,14 +2,17 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Apollo3zehn.PackageManagement.Services;
+using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Sources;
 using Nexus.Utilities;
+using OpenIddict.Abstractions;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Services;
@@ -18,7 +21,8 @@ internal interface ICatalogManager
 {
     Task<CatalogContainer[]> GetCatalogContainersAsync(
         CatalogContainer parent,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken
+    );
 }
 
 internal class CatalogManager(
@@ -27,6 +31,7 @@ internal class CatalogManager(
     IServiceProvider serviceProvider,
     IExtensionHive<IDataSource> sourcesExtensionHive,
     IPipelineService pipelineService,
+    IOptions<SecurityOptions> _securityOptions,
     ILogger<CatalogManager> logger
 ) : ICatalogManager
 {
@@ -36,13 +41,21 @@ internal class CatalogManager(
         DataSourcePipeline Pipeline,
         Guid[] PackageReferenceIds,
         CatalogMetadata Metadata,
-        ClaimsPrincipal? Owner);
+        ClaimsPrincipal? Owner
+    );
 
     private readonly IDataControllerService _dataControllerService = dataControllerService;
+
     private readonly IDatabaseService _databaseService = databaseService;
+
     private readonly IServiceProvider _serviceProvider = serviceProvider;
+
     private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
+
     private readonly IPipelineService _pipelineService = pipelineService;
+
+    private readonly SecurityOptions _securityOptions = _securityOptions.Value;
+
     private readonly ILogger<CatalogManager> _logger = logger;
 
     public async Task<CatalogContainer[]> GetCatalogContainersAsync(
@@ -79,7 +92,7 @@ internal class CatalogManager(
 
             /* => for the built-in pipelines */
 
-            // TODO: Load Parallel?
+            // TODO: Load parallel?
             /* for each pipeline */
             foreach (var (pipelineId, pipeline) in builtinPipelines)
             {
@@ -102,7 +115,8 @@ internal class CatalogManager(
                             pipeline,
                             packageReferenceIds,
                             metadata,
-                            null);
+                            null
+                        );
 
                         catalogPrototypes.Add(catalogPrototype);
                     }
@@ -127,19 +141,47 @@ internal class CatalogManager(
                     .Select(claim => new Claim(claim.Type, claim.Value))
                     .ToList();
 
-                claims
-                    .Add(new Claim(Claims.Subject, userId));
+                claims.Add(new Claim(Claims.Subject, userId));
 
                 var owner = new ClaimsPrincipal(
                     new ClaimsIdentity(
                         claims,
-                        authenticationType: "Fake authentication type",
+                        authenticationType: NexusAuthExtensions.INTERNAL_AUTH_SCHEME,
                         nameType: Claims.Name,
-                        roleType: Claims.Role));
+                        roleType: Claims.Role
+                    )
+                );
 
-                /* for each pipeline */
+                var userIdParts = user.Id.Split('@', count: 2);
+                var scheme = userIdParts.Length == 2 ? userIdParts[1] : default;
+
+                AuthUtilities.AddEnabledCatalogPatternClaim(owner, scheme, _securityOptions);
+
+                /* For each pipeline */
                 foreach (var (pipelineId, pipeline) in pipelines)
                 {
+                    /* Ensure current user is allowed to use specific resource locators */
+                    var isAdmin = user.Claims.Any(claim =>
+                        claim.Type == Claims.Role &&
+                        claim.Value == nameof(NexusRoles.Administrator)
+                    );
+
+                    var canUseResourceLocatorClaims = owner.Claims
+                        .Where(x => x.Type == nameof(NexusClaims.CanUseResourceLocator))
+                        .Select(x => x.Value)
+                        .ToList();
+
+                    var isPipelineAccepted = isAdmin || pipeline.Registrations
+                        .Where(x => x.ResourceLocator is not null)
+                        .All(x => canUseResourceLocatorClaims.Any(pattern => Regex.IsMatch(x.ResourceLocator!.ToString(), pattern)));
+
+                    if (!isPipelineAccepted)
+                    {
+                        _logger.LogWarning($"Pipeline {pipelineId} of user {userId} contains one or more source registrations, with unauthorized resource locator. Set claim '{nameof(NexusClaims.CanUseResourceLocator)}' to a proper value to avoid this. The pipeline will be ignored.");
+                        continue;
+                    }
+
+                    /* Continue */
                     try
                     {
                         using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
@@ -159,7 +201,8 @@ internal class CatalogManager(
                                 pipeline,
                                 packageReferenceIds,
                                 metadata,
-                                owner);
+                                owner
+                            );
 
                             catalogPrototypes.Add(prototype);
                         }
@@ -191,8 +234,7 @@ internal class CatalogManager(
                 var catalogRegistrations = await controller
                     .GetCatalogRegistrationsAsync(parent.Id + "/", cancellationToken);
 
-                var prototypes = catalogRegistrations
-                    .Select(catalogRegistration =>
+                var prototypes = catalogRegistrations.Select(catalogRegistration =>
                 {
                     var metadata = LoadMetadata(catalogRegistration.Path);
 
@@ -218,7 +260,8 @@ internal class CatalogManager(
     }
 
     private CatalogContainer[] ProcessCatalogPrototypes(
-        IEnumerable<CatalogPrototype> catalogPrototypes)
+        IEnumerable<CatalogPrototype> catalogPrototypes
+    )
     {
         /* clean up */
         catalogPrototypes = EnsureNoHierarchy(catalogPrototypes);
@@ -254,7 +297,8 @@ internal class CatalogManager(
     }
 
     private CatalogPrototype[] EnsureNoHierarchy(
-        IEnumerable<CatalogPrototype> catalogPrototypes)
+        IEnumerable<CatalogPrototype> catalogPrototypes
+    )
     {
         // Background:
         //
@@ -281,7 +325,17 @@ internal class CatalogManager(
 
         foreach (var catalogPrototype in catalogPrototypes)
         {
-            var referenceIndex = catalogPrototypesToKeep.FindIndex(
+            var owner = catalogPrototype.Owner;
+            var ownerCanWrite = owner is null
+                || AuthUtilities.IsCatalogWritable(catalogPrototype.Registration.Path, catalogPrototype.Metadata, owner);
+
+            if (!ownerCanWrite)
+            {
+                _logger.LogWarning("User '{UserId}' has no permissions to create catalog {CatalogId}", catalogPrototype.Owner?.GetClaim(Claims.Subject), catalogPrototype.Registration.Path);
+                continue;
+            }
+
+            var duplicateIndex = catalogPrototypesToKeep.FindIndex(
                 current =>
                     {
                         var currentCatalogId = current.Registration.Path + '/';
@@ -292,27 +346,23 @@ internal class CatalogManager(
                     });
 
             /* nothing found */
-            if (referenceIndex < 0)
+            if (duplicateIndex < 0)
             {
                 catalogPrototypesToKeep.Add(catalogPrototype);
             }
 
-            /* reference found */
+            /* duplicate found */
             else
             {
-                var owner = catalogPrototype.Owner;
-                var ownerCanWrite = owner is null
-                    || AuthUtilities.IsCatalogWritable(catalogPrototype.Registration.Path, catalogPrototype.Metadata, owner);
-
-                var otherPrototype = catalogPrototypesToKeep[referenceIndex];
+                var otherPrototype = catalogPrototypesToKeep[duplicateIndex];
                 var otherOwner = otherPrototype.Owner;
                 var otherOwnerCanWrite = otherOwner is null
                     || AuthUtilities.IsCatalogWritable(otherPrototype.Registration.Path, catalogPrototype.Metadata, otherOwner);
 
-                if (!otherOwnerCanWrite && ownerCanWrite)
+                if (!otherOwnerCanWrite)
                 {
-                    _logger.LogWarning("Duplicate catalog {CatalogId}", catalogPrototypesToKeep[referenceIndex]);
-                    catalogPrototypesToKeep[referenceIndex] = catalogPrototype;
+                    _logger.LogWarning("Duplicate catalog {CatalogId}", catalogPrototypesToKeep[duplicateIndex]);
+                    catalogPrototypesToKeep[duplicateIndex] = catalogPrototype;
                 }
             }
         }

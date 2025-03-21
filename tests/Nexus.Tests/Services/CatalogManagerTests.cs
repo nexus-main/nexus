@@ -4,6 +4,7 @@
 using Apollo3zehn.PackageManagement.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Nexus.Core;
 using Nexus.Core.V1;
@@ -27,10 +28,10 @@ public class CatalogManagerTests
         // Test case:
         // User A, admin,
         //      /   => /A, /B/A
-        //      /A/ => /A/B, /A/B/C (should be ignored), /A/C/A
+        //      /A/ => /A/B, /A/B/C (ignore), /A/C/A
         //
         // User B, no admin,
-        //      /  => /A (should be ignored), /B/B, /B/B2, /C/A
+        //      /  => /A (ignore because no admin), /B/B, /B/B2, /C/A, /D (ignore because of missing NexusClaims.CanUseResourceLocator)
 
         /* dataControllerService */
         var dataControllerService = Mock.Of<IDataControllerService>();
@@ -53,6 +54,7 @@ public class CatalogManagerTests
                             ("A", "/A/") => Task.FromResult(new CatalogRegistration[] { new("/A/B", string.Empty), new("/A/B/C", string.Empty), new("/A/C/A", string.Empty) }),
                             ("B", "/") => Task.FromResult(new CatalogRegistration[] { new("/A", string.Empty), new("/B/B", string.Empty), new("/B/B2", string.Empty) }),
                             ("C", "/") => Task.FromResult(new CatalogRegistration[] { new("/C/A", string.Empty) }),
+                            ("D", "/") => Task.FromResult(new CatalogRegistration[] { new("/D", string.Empty) }),
                             ("Nexus.Sources." + nameof(Sample), "/") => Task.FromResult(Array.Empty<CatalogRegistration>()),
                             _ => throw new Exception("Unsupported combination.")
                         };
@@ -98,32 +100,37 @@ public class CatalogManagerTests
                 It.Is<Type>(value => value == typeof(IServiceScopeFactory))))
             .Returns(scopeFactory);
 
-        /* => user A */
+        /* => User A */
         var usernameA = "UserA";
+        var schemeA = "scheme-A";
 
         var userAClaims = new List<NexusClaim>
         {
             new(Guid.NewGuid(), Claims.Name, usernameA),
-            new(Guid.NewGuid(), Claims.Role, NexusRoles.Administrator.ToString())
+            new(Guid.NewGuid(), Claims.Role, nameof(NexusRoles.Administrator))
         };
 
         var userA = new NexusUser(
-            id: string.Empty,
+            id: "userA@" + schemeA,
             name: usernameA)
         {
             Claims = userAClaims
         };
 
-        /* => user B */
+        /* => User B */
         var usernameB = "UserB";
+        var schemeB = "scheme-B";
 
         var userBClaims = new List<NexusClaim>
         {
             new(Guid.NewGuid(), Claims.Name, usernameB),
+            new(Guid.NewGuid(), nameof(NexusClaims.CanWriteCatalog), ""),
+            new(Guid.NewGuid(), nameof(NexusClaims.CanUseResourceLocator), "match-me-1"),
+            new(Guid.NewGuid(), nameof(NexusClaims.CanUseResourceLocator), "match-me-2")
         };
 
         var userB = new NexusUser(
-            id: string.Empty,
+            id: "userB@" + schemeB,
             name: usernameB)
         {
             Claims = userBClaims
@@ -147,9 +154,11 @@ public class CatalogManagerTests
         var extensionHive = Mock.Of<IExtensionHive<IDataSource>>();
 
         /* pipelineService */
-        var registrationA = new DataSourceRegistration(Type: "A", new Uri("", UriKind.Relative), default);
-        var registrationB = new DataSourceRegistration(Type: "B", new Uri("", UriKind.Relative), default);
-        var registrationC = new DataSourceRegistration(Type: "C", new Uri("", UriKind.Relative), default);
+        var registrationA = new DataSourceRegistration(Type: "A", new Uri("https://match-me-1"), default);
+        var registrationB = new DataSourceRegistration(Type: "B", new Uri("https://match-me-1"), default);
+        var registrationC = new DataSourceRegistration(Type: "C", new Uri("https://match-me-2"), default);
+        var registrationD = new DataSourceRegistration(Type: "D", new Uri("https://do-not-match-me"), default);
+        var registrationE = new DataSourceRegistration(Type: "E", new Uri("https://match-me-1"), default);
 
         var pipelineService = Mock.Of<IPipelineService>();
 
@@ -167,10 +176,34 @@ public class CatalogManagerTests
                     ["UserB"] = new Dictionary<Guid, DataSourcePipeline>()
                     {
                         [Guid.NewGuid()] = new DataSourcePipeline([registrationB]),
-                        [Guid.NewGuid()] = new DataSourcePipeline([registrationC])
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationC]),
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationD]),
+                        [Guid.NewGuid()] = new DataSourcePipeline([registrationE])
                     }
                 };
             });
+
+        /* SecurityOptions */
+        var securityOptions = Options.Create(new SecurityOptions
+        {
+            OidcProviders = [
+                new OpenIdConnectProvider(
+                    Scheme: schemeA,
+                    default!,
+                    default!,
+                    default!,
+                    default!
+                ),
+
+                new OpenIdConnectProvider(
+                    Scheme: schemeB,
+                    default!,
+                    default!,
+                    default!,
+                    default!
+                )
+            ]
+        });
 
         /* catalogManager */
         var catalogManager = new CatalogManager(
@@ -179,7 +212,9 @@ public class CatalogManagerTests
             serviceProvider,
             extensionHive,
             pipelineService,
-            NullLogger<CatalogManager>.Instance);
+            securityOptions,
+            NullLogger<CatalogManager>.Instance
+        );
 
         // act
         var root = CatalogContainer.CreateRoot(catalogManager, default!);
@@ -261,13 +296,15 @@ public class CatalogManagerTests
             default,
             Overrides: new ResourceCatalogBuilder(id: "/A")
                 .WithReadme("v2")
-                .Build());
+                .Build()
+        );
 
         /* pipeline */
         var registration = new DataSourceRegistration(
             Type: "A",
             ResourceLocator: default,
-            Configuration: default!);
+            Configuration: default!
+        );
 
         var pipeline = new DataSourcePipeline([registration]);
 

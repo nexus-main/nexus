@@ -106,7 +106,9 @@ internal static class NexusIdentityProviderExtensions
                     claims,
                     authenticationType: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
                     nameType: Claims.Name,
-                    roleType: Claims.Role));
+                    roleType: Claims.Role
+                )
+            );
 
             // authorization
             var authorizationsEnumerable = authorizationManager.FindAsync(

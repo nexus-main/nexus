@@ -183,6 +183,7 @@ void AddServices(
     services.AddSingleton<IProcessingService, ProcessingService>();
     services.AddSingleton<ICacheService, CacheService>();
     services.AddSingleton<IDatabaseService, DatabaseService>();
+    services.AddSingleton<CustomCookieAuthenticationEvents>();
 
     // Options
     services.Configure<GeneralOptions>(configuration.GetSection(GeneralOptions.Section));

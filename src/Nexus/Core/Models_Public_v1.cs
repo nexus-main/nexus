@@ -25,13 +25,10 @@ public class NexusUser(
     /// </summary>
     public string Name { get; set; } = name;
 
-#pragma warning disable CS1591
-
-    [JsonIgnore]
+    /// <summary>
+    /// The list of claims.
+    /// </summary>
     public List<NexusClaim> Claims { get; set; } = [];
-
-#pragma warning restore CS1591
-
 }
 
 /// <summary>
@@ -255,11 +252,7 @@ public record JobStatus(
 /// </summary>
 /// <param name="UserId">The user id.</param>
 /// <param name="User">The user.</param>
-/// <param name="IsAdmin">A boolean which indicates if the user is an administrator.</param>
-/// <param name="PersonalAccessTokens">A list of personal access tokens.</param>
 public record MeResponse(
     string UserId,
-    NexusUser User,
-    bool IsAdmin,
-    IReadOnlyDictionary<Guid, PersonalAccessToken> PersonalAccessTokens
+    NexusUser User
 );

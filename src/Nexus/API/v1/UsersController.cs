@@ -27,7 +27,8 @@ namespace Nexus.Controllers.V1;
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class UsersController(
     IDBService dBService,
-    ITokenService tokenService) : ControllerBase
+    ITokenService tokenService
+) : ControllerBase
 {
     // [anonymous]
     // GET      /api/users/authenticate
@@ -38,6 +39,7 @@ internal class UsersController(
     // GET      /api/users/me
     // GET      /api/users/reauthenticate
     // GET      /api/users/accept-license?catalogId=X
+    // GET      /api/users/tokens
     // POST     /api/users/tokens/create
     // DELETE   /api/users/tokens/{tokenId}
 
@@ -49,8 +51,6 @@ internal class UsersController(
     // GET      /api/users/{userId}/claims
     // POST     /api/users/{userId}/claims
     // DELETE   /api/users/claims/{claimId}
-
-    // GET      /api/users/{userId}/tokens
 
     private readonly IDBService _dbService = dBService;
 
@@ -125,24 +125,9 @@ internal class UsersController(
         if (user is null)
             return NotFound($"Could not find user {userId}.");
 
-        var isAdmin = user.Claims.Any(
-            claim => claim.Type == Claims.Role &&
-                     claim.Value == NexusRoles.Administrator.ToString());
-
-        var tokenMap = await _tokenService.GetAllAsync(userId);
-
-        var translatedTokenMap = tokenMap
-            .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
-                entry.Value.Description,
-                entry.Value.Expires,
-                entry.Value.Claims
-            ));
-
         return new MeResponse(
             user.Id,
-            user,
-            isAdmin,
-            translatedTokenMap
+            user
         );
     }
 
@@ -189,6 +174,41 @@ internal class UsersController(
     }
 
     /// <summary>
+    /// Gets all personal access tokens.
+    /// </summary>
+    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
+    [HttpGet("tokens")]
+    public async Task<ActionResult<IReadOnlyDictionary<Guid, PersonalAccessToken>>> GetTokensAsync(
+        [FromQuery] string? userId = default
+    )
+    {
+        if (TryAuthenticate(userId, out var actualUserId, out var response))
+        {
+            var user = await _dbService.FindUserAsync(actualUserId);
+
+            if (user is null)
+                return NotFound($"Could not find user {userId}.");
+
+            var tokenMap = await _tokenService.GetAllAsync(actualUserId);
+
+            var translatedTokenMap = tokenMap
+                .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
+                    entry.Value.Description,
+                    entry.Value.Expires,
+                    entry.Value.Claims
+                ));
+
+            return translatedTokenMap;
+        }
+
+        else
+        {
+            return response;
+        }
+    }
+
+    /// <summary>
     /// Creates a personal access token.
     /// </summary>
     /// <param name="token">The personal access token to create.</param>
@@ -214,7 +234,8 @@ internal class UsersController(
                     actualUserId,
                     token.Description,
                     utcExpires,
-                    token.Claims);
+                    token.Claims
+                );
 
             var tokenValue = AuthUtilities.ComponentsToTokenValue(actualUserId, secret);
 
@@ -259,7 +280,7 @@ internal class UsersController(
         if (user is null)
             return NotFound($"Could not find user {userId}.");
 
-        var claim = new NexusClaim(Guid.NewGuid(), NexusClaims.CanReadCatalog.ToString(), catalogId);
+        var claim = new NexusClaim(Guid.NewGuid(), nameof(NexusClaims.CanReadCatalog), catalogId);
         user.Claims.Add(claim);
 
         /* When the primary key is != Guid.Empty, EF thinks the entity
@@ -270,7 +291,7 @@ internal class UsersController(
 
         foreach (var identity in User.Identities)
         {
-            identity?.AddClaim(new Claim(NexusClaims.CanReadCatalog.ToString(), catalogId));
+            identity?.AddClaim(new Claim(nameof(NexusClaims.CanReadCatalog), catalogId));
         }
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, User);
@@ -397,38 +418,12 @@ internal class UsersController(
         return Ok();
     }
 
-    /// <summary>
-    /// Gets all personal access tokens.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    [Authorize(Policy = NexusPolicies.RequireAdmin)]
-    [HttpGet("{userId}/tokens")]
-    public async Task<ActionResult<IReadOnlyDictionary<Guid, PersonalAccessToken>>> GetTokensAsync(
-        string userId)
-    {
-        var user = await _dbService.FindUserAsync(userId);
-
-        if (user is null)
-            return NotFound($"Could not find user {userId}.");
-
-        var tokenMap = await _tokenService.GetAllAsync(userId);
-
-        var translatedTokenMap = tokenMap
-            .ToDictionary(entry => entry.Value.Id, entry => new PersonalAccessToken(
-                entry.Value.Description,
-                entry.Value.Expires,
-                entry.Value.Claims
-            ));
-
-        return translatedTokenMap;
-    }
-
     private bool TryAuthenticate(
         string? requestedId,
         out string userId,
         [NotNullWhen(returnValue: false)] out ActionResult? response)
     {
-        var isAdmin = User.IsInRole(NexusRoles.Administrator.ToString());
+        var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
         var currentId = User.FindFirstValue(Claims.Subject) ?? throw new Exception("The sub claim is null.");
 
         if (isAdmin || requestedId is null || requestedId == currentId)

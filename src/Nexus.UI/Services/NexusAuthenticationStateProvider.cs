@@ -7,9 +7,14 @@ using System.Security.Claims;
 
 namespace Nexus.UI.Services;
 
-public class NexusAuthenticationStateProvider(INexusClient client) : AuthenticationStateProvider
+public class NexusAuthenticationStateProvider(
+    INexusClient client,
+    ILogger<NexusAuthenticationStateProvider> logger
+) : AuthenticationStateProvider
 {
     private readonly INexusClient _client = client;
+
+    private readonly ILogger _logger = logger;
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
@@ -22,22 +27,21 @@ public class NexusAuthenticationStateProvider(INexusClient client) : Authenticat
         {
             var meResponse = await _client.V1.Users.GetMeAsync();
 
-            var claims = new List<Claim>
-            {
-                new(NAME_CLAIM, meResponse.User.Name)
-            };
-
-            if (meResponse.IsAdmin)
-                claims.Add(new Claim(ROLE_CLAIM, "Administrator"));
+            List<Claim> claims = [
+                new(NAME_CLAIM, meResponse.User.Name),
+                .. meResponse.User.Claims.Select(x => new Claim(x.Type, x.Value))
+            ];
 
             identity = new ClaimsIdentity(
                 claims,
-                authenticationType: meResponse.UserId.Split(['@'], count: 2)[1],
+                authenticationType: meResponse.UserId.Split('@', count: 2)[1],
                 nameType: NAME_CLAIM,
-                roleType: ROLE_CLAIM);
+                roleType: ROLE_CLAIM
+            );
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Authentication failed");
             identity = new ClaimsIdentity();
         }
 

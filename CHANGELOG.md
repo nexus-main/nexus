@@ -1,3 +1,6 @@
+## v2.0.0-beta.52 - 2025-03-05
+- Fix security issues #244 and #247
+
 ## v2.0.0-beta.51 - 2025-03-04
 - UI improvements
 
