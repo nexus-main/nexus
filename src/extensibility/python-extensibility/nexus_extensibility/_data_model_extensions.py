@@ -1,11 +1,11 @@
 from datetime import timedelta
 
-_quotients = [1000, 1000, 60, 1 ]
+_quotients = [1000, 1000, 60, 1]
 _post_fixes = ["us", "ms", "s", "min"]
 
 def to_unit_string(sample_period: timedelta) -> str:
     """
-    Converts period into a human readable number string with unit.
+    Converts the period into a human readable number string with unit.
 
     Args:
         sample_period: The period to convert.

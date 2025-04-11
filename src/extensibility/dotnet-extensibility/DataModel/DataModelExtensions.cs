@@ -172,7 +172,7 @@ public static partial class DataModelExtensions
     internal const string PIPELINE_POSITION_KEY = "pipeline-position";
 
     /// <summary>
-    /// Converts period into a human readable number string with unit.
+    /// Converts the period into a human readable number string with unit.
     /// </summary>
     /// <param name="samplePeriod">The period to convert.</param>
     /// <returns>The human readable number string with unit.</returns>

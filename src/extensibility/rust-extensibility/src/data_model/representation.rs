@@ -1,28 +1,15 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
-use crate::NexusDataType;
+use super::{NexusDataType, SamplePeriod};
 
 pub struct Representation {
-    id: String,
     pub data_type: NexusDataType,
-    pub sample_period: Duration,
+    pub sample_period: SamplePeriod,
     pub parameters: HashMap<String, String>,
 }
 
 impl Representation {
-    pub fn new(
-        self,
-        data_type: NexusDataType,
-        sample_period: Duration,
-        parameters: HashMap<String, String>,
-    ) {
-        Representation {
-            id: "",
-            data_type,
-            sample_period,
-            parameters,
-        }
+    pub fn id(&self) -> String {
+        self.sample_period.to_unit_string()
     }
-
-    pub fn id() -> String {}
 }

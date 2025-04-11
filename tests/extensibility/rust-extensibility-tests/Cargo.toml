@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "rust_extensibility_tests"
 path = "src/data_model_tests.rs"
 
 [dependencies]
-rust-extensibility = { path = "../../../src/extensibility/rust-extensibility" }
+chrono = "0.4.40"
+rstest = "0.25.0"
+nexus-extensibility = { path = "../../../src/extensibility/rust-extensibility" }

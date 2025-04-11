@@ -6,7 +6,7 @@ use std::{
 use nutype::nutype;
 use regex::Regex;
 
-use crate::representation::Representation;
+use super::Representation;
 
 /// A regular expression to validate a resource identifier.
 pub static VALID_ID_EXPRESSION: LazyLock<Regex> =
@@ -24,10 +24,13 @@ pub struct ResourceId(String);
 pub struct Representations(Vec<Representation>);
 
 impl Representations {
-    fn validate_representations(resources: &Vec<Representation>) -> bool {
-        let unique_ids = resources.iter().map(|x| &x.id).collect::<HashSet<_>>();
-
-        return unique_ids.len() == resources.len();
+    fn validate_representations(representations: &[Representation]) -> bool {
+        representations
+            .iter()
+            .map(|x| x.id())
+            .collect::<HashSet<_>>()
+            .len()
+            == representations.len()
     }
 }
 

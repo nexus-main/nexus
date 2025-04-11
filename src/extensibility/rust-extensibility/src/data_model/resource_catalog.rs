@@ -5,7 +5,7 @@ use std::{
     sync::LazyLock,
 };
 
-use crate::resource::Resource;
+use super::Resource;
 
 /// A regular expression to validate a resource catalog identifier.
 pub static VALID_ID_EXPRESSION: LazyLock<Regex> =
@@ -22,10 +22,13 @@ pub struct ResourceCatalogId(String);
 pub struct Resources(Vec<Resource>);
 
 impl Resources {
-    fn validate_resources(resources: &Vec<Resource>) -> bool {
-        let unique_ids = resources.iter().map(|x| &x.id).collect::<HashSet<_>>();
-
-        return unique_ids.len() == resources.len();
+    fn validate_resources(resources: &[Resource]) -> bool {
+        resources
+            .iter()
+            .map(|x| &x.id)
+            .collect::<HashSet<_>>()
+            .len()
+            == resources.len()
     }
 }
 

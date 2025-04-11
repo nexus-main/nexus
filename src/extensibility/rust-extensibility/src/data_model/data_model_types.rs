@@ -1,12 +1,8 @@
-mod representation;
-mod resource;
-mod resource_catalog;
+use std::collections::HashMap;
 
-use std::{collections::HashMap, time::Duration};
-
-use representation::Representation;
-use resource::Resource;
-use resource_catalog::{ResourceCatalog, VALID_ID_EXPRESSION};
+use super::{
+    Representation, Resource, ResourceCatalog, SamplePeriod, resource_catalog::VALID_ID_EXPRESSION,
+};
 
 enum RepresentationKind {
     Original = 0,
@@ -74,19 +70,19 @@ pub struct CatalogItem {
 }
 
 impl CatalogItem {
-    /// Construct a fully qualified path.
-    pub fn to_path(self) -> String {
-        let parameters_string =
-            DataModelUtilities.get_representation_parameter_string(self.parameters);
+    // /// Construct a fully qualified path.
+    // pub fn to_path(&self) -> String {
+    //     let parameters_string =
+    //         DataModelUtilities.get_representation_parameter_string(self.parameters);
 
-        format!(
-            "{}/{}/{}{}",
-            self.catalog.id,
-            self.resource.id,
-            self.representation.id(),
-            parameters_string
-        )
-    }
+    //     format!(
+    //         "{}/{}/{}{}",
+    //         self.catalog.id,
+    //         self.resource.id,
+    //         self.representation.id(),
+    //         parameters_string
+    //     )
+    // }
 }
 
 #[derive(PartialEq, PartialOrd, Eq, Ord)]
@@ -134,8 +130,8 @@ pub struct CatalogRegistration {
 struct ResourcePathParseResult {
     catalog_id: String,
     resource_id: String,
-    sample_period: Duration,
+    sample_period: SamplePeriod,
     kind: RepresentationKind,
     parameters: Option<String>,
-    base_period: Option<Duration>,
+    base_period: Option<SamplePeriod>,
 }
