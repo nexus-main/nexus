@@ -1,0 +1,12 @@
+[package]
+name = "rust-extensibility"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "rust_extensibility"
+path = "src/data_model/data_model_types.rs"
+
+[dependencies]
+nutype = { version = "0.6.1", features = ["regex"] }
+regex = "1.11.1"

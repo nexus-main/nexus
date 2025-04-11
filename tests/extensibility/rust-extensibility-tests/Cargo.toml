@@ -1,0 +1,11 @@
+[package]
+name = "rust-extensibility-tests"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "rust_extensibility_tests"
+path = "src/data_model_tests.rs"
+
+[dependencies]
+rust-extensibility = { path = "../../../src/extensibility/rust-extensibility" }

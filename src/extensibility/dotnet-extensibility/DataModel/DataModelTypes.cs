@@ -110,16 +110,6 @@ public record CatalogRegistration(string Path, string? Title, bool IsTransient =
         ? Path
         : throw new ArgumentException($"The catalog path {Path} is not valid.");
 
-    /// <summary>
-    /// Gets the nullable title.
-    /// </summary>
-    public string? Title { get; } = Title;
-
-    /// <summary>
-    /// Gets a boolean which indicates if the catalog and its children should be reloaded on each request.
-    /// </summary>
-    public bool IsTransient { get; } = IsTransient;
-
     private static bool IsValidPath(string path)
     {
         if (path == "/")

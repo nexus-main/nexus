@@ -10,5 +10,9 @@
     },
     "[aspnetcorerazor]": {
         "editor.formatOnSave": false
-    }
+    },
+    "rust-analyzer.linkedProjects": [
+        "src/extensibility/rust-extensibility/Cargo.toml",
+        "tests/extensibility/rust-extensibility-tests/Cargo.toml",
+    ]
 }
