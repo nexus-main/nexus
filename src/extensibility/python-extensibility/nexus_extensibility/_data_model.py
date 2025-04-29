@@ -162,7 +162,7 @@ class Resource:
     A resource is part of a resource catalog and holds a list of representations.
     """
 
-    valid_id_expression : ClassVar[Pattern[str]] = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*$")
+    valid_id_expression : ClassVar[Pattern[str]] = re.compile(r"^[a-zA-Z_][a-zA-Z_0-9]*$")
     """Gets a regular expression to validate a resource identifier."""
 
     invalid_id_chars_expression : ClassVar[Pattern[str]] = re.compile(r"[^a-zA-Z_0-9]")
@@ -222,11 +222,11 @@ class ResourceCatalog:
         unique_ids = set([resource.id for resource in resources])
 
         if len(unique_ids) != len(resources):
-            raise Exception("There are multiple resource with the same identifier.")
+            raise Exception("There are multiple resources with the same identifier.")
 
 class ResourceCatalogBuilder:
     """
-    A catalog is a top level element and holds a list of resources.
+    A resource catalog builder simplifies building a resource catalog.
     """
 
     def __init__(self, id: str):

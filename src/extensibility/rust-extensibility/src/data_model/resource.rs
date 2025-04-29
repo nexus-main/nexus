@@ -10,10 +10,10 @@ use super::Representation;
 
 /// A regular expression to validate a resource identifier.
 pub static VALID_ID_EXPRESSION: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^(?:\/[a-zA-Z_][a-zA-Z_0-9]*)+$").unwrap());
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z_][a-zA-Z_0-9]*$").unwrap());
 
 #[nutype(
-    derive(Eq, Hash, PartialEq),
+    derive(Display, Eq, Hash, PartialEq),
     validate(regex = VALID_ID_EXPRESSION)
 )]
 pub struct ResourceId(String);
@@ -34,13 +34,14 @@ impl Representations {
     }
 }
 
+/// A resource is part of a resource catalog and holds a list of representations.
 pub struct Resource {
     /// The resource identifier.
     pub id: ResourceId,
 
     /// The properties.
-    pub properties: HashMap<String, String>,
+    pub properties: Option<HashMap<String, String>>,
 
     /// The list of representations.
-    pub representations: Representations,
+    pub representations: Option<Representations>,
 }

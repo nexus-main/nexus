@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use crate::data_model::data_model_utilities::DataModelUtilities;
 
 use super::{
-    Representation, Resource, ResourceCatalog, SamplePeriod, resource_catalog::VALID_ID_EXPRESSION,
+    Representation, Resource, ResourceCatalog, SamplePeriod,
+    representation::RepresentationParameters, resource_catalog::VALID_ID_EXPRESSION,
 };
 
 enum RepresentationKind {
@@ -20,6 +21,7 @@ enum RepresentationKind {
 
 /// Specifies the Nexus data type.
 #[repr(u16)]
+#[derive(Clone, Copy)]
 pub enum NexusDataType {
     /// Unsigned 8-bit integer.
     UINT8 = 0x108,
@@ -66,23 +68,35 @@ pub struct CatalogItem {
     pub representation: Representation,
 
     /// The optional dictionary of representation parameters and its arguments.
-    pub parameters: Option<HashMap<String, String>>,
+    pub parameters: Option<RepresentationParameters>,
 }
 
 impl CatalogItem {
-    // /// Construct a fully qualified path.
-    // pub fn to_path(&self) -> String {
-    //     let parameters_string =
-    //         DataModelUtilities.get_representation_parameter_string(self.parameters);
+    /// Construct a fully qualified path.
+    pub fn to_path(&self) -> String {
+        let parameters_string =
+            DataModelUtilities::get_representation_parameter_string(&self.parameters);
 
-    //     format!(
-    //         "{}/{}/{}{}",
-    //         self.catalog.id,
-    //         self.resource.id,
-    //         self.representation.id(),
-    //         parameters_string
-    //     )
-    // }
+        match parameters_string {
+            Some(value) => {
+                format!(
+                    "{}/{}/{}{}",
+                    self.catalog.id,
+                    self.resource.id,
+                    self.representation.id(),
+                    value
+                )
+            }
+            None => {
+                format!(
+                    "{}/{}/{}",
+                    self.catalog.id,
+                    self.resource.id,
+                    self.representation.id()
+                )
+            }
+        }
+    }
 }
 
 #[derive(PartialEq, PartialOrd, Eq, Ord)]

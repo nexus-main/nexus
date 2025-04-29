@@ -1,37 +1,86 @@
-#[cfg(test)]
-mod tests {
-    use chrono::NaiveTime;
-    use nexus_extensibility::data_model::SamplePeriod;
-    use rstest::rstest;
+use chrono::NaiveTime;
+use nexus_extensibility::data_model::Resource;
+use nexus_extensibility::data_model::ResourceCatalogId;
+use nexus_extensibility::data_model::ResourceId;
+use nexus_extensibility::data_model::Resources;
+use nexus_extensibility::data_model::SamplePeriod;
+use rstest::rstest;
 
-    #[rstest]
-    #[case("00:00:00.000000100", "100_ns")]
-    #[case("00:00:00.000000200", "200_ns")]
-    #[case("00:00:00.000001500", "1500_ns")]
-    #[case("00:00:00.000001000", "1_us")]
-    #[case("00:00:00.000010000", "10_us")]
-    #[case("00:00:00.000100000", "100_us")]
-    #[case("00:00:00.001500000", "1500_us")]
-    #[case("00:00:00.001000000", "1_ms")]
-    #[case("00:00:00.010000000", "10_ms")]
-    #[case("00:00:00.100000000", "100_ms")]
-    #[case("00:00:01.500000000", "1500_ms")]
-    #[case("00:00:01.000000000", "1_s")]
-    #[case("00:00:15.000000000", "15_s")]
-    #[case("00:01:00.000000000", "1_min")]
-    #[case("00:15:00.000000000", "15_min")]
+#[rstest]
+#[case("/a", true)]
+#[case("/_a", true)]
+#[case("/ab_c", true)]
+#[case("/a9_b/c__99", true)]
+#[case("", false)]
+#[case("/", false)]
+#[case("/a/", false)]
+#[case("/9", false)]
+#[case("a", false)]
+fn can_validate_catalog_id(#[case] id: &str, #[case] is_valid: bool) {
+    // Arrange
 
-    fn can_create_unit_strings(#[case] period_string: &str, #[case] expected: &str) {
-        // Arrange
-        let naive_time = NaiveTime::parse_from_str(period_string, "%H:%M:%S.%f");
-        let time_delta = naive_time.unwrap() - NaiveTime::MIN;
-        let duration = time_delta.to_std().unwrap();
-        let sample_period = SamplePeriod::try_new(duration).unwrap();
+    // Act
+    let result = ResourceCatalogId::try_new(id);
 
-        // Act
-        let actual = sample_period.to_unit_string();
+    // Assert
+    assert_eq!(is_valid, result.is_ok());
+}
 
-        // Assert
-        assert_eq!(expected, actual);
-    }
+#[rstest]
+#[case("_temp", true)]
+#[case("temp", true)]
+#[case("Temp", true)]
+#[case("Temp_1", true)]
+#[case("", false)]
+#[case("1temp", false)]
+#[case("teßp", false)]
+#[case("ª♫", false)]
+#[case("tem p", false)]
+#[case("tem-p", false)]
+#[case("tem*p", false)]
+fn can_validate_resource_id(#[case] id: &str, #[case] is_valid: bool) {
+    // Arrange
+
+    // Act
+    let result = ResourceId::try_new(id);
+
+    // Assert
+    assert_eq!(is_valid, result.is_ok());
+}
+
+#[rstest]
+#[case("00:01:00", true)]
+#[case("00:00:00", false)]
+fn can_validate_representation_sample_period(
+    #[case] sample_period_string: &str,
+    #[case] is_valid: bool,
+) {
+    // Arrange
+    let duration = NaiveTime::parse_from_str(sample_period_string, "%H:%M:%S")
+        .unwrap()
+        .signed_duration_since(NaiveTime::MIN)
+        .to_std()
+        .unwrap();
+
+    // Act
+    let result = SamplePeriod::try_new(duration);
+
+    // Assert
+    assert_eq!(is_valid, result.is_ok());
+}
+
+#[rstest]
+fn can_validate_resources() {
+    // Arrange
+    let id = ResourceId::try_new("R1").unwrap();
+
+    // Act
+    let result = Resources::try_new(vec![Resource {
+        id,
+        properties: None,
+        representations: None,
+    }]);
+
+    // Assert
+    assert!(result.is_ok());
 }

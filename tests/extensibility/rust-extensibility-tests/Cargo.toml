@@ -1,10 +1,7 @@
 [package]
-name = "rust-extensibility-tests"
+name = "nexus-extensibility-tests"
 version = "0.1.0"
 edition = "2024"
-
-[lib]
-path = "src/data_model_tests.rs"
 
 [dependencies]
 chrono = "0.4.40"

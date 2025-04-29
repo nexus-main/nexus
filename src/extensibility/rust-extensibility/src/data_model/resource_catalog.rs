@@ -12,6 +12,7 @@ pub static VALID_ID_EXPRESSION: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:\/[a-zA-Z_][a-zA-Z_0-9]*)+$").unwrap());
 
 #[nutype(
+    derive(Display),
     validate(regex = VALID_ID_EXPRESSION)
 )]
 pub struct ResourceCatalogId(String);
@@ -32,15 +33,16 @@ impl Resources {
     }
 }
 
+/// A catalog is a top level element and holds a list of resources.
 pub struct ResourceCatalog {
     /// The catalog identifier.
     pub id: ResourceCatalogId,
 
     /// The properties.
-    pub properties: HashMap<String, String>,
+    pub properties: Option<HashMap<String, String>>,
 
     /// The list of resources.
-    pub resource: Resources,
+    pub resources: Option<Resources>,
 }
 
 impl ResourceCatalog {}

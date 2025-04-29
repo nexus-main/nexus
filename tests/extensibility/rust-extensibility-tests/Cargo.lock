@@ -235,6 +235,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nexus-extensibility-tests"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "nexus-extensibility",
+ "rstest",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -376,15 +385,6 @@ dependencies = [
  "rustc_version",
  "syn",
  "unicode-ident",
-]
-
-[[package]]
-name = "rust-extensibility-tests"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "nexus-extensibility",
- "rstest",
 ]
 
 [[package]]
