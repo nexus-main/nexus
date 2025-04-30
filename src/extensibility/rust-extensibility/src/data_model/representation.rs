@@ -7,6 +7,7 @@ use super::{
     resource::VALID_ID_EXPRESSION,
 };
 
+/// A dictionary containing representation parameters.
 #[nutype(
     derive(IntoIterator),
     validate(predicate = |x| RepresentationParameters::validate_parameters(x))

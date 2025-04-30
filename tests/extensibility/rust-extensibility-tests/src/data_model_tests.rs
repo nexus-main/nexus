@@ -58,9 +58,7 @@ fn can_validate_representation_sample_period(
     // Arrange
     let duration = NaiveTime::parse_from_str(sample_period_string, "%H:%M:%S")
         .unwrap()
-        .signed_duration_since(NaiveTime::MIN)
-        .to_std()
-        .unwrap();
+        .signed_duration_since(NaiveTime::MIN);
 
     // Act
     let result = SamplePeriod::try_new(duration);

@@ -16,6 +16,7 @@ pub struct ResourceCatalogBuilder {
 }
 
 impl ResourceCatalogBuilder {
+    /// Initializes a new instance of ResourceCatalogBuilder.
     pub fn new(id: ResourceCatalogId) -> Self {
         ResourceCatalogBuilder {
             id,

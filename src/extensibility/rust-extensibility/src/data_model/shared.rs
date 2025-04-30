@@ -1,9 +1,8 @@
-use std::time::Duration;
-
+use chrono::TimeDelta;
 use nutype::nutype;
 
 #[nutype(
     derive(AsRef),
-    validate(predicate = |x| *x != Duration::ZERO),
+    validate(predicate = |x| *x > TimeDelta::zero()),
 )]
-pub struct SamplePeriod(Duration);
+pub struct SamplePeriod(TimeDelta);

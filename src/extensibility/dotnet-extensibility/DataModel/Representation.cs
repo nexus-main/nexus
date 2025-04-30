@@ -50,7 +50,7 @@ public partial record Representation
         DataType = dataType;
 
         // sample period
-        if (samplePeriod.Equals(default))
+        if (samplePeriod <= TimeSpan.Zero)
             throw new ArgumentException($"The sample period {samplePeriod} is not valid.");
 
         SamplePeriod = samplePeriod;

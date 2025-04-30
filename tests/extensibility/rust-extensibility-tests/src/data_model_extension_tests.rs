@@ -22,9 +22,7 @@ fn can_create_unit_strings(#[case] period_string: &str, #[case] expected: &str) 
     // Arrange
     let duration = NaiveTime::parse_from_str(period_string, "%H:%M:%S.%f")
         .unwrap()
-        .signed_duration_since(NaiveTime::MIN)
-        .to_std()
-        .unwrap();
+        .signed_duration_since(NaiveTime::MIN);
 
     let sample_period = SamplePeriod::try_new(duration).unwrap();
 

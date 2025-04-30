@@ -1,6 +1,6 @@
 use super::representation::RepresentationParameters;
 
-pub struct DataModelUtilities;
+pub(crate) struct DataModelUtilities;
 
 impl DataModelUtilities {
     pub fn get_representation_parameter_string(

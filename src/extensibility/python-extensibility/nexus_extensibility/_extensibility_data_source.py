@@ -34,9 +34,17 @@ class LogLevel(enum.IntEnum):
     """Logs that describe an unrecoverable application or system crash, or a catastrophic failure that requires immediate attention."""
 
 class ILogger(ABC):
+    """A logger."""
 
     @abstractmethod
     def log(self, log_level: LogLevel, message: str):
+        """
+        Logs a given message.
+
+        Args:
+            log_level: The log level.
+            message: The message.
+        """
         pass
 
 # use this syntax in future (3.12+): DataSourceContext[T]
@@ -52,7 +60,7 @@ class DataSourceContext(Generic[T]):
     """
 
     resource_locator: Optional[ParseResult]
-    """The unique identifier of the package reference."""
+    """An optional URL which points to the data."""
 
     source_configuration: T
     """The source configuration."""
@@ -219,15 +227,15 @@ class SimpleDataSource(Generic[T], IDataSource[T], ABC):
     A simple implementation of a data source.
     """
 
-    Context: DataSourceContext[T]
+    context: DataSourceContext[T]
     """Gets the data source context. This property is not accessible from within class constructors as it will bet set later."""
 
-    Logger: ILogger
+    logger: ILogger
     """Gets the data logger. This property is not accessible from within class constructors as it will bet set later."""
 
     async def set_context(self, context: DataSourceContext, logger: ILogger):
-        self.Context = context
-        self.Logger = logger
+        self.context = context
+        self.logger = logger
 
     @abstractmethod
     def get_catalog_registrations(self, path: str) -> Awaitable[list[CatalogRegistration]]:

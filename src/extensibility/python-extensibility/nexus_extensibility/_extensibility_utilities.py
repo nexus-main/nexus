@@ -6,9 +6,15 @@ from ._data_model import Representation
 
 
 class ExtensibilityUtilities(ABC):
+    """
+    A class with methods to help with buffers.
+    """
 
     @staticmethod
     def create_buffers(representation: Representation, begin: datetime, end: datetime) -> Tuple[memoryview, memoryview]:
+        """
+        Creates data and status buffers for the given input data.
+        """
         element_count = ExtensibilityUtilities._calculate_element_count(begin, end, representation.sample_period)
 
         data = bytearray(element_count * representation.element_size)

@@ -1,23 +1,7 @@
-use crate::data_model::data_model_utilities::DataModelUtilities;
-
 use super::{
-    Representation, Resource, ResourceCatalog, SamplePeriod,
+    Representation, Resource, ResourceCatalog, data_model_utilities::DataModelUtilities,
     representation::RepresentationParameters, resource_catalog::VALID_ID_EXPRESSION,
 };
-
-enum RepresentationKind {
-    Original = 0,
-    Resampled = 10,
-    Mean = 20,
-    MeanPolarDeg = 30,
-    Min = 40,
-    Max = 50,
-    Std = 60,
-    Rms = 70,
-    MinBitwise = 80,
-    MaxBitwise = 90,
-    Sum = 100,
-}
 
 /// Specifies the Nexus data type.
 #[repr(u16)]
@@ -54,9 +38,7 @@ pub enum NexusDataType {
     FLOAT64 = 0x340,
 }
 
-/// <summary>
 /// A catalog item consists of a catalog, a resource and a representation.
-/// </summary>
 pub struct CatalogItem {
     /// The catalog.
     pub catalog: ResourceCatalog,
@@ -75,34 +57,25 @@ impl CatalogItem {
     /// Construct a fully qualified path.
     pub fn to_path(&self) -> String {
         let parameters_string =
-            DataModelUtilities::get_representation_parameter_string(&self.parameters);
+            DataModelUtilities::get_representation_parameter_string(&self.parameters)
+                .unwrap_or_default();
 
-        match parameters_string {
-            Some(value) => {
-                format!(
-                    "{}/{}/{}{}",
-                    self.catalog.id,
-                    self.resource.id,
-                    self.representation.id(),
-                    value
-                )
-            }
-            None => {
-                format!(
-                    "{}/{}/{}",
-                    self.catalog.id,
-                    self.resource.id,
-                    self.representation.id()
-                )
-            }
-        }
+        format!(
+            "{}/{}/{}{}",
+            self.catalog.id,
+            self.resource.id,
+            self.representation.id(),
+            parameters_string
+        )
     }
 }
 
+/// A catalog path.
 #[derive(PartialEq, PartialOrd, Eq, Ord)]
 pub struct CatalogPath(String);
 
 impl CatalogPath {
+    /// Initializes a new instance of CatalogPath.
     pub fn new(path: String) -> Result<Self, &'static str> {
         if CatalogPath::is_valid_path(&path) {
             Ok(Self(path))
@@ -139,13 +112,4 @@ pub struct CatalogRegistration {
 
     /// An optional link target (i.e. another absolute catalog path) which makes this catalog a softlink.
     pub link_target: Option<String>,
-}
-
-struct ResourcePathParseResult {
-    catalog_id: String,
-    resource_id: String,
-    sample_period: SamplePeriod,
-    kind: RepresentationKind,
-    parameters: Option<String>,
-    base_period: Option<SamplePeriod>,
 }

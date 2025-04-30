@@ -122,7 +122,7 @@ class Representation:
             raise Exception(f"The data type {self.data_type} is not valid.")
 
         # sample period
-        if self.sample_period == timedelta(0):
+        if self.sample_period <= timedelta(0):
             raise Exception(f"The sample period {self.sample_period} is not valid.")
 
         # parameters
@@ -152,9 +152,9 @@ class Representation:
 
         for key in parameters.keys():
 
-            # resources and arguments have the same requirements regarding their IDs
+            # resources and parameter have the same requirements regarding their IDs
             if not Resource.valid_id_expression.match(key):
-                raise Exception("The representation argument identifier is not valid.")
+                raise Exception("The representation parameter identifier is not valid.")
 
 @dataclass(frozen=True)
 class Resource:

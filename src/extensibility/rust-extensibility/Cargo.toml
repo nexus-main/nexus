@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = "0.4.40"
 nutype = { version = "0.6.1", features = ["regex"] }
 regex = "1.11.1"
+url = "2.5.4"

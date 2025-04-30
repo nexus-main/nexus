@@ -12,12 +12,22 @@ use super::Representation;
 pub static VALID_ID_EXPRESSION: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[a-zA-Z_][a-zA-Z_0-9]*$").unwrap());
 
+/// A regular expression to find invalid characters in a resource identifier.
+pub static INVALID_ID_CHARS_EXPRESSION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[^a-zA-Z_0-9]").unwrap());
+
+/// A regular expression to find invalid start characters in a resource identifier.
+pub static INVALID_ID_START_CHARS_EXPRESSION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[^a-zA-Z_]+").unwrap());
+
+/// A resource id.
 #[nutype(
     derive(Display, Eq, Hash, PartialEq),
     validate(regex = VALID_ID_EXPRESSION)
 )]
 pub struct ResourceId(String);
 
+/// A list of representations
 #[nutype(
     validate(predicate = |x| Representations::validate_representations(x)),
 )]
