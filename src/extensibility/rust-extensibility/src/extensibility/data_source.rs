@@ -1,9 +1,11 @@
 use super::super::data_model::{CatalogItem, CatalogRegistration, ResourceCatalog};
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use std::collections::HashMap;
 use url::Url;
 
 /// Defines logging severity levels.
+#[derive(Serialize)]
 pub enum LogLevel {
     /// Logs that contain the most detailed messages. These messages may contain sensitive application data. These messages are disabled by default and should never be enabled in a production environment.
     Trace = 0,

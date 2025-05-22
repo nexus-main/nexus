@@ -398,6 +398,7 @@ dependencies = [
  "chrono",
  "nutype",
  "regex",
+ "serde",
  "url",
 ]
 

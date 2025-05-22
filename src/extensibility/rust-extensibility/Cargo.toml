@@ -7,4 +7,5 @@ edition = "2024"
 chrono = "0.4.40"
 nutype = { version = "0.6.1", features = ["regex"] }
 regex = "1.11.1"
+serde = { version = "1.0.219", features = ["derive"] }
 url = "2.5.4"
