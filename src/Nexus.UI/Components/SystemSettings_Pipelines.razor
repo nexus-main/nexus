@@ -408,12 +408,10 @@
 
         var user = _authenticationState!.User;
 
-        var isAdmin = false;
-
-        @* var isAdmin = user.Claims.Any(claim =>
+        var isAdmin = user.Claims.Any(claim =>
             claim.Type == "role" &&
             claim.Value == "Administrator"
-        ); *@
+        );
 
         var canUseResourceLocatorClaims = user.Claims
             .Where(x => x.Type == "CanUseResourceLocator")
