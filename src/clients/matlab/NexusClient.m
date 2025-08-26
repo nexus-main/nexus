@@ -13,6 +13,9 @@ classdef NexusClient < handle
         end
 
         function signIn(self, accessToken)
+
+            import matlab.net.http.field.*
+            
             self.AuthorizationHeader = GenericField('Authorization', ['Bearer ' accessToken]);
         end
 
