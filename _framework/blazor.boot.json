@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "Nexus.UI",
   "resources": {
-    "hash": "sha256-PxGl/LlU88cLKhfN3XcKn9KFNwkRQWHvqW0m9BxJD7M=",
+    "hash": "sha256-ELoP0Pilc9We5OKp0kbyT1tEmbE3JidDWb1pHSgyQls=",
     "fingerprinting": {
       "BlazorJsonForm.sf2o8di9mj.wasm": "BlazorJsonForm.wasm",
       "Microsoft.AspNetCore.Authorization.v62rqo528o.wasm": "Microsoft.AspNetCore.Authorization.wasm",
@@ -29,8 +29,8 @@
       "Namotion.Reflection.vv7dcii2e2.wasm": "Namotion.Reflection.wasm",
       "netstandard.i0di67eeah.wasm": "netstandard.wasm",
       "Newtonsoft.Json.qkbufwhni2.wasm": "Newtonsoft.Json.wasm",
-      "Nexus.Api.tn7vwlkdig.wasm": "Nexus.Api.wasm",
-      "Nexus.UI.21gagirgpq.wasm": "Nexus.UI.wasm",
+      "Nexus.Api.08u8dv45ue.wasm": "Nexus.Api.wasm",
+      "Nexus.UI.62e90lnf1y.wasm": "Nexus.UI.wasm",
       "NJsonSchema.Annotations.a8geymci8f.wasm": "NJsonSchema.Annotations.wasm",
       "NJsonSchema.b77tzzio88.wasm": "NJsonSchema.wasm",
       "SkiaSharp.Views.Blazor.qcjym8w502.wasm": "SkiaSharp.Views.Blazor.wasm",
@@ -138,8 +138,8 @@
       "Namotion.Reflection.vv7dcii2e2.wasm": "sha256-1eJBgupYUz3Q98b+qt9ITPUlabzdgP6qT1eL3U/rk4c=",
       "netstandard.i0di67eeah.wasm": "sha256-YrTpFU7JimENHCKWM5AdJT6Lem2n1HwHJd20HIoAqAI=",
       "Newtonsoft.Json.qkbufwhni2.wasm": "sha256-GlXMWKvDs45M2pACoR3Y4Qh8mcrOZGljqmvJY+6JZ5s=",
-      "Nexus.Api.tn7vwlkdig.wasm": "sha256-d7P97jSEDQ2DZlEpts2fFYZqnBc8Cgf1HvXY+ELCW9U=",
-      "Nexus.UI.21gagirgpq.wasm": "sha256-prc8CIwSJNU2ayC95uRUhR0NnN6YdqfUA0I3egXrndM=",
+      "Nexus.Api.08u8dv45ue.wasm": "sha256-ANRmkSfTVGxljp1Kb7oihAWZUbc7CX/AqKD7hqpAugg=",
+      "Nexus.UI.62e90lnf1y.wasm": "sha256-kqxQw7ESy6vnE8nPinp+WRjCieYj7F/kslHsNEA2BHQ=",
       "NJsonSchema.Annotations.a8geymci8f.wasm": "sha256-VvxqIGAQwC3PxKZHN73qizqlGLVmYELXwY4a+ueTsr0=",
       "NJsonSchema.b77tzzio88.wasm": "sha256-t1h30wKsthg+bIkqWg5XMJF77AdnT2UxRlt+JlhAFjU=",
       "SkiaSharp.Views.Blazor.qcjym8w502.wasm": "sha256-esyiRmrf4rkJDyIEDLieOOqUyICrdkECV5mD88fMNsk=",
