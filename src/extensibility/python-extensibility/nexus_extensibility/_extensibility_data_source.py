@@ -225,7 +225,7 @@ class SimpleDataSource(Generic[T], IDataSource[T], ABC):
     Logger: ILogger
     """Gets the data logger. This property is not accessible from within class constructors as it will bet set later."""
 
-    async def set_context(self, context: DataSourceContext, logger: ILogger):
+    async def set_context(self, context: DataSourceContext[T], logger: ILogger):
         self.Context = context
         self.Logger = logger
 
