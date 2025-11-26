@@ -13,9 +13,19 @@ namespace Nexus.Utilities;
 
 internal static class AuthUtilities
 {
-    public static void AddEnabledCatalogPatternClaim(ClaimsPrincipal principal, string? scheme, SecurityOptions options)
+    public static void SetEnabledCatalogPatternClaim(ClaimsPrincipal principal, string? scheme, SecurityOptions options)
     {
         var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+        // Do not store the EnabledCatalogsPattern claim in the cookie: it’s tied to the
+        // sign-in scheme and should be inherited by the user, not persisted. When a user
+        // accepts a catalog license, they are re-signed in to refresh the cookie. Since 
+        // the claim has previously been added to the User, it becomes part of the cookie. 
+        // On the next visit, the EnabledCatalogsPattern claim is added again, resulting 
+        // in multiple entries of the same claim. This breaks 
+        // user.GetClaim("EnabledCatalogsPattern"), which correctly expects a single claim
+        // of a given type. To avoid this we remove all existing instances of the claim.
+        principal.RemoveClaims(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM);
 
         if (scheme is null)
         {
