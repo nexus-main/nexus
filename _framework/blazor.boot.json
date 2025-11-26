@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "Nexus.UI",
   "resources": {
-    "hash": "sha256-j4ikpfIhLC726iGOLIw38S49y2ti1CoTtPvjsWJRurY=",
+    "hash": "sha256-HxuvEBuOhiR3zHuILLNS4S5jmwiLC4DcLar+P5g4f48=",
     "fingerprinting": {
       "BlazorJsonForm.sf2o8di9mj.wasm": "BlazorJsonForm.wasm",
       "Microsoft.AspNetCore.Authorization.v62rqo528o.wasm": "Microsoft.AspNetCore.Authorization.wasm",
@@ -30,10 +30,10 @@
       "NJsonSchema.b77tzzio88.wasm": "NJsonSchema.wasm",
       "Namotion.Reflection.vv7dcii2e2.wasm": "Namotion.Reflection.wasm",
       "Newtonsoft.Json.qkbufwhni2.wasm": "Newtonsoft.Json.wasm",
-      "Nexus.Api.edg6tes8mj.wasm": "Nexus.Api.wasm",
-      "Nexus.UI.ec96668pth.wasm": "Nexus.UI.wasm",
-      "SkiaSharp.Views.Blazor.qcjym8w502.wasm": "SkiaSharp.Views.Blazor.wasm",
-      "SkiaSharp.mz0jiccivw.wasm": "SkiaSharp.wasm",
+      "Nexus.Api.mlvv3h7dko.wasm": "Nexus.Api.wasm",
+      "Nexus.UI.0hdxauxxj5.wasm": "Nexus.UI.wasm",
+      "SkiaSharp.Views.Blazor.5bdyj4d3j1.wasm": "SkiaSharp.Views.Blazor.wasm",
+      "SkiaSharp.77vj54dude.wasm": "SkiaSharp.wasm",
       "System.Collections.1ur8eayits.wasm": "System.Collections.wasm",
       "System.Collections.Concurrent.3nc289hhsp.wasm": "System.Collections.Concurrent.wasm",
       "System.Collections.Immutable.tzx5fgou83.wasm": "System.Collections.Immutable.wasm",
@@ -85,22 +85,22 @@
       "System.Xml.XDocument.rq3uoqeade.wasm": "System.Xml.XDocument.wasm",
       "System.t4d4s3f398.wasm": "System.wasm",
       "netstandard.y0sfl8cru3.wasm": "netstandard.wasm",
+      "dotnet.native.npdb3ys37q.js": "dotnet.native.js",
+      "dotnet.native.mkjafzgq2z.wasm": "dotnet.native.wasm",
       "dotnet.js": "dotnet.js",
-      "dotnet.native.noby4tlk4d.js": "dotnet.native.js",
-      "dotnet.native.qe75a9vfqn.wasm": "dotnet.native.wasm",
       "dotnet.runtime.9o45ky8ejm.js": "dotnet.runtime.js",
       "icudt_CJK.tjcz0u77k5.dat": "icudt_CJK.dat",
       "icudt_EFIGS.tptq2av103.dat": "icudt_EFIGS.dat",
       "icudt_no_CJK.lfu7j35m59.dat": "icudt_no_CJK.dat"
     },
     "jsModuleNative": {
-      "dotnet.native.noby4tlk4d.js": "sha256-p9eEzXhQIsI0a5bBJhfzW15iRafgplTxT8XrO5FiH9o="
+      "dotnet.native.npdb3ys37q.js": "sha256-1boBGLIxfnWtHp59axDDzpyA8IystJXD/cY3c3AMz08="
     },
     "jsModuleRuntime": {
       "dotnet.runtime.9o45ky8ejm.js": "sha256-6QIZYgG+ftoT9N1H1EEJeXIhD/qbKqEcnmawDskiwdI="
     },
     "wasmNative": {
-      "dotnet.native.qe75a9vfqn.wasm": "sha256-Po2dalLvTpf5jAS+jt0TzuBYybYiL1F6qAacZJ8UAdo="
+      "dotnet.native.mkjafzgq2z.wasm": "sha256-ltydZ/z/7hdGvfgMJCJtEv4MKvemCA9i9f0rMkiyqm0="
     },
     "icu": {
       "icudt_CJK.tjcz0u77k5.dat": "sha256-SZLtQnRc0JkwqHab0VUVP7T3uBPSeYzxzDnpxPpUnHk=",
@@ -139,10 +139,10 @@
       "NJsonSchema.b77tzzio88.wasm": "sha256-t1h30wKsthg+bIkqWg5XMJF77AdnT2UxRlt+JlhAFjU=",
       "Namotion.Reflection.vv7dcii2e2.wasm": "sha256-1eJBgupYUz3Q98b+qt9ITPUlabzdgP6qT1eL3U/rk4c=",
       "Newtonsoft.Json.qkbufwhni2.wasm": "sha256-GlXMWKvDs45M2pACoR3Y4Qh8mcrOZGljqmvJY+6JZ5s=",
-      "Nexus.Api.edg6tes8mj.wasm": "sha256-nnKlaAiDqCeHN/2LJjlkrRIuttW4chFv9rJfLZB8sa0=",
-      "Nexus.UI.ec96668pth.wasm": "sha256-Mi3kSYdUUX6PVTTO2HsHZnuc/PjQbYIrkOwcp5AsW18=",
-      "SkiaSharp.Views.Blazor.qcjym8w502.wasm": "sha256-esyiRmrf4rkJDyIEDLieOOqUyICrdkECV5mD88fMNsk=",
-      "SkiaSharp.mz0jiccivw.wasm": "sha256-PjLhmnpOM6Tz6z/6t99FKKOvrK2snAk31tvW29vXQwY=",
+      "Nexus.Api.mlvv3h7dko.wasm": "sha256-uij/2ow1Mrd5SRXmJatom0Wt1CoKTNVXfAEc7WVkTJQ=",
+      "Nexus.UI.0hdxauxxj5.wasm": "sha256-dJTFf1vpWk5FDWVFOzbOO+R2t32dQZ28tNzr07Fn1LY=",
+      "SkiaSharp.Views.Blazor.5bdyj4d3j1.wasm": "sha256-H3XgHwsVuSSf+ZPfo79+JJmXR7W/KT9vPQOXsQRE+As=",
+      "SkiaSharp.77vj54dude.wasm": "sha256-syld10vFdwwMPj9hgjd3yLGzUm3UcqDTh65g9b1z20Y=",
       "System.Collections.1ur8eayits.wasm": "sha256-6RS115u4lF0O4nIdT/d9yjKATIX1KyjG5Q5v0m8yPF8=",
       "System.Collections.Concurrent.3nc289hhsp.wasm": "sha256-gTfPJWTbE+n6XroTUqUto7mCHr1Z2304TMRfa1Vmqwo=",
       "System.Collections.Immutable.tzx5fgou83.wasm": "sha256-WepH8SASlDVndZmShNwFpTJdOTsVsQ7SC6iT7drgjB0=",
