@@ -127,11 +127,12 @@ internal static class NexusIdentityProviderExtensions
                 .LastOrDefault();
 
             authorization ??= await authorizationManager.CreateAsync(
-                    principal: principal,
-                    subject: subject,
-                    client: (await applicationManager.GetIdAsync(client))!,
-                    type: AuthorizationTypes.Permanent,
-                    scopes: principal.GetScopes());
+                principal: principal,
+                subject: subject,
+                client: (await applicationManager.GetIdAsync(client))!,
+                type: AuthorizationTypes.Permanent,
+                scopes: principal.GetScopes()
+            );
 
             principal.SetAuthorizationId(await authorizationManager.GetIdAsync(authorization));
 

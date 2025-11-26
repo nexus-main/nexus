@@ -1,3 +1,7 @@
+## v2.0.0-beta.53 - 2025-11-26
+- Fixed [#260: Accept license" causes error?](#260);
+- Fixed [#260: Accept license" causes error?](#260);
+
 ## v2.0.0-beta.52 - 2025-03-05
 - Fix security issues #244 and #247
 

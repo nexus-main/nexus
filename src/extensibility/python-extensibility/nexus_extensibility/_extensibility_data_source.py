@@ -219,15 +219,15 @@ class SimpleDataSource(Generic[T], IDataSource[T], ABC):
     A simple implementation of a data source.
     """
 
-    Context: DataSourceContext[T]
+    context: DataSourceContext[T]
     """Gets the data source context. This property is not accessible from within class constructors as it will bet set later."""
 
-    Logger: ILogger
+    logger: ILogger
     """Gets the data logger. This property is not accessible from within class constructors as it will bet set later."""
 
-    async def set_context(self, context: DataSourceContext, logger: ILogger):
-        self.Context = context
-        self.Logger = logger
+    async def set_context(self, context: DataSourceContext[T], logger: ILogger):
+        self.context = context
+        self.logger = logger
 
     @abstractmethod
     def get_catalog_registrations(self, path: str) -> Awaitable[list[CatalogRegistration]]:
