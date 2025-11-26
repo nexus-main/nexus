@@ -1,3 +1,6 @@
+## v2.0.0-beta.54 - 2025-11-26
+- Fixed plotting not working anymore
+
 ## v2.0.0-beta.53 - 2025-11-26
 - Fixed [#260: Accept license" causes error?](#260);
 - Fixed [#260: Accept license" causes error?](#260);
