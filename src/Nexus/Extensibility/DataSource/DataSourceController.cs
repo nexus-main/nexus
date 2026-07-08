@@ -628,6 +628,7 @@ internal class DataSourceController(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
+            targetBuffer.Span.Fill(double.NaN);
         }
         finally
         {
@@ -730,6 +731,7 @@ internal class DataSourceController(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
+            targetBuffer.Span.Fill(double.NaN);
         }
 
         /* update progress */
