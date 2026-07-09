@@ -1,3 +1,6 @@
+## v2.0.0-beta.55 - 2026-07-09
+- Fixed uninitialized buffer issue when a plugin fails to read data
+
 ## v2.0.0-beta.54 - 2025-11-26
 - Fixed plotting not working anymore
 
