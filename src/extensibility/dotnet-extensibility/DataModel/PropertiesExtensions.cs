@@ -23,14 +23,19 @@ public static class PropertiesExtensions
         {
             pathSegments = pathSegments[1..];
 
-            if (
-                pathSegments.Length == 0 &&
-                (element.ValueKind == JsonValueKind.String || element.ValueKind == JsonValueKind.Null)
-            )
-                return element.GetString();
+            if (pathSegments.Length == 0)
+            {
+                if (element.ValueKind == JsonValueKind.String || element.ValueKind == JsonValueKind.Null)
+                    return element.GetString();
+
+                else
+                    return default;
+            }
 
             else
+            {
                 return element.GetStringValue(pathSegments);
+            }
         }
 
         return default;
