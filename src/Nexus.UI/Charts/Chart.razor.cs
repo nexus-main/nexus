@@ -1,6 +1,7 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -15,6 +16,11 @@ public partial class Chart : IDisposable
     private SKGLView _skiaView = default!;
     private readonly string _chartId = Guid.NewGuid().ToString();
     private Dictionary<AxisInfo, LineSeries[]> _axesMap = default!;
+
+    /* render backend */
+    private RenderBackend _renderBackend = RenderBackend.Skia;
+    private bool _gpuReady;
+    private int[] _seriesDataOffsets = default!;
 
     /* zoom */
     private bool _isDragging;
@@ -136,11 +142,27 @@ public partial class Chart : IDisposable
     {
         if (BeginAtZero || _zoomBox == _defaultZoomBox)
         {
-            Task.Run(() =>
+            Task.Run(async () =>
             {
                 _axesMap = LineSeriesData.Series
                     .GroupBy(lineSeries => lineSeries.Unit)
                     .ToDictionary(group => GetAxisInfo(group.Key, group), group => group.ToArray());
+
+                if (_renderBackend == RenderBackend.WebGpu && _gpuReady)
+                {
+                    _gpuReady = false;
+
+                    try
+                    {
+                        await PushDataAsync();
+                    }
+                    catch
+                    {
+                        _renderBackend = RenderBackend.Skia;
+                    }
+
+                    _gpuReady = _renderBackend == RenderBackend.WebGpu;
+                }
 
                 if (OperatingSystem.IsBrowser())
                     _skiaView.Invalidate();
@@ -150,6 +172,10 @@ public partial class Chart : IDisposable
 
     protected override void OnInitialized()
     {
+        /* render backend */
+        if (OperatingSystem.IsBrowser() && JSRuntime.Invoke<bool>("nexus.chart.gpu.isSupported"))
+            _renderBackend = RenderBackend.WebGpu;
+
         /* line series color */
         for (int i = 0; i < LineSeriesData.Series.Count; i++)
         {
@@ -164,6 +190,30 @@ public partial class Chart : IDisposable
 
         /* zoom */
         ResetZoom();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _renderBackend == RenderBackend.WebGpu)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("nexus.chart.gpu.create", _chartId);
+                await PushDataAsync();
+                _gpuReady = true;
+
+                if (OperatingSystem.IsBrowser())
+                    _skiaView.Invalidate();
+            }
+
+            catch
+            {
+                _renderBackend = RenderBackend.Skia;
+
+                if (OperatingSystem.IsBrowser())
+                    _skiaView.Invalidate();
+            }
+        }
     }
 
     private void OnMouseDown(MouseEventArgs e)
@@ -272,6 +322,7 @@ public partial class Chart : IDisposable
     {
         /* sizes */
         var canvas = e.Surface.Canvas;
+        canvas.Clear();
         var surfaceSize = e.BackendRenderTarget.Size;
 
         var yMin = Y_PADDING_TOP;
@@ -289,21 +340,29 @@ public partial class Chart : IDisposable
         /* series */
         var dataBox = new SKRect(xMin, yMin, xMax, yMax);
 
-        using (var canvasRestore = new SKAutoCanvasRestore(canvas))
+        if (_renderBackend == RenderBackend.WebGpu && _gpuReady)
         {
-            canvas.ClipRect(dataBox);
+            PushState(dataBox, surfaceSize.Width, surfaceSize.Height);
+        }
 
-            /* for each axis */
-            foreach (var axesEntry in _axesMap)
+        else
+        {
+            using (var canvasRestore = new SKAutoCanvasRestore(canvas))
             {
-                var axisInfo = axesEntry.Key;
-                var lineSeries = axesEntry.Value;
+                canvas.ClipRect(dataBox);
 
-                /* for each dataset */
-                foreach (var series in lineSeries)
+                /* for each axis */
+                foreach (var axesEntry in _axesMap)
                 {
-                    var zoomInfo = GetZoomInfo(dataBox, _zoomBox, series.Data);
-                    DrawSeries(canvas, zoomInfo, series, axisInfo);
+                    var axisInfo = axesEntry.Key;
+                    var lineSeries = axesEntry.Value;
+
+                    /* for each dataset */
+                    foreach (var series in lineSeries)
+                    {
+                        var zoomInfo = GetZoomInfo(dataBox, _zoomBox, series.Data);
+                        DrawSeries(canvas, zoomInfo, series, axisInfo);
+                    }
                 }
             }
         }
@@ -318,6 +377,131 @@ public partial class Chart : IDisposable
             dataBox.Right / surfaceSize.Width,
             dataBox.Bottom / surfaceSize.Height);
     }
+
+    #region WebGPU
+
+    private async Task PushDataAsync()
+    {
+        var seriesList = LineSeriesData.Series;
+        var seriesCount = seriesList.Count;
+
+        _seriesDataOffsets = new int[seriesCount];
+        var lengths = new int[seriesCount];
+
+        var totalLength = 0;
+
+        for (int i = 0; i < seriesCount; i++)
+        {
+            lengths[i] = seriesList[i].Data.Length;
+            _seriesDataOffsets[i] = totalLength;
+            totalLength += lengths[i];
+        }
+
+        var floatData = new float[totalLength];
+
+        for (int i = 0; i < seriesCount; i++)
+        {
+            var data = seriesList[i].Data;
+            var offset = _seriesDataOffsets[i];
+
+            for (int j = 0; j < data.Length; j++)
+                floatData[offset + j] = (float)data[j];
+        }
+
+        var byteArray = MemoryMarshal
+            .AsBytes<float>(floatData.AsSpan())
+            .ToArray();
+
+        await using var memoryStream = new MemoryStream(byteArray);
+        var streamRef = new DotNetStreamReference(memoryStream);
+
+        await JSRuntime.InvokeVoidAsync(
+            "nexus.chart.gpu.setData",
+            _chartId,
+            streamRef,
+            seriesCount,
+            lengths);
+    }
+
+    private void PushState(SKRect dataBox, float surfaceWidth, float surfaceHeight)
+    {
+        var seriesList = LineSeriesData.Series;
+
+        /* build series to axis map */
+        var seriesToAxis = new Dictionary<LineSeries, AxisInfo>();
+
+        foreach (var axesEntry in _axesMap)
+            foreach (var series in axesEntry.Value)
+                seriesToAxis[series] = axesEntry.Key;
+
+        var seriesArray = new object[seriesList.Count];
+
+        for (int i = 0; i < seriesList.Count; i++)
+        {
+            var series = seriesList[i];
+            var axisInfo = seriesToAxis[series];
+
+            var zoomInfo = GetZoomInfo(dataBox, _zoomBox, series.Data);
+
+            var visibleCount = zoomInfo.VisibleCount;
+            var indexLeft = zoomInfo.IndexLeft;
+            var isClippedRight = zoomInfo.IsClippedRight;
+
+            var indexScale = isClippedRight
+                ? Math.Max(1, visibleCount)
+                : Math.Max(1, visibleCount - 1);
+
+            var strokeFirstVertex = 2 * indexLeft;
+            var strokeVertexCount = 2 * (visibleCount - 1);
+
+            var fillFirstVertex = 6 * indexLeft;
+            var fillVertexCount = 6 * (visibleCount - 1);
+
+            var color = series.Color;
+            var strokeColorR = color.Red / 255f;
+            var strokeColorG = color.Green / 255f;
+            var strokeColorB = color.Blue / 255f;
+            var fillColorA = 0x19 / 255f;
+
+            var uniform = new float[]
+            {
+                dataBox.Left, dataBox.Top, dataBox.Right, dataBox.Bottom,
+                surfaceWidth, surfaceHeight,
+                indexLeft,
+                indexScale,
+                axisInfo.Min,
+                axisInfo.Max,
+                0,
+                _seriesDataOffsets[i],
+                strokeColorR, strokeColorG, strokeColorB, 1.0f,
+                strokeColorR, strokeColorG, strokeColorB, fillColorA
+            };
+
+            seriesArray[i] = new
+            {
+                uniform = uniform,
+                strokeFirstVertex = strokeFirstVertex,
+                strokeVertexCount = strokeVertexCount,
+                fillFirstVertex = fillFirstVertex,
+                fillVertexCount = fillVertexCount
+            };
+        }
+
+        var scissor = new
+        {
+            x = dataBox.Left,
+            y = dataBox.Top,
+            width = dataBox.Width,
+            height = dataBox.Height
+        };
+
+        JSRuntime.InvokeVoid(
+            "nexus.chart.gpu.update",
+            _chartId,
+            new { scissor = scissor, series = seriesArray });
+    }
+
+    #endregion
 
     private void DrawAuxiliary(Position relativePosition)
     {
@@ -479,7 +663,7 @@ public partial class Chart : IDisposable
          */
         var isClippedRight = zoomedData.Length < intendedLength;
 
-        return new ZoomInfo(zoomedData, zoomedDataBox, isClippedRight);
+        return new ZoomInfo(zoomedData, zoomedDataBox, isClippedRight, indexLeftRounded, zoomedData.Length);
     }
 
     private static SKRect CreateZoomBox(Position start, Position end)
@@ -1031,6 +1215,16 @@ public partial class Chart : IDisposable
     public void Dispose()
     {
         _dotNetHelper?.Dispose();
+
+        if (_renderBackend == RenderBackend.WebGpu && OperatingSystem.IsBrowser())
+        {
+            try
+            {
+                JSRuntime.InvokeVoid("nexus.chart.gpu.dispose", _chartId);
+            }
+
+            catch { }
+        }
     }
 
     #endregion

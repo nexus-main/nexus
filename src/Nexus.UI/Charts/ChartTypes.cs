@@ -32,7 +32,15 @@ public record LineSeries(
 internal record struct ZoomInfo(
     Memory<double> Data,
     SKRect DataBox,
-    bool IsClippedRight);
+    bool IsClippedRight,
+    int IndexLeft,
+    int VisibleCount);
+
+internal enum RenderBackend
+{
+    Skia,
+    WebGpu
+}
 
 internal record struct Position(
     float X,

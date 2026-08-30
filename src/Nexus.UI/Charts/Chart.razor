@@ -4,6 +4,11 @@
 
     <div id="chart_@(_chartId)" class="chart">
 
+        @if (_renderBackend == RenderBackend.WebGpu)
+        {
+            <canvas id="gpu_@(_chartId)" class="chart-canvas-gpu"></canvas>
+        }
+
         <SKGLView @ref="_skiaView"
             OnPaintSurface="PaintSurface">
         </SKGLView>
