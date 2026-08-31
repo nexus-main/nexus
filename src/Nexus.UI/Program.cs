@@ -64,7 +64,6 @@ builder.Services
         config.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomCenter;
     })
 
-    .AddSingleton<TypeFaceService>()
     .AddScoped<AuthenticationStateProvider, NexusAuthenticationStateProvider>();
 
 await builder.Build().RunAsync();
