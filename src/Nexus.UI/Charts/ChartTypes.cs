@@ -29,11 +29,6 @@ public record LineSeries(
     internal SKColor Color { get; set; }
 }
 
-internal record struct ZoomInfo(
-    Memory<double> Data,
-    SKRect DataBox,
-    bool IsClippedRight);
-
 internal record struct Position(
     float X,
     float Y);
