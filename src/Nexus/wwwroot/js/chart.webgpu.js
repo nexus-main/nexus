@@ -40,6 +40,13 @@ fn dataPoint(index: u32) -> vec2f {
         uniforms.plot.w - ((value - uniforms.axis.x) / uniforms.axis.y) * (uniforms.plot.w - uniforms.plot.y));
 }
 
+fn isNan(x: f32) -> bool {
+    // WGSL has no isnan() builtin, and "x != x" is unreliable under fast-math/indeterminate values.
+    // Bit-pattern test (exponent all 1s, mantissa non-zero) is unambiguous across drivers.
+    let bits = bitcast<u32>(x);
+    return (bits & 0x7f800000u) == 0x7f800000u && (bits & 0x007fffffu) != 0u;
+}
+
 fn emptyVertex() -> VertexOut {
     var out: VertexOut;
     out.position = vec4f(0.0, 0.0, 0.0, 1.0);
@@ -51,11 +58,19 @@ fn fillVertex(a: vec2f, b: vec2f, local: u32) -> vec2f {
     let a0 = vec2f(a.x, uniforms.zeroY);
     let b0 = vec2f(b.x, uniforms.zeroY);
 
+    let crossing = (a.y - uniforms.zeroY) * (b.y - uniforms.zeroY) < 0.0;
+
+    var c = b;
+    if (crossing) {
+        let t = (uniforms.zeroY - a.y) / (b.y - a.y);
+        c = vec2f(a.x + t * (b.x - a.x), uniforms.zeroY);
+    }
+
     switch local {
         case 0u: { return a0; }
         case 1u: { return a; }
-        case 2u: { return b; }
-        case 3u: { return a0; }
+        case 2u: { return select(b, c, crossing); }
+        case 3u: { return select(a0, c, crossing); }
         case 4u: { return b; }
         default: { return b0; }
     }
@@ -124,7 +139,7 @@ fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
     let valueA = values[index];
     let valueB = values[index + 1u];
 
-    if (valueA != valueA || valueB != valueB || uniforms.axis.y == 0.0) {
+    if (isNan(valueA) || isNan(valueB) || uniforms.axis.y == 0.0) {
         return emptyVertex();
     }
 
