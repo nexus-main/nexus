@@ -7,6 +7,8 @@ using Microsoft.JSInterop;
 using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
+using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Nexus.UI.Charts;
@@ -30,6 +32,19 @@ public partial class Chart : IDisposable
     private DateTime _zoomedEnd;
 
     private readonly SKRect _defaultZoomBox = new SKRect(0, 0, 1, 1);
+
+    /* navigator */
+    private string NavigatorWindowLeftStyle =>
+        $"{(_zoomBox.Left * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+    private string NavigatorWindowWidthStyle =>
+        $"{((_zoomBox.Right - _zoomBox.Left) * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+    private string NavigatorDataLeft =>
+        _zoomBox.Left.ToString("0.######", CultureInfo.InvariantCulture);
+
+    private string NavigatorDataRight =>
+        _zoomBox.Right.ToString("0.######", CultureInfo.InvariantCulture);
 
     /* Common */
     private const float TICK_SIZE = 10;
@@ -167,6 +182,12 @@ public partial class Chart : IDisposable
         ResetZoom();
     }
 
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && OperatingSystem.IsBrowser())
+            JSRuntime.InvokeVoid("nexus.chart.initNavigator", _chartId, _dotNetHelper);
+    }
+
     private void OnMouseDown(MouseEventArgs e)
     {
         var position = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
@@ -194,6 +215,8 @@ public partial class Chart : IDisposable
 
             if (OperatingSystem.IsBrowser())
                 _skiaView.Invalidate();
+
+            StateHasChanged();
         }
     }
 
@@ -232,25 +255,29 @@ public partial class Chart : IDisposable
 
         var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
 
+        var zoomHorizontal = !e.ShiftKey;
+        var zoomVertical = e.ShiftKey;
+
+        var zoomIn = e.DeltaY < 0;
+
         var zoomBox = new SKRect
         {
-            Left = relativePosition.X * (e.DeltaY < 0
-            ? +FACTOR          // +0.25
-            : -FACTOR),        // -0.25
+            Left = zoomHorizontal
+                ? relativePosition.X * (zoomIn ? +FACTOR : -FACTOR)
+                : 0,
 
-            Top = relativePosition.Y * (e.DeltaY < 0
-            ? +FACTOR          // +0.25
-            : -FACTOR),        // -0.25
+            Top = zoomVertical
+                ? relativePosition.Y * (zoomIn ? +FACTOR : -FACTOR)
+                : 0,
 
-            Right = relativePosition.X + (1 - relativePosition.X) * (e.DeltaY < 0
-            ? (1 - FACTOR)      // +0.75
-            : (1 + FACTOR)),    // +1.25
+            Right = zoomHorizontal
+                ? relativePosition.X + (1 - relativePosition.X) * (zoomIn ? (1 - FACTOR) : (1 + FACTOR))
+                : 1,
 
-            Bottom = relativePosition.Y + (1 - relativePosition.Y) * (e.DeltaY < 0
-            ? (1 - FACTOR)      // +0.75
-            : (1 + FACTOR))    // +1.25
+            Bottom = zoomVertical
+                ? relativePosition.Y + (1 - relativePosition.Y) * (zoomIn ? (1 - FACTOR) : (1 + FACTOR))
+                : 1
         };
-
 
         ApplyZoom(zoomBox);
         DrawAuxiliary(relativePosition);
@@ -322,6 +349,7 @@ public partial class Chart : IDisposable
                 },
                 AxisMin = entry.Key.Min,
                 AxisMax = entry.Key.Max,
+                DataVersion = RuntimeHelpers.GetHashCode(lineSeries.Data),
                 ValuesBytes = ToBytes(lineSeries.Data)
             }))
             .Where(lineSeries => lineSeries.Show)
@@ -586,6 +614,35 @@ public partial class Chart : IDisposable
             axisInfo.Min = axisInfo.OriginalMin;
             axisInfo.Max = axisInfo.OriginalMax;
         }
+    }
+
+    private void SetHorizontalZoom(float left, float right)
+    {
+        left = Math.Clamp(left, 0f, 1f);
+        right = Math.Clamp(right, 0f, 1f);
+
+        if (right - left < 1e-4f)
+            return;
+
+        var newZoomBox = new SKRect(left, _zoomBox.Top, right, _zoomBox.Bottom);
+
+        var timeRange = LineSeriesData.End - LineSeriesData.Begin;
+        _zoomedBegin = LineSeriesData.Begin + timeRange * left;
+        _zoomedEnd = LineSeriesData.Begin + timeRange * right;
+
+        _oldZoomBox = newZoomBox;
+        _zoomBox = newZoomBox;
+    }
+
+    [JSInvokable]
+    public void NavigatorZoom(double left, double right)
+    {
+        SetHorizontalZoom((float)left, (float)right);
+
+        StateHasChanged();
+
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
     }
 
     #endregion

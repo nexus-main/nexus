@@ -1,21 +1,144 @@
 (function () {
     const instances = new Map();
+    const uniformBufferSize = 96;
+    const fillVerticesPerSegment = 6;
+    const lineVerticesPerSegment = 18;
 
     const shader = `
+struct Uniforms {
+    viewport: vec2f,
+    _pad0: vec2f,
+    plot: vec4f,
+    axis: vec2f,
+    xParams: vec2f,
+    zeroY: f32,
+    lineWidth: f32,
+    fillOpacity: f32,
+    _pad1: f32,
+    color: vec4f,
+    startIndex: u32,
+    mode: u32,
+    _pad2: vec2<u32>,
+};
+
 struct VertexOut {
     @builtin(position) position: vec4f,
     @location(0) color: vec4f,
 };
 
-@vertex
-fn vertexMain(
-    @location(0) position: vec2f,
-    @location(1) color: vec4f
-) -> VertexOut {
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+@group(0) @binding(1) var<storage, read> values: array<f32>;
+
+fn toNdc(point: vec2f) -> vec4f {
+    return vec4f(point.x / uniforms.viewport.x * 2.0 - 1.0, 1.0 - point.y / uniforms.viewport.y * 2.0, 0.0, 1.0);
+}
+
+fn dataPoint(index: u32) -> vec2f {
+    let value = values[index];
+    return vec2f(
+        uniforms.xParams.x + uniforms.xParams.y * f32(index - uniforms.startIndex),
+        uniforms.plot.w - ((value - uniforms.axis.x) / uniforms.axis.y) * (uniforms.plot.w - uniforms.plot.y));
+}
+
+fn emptyVertex() -> VertexOut {
     var out: VertexOut;
-    out.position = vec4f(position, 0.0, 1.0);
+    out.position = vec4f(0.0, 0.0, 0.0, 1.0);
+    out.color = vec4f(0.0);
+    return out;
+}
+
+fn fillVertex(a: vec2f, b: vec2f, local: u32) -> vec2f {
+    let a0 = vec2f(a.x, uniforms.zeroY);
+    let b0 = vec2f(b.x, uniforms.zeroY);
+
+    switch local {
+        case 0u: { return a0; }
+        case 1u: { return a; }
+        case 2u: { return b; }
+        case 3u: { return a0; }
+        case 4u: { return b; }
+        default: { return b0; }
+    }
+}
+
+fn lineVertex(a: vec2f, b: vec2f, local: u32) -> VertexOut {
+    let delta = b - a;
+    let segmentLength = length(delta);
+
+    if (segmentLength <= 0.0) {
+        return emptyVertex();
+    }
+
+    let half = uniforms.lineWidth / 2.0;
+    let fringe = 0.5;
+    let unit = vec2f(-delta.y / segmentLength, delta.x / segmentLength);
+    let normal = unit * half;
+    let outer = unit * (half + fringe);
+    let transparent = vec4f(uniforms.color.rgb, 0.0);
+
+    let p0 = a + normal;
+    let p1 = a - normal;
+    let p2 = b + normal;
+    let p3 = b - normal;
+    let o0 = a + outer;
+    let o1 = a - outer;
+    let o2 = b + outer;
+    let o3 = b - outer;
+
+    var point: vec2f;
+    var color = uniforms.color;
+
+    switch local {
+        case 0u: { point = p0; }
+        case 1u: { point = p1; }
+        case 2u: { point = p2; }
+        case 3u: { point = p2; }
+        case 4u: { point = p1; }
+        case 5u: { point = p3; }
+        case 6u: { point = o0; color = transparent; }
+        case 7u: { point = p0; }
+        case 8u: { point = o2; color = transparent; }
+        case 9u: { point = o2; color = transparent; }
+        case 10u: { point = p0; }
+        case 11u: { point = p2; }
+        case 12u: { point = p1; }
+        case 13u: { point = o1; color = transparent; }
+        case 14u: { point = p3; }
+        case 15u: { point = p3; }
+        case 16u: { point = o1; color = transparent; }
+        default: { point = o3; color = transparent; }
+    }
+
+    var out: VertexOut;
+    out.position = toNdc(point);
     out.color = color;
     return out;
+}
+
+@vertex
+fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
+    let verticesPerSegment = select(18u, 6u, uniforms.mode == 0u);
+    let segment = vertexIndex / verticesPerSegment;
+    let local = vertexIndex % verticesPerSegment;
+    let index = uniforms.startIndex + segment;
+    let valueA = values[index];
+    let valueB = values[index + 1u];
+
+    if (valueA != valueA || valueB != valueB || uniforms.axis.y == 0.0) {
+        return emptyVertex();
+    }
+
+    let a = dataPoint(index);
+    let b = dataPoint(index + 1u);
+
+    if (uniforms.mode == 0u) {
+        var out: VertexOut;
+        out.position = toNdc(fillVertex(a, b, local));
+        out.color = vec4f(uniforms.color.rgb, uniforms.fillOpacity);
+        return out;
+    }
+
+    return lineVertex(a, b, local);
 }
 
 @fragment
@@ -32,13 +155,13 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         return source[name] ?? source[camelName];
     }
 
-    function colorOf(source, alpha) {
+    function colorOf(source) {
         const color = valueOf(source, 'Color') ?? {};
         return [
             (valueOf(color, 'Red') ?? 0) / 255,
             (valueOf(color, 'Green') ?? 0) / 255,
             (valueOf(color, 'Blue') ?? 0) / 255,
-            alpha,
+            1,
         ];
     }
 
@@ -94,13 +217,6 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
             vertex: {
                 module,
                 entryPoint: 'vertexMain',
-                buffers: [{
-                    arrayStride: 24,
-                    attributes: [
-                        { shaderLocation: 0, offset: 0, format: 'float32x2' },
-                        { shaderLocation: 1, offset: 8, format: 'float32x4' },
-                    ],
-                }],
             },
             fragment: {
                 module,
@@ -123,194 +239,162 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
             },
             primitive: { topology: 'triangle-list' },
         });
-
-        instance = { canvas, context, device, format, pipeline };
+        instance = { canvas, context, device, format, pipeline, seriesBuffers: new Map(), drawResources: [] };
         instances.set(chartId, instance);
         return instance;
     }
 
-    function toNdcX(x, width) {
-        return x / width * 2 - 1;
+    function getSeriesKey(series, y) {
+        return JSON.stringify({
+            id: valueOf(series, 'Id'),
+            version: valueOf(series, 'DataVersion') ?? 0,
+            length: y.length,
+        });
     }
 
-    function toNdcY(y, height) {
-        return 1 - y / height * 2;
-    }
+    function getSeriesBuffer(instance, series) {
+        const y = createYVector(valueOf(series, 'ValuesBytes'));
 
-    function appendVertex(vertices, x, y, color, width, height) {
-        vertices.push(toNdcX(x, width), toNdcY(y, height), color[0], color[1], color[2], color[3]);
-    }
-
-    function appendTriangle(vertices, a, b, c, color, width, height) {
-        appendVertex(vertices, a.x, a.y, color, width, height);
-        appendVertex(vertices, b.x, b.y, color, width, height);
-        appendVertex(vertices, c.x, c.y, color, width, height);
-    }
-
-    function appendTriangleColors(vertices, a, aColor, b, bColor, c, cColor, width, height) {
-        appendVertex(vertices, a.x, a.y, aColor, width, height);
-        appendVertex(vertices, b.x, b.y, bColor, width, height);
-        appendVertex(vertices, c.x, c.y, cColor, width, height);
-    }
-
-    function appendLineQuad(vertices, a, b, color, lineWidth, width, height) {
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const length = Math.hypot(dx, dy);
-
-        if (!Number.isFinite(length) || length <= 0)
-            return;
-
-        const half = lineWidth / 2;
-        const fringe = 0.5;
-        const ux = -dy / length;
-        const uy = dx / length;
-        const nx = ux * half;
-        const ny = uy * half;
-        const ox = ux * (half + fringe);
-        const oy = uy * (half + fringe);
-
-        const p0 = { x: a.x + nx, y: a.y + ny };
-        const p1 = { x: a.x - nx, y: a.y - ny };
-        const p2 = { x: b.x + nx, y: b.y + ny };
-        const p3 = { x: b.x - nx, y: b.y - ny };
-        const o0 = { x: a.x + ox, y: a.y + oy };
-        const o1 = { x: a.x - ox, y: a.y - oy };
-        const o2 = { x: b.x + ox, y: b.y + oy };
-        const o3 = { x: b.x - ox, y: b.y - oy };
-        const transparent = [color[0], color[1], color[2], 0];
-
-        appendTriangle(vertices, p0, p1, p2, color, width, height);
-        appendTriangle(vertices, p2, p1, p3, color, width, height);
-        appendTriangleColors(vertices, o0, transparent, p0, color, o2, transparent, width, height);
-        appendTriangleColors(vertices, o2, transparent, p0, color, p2, color, width, height);
-        appendTriangleColors(vertices, p1, color, o1, transparent, p3, color, width, height);
-        appendTriangleColors(vertices, p3, color, o1, transparent, o3, transparent, width, height);
-    }
-
-    function interpolateZero(a, b) {
-        const delta = b.value - a.value;
-
-        if (delta === 0)
+        if (y.length < 2)
             return null;
 
-        const t = -a.value / delta;
+        const key = getSeriesKey(series, y);
+        const cached = instance.seriesBuffers.get(key);
 
-        if (t <= 0 || t >= 1)
-            return null;
+        if (cached)
+            return cached;
 
-        return {
-            x: a.x + (b.x - a.x) * t,
-            y: a.zeroY,
-            value: 0,
-            zeroY: a.zeroY,
-        };
-    }
+        const data = new Float32Array(y.length);
 
-    function appendArea(vertices, a, b, fillColor, width, height) {
-        const zero = interpolateZero(a, b);
+        for (let i = 0; i < y.length; i++)
+            data[i] = y[i];
 
-        if (zero) {
-            appendArea(vertices, a, zero, fillColor, width, height);
-            appendArea(vertices, zero, b, fillColor, width, height);
-            return;
+        const buffer = instance.device.createBuffer({
+            size: data.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+
+        instance.device.queue.writeBuffer(buffer, 0, data);
+
+        const id = valueOf(series, 'Id');
+
+        for (const [existingKey, existing] of instance.seriesBuffers) {
+            if (existing.id === id && existingKey !== key) {
+                existing.buffer.destroy();
+                instance.seriesBuffers.delete(existingKey);
+            }
         }
 
-        const a0 = { x: a.x, y: a.zeroY };
-        const b0 = { x: b.x, y: b.zeroY };
-
-        appendTriangle(vertices, a0, a, b, fillColor, width, height);
-        appendTriangle(vertices, a0, b, b0, fillColor, width, height);
+        const cachedSeries = { id, buffer, length: data.length };
+        instance.seriesBuffers.set(key, cachedSeries);
+        return cachedSeries;
     }
 
-    function buildVertices(payload, width, height, dpr) {
+    function getDrawResources(instance, seriesBuffer, drawIndex) {
+        let resources = instance.drawResources[drawIndex];
+
+        if (resources?.seriesBuffer === seriesBuffer)
+            return resources;
+
+        resources?.uniformBuffer.destroy();
+
+        const uniformBuffer = instance.device.createBuffer({
+            size: uniformBufferSize,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        const bindGroup = instance.device.createBindGroup({
+            layout: instance.pipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: { buffer: uniformBuffer } },
+                { binding: 1, resource: { buffer: seriesBuffer.buffer } },
+            ],
+        });
+
+        resources = { seriesBuffer, uniformBuffer, bindGroup };
+        instance.drawResources[drawIndex] = resources;
+        return resources;
+    }
+
+    function getPlot(payload, width, height) {
         const plot = valueOf(payload, 'Plot') ?? {};
-        const zoom = valueOf(payload, 'Zoom') ?? {};
-        const seriesList = valueOf(payload, 'Series') ?? [];
-        const lineWidth = (valueOf(payload, 'LineWidth') ?? 0.7) * dpr;
-        const fillOpacity = valueOf(payload, 'FillOpacity') ?? 0.10;
         const plotLeft = (valueOf(plot, 'Left') ?? 0) * width;
         const plotTop = (valueOf(plot, 'Top') ?? 0) * height;
         const plotRight = (valueOf(plot, 'Right') ?? 1) * width;
         const plotBottom = (valueOf(plot, 'Bottom') ?? 1) * height;
         const plotWidth = plotRight - plotLeft;
         const plotHeight = plotBottom - plotTop;
-        const vertices = [];
 
         if (plotWidth <= 0 || plotHeight <= 0)
-            return { vertices, scissor: null };
+            return null;
 
-        for (const series of seriesList) {
-            const y = createYVector(valueOf(series, 'ValuesBytes'));
+        return { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight };
+    }
 
-            if (y.length < 2)
-                continue;
+    function getZoomInfo(payload, length, plot) {
+        const zoom = valueOf(payload, 'Zoom') ?? {};
+        const indexLeft = (valueOf(zoom, 'Left') ?? 0) * length;
+        const indexRight = (valueOf(zoom, 'Right') ?? 1) * length;
+        const indexRange = indexRight - indexLeft;
 
-            const axisMin = valueOf(series, 'AxisMin') ?? 0;
-            const axisMax = valueOf(series, 'AxisMax') ?? 1;
-            const axisRange = axisMax - axisMin;
+        if (!Number.isFinite(indexRange) || indexRange <= 0)
+            return null;
 
-            if (!Number.isFinite(axisRange) || axisRange === 0)
-                continue;
+        const indexLeftRounded = Math.floor(indexLeft);
+        const indexRightRounded = Math.ceil(indexRight);
+        const zoomedLeft = plot.plotLeft - plot.plotWidth * ((indexLeft - indexLeftRounded) / indexRange);
+        const zoomedRight = plot.plotRight + plot.plotWidth * ((indexRightRounded - indexRight) / indexRange);
+        const first = Math.max(0, indexLeftRounded);
+        const last = Math.min(length - 1, indexRightRounded);
+        const intendedLength = (indexRightRounded + 1) - indexLeftRounded;
+        const visibleLength = last - first + 1;
+        const isClippedRight = visibleLength < intendedLength;
+        const denominator = isClippedRight ? visibleLength : visibleLength - 1;
+        const dx = (zoomedRight - zoomedLeft) / denominator;
 
-            const indexLeft = (valueOf(zoom, 'Left') ?? 0) * y.length;
-            const indexRight = (valueOf(zoom, 'Right') ?? 1) * y.length;
-            const indexRange = indexRight - indexLeft;
+        if (visibleLength < 2 || !Number.isFinite(dx) || dx <= 0)
+            return null;
 
-            if (!Number.isFinite(indexRange) || indexRange <= 0)
-                continue;
+        return { first, segmentCount: visibleLength - 1, zoomedLeft, dx };
+    }
 
-            const strokeColor = colorOf(series, 1);
-            const fillColor = colorOf(series, fillOpacity);
-            const zeroY = Math.min(plotBottom, Math.max(plotTop, plotBottom - (0 - axisMin) / axisRange * plotHeight));
-            const indexLeftRounded = Math.floor(indexLeft);
-            const indexRightRounded = Math.ceil(indexRight);
-            const zoomedLeft = plotLeft - plotWidth * ((indexLeft - indexLeftRounded) / indexRange);
-            const zoomedRight = plotRight + plotWidth * ((indexRightRounded - indexRight) / indexRange);
-            const first = Math.max(0, indexLeftRounded);
-            const last = Math.min(y.length - 1, indexRightRounded);
-            const intendedLength = (indexRightRounded + 1) - indexLeftRounded;
-            const visibleLength = last - first + 1;
-            const isClippedRight = visibleLength < intendedLength;
-            const dx = (zoomedRight - zoomedLeft) / (isClippedRight ? visibleLength : visibleLength - 1);
-            let previous = null;
+    function writeUniforms(instance, uniformBuffer, payload, series, plot, zoomInfo, width, height, dpr, mode) {
+        const axisMin = valueOf(series, 'AxisMin') ?? 0;
+        const axisMax = valueOf(series, 'AxisMax') ?? 1;
+        const axisRange = axisMax - axisMin;
 
-            if (!Number.isFinite(dx) || dx <= 0)
-                continue;
+        if (!Number.isFinite(axisRange) || axisRange === 0)
+            return false;
 
-            for (let i = first; i <= last; i++) {
-                const value = y[i];
+        const lineWidth = (valueOf(payload, 'LineWidth') ?? 0.7) * dpr;
+        const fillOpacity = valueOf(payload, 'FillOpacity') ?? 0.10;
+        const zeroY = Math.min(plot.plotBottom, Math.max(plot.plotTop, plot.plotBottom - (0 - axisMin) / axisRange * plot.plotHeight));
+        const color = colorOf(series);
+        const data = new ArrayBuffer(uniformBufferSize);
+        const floats = new Float32Array(data);
+        const uints = new Uint32Array(data);
 
-                if (!Number.isFinite(value)) {
-                    previous = null;
-                    continue;
-                }
+        floats[0] = width;
+        floats[1] = height;
+        floats[4] = plot.plotLeft;
+        floats[5] = plot.plotTop;
+        floats[6] = plot.plotRight;
+        floats[7] = plot.plotBottom;
+        floats[8] = axisMin;
+        floats[9] = axisRange;
+        floats[10] = zoomInfo.zoomedLeft;
+        floats[11] = zoomInfo.dx;
+        floats[12] = zeroY;
+        floats[13] = lineWidth;
+        floats[14] = fillOpacity;
+        floats[16] = color[0];
+        floats[17] = color[1];
+        floats[18] = color[2];
+        floats[19] = color[3];
+        uints[20] = zoomInfo.first;
+        uints[21] = mode;
 
-                const point = {
-                    x: zoomedLeft + dx * (i - first),
-                    y: plotBottom - (value - axisMin) / axisRange * plotHeight,
-                    value,
-                    zeroY,
-                };
-
-                if (previous) {
-                    appendArea(vertices, previous, point, fillColor, width, height);
-                    appendLineQuad(vertices, previous, point, strokeColor, lineWidth, width, height);
-                }
-
-                previous = point;
-            }
-        }
-
-        return {
-            vertices,
-            scissor: {
-                x: Math.max(0, Math.floor(plotLeft)),
-                y: Math.max(0, Math.floor(plotTop)),
-                width: Math.max(1, Math.ceil(plotWidth)),
-                height: Math.max(1, Math.ceil(plotHeight)),
-            },
-        };
+        instance.device.queue.writeBuffer(uniformBuffer, 0, data);
+        return true;
     }
 
     async function renderSeriesAsync(chartId, payload) {
@@ -321,6 +405,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
 
         const { canvas, context, device, format, pipeline } = instance;
         const { width, height, dpr } = ensureCanvasSize(canvas);
+        const plot = getPlot(payload, width, height);
 
         context.configure({
             device,
@@ -328,7 +413,6 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
             alphaMode: 'premultiplied',
         });
 
-        const { vertices, scissor } = buildVertices(payload, width, height, dpr);
         const encoder = device.createCommandEncoder();
         const pass = encoder.beginRenderPass({
             colorAttachments: [{
@@ -339,18 +423,43 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
             }],
         });
 
-        if (vertices.length > 0 && scissor) {
-            const vertexData = new Float32Array(vertices);
-            const buffer = device.createBuffer({
-                size: vertexData.byteLength,
-                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            });
+        if (plot) {
+            const seriesList = valueOf(payload, 'Series') ?? [];
 
-            device.queue.writeBuffer(buffer, 0, vertexData);
             pass.setPipeline(pipeline);
-            pass.setVertexBuffer(0, buffer);
-            pass.setScissorRect(scissor.x, scissor.y, scissor.width, scissor.height);
-            pass.draw(vertexData.length / 6);
+            pass.setScissorRect(
+                Math.max(0, Math.floor(plot.plotLeft)),
+                Math.max(0, Math.floor(plot.plotTop)),
+                Math.max(1, Math.ceil(plot.plotWidth)),
+                Math.max(1, Math.ceil(plot.plotHeight)));
+
+            let drawIndex = 0;
+
+            for (const series of seriesList) {
+                const cached = getSeriesBuffer(instance, series);
+
+                if (!cached)
+                    continue;
+
+                const zoomInfo = getZoomInfo(payload, cached.length, plot);
+
+                if (!zoomInfo)
+                    continue;
+
+                const fillResources = getDrawResources(instance, cached, drawIndex++);
+
+                if (writeUniforms(instance, fillResources.uniformBuffer, payload, series, plot, zoomInfo, width, height, dpr, 0)) {
+                    pass.setBindGroup(0, fillResources.bindGroup);
+                    pass.draw(zoomInfo.segmentCount * fillVerticesPerSegment);
+                }
+
+                const lineResources = getDrawResources(instance, cached, drawIndex++);
+
+                if (writeUniforms(instance, lineResources.uniformBuffer, payload, series, plot, zoomInfo, width, height, dpr, 1)) {
+                    pass.setBindGroup(0, lineResources.bindGroup);
+                    pass.draw(zoomInfo.segmentCount * lineVerticesPerSegment);
+                }
+            }
         }
 
         pass.end();
@@ -363,6 +472,16 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
             renderSeriesAsync(chartId, payload).catch(error => console.error('[chart-webgpu] render failed', error));
         },
         dispose(chartId) {
+            const instance = instances.get(chartId);
+
+            if (instance) {
+                for (const cached of instance.seriesBuffers.values())
+                    cached.buffer.destroy();
+
+                for (const resources of instance.drawResources)
+                    resources.uniformBuffer.destroy();
+            }
+
             instances.delete(chartId);
         },
     };

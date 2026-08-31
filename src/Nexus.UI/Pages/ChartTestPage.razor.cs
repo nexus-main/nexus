@@ -7,12 +7,33 @@ namespace Nexus.UI.Pages;
 
 public partial class ChartTestPage
 {
-    private readonly LineSeriesData _lineSeriesData;
+    private LineSeriesData _lineSeriesData = default!;
 
-    public ChartTestPage()
+    private int _selectedCount = 100_000;
+
+    private int SelectedCount
     {
+        get => _selectedCount;
+        set
+        {
+            if (_selectedCount == value)
+                return;
+
+            _selectedCount = value;
+            RegenerateData();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        RegenerateData();
+    }
+
+    private void RegenerateData()
+    {
+        var pointCount = _selectedCount;
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
-        var end = new DateTime(2020, 01, 01, 0, 1, 0, DateTimeKind.Utc);
+        var end = begin.AddMilliseconds((pointCount - 1) * 500);
 
         var random = new Random();
 
@@ -22,19 +43,19 @@ public partial class ChartTestPage
                 "Wind speed",
                 "m/s",
                 TimeSpan.FromMilliseconds(500),
-                Enumerable.Range(0, 60*2).Select(value => value / 4.0).ToArray()),
+                Enumerable.Range(0, pointCount).Select(value => value / 4.0).ToArray()),
 
             new(
                 "Temperature",
                 "°C",
                 TimeSpan.FromSeconds(1),
-                Enumerable.Range(0, 60).Select(value => random.NextDouble() * 10 - 5).ToArray()),
+                Enumerable.Range(0, pointCount).Select(value => random.NextDouble() * 10 - 5).ToArray()),
 
             new(
                 "Pressure",
                 "mbar",
                 TimeSpan.FromSeconds(1),
-                Enumerable.Range(0, 60).Select(value => random.NextDouble() * 100 + 1000).ToArray())
+                Enumerable.Range(0, pointCount).Select(value => random.NextDouble() * 100 + 1000).ToArray())
         };
 
         lineSeries[0].Data[0] = double.NaN;
