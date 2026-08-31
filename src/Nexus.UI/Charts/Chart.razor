@@ -4,6 +4,8 @@
 
     <div id="chart_@(_chartId)" class="chart">
 
+        <canvas id="series_@(_chartId)" class="series-layer"></canvas>
+
         <SKGLView @ref="_skiaView"
             OnPaintSurface="PaintSurface">
         </SKGLView>

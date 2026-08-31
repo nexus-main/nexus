@@ -7,6 +7,7 @@ using Microsoft.JSInterop;
 using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
+using System.Runtime.InteropServices;
 
 namespace Nexus.UI.Charts;
 
@@ -289,25 +290,6 @@ public partial class Chart : IDisposable
         /* series */
         var dataBox = new SKRect(xMin, yMin, xMax, yMax);
 
-        using (var canvasRestore = new SKAutoCanvasRestore(canvas))
-        {
-            canvas.ClipRect(dataBox);
-
-            /* for each axis */
-            foreach (var axesEntry in _axesMap)
-            {
-                var axisInfo = axesEntry.Key;
-                var lineSeries = axesEntry.Value;
-
-                /* for each dataset */
-                foreach (var series in lineSeries)
-                {
-                    var zoomInfo = GetZoomInfo(dataBox, _zoomBox, series.Data);
-                    DrawSeries(canvas, zoomInfo, series, axisInfo);
-                }
-            }
-        }
-
         /* overlay */
         JSRuntime.InvokeVoid(
             "nexus.chart.resize",
@@ -317,6 +299,65 @@ public partial class Chart : IDisposable
             dataBox.Top / surfaceSize.Height,
             dataBox.Right / surfaceSize.Width,
             dataBox.Bottom / surfaceSize.Height);
+
+        RenderSeries(dataBox, surfaceSize.Width, surfaceSize.Height);
+    }
+
+    private void RenderSeries(SKRect dataBox, float surfaceWidth, float surfaceHeight)
+    {
+        if (!OperatingSystem.IsBrowser())
+            return;
+
+        var series = _axesMap
+            .SelectMany(entry => entry.Value.Select(lineSeries => new
+            {
+                lineSeries.Id,
+                lineSeries.Show,
+                Color = new
+                {
+                    lineSeries.Color.Red,
+                    lineSeries.Color.Green,
+                    lineSeries.Color.Blue,
+                    lineSeries.Color.Alpha
+                },
+                AxisMin = entry.Key.Min,
+                AxisMax = entry.Key.Max,
+                ValuesBytes = ToBytes(lineSeries.Data)
+            }))
+            .Where(lineSeries => lineSeries.Show)
+            .ToArray();
+
+        JSRuntime.InvokeVoid(
+            "nexus.chartWebGpu.renderSeries",
+            _chartId,
+            new
+            {
+                Surface = new
+                {
+                    Width = surfaceWidth,
+                    Height = surfaceHeight
+                },
+                Plot = new
+                {
+                    Left = dataBox.Left / surfaceWidth,
+                    Top = dataBox.Top / surfaceHeight,
+                    Right = dataBox.Right / surfaceWidth,
+                    Bottom = dataBox.Bottom / surfaceHeight
+                },
+                Zoom = new
+                {
+                    Left = _zoomBox.Left,
+                    Right = _zoomBox.Right
+                },
+                LineWidth = 0.7,
+                FillOpacity = 0.10,
+                Series = series
+            });
+    }
+
+    private static byte[] ToBytes(double[] values)
+    {
+        return MemoryMarshal.AsBytes(values.AsSpan()).ToArray();
     }
 
     private void DrawAuxiliary(Position relativePosition)
@@ -1030,6 +1071,9 @@ public partial class Chart : IDisposable
 
     public void Dispose()
     {
+        if (OperatingSystem.IsBrowser())
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.dispose", _chartId);
+
         _dotNetHelper?.Dispose();
     }
 
