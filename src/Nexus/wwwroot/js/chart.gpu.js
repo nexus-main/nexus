@@ -195,7 +195,6 @@
                 id,
                 type: 'value',
                 position: 'left',
-                offset: index * 56,
                 name: unit || 'Value',
                 header: unit || 'Value',
                 min: domain.min,
