@@ -1,5 +1,6 @@
 (function () {
     const instances = new Map();
+    const pendingInstances = new Map();
     const uniformBufferSize = 96;
     const fillVerticesPerSegment = 6;
     const lineVerticesPerSegment = 18;
@@ -213,71 +214,84 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         if (instance)
             return instance;
 
-        const canvas = document.getElementById(`series_${chartId}`);
+        let pending = pendingInstances.get(chartId);
 
-        if (!canvas || !navigator.gpu)
-            return null;
+        if (pending)
+            return pending;
 
-        const adapter = await navigator.gpu.requestAdapter();
+        const promise = (async () => {
+            const canvas = document.getElementById(`series_${chartId}`);
 
-        if (!adapter)
-            return null;
+            if (!canvas || !navigator.gpu) {
+                pendingInstances.delete(chartId);
+                return null;
+            }
 
-        const device = await adapter.requestDevice();
-        const context = canvas.getContext('webgpu');
-        const format = navigator.gpu.getPreferredCanvasFormat();
-        const module = device.createShaderModule({ code: shader });
-        const pipeline = device.createRenderPipeline({
-            layout: 'auto',
-            vertex: {
-                module,
-                entryPoint: 'vertexMain',
-            },
-            fragment: {
-                module,
-                entryPoint: 'fragmentMain',
-                targets: [{
-                    format,
-                    blend: {
-                        color: {
-                            srcFactor: 'src-alpha',
-                            dstFactor: 'one-minus-src-alpha',
-                            operation: 'add',
+            const adapter = await navigator.gpu.requestAdapter();
+
+            if (!adapter) {
+                pendingInstances.delete(chartId);
+                return null;
+            }
+
+            const device = await adapter.requestDevice();
+
+            // If dispose was called while we were waiting, abort and clean up.
+            if (!pendingInstances.has(chartId)) {
+                device.destroy();
+                return null;
+            }
+
+            const context = canvas.getContext('webgpu');
+            const format = navigator.gpu.getPreferredCanvasFormat();
+            const module = device.createShaderModule({ code: shader });
+            const pipeline = device.createRenderPipeline({
+                layout: 'auto',
+                vertex: {
+                    module,
+                    entryPoint: 'vertexMain',
+                },
+                fragment: {
+                    module,
+                    entryPoint: 'fragmentMain',
+                    targets: [{
+                        format,
+                        blend: {
+                            color: {
+                                srcFactor: 'src-alpha',
+                                dstFactor: 'one-minus-src-alpha',
+                                operation: 'add',
+                            },
+                            alpha: {
+                                srcFactor: 'one',
+                                dstFactor: 'one-minus-src-alpha',
+                                operation: 'add',
+                            },
                         },
-                        alpha: {
-                            srcFactor: 'one',
-                            dstFactor: 'one-minus-src-alpha',
-                            operation: 'add',
-                        },
-                    },
-                }],
-            },
-            primitive: { topology: 'triangle-list' },
-        });
-        instance = { canvas, context, device, format, pipeline, seriesBuffers: new Map(), drawResources: [] };
-        instances.set(chartId, instance);
-        return instance;
+                    }],
+                },
+                primitive: { topology: 'triangle-list' },
+            });
+            instance = { canvas, context, device, format, pipeline, seriesBuffers: new Map(), drawResources: [] };
+            instances.set(chartId, instance);
+            pendingInstances.delete(chartId);
+            return instance;
+        })();
+
+        pendingInstances.set(chartId, promise);
+        return promise;
     }
 
-    function getSeriesKey(series, y) {
-        return JSON.stringify({
-            id: valueOf(series, 'Id'),
-            version: valueOf(series, 'DataVersion') ?? 0,
-            length: y.length,
-        });
+    function getSeriesKey(id, version, length) {
+        return `${id}:${version}:${length}`;
     }
 
-    function getSeriesBuffer(instance, series) {
-        const y = createYVector(valueOf(series, 'ValuesBytes'));
+    function cacheSeriesBuffer(instance, id, version, length, valuesBytes) {
+        const key = getSeriesKey(id, version, length);
+        const y = createYVector(valuesBytes);
 
         if (y.length < 2)
             return null;
-
-        const key = getSeriesKey(series, y);
-        const cached = instance.seriesBuffers.get(key);
-
-        if (cached)
-            return cached;
 
         const data = new Float32Array(y.length);
 
@@ -291,8 +305,6 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
 
         instance.device.queue.writeBuffer(buffer, 0, data);
 
-        const id = valueOf(series, 'Id');
-
         for (const [existingKey, existing] of instance.seriesBuffers) {
             if (existing.id === id && existingKey !== key) {
                 existing.buffer.destroy();
@@ -303,6 +315,17 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         const cachedSeries = { id, buffer, length: data.length };
         instance.seriesBuffers.set(key, cachedSeries);
         return cachedSeries;
+    }
+
+    function getSeriesBuffer(instance, series) {
+        const id = valueOf(series, 'Id');
+        const version = valueOf(series, 'DataVersion') ?? 0;
+        const length = valueOf(series, 'Length') ?? 0;
+
+        if (length < 2)
+            return null;
+
+        return instance.seriesBuffers.get(getSeriesKey(id, version, length)) ?? null;
     }
 
     function getDrawResources(instance, seriesBuffer, drawIndex) {
@@ -412,6 +435,16 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         return true;
     }
 
+    async function loadSeriesDataAsync(chartId, id, version, length, streamReference) {
+        const instance = await getInstance(chartId);
+
+        if (!instance)
+            throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
+
+        const bytes = new Uint8Array(await streamReference.arrayBuffer());
+        cacheSeriesBuffer(instance, id, version, length, bytes);
+    }
+
     async function renderSeriesAsync(chartId, payload) {
         const instance = await getInstance(chartId);
 
@@ -483,10 +516,15 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
 
     window.nexus ??= {};
     window.nexus.chartWebGpu = {
+        loadSeriesData(chartId, id, version, length, streamReference) {
+            return loadSeriesDataAsync(chartId, id, version, length, streamReference);
+        },
         renderSeries(chartId, payload) {
             renderSeriesAsync(chartId, payload).catch(error => console.error('[chart-webgpu] render failed', error));
         },
         dispose(chartId) {
+            pendingInstances.delete(chartId);
+
             const instance = instances.get(chartId);
 
             if (instance) {

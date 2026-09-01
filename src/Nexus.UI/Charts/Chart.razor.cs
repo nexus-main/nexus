@@ -19,6 +19,14 @@ public partial class Chart : IDisposable
     private readonly string _chartId = Guid.NewGuid().ToString();
     private Dictionary<AxisInfo, LineSeries[]> _axesMap = default!;
 
+    /* tracks which (DataVersion, Length) was last transmitted to the JS/WebGPU side
+     * per series id, so unchanged data is not re-serialized and re-marshaled on
+     * every redraw (zoom, pan, resize, series toggle). */
+    private readonly Dictionary<string, (int Version, int Length)> _sentSeriesVersions = new();
+    private readonly Dictionary<string, (int Version, int Length)> _sendingSeriesVersions = new();
+    private readonly Dictionary<string, (int Version, int Length, byte[] Bytes)> _seriesBytes = new();
+    private bool _disposed;
+
     /* zoom */
     private bool _isDragging;
     private readonly DotNetObjectReference<Chart> _dotNetHelper;
@@ -336,23 +344,39 @@ public partial class Chart : IDisposable
             return;
 
         var series = _axesMap
-            .SelectMany(entry => entry.Value.Select(lineSeries => new
+            .SelectMany(entry => entry.Value
+                .Where(lineSeries => lineSeries.Show)
+                .Select(lineSeries => (AxisInfo: entry.Key, LineSeries: lineSeries)))
+            .Select(item =>
             {
-                lineSeries.Id,
-                lineSeries.Show,
-                Color = new
+                var lineSeries = item.LineSeries;
+                var dataVersion = RuntimeHelpers.GetHashCode(lineSeries.Data);
+                var length = lineSeries.Data.Length;
+
+                if (!HasSeriesVersion(_sentSeriesVersions, lineSeries.Id, dataVersion, length) &&
+                    !HasSeriesVersion(_sendingSeriesVersions, lineSeries.Id, dataVersion, length))
                 {
-                    lineSeries.Color.Red,
-                    lineSeries.Color.Green,
-                    lineSeries.Color.Blue,
-                    lineSeries.Color.Alpha
-                },
-                AxisMin = entry.Key.Min,
-                AxisMax = entry.Key.Max,
-                DataVersion = RuntimeHelpers.GetHashCode(lineSeries.Data),
-                ValuesBytes = ToBytes(lineSeries.Data)
-            }))
-            .Where(lineSeries => lineSeries.Show)
+                    _sendingSeriesVersions[lineSeries.Id] = (dataVersion, length);
+                    _ = SendSeriesDataAsync(lineSeries, dataVersion, length);
+                }
+
+                return new
+                {
+                    lineSeries.Id,
+                    lineSeries.Show,
+                    Color = new
+                    {
+                        lineSeries.Color.Red,
+                        lineSeries.Color.Green,
+                        lineSeries.Color.Blue,
+                        lineSeries.Color.Alpha
+                    },
+                    AxisMin = item.AxisInfo.Min,
+                    AxisMax = item.AxisInfo.Max,
+                    DataVersion = dataVersion,
+                    Length = length
+                };
+            })
             .ToArray();
 
         JSRuntime.InvokeVoid(
@@ -381,6 +405,78 @@ public partial class Chart : IDisposable
                 FillOpacity = 0.10,
                 Series = series
             });
+    }
+
+    private async Task SendSeriesDataAsync(LineSeries lineSeries, int dataVersion, int length)
+    {
+        var sent = false;
+
+        try
+        {
+            var bytes = GetSeriesBytes(lineSeries, dataVersion, length);
+            using var stream = new MemoryStream(bytes, writable: false);
+            using var streamReference = new DotNetStreamReference(stream);
+
+            await JSRuntime.InvokeVoidAsync(
+                "nexus.chartWebGpu.loadSeriesData",
+                _chartId,
+                lineSeries.Id,
+                dataVersion,
+                length,
+                streamReference);
+
+            _sentSeriesVersions[lineSeries.Id] = (dataVersion, length);
+            sent = true;
+        }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+        }
+        catch (JSDisconnectedException) when (_disposed)
+        {
+        }
+        catch (JSException)
+        {
+        }
+        finally
+        {
+            if (HasSeriesVersion(_sendingSeriesVersions, lineSeries.Id, dataVersion, length))
+                _sendingSeriesVersions.Remove(lineSeries.Id);
+
+            if (_seriesBytes.TryGetValue(lineSeries.Id, out var cached) &&
+                cached.Version == dataVersion &&
+                cached.Length == length)
+            {
+                _seriesBytes.Remove(lineSeries.Id);
+            }
+
+            if (sent && !_disposed && OperatingSystem.IsBrowser())
+                _skiaView.Invalidate();
+        }
+    }
+
+    private byte[] GetSeriesBytes(LineSeries lineSeries, int dataVersion, int length)
+    {
+        if (_seriesBytes.TryGetValue(lineSeries.Id, out var cached) &&
+            cached.Version == dataVersion &&
+            cached.Length == length)
+        {
+            return cached.Bytes;
+        }
+
+        var bytes = ToBytes(lineSeries.Data);
+        _seriesBytes[lineSeries.Id] = (dataVersion, length, bytes);
+        return bytes;
+    }
+
+    private static bool HasSeriesVersion(
+        Dictionary<string, (int Version, int Length)> versions,
+        string seriesId,
+        int dataVersion,
+        int length)
+    {
+        return versions.TryGetValue(seriesId, out var version) &&
+               version.Version == dataVersion &&
+               version.Length == length;
     }
 
     private static byte[] ToBytes(double[] values)
@@ -990,9 +1086,14 @@ public partial class Chart : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
+
         if (OperatingSystem.IsBrowser())
             JSRuntime.InvokeVoid("nexus.chartWebGpu.dispose", _chartId);
 
+        _sentSeriesVersions.Clear();
+        _sendingSeriesVersions.Clear();
+        _seriesBytes.Clear();
         _dotNetHelper?.Dispose();
     }
 

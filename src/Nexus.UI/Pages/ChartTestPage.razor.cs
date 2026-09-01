@@ -36,6 +36,16 @@ public partial class ChartTestPage
         var end = begin.AddMilliseconds((pointCount - 1) * 500);
 
         var random = new Random();
+        var windSpeed = new double[pointCount];
+        var temperature = new double[pointCount];
+        var pressure = new double[pointCount];
+
+        for (var i = 0; i < pointCount; i++)
+        {
+            windSpeed[i] = i / 4.0;
+            temperature[i] = random.NextDouble() * 10 - 5;
+            pressure[i] = random.NextDouble() * 100 + 1000;
+        }
 
         var lineSeries = new LineSeries[]
         {
@@ -43,19 +53,19 @@ public partial class ChartTestPage
                 "Wind speed",
                 "m/s",
                 TimeSpan.FromMilliseconds(500),
-                Enumerable.Range(0, pointCount).Select(value => value / 4.0).ToArray()),
+                windSpeed),
 
             new(
                 "Temperature",
                 "°C",
                 TimeSpan.FromSeconds(1),
-                Enumerable.Range(0, pointCount).Select(value => random.NextDouble() * 10 - 5).ToArray()),
+                temperature),
 
             new(
                 "Pressure",
                 "mbar",
                 TimeSpan.FromSeconds(1),
-                Enumerable.Range(0, pointCount).Select(value => random.NextDouble() * 100 + 1000).ToArray())
+                pressure)
         };
 
         lineSeries[0].Data[0] = double.NaN;
