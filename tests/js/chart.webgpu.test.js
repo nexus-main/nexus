@@ -4,9 +4,16 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
-const script = fs.readFileSync(
-    path.join(__dirname, '../../src/Nexus/wwwroot/js/chart.webgpu.js'),
-    'utf8');
+const scriptNames = [
+    'chart.webgpu.shaders.js',
+    'chart.webgpu.lifecycle.js',
+    'chart.webgpu.data.js',
+    'chart.webgpu.js',
+];
+const scripts = scriptNames.map(name => ({
+    name,
+    source: fs.readFileSync(path.join(__dirname, '../../src/Nexus/wwwroot/js', name), 'utf8'),
+}));
 
 function deferred() {
     let resolve;
@@ -114,7 +121,8 @@ function createEnvironment(options = {}) {
     };
     context.window = context;
     context.globalThis = context;
-    vm.runInNewContext(script, context, { filename: 'chart.webgpu.js' });
+    for (const script of scripts)
+        vm.runInNewContext(script.source, context, { filename: script.name });
 
     function helper(chartId) {
         return {
@@ -315,4 +323,59 @@ test('synthetic work reuses one worker per chart and terminates it on disposal',
     assert.equal(environment.workers.length, 1);
     environment.api.dispose('chart');
     assert.equal(first.terminated, true);
+});
+
+test('series zoom uses sample period instead of stretching each series to its length', () => {
+    const environment = createEnvironment();
+    const plot = { plotLeft: 10, plotWidth: 600 };
+    const payload = { Zoom: { Left: 0, Right: 1 } };
+
+    const fast = environment.hooks.getZoomInfo(payload, { SampleStep: 0.5 / 60 }, 120, plot);
+    const slow = environment.hooks.getZoomInfo(payload, { SampleStep: 1 / 60 }, 60, plot);
+
+    assert.equal(fast.first, 0);
+    assert.equal(fast.segmentCount, 119);
+    assert.equal(fast.zoomedLeft, 10);
+    assert.equal(fast.dx, 5);
+    assert.equal(slow.first, 0);
+    assert.equal(slow.segmentCount, 59);
+    assert.equal(slow.zoomedLeft, 10);
+    assert.equal(slow.dx, 10);
+});
+
+test('time-domain zoom clips a series without changing its sample spacing', () => {
+    const environment = createEnvironment();
+    const plot = { plotLeft: 0, plotWidth: 400 };
+
+    const zoom = environment.hooks.getZoomInfo(
+        { Zoom: { Left: 0.25, Right: 0.75 } }, { SampleStep: 0.1 }, 6, plot);
+
+    assert.equal(zoom.first, 2);
+    assert.equal(zoom.segmentCount, 3);
+    assert.equal(zoom.zoomedLeft, -40);
+    assert.equal(zoom.dx, 80);
+});
+
+test('synthetic overview uses the same temporal endpoint as direct rendering', () => {
+    const environment = createEnvironment();
+    const plot = { plotLeft: 10, plotWidth: 600 };
+    const payload = { Zoom: { Left: 0, Right: 1 } };
+    const series = { SampleStep: 1 / 60 };
+    const source = { length: 60, overviewBucketCount: 1 };
+
+    const direct = environment.hooks.getZoomInfo(payload, series, source.length, plot);
+    const overview = environment.hooks.getSyntheticOverviewZoom(payload, series, source, plot);
+    const directLastX = direct.zoomedLeft + direct.segmentCount * direct.dx;
+    const overviewLastX = overview.zoomedLeft + (59 / 256 - overview.xOrigin) * overview.dx;
+
+    assert.equal(directLastX, 600);
+    assert.equal(overviewLastX, directLastX);
+});
+
+test('invalid sample periods do not produce render windows', () => {
+    const environment = createEnvironment();
+    const payload = { Zoom: { Left: 0, Right: 1 } };
+
+    assert.equal(environment.hooks.getTimeWindow(payload, { SampleStep: 0 }, 10), null);
+    assert.equal(environment.hooks.getTimeWindow(payload, { SampleStep: -1 }, 10), null);
 });

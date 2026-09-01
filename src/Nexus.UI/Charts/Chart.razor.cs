@@ -358,6 +358,11 @@ public partial class Chart : IDisposable
         if (!OperatingSystem.IsBrowser() || _webGpuErrorTitle is not null)
             return;
 
+        var durationTicks = (LineSeriesData.End - LineSeriesData.Begin).Ticks;
+
+        if (durationTicks <= 0)
+            return;
+
         var webGpuGeneration = _webGpuGeneration;
 
         JSRuntime.InvokeVoid(
@@ -401,7 +406,8 @@ public partial class Chart : IDisposable
                     OverviewAxisMin = item.AxisInfo.OriginalMin,
                     OverviewAxisMax = item.AxisInfo.OriginalMax,
                     DataVersion = dataVersion,
-                    Length = length
+                    Length = length,
+                    SampleStep = (double)lineSeries.SamplePeriod.Ticks / durationTicks
                 };
             })
             .ToArray();
@@ -745,16 +751,20 @@ public partial class Chart : IDisposable
             foreach (var series in lineSeries)
             {
                 var seriesLength = GetSeriesLength(series);
-                var lastIndex = seriesLength - 1;
-                var indexLeft = _zoomLeft * lastIndex;
-                var indexRight = _zoomRight * lastIndex;
-                var indexRange = indexRight - indexLeft;
-                var index = indexLeft + relativePosition.X * indexRange;
-                var snappedIndex = (int)Math.Round(index, MidpointRounding.AwayFromZero);
+                var durationTicks = (LineSeriesData.End - LineSeriesData.Begin).Ticks;
+                var sampleStep = durationTicks > 0
+                    ? (double)series.SamplePeriod.Ticks / durationTicks
+                    : 0;
+                var zoomRange = _zoomRight - _zoomLeft;
+                var position = _zoomLeft + relativePosition.X * zoomRange;
+                var index = position / sampleStep;
+                var snappedIndex = double.IsFinite(index)
+                    ? (int)Math.Round(index, MidpointRounding.AwayFromZero)
+                    : -1;
 
                 if (series.Show && snappedIndex >= 0 && snappedIndex < seriesLength)
                 {
-                    var x = (snappedIndex - indexLeft) / indexRange;
+                    var x = (snappedIndex * sampleStep - _zoomLeft) / zoomRange;
                     var value = series.SyntheticKind.HasValue
                         ? GetSyntheticValue(series.SyntheticKind.Value, snappedIndex)
                         : (float)series.Data[snappedIndex];

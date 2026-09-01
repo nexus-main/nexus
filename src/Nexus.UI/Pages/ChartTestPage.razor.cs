@@ -32,7 +32,8 @@ public partial class ChartTestPage
     {
         var pointCount = _selectedCount;
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
-        var end = begin.AddMilliseconds((pointCount - 1L) * 500);
+        var end = begin.AddMilliseconds(pointCount * 500L);
+        var oneSecondPointCount = pointCount / 2;
 
         var lineSeries = new LineSeries[]
         {
@@ -45,14 +46,14 @@ public partial class ChartTestPage
             new(
                 "Temperature",
                 "°C",
-                TimeSpan.FromMilliseconds(500),
-                []) { SyntheticKind = SyntheticSeriesKind.Temperature, SyntheticLength = pointCount },
+                TimeSpan.FromSeconds(1),
+                []) { SyntheticKind = SyntheticSeriesKind.Temperature, SyntheticLength = oneSecondPointCount },
 
             new(
                 "Pressure",
                 "mbar",
-                TimeSpan.FromMilliseconds(500),
-                []) { SyntheticKind = SyntheticSeriesKind.Pressure, SyntheticLength = pointCount }
+                TimeSpan.FromSeconds(1),
+                []) { SyntheticKind = SyntheticSeriesKind.Pressure, SyntheticLength = oneSecondPointCount }
         };
 
         _lineSeriesData = new LineSeriesData(begin, end, lineSeries);
