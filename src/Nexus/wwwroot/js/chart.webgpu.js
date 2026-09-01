@@ -6,7 +6,10 @@
     const lineVerticesPerSegment = 18;
     const decimationWorkgroupSize = 64;
     const decimationFactor = 4;
+    const decimationBucketsPerPixel = 2;
     const maxDecimationBuckets = 8192;
+    const rangeWorkgroupSize = 256;
+    const maxRangeWorkgroups = 1024;
 
     const shader = `
 struct Uniforms {
@@ -338,6 +341,91 @@ fn decimate(
 }
 `;
 
+    const rangeShader = `
+struct Params {
+    length: u32,
+    workgroupCount: u32,
+    _pad0: u32,
+    _pad1: u32,
+};
+
+struct RangeResult {
+    minimum: f32,
+    maximum: f32,
+    valid: u32,
+    _pad: u32,
+};
+
+@group(0) @binding(0) var<storage, read> source: array<f32>;
+@group(0) @binding(1) var<storage, read_write> results: array<RangeResult>;
+@group(0) @binding(2) var<uniform> params: Params;
+
+var<workgroup> minimums: array<f32, ${rangeWorkgroupSize}>;
+var<workgroup> maximums: array<f32, ${rangeWorkgroupSize}>;
+var<workgroup> valid: array<u32, ${rangeWorkgroupSize}>;
+
+fn isFiniteValue(x: f32) -> bool {
+    let bits = bitcast<u32>(x);
+    return (bits & 0x7f800000u) != 0x7f800000u;
+}
+
+@compute @workgroup_size(${rangeWorkgroupSize})
+fn reduceRange(
+    @builtin(workgroup_id) workgroupId: vec3u,
+    @builtin(local_invocation_id) localId: vec3u) {
+    let group = workgroupId.x;
+    let lane = localId.x;
+    let invocationCount = params.workgroupCount * ${rangeWorkgroupSize}u;
+    var index = group * ${rangeWorkgroupSize}u + lane;
+    var minimum = 0.0;
+    var maximum = 0.0;
+    var hasValue = 0u;
+
+    while (index < params.length) {
+        let value = source[index];
+
+        if (isFiniteValue(value)) {
+            minimum = select(value, min(minimum, value), hasValue != 0u);
+            maximum = select(value, max(maximum, value), hasValue != 0u);
+            hasValue = 1u;
+        }
+
+        index += invocationCount;
+    }
+
+    minimums[lane] = minimum;
+    maximums[lane] = maximum;
+    valid[lane] = hasValue;
+    workgroupBarrier();
+
+    var stride = ${rangeWorkgroupSize / 2}u;
+    while (stride > 0u) {
+        if (lane < stride && valid[lane + stride] != 0u) {
+            let other = lane + stride;
+
+            if (valid[lane] == 0u) {
+                minimums[lane] = minimums[other];
+                maximums[lane] = maximums[other];
+            } else {
+                minimums[lane] = min(minimums[lane], minimums[other]);
+                maximums[lane] = max(maximums[lane], maximums[other]);
+            }
+
+            valid[lane] = 1u;
+        }
+
+        workgroupBarrier();
+        stride /= 2u;
+    }
+
+    if (lane == 0u) {
+        results[group].minimum = minimums[0];
+        results[group].maximum = maximums[0];
+        results[group].valid = valid[0];
+    }
+}
+`;
+
     function valueOf(source, name) {
         if (!source)
             return undefined;
@@ -400,6 +488,7 @@ fn decimate(
             return pending;
 
         const promise = (async () => {
+            const startedAt = performance.now();
             const canvas = document.getElementById(`series_${chartId}`);
 
             if (!canvas || !navigator.gpu) {
@@ -407,14 +496,18 @@ fn decimate(
                 return null;
             }
 
+            const adapterStartedAt = performance.now();
             const adapter = await navigator.gpu.requestAdapter();
+            console.log(`[chart-perf] WebGPU adapter: ${(performance.now() - adapterStartedAt).toFixed(1)} ms`);
 
             if (!adapter) {
                 pendingInstances.delete(chartId);
                 return null;
             }
 
+            const deviceStartedAt = performance.now();
             const device = await adapter.requestDevice();
+            console.log(`[chart-perf] WebGPU device: ${(performance.now() - deviceStartedAt).toFixed(1)} ms`);
 
             // If dispose was called while we were waiting, abort and clean up.
             if (!pendingInstances.has(chartId)) {
@@ -426,6 +519,8 @@ fn decimate(
             const format = navigator.gpu.getPreferredCanvasFormat();
             const module = device.createShaderModule({ code: shader });
             const decimationModule = device.createShaderModule({ code: decimationShader });
+            const rangeModule = device.createShaderModule({ code: rangeShader });
+            const pipelinesStartedAt = performance.now();
             const pipeline = device.createRenderPipeline({
                 layout: 'auto',
                 vertex: {
@@ -460,6 +555,14 @@ fn decimate(
                     entryPoint: 'decimate',
                 },
             });
+            const rangePipeline = device.createComputePipeline({
+                layout: 'auto',
+                compute: {
+                    module: rangeModule,
+                    entryPoint: 'reduceRange',
+                },
+            });
+            console.log(`[chart-perf] WebGPU pipelines: ${(performance.now() - pipelinesStartedAt).toFixed(1)} ms`);
             instance = {
                 canvas,
                 context,
@@ -467,12 +570,15 @@ fn decimate(
                 format,
                 pipeline,
                 decimationPipeline,
+                rangePipeline,
                 seriesBuffers: new Map(),
                 drawResources: [],
                 uploadGenerations: new Map(),
+                renderIndex: 0,
             };
             instances.set(chartId, instance);
             pendingInstances.delete(chartId);
+            console.log(`[chart-perf] WebGPU initialization total: ${(performance.now() - startedAt).toFixed(1)} ms`);
             return instance;
         })();
 
@@ -491,6 +597,7 @@ fn decimate(
     }
 
     function cacheSeriesBuffer(instance, id, version, length, valuesBytes) {
+        const startedAt = performance.now();
         const key = getSeriesKey(id, version, length);
         const data = toFloat32Array(valuesBytes);
 
@@ -502,7 +609,9 @@ fn decimate(
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
+        const writeStartedAt = performance.now();
         instance.device.queue.writeBuffer(buffer, 0, data);
+        const writeMilliseconds = performance.now() - writeStartedAt;
 
         for (const [existingKey, existing] of instance.seriesBuffers) {
             if (existing.id === id && existingKey !== key) {
@@ -513,6 +622,9 @@ fn decimate(
 
         const cachedSeries = { id, buffer, pointBuffer: buffer, length: data.length, dataMode: 0 };
         instance.seriesBuffers.set(key, cachedSeries);
+        console.log(`[chart-perf] series ${id}: GPU buffer+write submitted ${(performance.now() - startedAt).toFixed(1)} ms (writeBuffer ${writeMilliseconds.toFixed(1)} ms), ${(data.byteLength / 1048576).toFixed(1)} MiB`);
+        instance.device.queue.onSubmittedWorkDone().then(() =>
+            console.log(`[chart-perf] series ${id}: GPU upload queue settled ${(performance.now() - startedAt).toFixed(1)} ms`));
         return cachedSeries;
     }
 
@@ -525,6 +637,68 @@ fn decimate(
             return null;
 
         return instance.seriesBuffers.get(getSeriesKey(id, version, length)) ?? null;
+    }
+
+    async function calculateSeriesRangeAsync(instance, source, length) {
+        const startedAt = performance.now();
+        const workgroupCount = Math.min(maxRangeWorkgroups, Math.max(1, Math.ceil(length / rangeWorkgroupSize)));
+        const resultSize = workgroupCount * 16;
+        const resultBuffer = instance.device.createBuffer({ size: resultSize, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+        const readbackBuffer = instance.device.createBuffer({ size: resultSize, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+        const paramsBuffer = instance.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+        try {
+            instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([length, workgroupCount, 0, 0]));
+            const bindGroup = instance.device.createBindGroup({
+                layout: instance.rangePipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: { buffer: source } },
+                    { binding: 1, resource: { buffer: resultBuffer } },
+                    { binding: 2, resource: { buffer: paramsBuffer } },
+                ],
+            });
+            const encoder = instance.device.createCommandEncoder();
+            const pass = encoder.beginComputePass();
+            pass.setPipeline(instance.rangePipeline);
+            pass.setBindGroup(0, bindGroup);
+            pass.dispatchWorkgroups(workgroupCount);
+            pass.end();
+            encoder.copyBufferToBuffer(resultBuffer, 0, readbackBuffer, 0, resultSize);
+            instance.device.queue.submit([encoder.finish()]);
+            await readbackBuffer.mapAsync(GPUMapMode.READ);
+
+            const view = new DataView(readbackBuffer.getMappedRange());
+            let minimum = 0;
+            let maximum = 0;
+            let hasValue = false;
+
+            for (let i = 0; i < workgroupCount; i++) {
+                const offset = i * 16;
+
+                if (view.getUint32(offset + 8, true) === 0)
+                    continue;
+
+                const localMinimum = view.getFloat32(offset, true);
+                const localMaximum = view.getFloat32(offset + 4, true);
+
+                if (!Number.isFinite(localMinimum) || !Number.isFinite(localMaximum))
+                    throw new Error(`WebGPU range reduction returned non-finite values for workgroup ${i}`);
+
+                minimum = hasValue ? Math.min(minimum, localMinimum) : localMinimum;
+                maximum = hasValue ? Math.max(maximum, localMaximum) : localMaximum;
+                hasValue = true;
+            }
+
+            console.log(`[chart-perf] GPU range: ${(performance.now() - startedAt).toFixed(1)} ms, ${length.toLocaleString()} points, ${workgroupCount} workgroups`);
+            return { hasValue, minimum, maximum };
+        } finally {
+            if (readbackBuffer.mapState === 'mapped')
+                readbackBuffer.unmap();
+
+            resultBuffer.destroy();
+            readbackBuffer.destroy();
+            paramsBuffer.destroy();
+        }
     }
 
     function getDrawResources(instance, seriesBuffer, drawIndex) {
@@ -597,7 +771,7 @@ fn decimate(
 
     function getRenderBuffer(instance, source, zoomInfo, plot, encoder) {
         const visibleLength = zoomInfo.segmentCount + 1;
-        const bucketCount = Math.min(maxDecimationBuckets, Math.max(2, Math.ceil(plot.plotWidth)));
+        const bucketCount = Math.min(maxDecimationBuckets, Math.max(2, Math.ceil(plot.plotWidth * decimationBucketsPerPixel)));
 
         if (visibleLength <= bucketCount * decimationFactor)
             return { seriesBuffer: source, zoomInfo };
@@ -706,28 +880,43 @@ fn decimate(
     }
 
     async function loadSeriesDataAsync(chartId, id, version, length, streamReference) {
+        const startedAt = performance.now();
         const instance = await getInstance(chartId);
+        const instanceMilliseconds = performance.now() - startedAt;
 
         if (!instance)
             throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
 
         const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
         instance.uploadGenerations.set(id, generation);
+        const streamStartedAt = performance.now();
         const bytes = new Uint8Array(await streamReference.arrayBuffer());
+        const streamMilliseconds = performance.now() - streamStartedAt;
 
         if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
             return;
 
-        cacheSeriesBuffer(instance, id, version, length, bytes);
+        const cached = cacheSeriesBuffer(instance, id, version, length, bytes);
+        const range = cached
+            ? await calculateSeriesRangeAsync(instance, cached.buffer, cached.length)
+            : { hasValue: false, minimum: 0, maximum: 0 };
+
+        if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
+            return { hasValue: false, minimum: 0, maximum: 0 };
+
+        console.log(`[chart-perf] series ${id}: getInstance ${instanceMilliseconds.toFixed(1)} ms; stream ${(streamMilliseconds).toFixed(1)} ms; JS load total ${(performance.now() - startedAt).toFixed(1)} ms`);
+        return range;
     }
 
     async function renderSeriesAsync(chartId, payload) {
+        const startedAt = performance.now();
         const instance = await getInstance(chartId);
 
         if (!instance)
             return;
 
         const { canvas, context, device, format, pipeline } = instance;
+        const renderIndex = ++instance.renderIndex;
         const { width, height, dpr } = ensureCanvasSize(canvas);
         const plot = getPlot(payload, width, height);
 
@@ -796,7 +985,12 @@ fn decimate(
         }
 
         pass.end();
+        const submitStartedAt = performance.now();
         device.queue.submit([encoder.finish()]);
+        const submittedAt = performance.now();
+        console.log(`[chart-perf] render ${renderIndex}: encoded+submitted ${(submittedAt - startedAt).toFixed(1)} ms; submit ${(submittedAt - submitStartedAt).toFixed(1)} ms; ${renderItems.length} series`);
+        device.queue.onSubmittedWorkDone().then(() =>
+            console.log(`[chart-perf] render ${renderIndex}: GPU queue settled ${(performance.now() - submittedAt).toFixed(1)} ms after submit, ${(performance.now() - startedAt).toFixed(1)} ms total`));
     }
 
     window.nexus ??= {};

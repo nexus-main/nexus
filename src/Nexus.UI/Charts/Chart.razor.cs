@@ -7,6 +7,7 @@ using Microsoft.JSInterop;
 using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -25,6 +26,9 @@ public partial class Chart : IDisposable
     private readonly Dictionary<string, (int Version, int Length)> _sentSeriesVersions = new();
     private readonly Dictionary<string, (int Version, int Length)> _sendingSeriesVersions = new();
     private readonly Dictionary<string, (int Version, int Length, byte[] Bytes)> _seriesBytes = new();
+    private readonly Dictionary<string, SeriesRange> _seriesRanges = new();
+    private LineSeriesData? _axisData;
+    private bool _axisBeginAtZero;
     private bool _disposed;
 
     /* zoom */
@@ -158,18 +162,16 @@ public partial class Chart : IDisposable
 
     protected override void OnParametersSet()
     {
-        if (BeginAtZero || _zoomBox == _defaultZoomBox)
-        {
-            Task.Run(() =>
-            {
-                _axesMap = LineSeriesData.Series
-                    .GroupBy(lineSeries => lineSeries.Unit)
-                    .ToDictionary(group => GetAxisInfo(group.Key, group), group => group.ToArray());
+        if (ReferenceEquals(_axisData, LineSeriesData) && _axisBeginAtZero == BeginAtZero)
+            return;
 
-                if (OperatingSystem.IsBrowser())
-                    _skiaView.Invalidate();
-            });
-        }
+        var dataChanged = !ReferenceEquals(_axisData, LineSeriesData);
+        _axisData = LineSeriesData;
+        _axisBeginAtZero = BeginAtZero;
+        RebuildAxes(LineSeriesData);
+
+        if (dataChanged)
+            ResetZoom();
     }
 
     protected override void OnInitialized()
@@ -181,13 +183,6 @@ public partial class Chart : IDisposable
             LineSeriesData.Series[i].Color = color;
         }
 
-        /* axes info */
-        _axesMap = LineSeriesData.Series
-            .GroupBy(lineSeries => lineSeries.Unit)
-            .ToDictionary(group => GetAxisInfo(group.Key, group), group => group.ToArray());
-
-        /* zoom */
-        ResetZoom();
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -343,6 +338,7 @@ public partial class Chart : IDisposable
         if (!OperatingSystem.IsBrowser())
             return;
 
+        var transfers = new List<Task<SeriesRange>>();
         var series = _axesMap
             .SelectMany(entry => entry.Value
                 .Where(lineSeries => lineSeries.Show)
@@ -357,7 +353,7 @@ public partial class Chart : IDisposable
                     !HasSeriesVersion(_sendingSeriesVersions, lineSeries.Id, dataVersion, length))
                 {
                     _sendingSeriesVersions[lineSeries.Id] = (dataVersion, length);
-                    _ = SendSeriesBytesAsync(lineSeries.Id, lineSeries.Data, dataVersion, length);
+                    transfers.Add(SendSeriesBytesAsync(lineSeries.Id, lineSeries.Data, dataVersion, length));
                 }
 
                 return new
@@ -405,37 +401,104 @@ public partial class Chart : IDisposable
                 FillOpacity = 0.10,
                 Series = series
             });
+
+        if (transfers.Count > 0)
+            _ = ApplyRangesAfterTransfersAsync(transfers, LineSeriesData);
     }
 
-    private async Task SendSeriesBytesAsync(string seriesId, double[] data, int dataVersion, int length)
+    private async Task ApplyRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data)
     {
-        var sent = false;
+        var stopwatch = Stopwatch.StartNew();
+        SeriesRange[] ranges;
 
         try
         {
+            ranges = await Task.WhenAll(transfers);
+        }
+        catch (Exception exception) when (!_disposed)
+        {
+            Console.Error.WriteLine($"[chart-webgpu] series upload or GPU range calculation failed: {exception}");
+            return;
+        }
+
+        Console.WriteLine($"[chart-perf] transfer batch complete: {stopwatch.Elapsed.TotalMilliseconds:F1} ms, {transfers.Count} series");
+
+        if (_disposed || !ReferenceEquals(_axisData, data))
+            return;
+
+        foreach (var range in ranges)
+        {
+            if (HasSeriesVersion(_sentSeriesVersions, range.SeriesId, range.Version, range.Length))
+                _seriesRanges[range.SeriesId] = range;
+        }
+
+        RebuildAxes(data);
+
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
+    }
+
+    private void RebuildAxes(LineSeriesData data)
+    {
+        _axesMap = data.Series
+            .GroupBy(series => series.Unit)
+            .ToDictionary(
+                group =>
+                {
+                    var validRanges = group
+                        .Select(series => (Series: series, Range: _seriesRanges.GetValueOrDefault(series.Id)))
+                        .Where(item => item.Range.HasValue &&
+                            item.Range.Version == RuntimeHelpers.GetHashCode(item.Series.Data) &&
+                            item.Range.Length == item.Series.Data.Length)
+                        .Select(item => item.Range)
+                        .ToArray();
+                    var minimum = validRanges.Length == 0 ? 0 : validRanges.Min(range => range.Minimum);
+                    var maximum = validRanges.Length == 0 ? 0 : validRanges.Max(range => range.Maximum);
+                    return CreateAxisInfo(group.Key, minimum, maximum);
+                },
+                group => group.ToArray());
+
+        foreach (var axisInfo in _axesMap.Keys)
+        {
+            axisInfo.Min = axisInfo.OriginalMin;
+            axisInfo.Max = axisInfo.OriginalMax;
+        }
+    }
+
+    private async Task<SeriesRange> SendSeriesBytesAsync(string seriesId, double[] data, int dataVersion, int length)
+    {
+        try
+        {
+            var stopwatch = Stopwatch.StartNew();
             var bytes = GetSeriesBytes(seriesId, data, dataVersion, length);
+            var conversionMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
             using var stream = new MemoryStream(bytes, writable: false);
             using var streamReference = new DotNetStreamReference(stream);
 
-            await JSRuntime.InvokeVoidAsync(
+            stopwatch.Restart();
+            var range = await JSRuntime.InvokeAsync<GpuRange>(
                 "nexus.chartWebGpu.loadSeriesData",
                 _chartId,
                 seriesId,
                 dataVersion,
                 length,
                 streamReference);
+            Console.WriteLine($"[chart-perf] series {seriesId}: f64->f32 {conversionMilliseconds:F1} ms; JS stream+upload call {stopwatch.Elapsed.TotalMilliseconds:F1} ms; {length:N0} points, {bytes.LongLength / (1024d * 1024d):F1} MiB");
 
             _sentSeriesVersions[seriesId] = (dataVersion, length);
-            sent = true;
+            return new SeriesRange(seriesId, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
         }
         catch (ObjectDisposedException) when (_disposed)
         {
+            return new SeriesRange(seriesId, dataVersion, length, false, 0, 0);
         }
         catch (JSDisconnectedException) when (_disposed)
         {
+            return new SeriesRange(seriesId, dataVersion, length, false, 0, 0);
         }
-        catch (JSException)
+        catch (JSException exception)
         {
+            throw new InvalidOperationException($"WebGPU upload or range calculation failed for series '{seriesId}'.", exception);
         }
         finally
         {
@@ -448,9 +511,6 @@ public partial class Chart : IDisposable
             {
                 _seriesBytes.Remove(seriesId);
             }
-
-            if (sent && !_disposed && OperatingSystem.IsBrowser())
-                _skiaView.Invalidate();
         }
     }
 
@@ -488,12 +548,13 @@ public partial class Chart : IDisposable
      * Float32Array with no per-element work at all. */
     private static byte[] ToBytes(double[] values)
     {
-        var floats = new float[values.Length];
+        var bytes = GC.AllocateUninitializedArray<byte>(checked(values.Length * sizeof(float)));
+        var floats = MemoryMarshal.Cast<byte, float>(bytes);
 
         for (var i = 0; i < values.Length; i++)
             floats[i] = (float)values[i];
 
-        return MemoryMarshal.AsBytes(floats.AsSpan()).ToArray();
+        return bytes;
     }
 
     private void DrawAuxiliary(Position relativePosition)
@@ -569,37 +630,8 @@ public partial class Chart : IDisposable
         }
     }
 
-    private AxisInfo GetAxisInfo(string unit, IEnumerable<LineSeries> lineDatasets)
+    private AxisInfo CreateAxisInfo(string unit, float min, float max)
     {
-        var min = float.PositiveInfinity;
-        var max = float.NegativeInfinity;
-
-        foreach (var lineDataset in lineDatasets)
-        {
-            var data = lineDataset.Data;
-            var length = data.Length;
-
-            for (int i = 0; i < length; i++)
-            {
-                var value = (float)data[i];
-
-                if (!double.IsNaN(value))
-                {
-                    if (value < min)
-                        min = value;
-
-                    if (value > max)
-                        max = value;
-                }
-            }
-        }
-
-        if (min == double.PositiveInfinity || max == double.NegativeInfinity)
-        {
-            min = 0;
-            max = 0;
-        }
-
         GetYLimits(min, max, out var minLimit, out var maxLimit, out var _);
 
         if (BeginAtZero)
@@ -611,14 +643,15 @@ public partial class Chart : IDisposable
                 maxLimit = 0;
         }
 
-        var axisInfo = new AxisInfo(unit, minLimit, maxLimit)
+        return new AxisInfo(unit, minLimit, maxLimit)
         {
             Min = minLimit,
             Max = maxLimit
         };
-
-        return axisInfo;
     }
+
+    private readonly record struct GpuRange(bool HasValue, float Minimum, float Maximum);
+    private readonly record struct SeriesRange(string SeriesId, int Version, int Length, bool HasValue, float Minimum, float Maximum);
 
     #endregion
 
@@ -1106,6 +1139,7 @@ public partial class Chart : IDisposable
         _sentSeriesVersions.Clear();
         _sendingSeriesVersions.Clear();
         _seriesBytes.Clear();
+        _seriesRanges.Clear();
         _dotNetHelper?.Dispose();
     }
 
