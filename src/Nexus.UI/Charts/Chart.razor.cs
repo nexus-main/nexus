@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
+using Nexus.UI.Core;
 using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
@@ -29,6 +30,7 @@ public partial class Chart : IDisposable
     private LineSeriesData? _axisData;
     private bool _axisBeginAtZero;
     private bool _disposed;
+    private int _gpuCacheBudgetMiB;
 
     /* zoom */
     private readonly DotNetObjectReference<Chart> _dotNetHelper;
@@ -179,6 +181,9 @@ public partial class Chart : IDisposable
     [Inject]
     public IJSInProcessRuntime JSRuntime { get; set; } = default!;
 
+    [Inject]
+    public AppState AppState { get; set; } = default!;
+
     [Parameter]
     public LineSeriesData LineSeriesData { get; set; } = default!;
 
@@ -201,6 +206,9 @@ public partial class Chart : IDisposable
 
     protected override void OnInitialized()
     {
+        _gpuCacheBudgetMiB = EffectiveGpuCacheBudgetMiB(AppState.UISettings.ChartGpuCacheBudgetMiB);
+        AppState.PropertyChanged += OnAppStatePropertyChanged;
+
         /* line series color */
         for (int i = 0; i < LineSeriesData.Series.Count; i++)
         {
@@ -210,10 +218,26 @@ public partial class Chart : IDisposable
 
     }
 
+    private void OnAppStatePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(AppState.UISettings) || _disposed)
+            return;
+
+        _gpuCacheBudgetMiB = EffectiveGpuCacheBudgetMiB(AppState.UISettings.ChartGpuCacheBudgetMiB);
+
+        if (OperatingSystem.IsBrowser())
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.setCacheBudget", _chartId, (long)_gpuCacheBudgetMiB * 1024 * 1024);
+    }
+
+    private static int EffectiveGpuCacheBudgetMiB(int value) => value <= 0 ? 512 : Math.Max(16, value);
+
     protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender && OperatingSystem.IsBrowser())
+        {
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.setCacheBudget", _chartId, (long)_gpuCacheBudgetMiB * 1024 * 1024);
             JSRuntime.InvokeVoid("nexus.chart.initInteractions", _chartId, _dotNetHelper);
+        }
     }
 
     private void OnMouseMove(MouseEventArgs e)
@@ -332,6 +356,11 @@ public partial class Chart : IDisposable
     {
         if (!OperatingSystem.IsBrowser())
             return;
+
+        JSRuntime.InvokeVoid(
+            "nexus.chartWebGpu.synchronizeSeries",
+            _chartId,
+            LineSeriesData.Series.Select(lineSeries => lineSeries.Id).ToArray());
 
         var transfers = new List<Task<SeriesRange>>();
         var series = _axesMap
@@ -549,6 +578,14 @@ public partial class Chart : IDisposable
                 series.SyntheticKind!.Value.ToString());
             _sentSeriesVersions[series.Id] = (dataVersion, length);
             return new SeriesRange(series.Id, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
+        }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+            return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+        }
+        catch (JSDisconnectedException) when (_disposed)
+        {
+            return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
         }
         catch (JSException exception)
         {
@@ -1265,6 +1302,7 @@ public partial class Chart : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        AppState.PropertyChanged -= OnAppStatePropertyChanged;
 
         if (OperatingSystem.IsBrowser())
         {

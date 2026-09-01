@@ -10,6 +10,11 @@
     const maxDecimationBuckets = 8192;
     const rangeWorkgroupSize = 256;
     const maxRangeWorkgroups = 1024;
+    const defaultCacheBudget = 512 * 1024 * 1024;
+    const overviewBucketSize = 256;
+    const syntheticStreamChunkLength = 4 * 1024 * 1024;
+    const rawChunkLength = 1024 * 1024;
+    const configuredCacheBudgets = new Map();
 
     const shader = `
 struct Uniforms {
@@ -26,7 +31,7 @@ struct Uniforms {
     startIndex: u32,
     mode: u32,
     dataMode: u32,
-    _pad2: u32,
+    xOrigin: f32,
 };
 
 struct VertexOut {
@@ -47,7 +52,7 @@ fn dataPoint(index: u32) -> vec2f {
     var value: f32;
 
     if (uniforms.dataMode == 1u) {
-        x = points[index].x;
+        x = points[index].x - uniforms.xOrigin;
         value = points[index].y;
     } else {
         x = f32(index - uniforms.startIndex);
@@ -190,6 +195,158 @@ fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
     return in.color;
+}
+`;
+
+    const overviewShader = `
+struct Params {
+    globalOffset: u32,
+    sourceLength: u32,
+    outputBucket: u32,
+    _pad: u32,
+};
+
+@group(0) @binding(0) var<storage, read> source: array<f32>;
+@group(0) @binding(1) var<storage, read_write> output: array<vec2f>;
+@group(0) @binding(2) var<uniform> params: Params;
+
+var<workgroup> minimums: array<f32, ${overviewBucketSize}>;
+var<workgroup> maximums: array<f32, ${overviewBucketSize}>;
+var<workgroup> minimumIndices: array<u32, ${overviewBucketSize}>;
+var<workgroup> maximumIndices: array<u32, ${overviewBucketSize}>;
+var<workgroup> valid: array<u32, ${overviewBucketSize}>;
+var<workgroup> nanSeen: array<u32, ${overviewBucketSize}>;
+
+fn isNan(x: f32) -> bool {
+    let bits = bitcast<u32>(x);
+    return (bits & 0x7f800000u) == 0x7f800000u && (bits & 0x007fffffu) != 0u;
+}
+
+@compute @workgroup_size(${overviewBucketSize})
+fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
+    let lane = localId.x;
+    let localIndex = groupId.x * ${overviewBucketSize}u + lane;
+    var value = 0.0;
+    var hasValue = 0u;
+    var hasNan = 0u;
+
+    if (localIndex < params.sourceLength) {
+        value = source[localIndex];
+        hasNan = select(0u, 1u, isNan(value));
+        hasValue = select(1u, 0u, isNan(value));
+    }
+
+    minimums[lane] = value;
+    maximums[lane] = value;
+    minimumIndices[lane] = localIndex;
+    maximumIndices[lane] = localIndex;
+    valid[lane] = hasValue;
+    nanSeen[lane] = hasNan;
+    workgroupBarrier();
+
+    var stride = ${overviewBucketSize / 2}u;
+    while (stride > 0u) {
+        if (lane < stride) {
+            let other = lane + stride;
+            if (valid[other] != 0u) {
+                if (valid[lane] == 0u || minimums[other] < minimums[lane]) {
+                    minimums[lane] = minimums[other];
+                    minimumIndices[lane] = minimumIndices[other];
+                }
+                if (valid[lane] == 0u || maximums[other] > maximums[lane]) {
+                    maximums[lane] = maximums[other];
+                    maximumIndices[lane] = maximumIndices[other];
+                }
+                valid[lane] = 1u;
+            }
+            nanSeen[lane] |= nanSeen[other];
+        }
+        workgroupBarrier();
+        stride /= 2u;
+    }
+
+    if (lane == 0u) {
+        let outputIndex = (params.outputBucket + groupId.x) * 2u;
+        if (valid[0] == 0u) {
+            let nan = source[groupId.x * ${overviewBucketSize}u];
+            output[outputIndex] = vec2f(f32(params.globalOffset + groupId.x * ${overviewBucketSize}u) / ${overviewBucketSize}.0, nan);
+            output[outputIndex + 1u] = output[outputIndex];
+        } else if (minimumIndices[0] <= maximumIndices[0]) {
+            output[outputIndex] = vec2f(f32(params.globalOffset + minimumIndices[0]) / ${overviewBucketSize}.0, minimums[0]);
+            output[outputIndex + 1u] = vec2f(f32(params.globalOffset + maximumIndices[0]) / ${overviewBucketSize}.0, maximums[0]);
+        } else {
+            output[outputIndex] = vec2f(f32(params.globalOffset + maximumIndices[0]) / ${overviewBucketSize}.0, maximums[0]);
+            output[outputIndex + 1u] = vec2f(f32(params.globalOffset + minimumIndices[0]) / ${overviewBucketSize}.0, minimums[0]);
+        }
+    }
+}
+`;
+
+    const pointDecimationShader = `
+struct Params {
+    first: u32,
+    visibleLength: u32,
+    bucketCount: u32,
+    sourceLength: u32,
+};
+@group(0) @binding(0) var<storage, read> source: array<vec2f>;
+@group(0) @binding(1) var<storage, read_write> output: array<vec2f>;
+@group(0) @binding(2) var<uniform> params: Params;
+var<workgroup> minimums: array<vec2f, ${decimationWorkgroupSize}>;
+var<workgroup> maximums: array<vec2f, ${decimationWorkgroupSize}>;
+var<workgroup> valid: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
+fn isNan(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u && (b & 0x007fffffu) != 0u; }
+@compute @workgroup_size(${decimationWorkgroupSize})
+fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
+    let bucket = groupId.x;
+    let lane = localId.x;
+    let q = params.visibleLength / params.bucketCount;
+    let r = params.visibleLength % params.bucketCount;
+    let start = params.first + bucket * q + min(bucket, r);
+    let next = bucket + 1u;
+    let end = min(params.first + next * q + min(next, r), params.sourceLength);
+    var minimum = vec2f(0.0);
+    var maximum = vec2f(0.0);
+    var hasValue = 0u;
+    var hasNan = 0u;
+    var index = start + lane;
+    while (index < end) {
+        let point = source[index];
+        if (isNan(point.y)) { hasNan = 1u; }
+        else {
+            if (hasValue == 0u || point.y < minimum.y) { minimum = point; }
+            if (hasValue == 0u || point.y > maximum.y) { maximum = point; }
+            hasValue = 1u;
+        }
+        index += ${decimationWorkgroupSize}u;
+    }
+    minimums[lane] = minimum; maximums[lane] = maximum; valid[lane] = hasValue; nanSeen[lane] = hasNan;
+    workgroupBarrier();
+    var stride = ${decimationWorkgroupSize / 2}u;
+    while (stride > 0u) {
+        if (lane < stride) {
+            let other = lane + stride;
+            if (valid[other] != 0u) {
+                if (valid[lane] == 0u || minimums[other].y < minimums[lane].y) { minimums[lane] = minimums[other]; }
+                if (valid[lane] == 0u || maximums[other].y > maximums[lane].y) { maximums[lane] = maximums[other]; }
+                valid[lane] = 1u;
+            }
+            nanSeen[lane] |= nanSeen[other];
+        }
+        workgroupBarrier(); stride /= 2u;
+    }
+    if (lane == 0u) {
+        let outIndex = bucket * 2u + 1u;
+        if (bucket == 0u) { output[0] = source[params.first]; }
+        if (valid[0] == 0u) {
+            let nan = source[start].y;
+            output[outIndex] = vec2f(source[start].x, nan); output[outIndex + 1u] = vec2f(source[end - 1u].x, nan);
+        } else if (minimums[0].x <= maximums[0].x) {
+            output[outIndex] = minimums[0]; output[outIndex + 1u] = maximums[0];
+        } else { output[outIndex] = maximums[0]; output[outIndex + 1u] = minimums[0]; }
+        if (bucket + 1u == params.bucketCount) { output[outIndex + 2u] = source[params.first + params.visibleLength - 1u]; }
+    }
 }
 `;
 
@@ -518,6 +675,8 @@ fn reduceRange(
             const module = device.createShaderModule({ code: shader });
             const decimationModule = device.createShaderModule({ code: decimationShader });
             const rangeModule = device.createShaderModule({ code: rangeShader });
+            const overviewModule = device.createShaderModule({ code: overviewShader });
+            const pointDecimationModule = device.createShaderModule({ code: pointDecimationShader });
             const pipeline = device.createRenderPipeline({
                 layout: 'auto',
                 vertex: {
@@ -559,17 +718,40 @@ fn reduceRange(
                     entryPoint: 'reduceRange',
                 },
             });
+            const overviewPipeline = device.createComputePipeline({
+                layout: 'auto',
+                compute: { module: overviewModule, entryPoint: 'reduceOverview' },
+            });
+            const pointDecimationPipeline = device.createComputePipeline({
+                layout: 'auto',
+                compute: { module: pointDecimationModule, entryPoint: 'decimatePoints' },
+            });
             instance = {
+                chartId,
                 canvas,
                 device,
                 format,
                 pipeline,
                 decimationPipeline,
                 rangePipeline,
+                overviewPipeline,
+                pointDecimationPipeline,
                 seriesBuffers: new Map(),
                 targetResources: new Map(),
                 previewRenderKeys: new Map(),
                 uploadGenerations: new Map(),
+                cacheBudget: configuredCacheBudgets.get(chartId) ?? defaultCacheBudget,
+                persistentBytes: 0,
+                rawCacheBytes: 0,
+                rawReservedBytes: 0,
+                generationReservedBytes: 0,
+                auxiliaryBytes: 0,
+                rawChunks: new Map(),
+                rawRequests: new Map(),
+                generationJobs: new Map(),
+                workerRequestId: 0,
+                renderGeneration: 0,
+                lastPayloads: new Map(),
             };
             instances.set(chartId, instance);
             pendingInstances.delete(chartId);
@@ -584,12 +766,84 @@ fn reduceRange(
         return `${id}:${version}:${length}`;
     }
 
-    function destroySeriesBuffer(cached) {
+    function destroySeriesBuffer(instance, cached) {
         cached.buffer.destroy();
+
+        if (cached.pointBuffer !== cached.buffer)
+            cached.pointBuffer.destroy();
 
         for (const decimation of cached.decimations?.values() ?? []) {
             decimation.outputBuffer.destroy();
             decimation.paramsBuffer.destroy();
+            instance.auxiliaryBytes -= decimation.byteLength;
+        }
+    }
+
+    function destroyRawChunk(instance, key, chunk) {
+        destroySeriesBuffer(instance, chunk);
+        instance.rawChunks.delete(key);
+        instance.rawCacheBytes -= chunk.byteLength;
+    }
+
+    function evictRawChunks(instance, requiredBytes, protectedKeys = new Set()) {
+        const candidates = [...instance.rawChunks.entries()]
+            .filter(([key]) => !protectedKeys.has(key))
+            .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+
+        while (instance.persistentBytes + instance.rawCacheBytes + instance.rawReservedBytes + instance.generationReservedBytes + instance.auxiliaryBytes + requiredBytes > instance.cacheBudget && candidates.length) {
+            const [key, chunk] = candidates.shift();
+            destroyRawChunk(instance, key, chunk);
+        }
+
+        if (requiredBytes > 0 && instance.persistentBytes + instance.rawCacheBytes + instance.rawReservedBytes + instance.generationReservedBytes + instance.auxiliaryBytes + requiredBytes > instance.cacheBudget)
+            throw new Error(`Chart GPU cache budget (${instance.cacheBudget} bytes) cannot fit a ${requiredBytes}-byte chunk with ${instance.persistentBytes} persistent bytes`);
+    }
+
+    function removeRawSeries(instance, id) {
+        for (const [key, request] of instance.rawRequests) {
+            if (request.id === id) {
+                request.worker.postMessage({ type: 'cancel', requestId: request.requestId });
+                request.worker.terminate();
+                instance.rawReservedBytes -= request.byteLength;
+                request.reject(new Error(`Raw chunk request superseded for series ${id}`));
+                instance.rawRequests.delete(key);
+            }
+        }
+
+        for (const [key, chunk] of instance.rawChunks) {
+            if (chunk.id === id)
+                destroyRawChunk(instance, key, chunk);
+        }
+    }
+
+    function cancelGeneration(instance, id, reason) {
+        const job = instance.generationJobs.get(id);
+        if (!job)
+            return;
+
+        job.worker.postMessage({ type: 'cancel', requestId: job.requestId });
+        job.worker.terminate();
+        job.reject(new Error(reason));
+    }
+
+    function synchronizeSeries(instance, activeIds) {
+        const active = new Set(activeIds);
+
+        for (const [key, cached] of instance.seriesBuffers) {
+            if (active.has(cached.id))
+                continue;
+
+            instance.persistentBytes -= cached.byteLength ?? 0;
+            destroySeriesBuffer(instance, cached);
+            instance.seriesBuffers.delete(key);
+            removeRawSeries(instance, cached.id);
+            cancelGeneration(instance, cached.id, `Series ${cached.id} was removed`);
+            instance.uploadGenerations.delete(cached.id);
+        }
+
+        for (const id of instance.generationJobs.keys()) {
+            if (!active.has(id))
+                cancelGeneration(instance, id, `Series ${id} was removed`);
         }
     }
 
@@ -600,6 +854,12 @@ fn reduceRange(
         if (data.length < 2)
             return null;
 
+        const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
+        if (data.byteLength > deviceLimit)
+            throw new Error(`Series requires ${data.byteLength} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
+
+        evictRawChunks(instance, data.byteLength);
+
         const buffer = instance.device.createBuffer({
             size: data.byteLength,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -608,14 +868,16 @@ fn reduceRange(
         instance.device.queue.writeBuffer(buffer, 0, data);
 
         for (const [existingKey, existing] of instance.seriesBuffers) {
-            if (existing.id === id && existingKey !== key) {
-                destroySeriesBuffer(existing);
+            if (existing.id === id) {
+                instance.persistentBytes -= existing.byteLength ?? 0;
+                destroySeriesBuffer(instance, existing);
                 instance.seriesBuffers.delete(existingKey);
             }
         }
 
-        const cachedSeries = { id, buffer, pointBuffer: buffer, length: data.length, dataMode: 0, decimations: new Map() };
+        const cachedSeries = { id, buffer, pointBuffer: buffer, length: data.length, byteLength: data.byteLength, dataMode: 0, decimations: new Map() };
         instance.seriesBuffers.set(key, cachedSeries);
+        instance.persistentBytes += data.byteLength;
         return cachedSeries;
     }
 
@@ -625,29 +887,63 @@ fn reduceRange(
         if (!instance)
             throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
 
-        const byteLength = length * Float32Array.BYTES_PER_ELEMENT;
-
-        if (byteLength > instance.device.limits.maxBufferSize ||
-            byteLength > instance.device.limits.maxStorageBufferBindingSize) {
-            throw new Error(
-                `${length.toLocaleString()} samples require a ${Math.ceil(byteLength / 1048576)} MiB storage buffer, ` +
-                `but this GPU supports ${Math.floor(Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize) / 1048576)} MiB`);
-        }
+        if (!Number.isSafeInteger(length) || length < 2 || length > 1000000000)
+            throw new Error(`Synthetic series length must be an integer between 2 and 1,000,000,000 (received ${length})`);
 
         const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
         instance.uploadGenerations.set(id, generation);
-        const buffer = instance.device.createBuffer({
-            size: byteLength,
+        cancelGeneration(instance, id, `Synthetic generation superseded for series ${id}`);
+        removeRawSeries(instance, id);
+        const overviewBucketCount = Math.ceil(length / overviewBucketSize);
+        const overviewLength = overviewBucketCount * 2;
+        const overviewBytes = overviewLength * 2 * Float32Array.BYTES_PER_ELEMENT;
+        const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
+
+        if (overviewBytes > deviceLimit)
+            throw new Error(`Persistent overview requires ${overviewBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
+
+        const transientBytes = Math.min(syntheticStreamChunkLength, length) * Float32Array.BYTES_PER_ELEMENT;
+        if (transientBytes > deviceLimit)
+            throw new Error(`Synthetic stream chunk requires ${transientBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
+
+        const reservedBytes = overviewBytes + transientBytes;
+        evictRawChunks(instance, reservedBytes);
+        instance.generationReservedBytes += reservedBytes;
+
+        const transientBuffer = instance.device.createBuffer({
+            size: transientBytes,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
+        const overviewBuffer = instance.device.createBuffer({ size: overviewBytes, usage: GPUBufferUsage.STORAGE });
+        const paramsBuffer = instance.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        const bindGroup = instance.device.createBindGroup({
+            layout: instance.overviewPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: { buffer: transientBuffer } },
+                { binding: 1, resource: { buffer: overviewBuffer } },
+                { binding: 2, resource: { buffer: paramsBuffer } },
+            ],
+        });
         const worker = new Worker('js/chart.synthetic.worker.js');
+        const requestId = ++instance.workerRequestId;
+        let rangeMinimum = 0;
+        let rangeMaximum = 0;
+        let rangeHasValue = false;
+
+        let rejectGeneration;
+        const job = { worker, requestId, reservedBytes, reject: error => rejectGeneration?.(error) };
+        instance.generationJobs.set(id, job);
 
         try {
             await new Promise((resolve, reject) => {
+                rejectGeneration = reject;
                 worker.onerror = event => reject(new Error(event.message));
-                worker.onmessage = event => {
+                worker.onmessage = async event => {
+                    if (event.data.requestId !== requestId)
+                        return;
+
                     if (event.data.complete) {
-                        resolve(event.data.milliseconds);
+                        resolve();
                         return;
                     }
 
@@ -656,27 +952,63 @@ fn reduceRange(
                         return;
                     }
 
-                    instance.device.queue.writeBuffer(buffer, event.data.offset * Float32Array.BYTES_PER_ELEMENT, event.data.values);
+                    try {
+                        const values = event.data.values;
+                        instance.device.queue.writeBuffer(transientBuffer, 0, values);
+                        const chunkRange = await calculateSeriesRangeAsync(instance, transientBuffer, values.length);
+                        if (chunkRange.hasValue) {
+                            rangeMinimum = rangeHasValue ? Math.min(rangeMinimum, chunkRange.minimum) : chunkRange.minimum;
+                            rangeMaximum = rangeHasValue ? Math.max(rangeMaximum, chunkRange.maximum) : chunkRange.maximum;
+                            rangeHasValue = true;
+                        }
+
+                        instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([
+                            event.data.offset, values.length, Math.floor(event.data.offset / overviewBucketSize), 0,
+                        ]));
+                        const encoder = instance.device.createCommandEncoder();
+                        const pass = encoder.beginComputePass();
+                        pass.setPipeline(instance.overviewPipeline);
+                        pass.setBindGroup(0, bindGroup);
+                        pass.dispatchWorkgroups(Math.ceil(values.length / overviewBucketSize));
+                        pass.end();
+                        instance.device.queue.submit([encoder.finish()]);
+                        await instance.device.queue.onSubmittedWorkDone();
+                        worker.postMessage({ type: 'ack', requestId });
+                    } catch (error) {
+                        reject(error);
+                    }
                 };
-                worker.postMessage({ length, kind, chunkLength: 4 * 1024 * 1024 });
+                worker.postMessage({ type: 'stream', requestId, length, kind, chunkLength: syntheticStreamChunkLength });
             });
-            await instance.device.queue.onSubmittedWorkDone();
+
+            if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
+                throw new Error(`Synthetic generation superseded for series ${id}`);
 
             for (const [existingKey, existing] of instance.seriesBuffers) {
                 if (existing.id === id) {
-                    destroySeriesBuffer(existing);
+                    instance.persistentBytes -= existing.byteLength ?? 0;
+                    destroySeriesBuffer(instance, existing);
                     instance.seriesBuffers.delete(existingKey);
                 }
             }
 
-            const cached = { id, buffer, pointBuffer: buffer, length, dataMode: 0, decimations: new Map() };
+            transientBuffer.destroy();
+            const cached = {
+                id, version, kind, length, buffer: overviewBuffer, pointBuffer: overviewBuffer,
+                overviewLength, overviewBucketCount, byteLength: overviewBytes, dataMode: 1, synthetic: true, decimations: new Map(),
+            };
             instance.seriesBuffers.set(getSeriesKey(id, version, length), cached);
-            const range = await calculateSeriesRangeAsync(instance, buffer, length);
-            return range;
+            instance.persistentBytes += overviewBytes;
+            return { hasValue: rangeHasValue, minimum: rangeMinimum, maximum: rangeMaximum };
         } catch (error) {
-            buffer.destroy();
+            transientBuffer.destroy();
+            overviewBuffer.destroy();
             throw error;
         } finally {
+            if (instance.generationJobs.get(id) === job)
+                instance.generationJobs.delete(id);
+            instance.generationReservedBytes -= reservedBytes;
+            paramsBuffer.destroy();
             worker.terminate();
         }
     }
@@ -861,6 +1193,32 @@ fn reduceRange(
         return { first, segmentCount: visibleLength - 1, zoomedLeft, dx };
     }
 
+    function getSyntheticOverviewZoom(payload, source, plot) {
+        const zoom = valueOf(payload, 'Zoom') ?? {};
+        const left = Math.max(0, Math.min(source.length - 1, (valueOf(zoom, 'Left') ?? 0) * (source.length - 1)));
+        const right = Math.max(left, Math.min(source.length - 1, (valueOf(zoom, 'Right') ?? 1) * (source.length - 1)));
+        const span = right - left;
+
+        if (!Number.isFinite(span) || span <= 0)
+            return null;
+
+        const firstBucket = Math.max(0, Math.floor(left / overviewBucketSize) - 1);
+        const lastBucket = Math.min(source.overviewBucketCount - 1, Math.ceil(right / overviewBucketSize));
+        const first = firstBucket * 2;
+        const visibleLength = (lastBucket - firstBucket + 1) * 2;
+
+        if (visibleLength < 2)
+            return null;
+
+        return {
+            first,
+            segmentCount: visibleLength - 1,
+            zoomedLeft: plot.plotLeft,
+            dx: plot.plotWidth / (span / overviewBucketSize),
+            xOrigin: left / overviewBucketSize,
+        };
+    }
+
     function getRenderBuffer(instance, source, zoomInfo, plot, encoder, target) {
         const visibleLength = zoomInfo.segmentCount + 1;
         const bucketCount = Math.min(maxDecimationBuckets, Math.max(2, Math.ceil(plot.plotWidth * decimationBucketsPerPixel)));
@@ -873,8 +1231,14 @@ fn reduceRange(
         const outputSize = outputLength * 2 * Float32Array.BYTES_PER_ELEMENT;
 
         if (!decimation || decimation.bucketCount !== bucketCount) {
-            decimation?.outputBuffer.destroy();
-            decimation?.paramsBuffer.destroy();
+            if (decimation) {
+                decimation.outputBuffer.destroy();
+                decimation.paramsBuffer.destroy();
+                instance.auxiliaryBytes -= decimation.byteLength;
+            }
+
+            const allocationBytes = outputSize + 16;
+            evictRawChunks(instance, allocationBytes);
 
             const outputBuffer = instance.device.createBuffer({
                 size: outputSize,
@@ -885,9 +1249,9 @@ fn reduceRange(
                 usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
             });
             const bindGroup = instance.device.createBindGroup({
-                layout: instance.decimationPipeline.getBindGroupLayout(0),
+                layout: (source.dataMode === 1 ? instance.pointDecimationPipeline : instance.decimationPipeline).getBindGroupLayout(0),
                 entries: [
-                    { binding: 0, resource: { buffer: source.buffer } },
+                    { binding: 0, resource: { buffer: source.dataMode === 1 ? source.pointBuffer : source.buffer } },
                     { binding: 1, resource: { buffer: outputBuffer } },
                     { binding: 2, resource: { buffer: paramsBuffer } },
                 ],
@@ -898,6 +1262,7 @@ fn reduceRange(
                 outputBuffer,
                 paramsBuffer,
                 bindGroup,
+                byteLength: allocationBytes,
                 renderBuffer: {
                     buffer: source.buffer,
                     pointBuffer: outputBuffer,
@@ -906,15 +1271,16 @@ fn reduceRange(
                 },
             };
             source.decimations.set(target, decimation);
+            instance.auxiliaryBytes += allocationBytes;
         }
 
         instance.device.queue.writeBuffer(
             decimation.paramsBuffer,
             0,
-            new Uint32Array([zoomInfo.first, visibleLength, bucketCount, source.length]));
+            new Uint32Array([zoomInfo.first, visibleLength, bucketCount, source.overviewLength ?? source.length]));
 
         const pass = encoder.beginComputePass();
-        pass.setPipeline(instance.decimationPipeline);
+        pass.setPipeline(source.dataMode === 1 ? instance.pointDecimationPipeline : instance.decimationPipeline);
         pass.setBindGroup(0, decimation.bindGroup);
         pass.dispatchWorkgroups(bucketCount);
         pass.end();
@@ -926,8 +1292,153 @@ fn reduceRange(
                 segmentCount: outputLength - 1,
                 zoomedLeft: zoomInfo.zoomedLeft,
                 dx: zoomInfo.dx,
+                xOrigin: zoomInfo.xOrigin ?? 0,
             },
         };
+    }
+
+    function rawChunkKey(source, chunkIndex) {
+        return `${source.id}:${source.version}:${chunkIndex}`;
+    }
+
+    function requestRawChunk(instance, source, chunkIndex, protectedKeys) {
+        const key = rawChunkKey(source, chunkIndex);
+        const cached = instance.rawChunks.get(key);
+
+        if (cached) {
+            cached.lastUsed = performance.now();
+            return Promise.resolve(cached);
+        }
+
+        const pending = instance.rawRequests.get(key);
+        if (pending)
+            return pending.promise;
+
+        const offset = chunkIndex * rawChunkLength;
+        if (offset >= source.length)
+            return Promise.resolve(null);
+
+        const count = Math.min(rawChunkLength + (offset + rawChunkLength < source.length ? 1 : 0), source.length - offset);
+        const byteLength = count * Float32Array.BYTES_PER_ELEMENT;
+        evictRawChunks(instance, byteLength, protectedKeys);
+        instance.rawReservedBytes += byteLength;
+
+        const requestId = ++instance.workerRequestId;
+        const worker = new Worker('js/chart.synthetic.worker.js');
+        let resolveRequest;
+        let rejectRequest;
+        const promise = new Promise((resolve, reject) => {
+            resolveRequest = resolve;
+            rejectRequest = reject;
+        });
+        const request = { id: source.id, requestId, worker, promise, reject: rejectRequest, byteLength };
+        instance.rawRequests.set(key, request);
+        worker.onerror = event => {
+            instance.rawRequests.delete(key);
+            instance.rawReservedBytes -= byteLength;
+            worker.terminate();
+            rejectRequest(new Error(`Raw chunk ${chunkIndex} generation failed: ${event.message}`));
+        };
+        worker.onmessage = event => {
+            if (event.data.requestId !== requestId)
+                return;
+
+            try {
+                if (instances.get(source.chartId) !== instance || instance.uploadGenerations.get(source.id) !== source.generation)
+                    throw new Error(`Raw chunk request superseded for series ${source.id}`);
+
+                const values = event.data.values;
+                const buffer = instance.device.createBuffer({
+                    size: values.byteLength,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                });
+                instance.device.queue.writeBuffer(buffer, 0, values);
+                const chunk = {
+                    id: source.id, buffer, pointBuffer: buffer, dataMode: 0, decimations: new Map(),
+                    offset, length: values.length, byteLength: values.byteLength, lastUsed: performance.now(),
+                };
+                instance.rawChunks.set(key, chunk);
+                instance.rawReservedBytes -= byteLength;
+                instance.rawCacheBytes += chunk.byteLength;
+                instance.rawRequests.delete(key);
+                evictRawChunks(instance, 0);
+                worker.terminate();
+                resolveRequest(chunk);
+                rerenderLastPayloads(instance);
+            } catch (error) {
+                instance.rawRequests.delete(key);
+                instance.rawReservedBytes -= byteLength;
+                worker.terminate();
+                rejectRequest(error);
+            }
+        };
+        worker.postMessage({ type: 'raw', requestId, offset, count, kind: source.kind });
+        return promise;
+    }
+
+    function rerenderLastPayloads(instance) {
+        for (const [target, payload] of instance.lastPayloads) {
+            instance.previewRenderKeys.delete(target);
+            renderSeriesAsync(instance.chartId, payload).catch(error => console.error('[chart-webgpu] raw rerender failed', error));
+        }
+    }
+
+    function getRawRenderItems(instance, source, payload, plot, encoder, target) {
+        const zoom = valueOf(payload, 'Zoom') ?? {};
+        const left = Math.max(0, (valueOf(zoom, 'Left') ?? 0) * (source.length - 1));
+        const right = Math.min(source.length - 1, (valueOf(zoom, 'Right') ?? 1) * (source.length - 1));
+        const span = right - left;
+
+        if (!Number.isFinite(span) || span <= 0 || span > rawChunkLength * 2)
+            return null;
+
+        const firstChunk = Math.floor(left / rawChunkLength);
+        const lastChunk = Math.floor(right / rawChunkLength);
+        const protectedKeys = new Set();
+        for (let index = firstChunk; index <= lastChunk; index++)
+            protectedKeys.add(rawChunkKey(source, index));
+
+        for (let index = firstChunk; index <= lastChunk; index++) {
+            try {
+                requestRawChunk(instance, source, index, protectedKeys).catch(error => console.error('[chart-webgpu] raw request failed', error));
+            } catch (error) {
+                console.error('[chart-webgpu] raw request failed', error);
+            }
+        }
+
+        for (const index of [firstChunk - 1, lastChunk + 1]) {
+            if (index < 0 || index >= Math.ceil(source.length / rawChunkLength))
+                continue;
+
+            try {
+                requestRawChunk(instance, source, index, protectedKeys).catch(error => console.error('[chart-webgpu] raw prefetch failed', error));
+            } catch (error) {
+                console.error('[chart-webgpu] raw prefetch skipped', error);
+            }
+        }
+
+        const items = [];
+        for (let index = firstChunk; index <= lastChunk; index++) {
+            const chunk = instance.rawChunks.get(rawChunkKey(source, index));
+            if (!chunk)
+                return null;
+
+            chunk.lastUsed = performance.now();
+            const localFirst = Math.max(0, Math.floor(left - chunk.offset));
+            const localLast = Math.min(chunk.length - 1, Math.ceil(right - chunk.offset));
+            if (localLast <= localFirst)
+                continue;
+
+            const zoomInfo = {
+                first: localFirst,
+                segmentCount: localLast - localFirst,
+                zoomedLeft: plot.plotLeft + ((chunk.offset + localFirst - left) / span) * plot.plotWidth,
+                dx: plot.plotWidth / span,
+            };
+            items.push(getRenderBuffer(instance, chunk, zoomInfo, plot, encoder, `${target}:${source.id}:${index}`));
+        }
+
+        return items.length ? items : null;
     }
 
     function writeUniforms(instance, uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, mode) {
@@ -967,6 +1478,7 @@ fn reduceRange(
         uints[20] = zoomInfo.first;
         uints[21] = mode;
         uints[22] = seriesBuffer.dataMode ?? 0;
+        floats[23] = zoomInfo.xOrigin ?? 0;
 
         instance.device.queue.writeBuffer(uniformBuffer, 0, data);
         return true;
@@ -980,6 +1492,7 @@ fn reduceRange(
 
         const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
         instance.uploadGenerations.set(id, generation);
+        removeRawSeries(instance, id);
         const bytes = new Uint8Array(await streamReference.arrayBuffer());
 
         if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
@@ -1012,6 +1525,7 @@ fn reduceRange(
         const context = canvas.getContext('webgpu');
         const { width, height, dpr } = ensureCanvasSize(canvas);
         const isPreview = valueOf(payload, 'Preview') ?? false;
+        instance.lastPayloads.set(target, payload);
         let previewRenderKey = null;
 
         if (isPreview) {
@@ -1041,7 +1555,20 @@ fn reduceRange(
                 if (!cached)
                     continue;
 
-                const zoomInfo = getZoomInfo(payload, cached.length, plot);
+                cached.chartId = chartId;
+                cached.generation = instance.uploadGenerations.get(cached.id);
+                if (cached.synthetic && !isPreview) {
+                    const rawItems = getRawRenderItems(instance, cached, payload, plot, encoder, target);
+                    if (rawItems) {
+                        for (const rawItem of rawItems)
+                            renderItems.push({ series, ...rawItem });
+                        continue;
+                    }
+                }
+
+                const zoomInfo = cached.synthetic
+                    ? getSyntheticOverviewZoom(payload, cached, plot)
+                    : getZoomInfo(payload, cached.length, plot);
 
                 if (!zoomInfo)
                     continue;
@@ -1097,6 +1624,23 @@ fn reduceRange(
 
     window.nexus ??= {};
     window.nexus.chartWebGpu = {
+        setCacheBudget(chartId, bytes) {
+            if (!Number.isSafeInteger(bytes) || bytes < 0)
+                throw new Error(`Cache budget must be a non-negative safe integer (received ${bytes})`);
+
+            const instance = instances.get(chartId);
+            if (instance) {
+                instance.cacheBudget = bytes;
+                evictRawChunks(instance, 0);
+            }
+
+            configuredCacheBudgets.set(chartId, bytes);
+        },
+        synchronizeSeries(chartId, activeIds) {
+            const instance = instances.get(chartId);
+            if (instance)
+                synchronizeSeries(instance, activeIds);
+        },
         loadSeriesData(chartId, id, version, length, streamReference) {
             return loadSeriesDataAsync(chartId, id, version, length, streamReference);
         },
@@ -1112,16 +1656,32 @@ fn reduceRange(
             const instance = instances.get(chartId);
 
             if (instance) {
+                for (const id of [...instance.generationJobs.keys()])
+                    cancelGeneration(instance, id, `Chart ${chartId} was disposed`);
+
+                for (const request of instance.rawRequests.values()) {
+                    request.worker.postMessage({ type: 'cancel', requestId: request.requestId });
+                    request.worker.terminate();
+                    instance.rawReservedBytes -= request.byteLength;
+                    request.reject(new Error(`Chart ${chartId} was disposed`));
+                }
+
+                for (const [key, chunk] of instance.rawChunks)
+                    destroyRawChunk(instance, key, chunk);
+
                 for (const cached of instance.seriesBuffers.values())
-                    destroySeriesBuffer(cached);
+                    destroySeriesBuffer(instance, cached);
 
                 for (const targetResources of instance.targetResources.values()) {
                     for (const resources of targetResources)
                         resources.uniformBuffer.destroy();
                 }
+
+                instance.device.destroy();
             }
 
             instances.delete(chartId);
+            configuredCacheBudgets.delete(chartId);
         },
     };
 })();
