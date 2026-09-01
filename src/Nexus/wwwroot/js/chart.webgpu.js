@@ -4,6 +4,9 @@
     const uniformBufferSize = 96;
     const fillVerticesPerSegment = 6;
     const lineVerticesPerSegment = 18;
+    const decimationWorkgroupSize = 64;
+    const decimationFactor = 4;
+    const maxDecimationBuckets = 8192;
 
     const shader = `
 struct Uniforms {
@@ -19,7 +22,8 @@ struct Uniforms {
     color: vec4f,
     startIndex: u32,
     mode: u32,
-    _pad2: vec2<u32>,
+    dataMode: u32,
+    _pad2: u32,
 };
 
 struct VertexOut {
@@ -29,16 +33,39 @@ struct VertexOut {
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read> values: array<f32>;
+@group(0) @binding(2) var<storage, read> points: array<vec2f>;
 
 fn toNdc(point: vec2f) -> vec4f {
     return vec4f(point.x / uniforms.viewport.x * 2.0 - 1.0, 1.0 - point.y / uniforms.viewport.y * 2.0, 0.0, 1.0);
 }
 
 fn dataPoint(index: u32) -> vec2f {
-    let value = values[index];
+    var x: f32;
+    var value: f32;
+
+    if (uniforms.dataMode == 1u) {
+        x = points[index].x;
+        value = points[index].y;
+    } else {
+        x = f32(index - uniforms.startIndex);
+        value = values[index];
+    }
+
     return vec2f(
-        uniforms.xParams.x + uniforms.xParams.y * f32(index - uniforms.startIndex),
+        uniforms.xParams.x + uniforms.xParams.y * x,
         uniforms.plot.w - ((value - uniforms.axis.x) / uniforms.axis.y) * (uniforms.plot.w - uniforms.plot.y));
+}
+
+fn dataValue(index: u32) -> f32 {
+    var value: f32;
+
+    if (uniforms.dataMode == 1u) {
+        value = points[index].y;
+    } else {
+        value = values[index];
+    }
+
+    return value;
 }
 
 fn isNan(x: f32) -> bool {
@@ -137,8 +164,8 @@ fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
     let segment = vertexIndex / verticesPerSegment;
     let local = vertexIndex % verticesPerSegment;
     let index = uniforms.startIndex + segment;
-    let valueA = values[index];
-    let valueB = values[index + 1u];
+    let valueA = dataValue(index);
+    let valueB = dataValue(index + 1u);
 
     if (isNan(valueA) || isNan(valueB) || uniforms.axis.y == 0.0) {
         return emptyVertex();
@@ -163,6 +190,154 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
 }
 `;
 
+    const decimationShader = `
+struct Params {
+    first: u32,
+    visibleLength: u32,
+    bucketCount: u32,
+    sourceLength: u32,
+};
+
+@group(0) @binding(0) var<storage, read> source: array<f32>;
+@group(0) @binding(1) var<storage, read_write> output: array<vec2f>;
+@group(0) @binding(2) var<uniform> params: Params;
+
+var<workgroup> minimums: array<f32, ${decimationWorkgroupSize}>;
+var<workgroup> maximums: array<f32, ${decimationWorkgroupSize}>;
+var<workgroup> minimumIndices: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> valid: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
+
+fn isNan(x: f32) -> bool {
+    let bits = bitcast<u32>(x);
+    return (bits & 0x7f800000u) == 0x7f800000u && (bits & 0x007fffffu) != 0u;
+}
+
+@compute @workgroup_size(${decimationWorkgroupSize})
+fn decimate(
+    @builtin(workgroup_id) workgroupId: vec3u,
+    @builtin(local_invocation_id) localId: vec3u) {
+    let bucket = workgroupId.x;
+    let lane = localId.x;
+
+    if (bucket >= params.bucketCount) {
+        return;
+    }
+
+    let quotient = params.visibleLength / params.bucketCount;
+    let remainder = params.visibleLength % params.bucketCount;
+    let startOffset = bucket * quotient + min(bucket, remainder);
+    let nextBucket = bucket + 1u;
+    let endOffset = nextBucket * quotient + min(nextBucket, remainder);
+    let start = min(params.first + startOffset, params.sourceLength);
+    let end = min(params.first + endOffset, params.sourceLength);
+
+    var minimum = 0.0;
+    var maximum = 0.0;
+    var minimumIndex = 0u;
+    var maximumIndex = 0u;
+    var hasValue = 0u;
+    var hasNan = 0u;
+    var nanIndex = 0u;
+    var index = start + lane;
+
+    while (index < end) {
+        let value = source[index];
+
+        if (isNan(value)) {
+            if (hasNan == 0u || index < nanIndex) {
+                nanIndex = index;
+            }
+
+            hasNan = 1u;
+        } else {
+            if (hasValue == 0u || value < minimum || (value == minimum && index < minimumIndex)) {
+                minimum = value;
+                minimumIndex = index;
+            }
+
+            if (hasValue == 0u || value > maximum || (value == maximum && index < maximumIndex)) {
+                maximum = value;
+                maximumIndex = index;
+            }
+
+            hasValue = 1u;
+        }
+
+        index += ${decimationWorkgroupSize}u;
+    }
+
+    minimums[lane] = minimum;
+    maximums[lane] = maximum;
+    minimumIndices[lane] = minimumIndex;
+    maximumIndices[lane] = maximumIndex;
+    valid[lane] = hasValue;
+    nanSeen[lane] = hasNan;
+    nanIndices[lane] = nanIndex;
+    workgroupBarrier();
+
+    var stride = ${decimationWorkgroupSize / 2}u;
+    while (stride > 0u) {
+        if (lane < stride && valid[lane + stride] != 0u) {
+            let other = lane + stride;
+
+            if (valid[lane] == 0u || minimums[other] < minimums[lane] ||
+                (minimums[other] == minimums[lane] && minimumIndices[other] < minimumIndices[lane])) {
+                minimums[lane] = minimums[other];
+                minimumIndices[lane] = minimumIndices[other];
+            }
+
+            if (valid[lane] == 0u || maximums[other] > maximums[lane] ||
+                (maximums[other] == maximums[lane] && maximumIndices[other] < maximumIndices[lane])) {
+                maximums[lane] = maximums[other];
+                maximumIndices[lane] = maximumIndices[other];
+            }
+
+            valid[lane] = 1u;
+        }
+
+        if (lane < stride) {
+            if (nanSeen[lane + stride] != 0u &&
+                (nanSeen[lane] == 0u || nanIndices[lane + stride] < nanIndices[lane])) {
+                nanIndices[lane] = nanIndices[lane + stride];
+            }
+
+            nanSeen[lane] |= nanSeen[lane + stride];
+        }
+
+        workgroupBarrier();
+        stride /= 2u;
+    }
+
+    if (lane == 0u) {
+        let outputIndex = bucket * 2u + 1u;
+
+        if (bucket == 0u) {
+            output[0] = vec2f(0.0, source[params.first]);
+        }
+
+        if (valid[0] == 0u || nanSeen[0] != 0u) {
+            let nan = source[nanIndices[0]];
+            output[outputIndex] = vec2f(f32(startOffset), nan);
+            output[outputIndex + 1u] = vec2f(f32(endOffset), nan);
+        } else if (minimumIndices[0] <= maximumIndices[0]) {
+            output[outputIndex] = vec2f(f32(minimumIndices[0] - params.first), minimums[0]);
+            output[outputIndex + 1u] = vec2f(f32(maximumIndices[0] - params.first), maximums[0]);
+        } else {
+            output[outputIndex] = vec2f(f32(maximumIndices[0] - params.first), maximums[0]);
+            output[outputIndex + 1u] = vec2f(f32(minimumIndices[0] - params.first), minimums[0]);
+        }
+
+        if (bucket + 1u == params.bucketCount) {
+            let last = params.first + params.visibleLength - 1u;
+            output[outputIndex + 2u] = vec2f(f32(params.visibleLength - 1u), source[last]);
+        }
+    }
+}
+`;
+
     function valueOf(source, name) {
         if (!source)
             return undefined;
@@ -181,18 +356,23 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         ];
     }
 
-    function createYVector(values) {
-        if (!values)
-            return new Float64Array(0);
+    // Bytes arrive already encoded as 32-bit floats (see Chart.razor.cs
+    // ToBytes), so this is a plain reinterpretation of the buffer - a
+    // zero-copy view when 4-byte aligned (the common case), and a single
+    // native (non-scripted) copy otherwise. No manual per-element
+    // conversion loop is needed here anymore.
+    function toFloat32Array(bytes) {
+        if (!bytes)
+            return new Float32Array(0);
 
-        if (values instanceof Uint8Array) {
-            if (values.byteOffset % 8 === 0)
-                return new Float64Array(values.buffer, values.byteOffset, values.byteLength / 8);
+        if (bytes instanceof Uint8Array) {
+            if (bytes.byteOffset % 4 === 0)
+                return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
 
-            return new Float64Array(values.slice().buffer);
+            return new Float32Array(bytes.slice().buffer);
         }
 
-        return new Float64Array(values);
+        return new Float32Array(bytes);
     }
 
     function ensureCanvasSize(canvas) {
@@ -245,6 +425,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
             const context = canvas.getContext('webgpu');
             const format = navigator.gpu.getPreferredCanvasFormat();
             const module = device.createShaderModule({ code: shader });
+            const decimationModule = device.createShaderModule({ code: decimationShader });
             const pipeline = device.createRenderPipeline({
                 layout: 'auto',
                 vertex: {
@@ -272,7 +453,24 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
                 },
                 primitive: { topology: 'triangle-list' },
             });
-            instance = { canvas, context, device, format, pipeline, seriesBuffers: new Map(), drawResources: [] };
+            const decimationPipeline = device.createComputePipeline({
+                layout: 'auto',
+                compute: {
+                    module: decimationModule,
+                    entryPoint: 'decimate',
+                },
+            });
+            instance = {
+                canvas,
+                context,
+                device,
+                format,
+                pipeline,
+                decimationPipeline,
+                seriesBuffers: new Map(),
+                drawResources: [],
+                uploadGenerations: new Map(),
+            };
             instances.set(chartId, instance);
             pendingInstances.delete(chartId);
             return instance;
@@ -286,17 +484,18 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         return `${id}:${version}:${length}`;
     }
 
+    function destroySeriesBuffer(cached) {
+        cached.buffer.destroy();
+        cached.decimation?.outputBuffer.destroy();
+        cached.decimation?.paramsBuffer.destroy();
+    }
+
     function cacheSeriesBuffer(instance, id, version, length, valuesBytes) {
         const key = getSeriesKey(id, version, length);
-        const y = createYVector(valuesBytes);
+        const data = toFloat32Array(valuesBytes);
 
-        if (y.length < 2)
+        if (data.length < 2)
             return null;
-
-        const data = new Float32Array(y.length);
-
-        for (let i = 0; i < y.length; i++)
-            data[i] = y[i];
 
         const buffer = instance.device.createBuffer({
             size: data.byteLength,
@@ -307,12 +506,12 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
 
         for (const [existingKey, existing] of instance.seriesBuffers) {
             if (existing.id === id && existingKey !== key) {
-                existing.buffer.destroy();
+                destroySeriesBuffer(existing);
                 instance.seriesBuffers.delete(existingKey);
             }
         }
 
-        const cachedSeries = { id, buffer, length: data.length };
+        const cachedSeries = { id, buffer, pointBuffer: buffer, length: data.length, dataMode: 0 };
         instance.seriesBuffers.set(key, cachedSeries);
         return cachedSeries;
     }
@@ -345,6 +544,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
             entries: [
                 { binding: 0, resource: { buffer: uniformBuffer } },
                 { binding: 1, resource: { buffer: seriesBuffer.buffer } },
+                { binding: 2, resource: { buffer: seriesBuffer.pointBuffer } },
             ],
         });
 
@@ -395,7 +595,76 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         return { first, segmentCount: visibleLength - 1, zoomedLeft, dx };
     }
 
-    function writeUniforms(instance, uniformBuffer, payload, series, plot, zoomInfo, width, height, dpr, mode) {
+    function getRenderBuffer(instance, source, zoomInfo, plot, encoder) {
+        const visibleLength = zoomInfo.segmentCount + 1;
+        const bucketCount = Math.min(maxDecimationBuckets, Math.max(2, Math.ceil(plot.plotWidth)));
+
+        if (visibleLength <= bucketCount * decimationFactor)
+            return { seriesBuffer: source, zoomInfo };
+
+        let decimation = source.decimation;
+        const outputLength = bucketCount * 2 + 2;
+        const outputSize = outputLength * 2 * Float32Array.BYTES_PER_ELEMENT;
+
+        if (!decimation || decimation.bucketCount !== bucketCount) {
+            decimation?.outputBuffer.destroy();
+            decimation?.paramsBuffer.destroy();
+
+            const outputBuffer = instance.device.createBuffer({
+                size: outputSize,
+                usage: GPUBufferUsage.STORAGE,
+            });
+            const paramsBuffer = instance.device.createBuffer({
+                size: 16,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            });
+            const bindGroup = instance.device.createBindGroup({
+                layout: instance.decimationPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: { buffer: source.buffer } },
+                    { binding: 1, resource: { buffer: outputBuffer } },
+                    { binding: 2, resource: { buffer: paramsBuffer } },
+                ],
+            });
+
+            decimation = {
+                bucketCount,
+                outputBuffer,
+                paramsBuffer,
+                bindGroup,
+                renderBuffer: {
+                    buffer: source.buffer,
+                    pointBuffer: outputBuffer,
+                    length: outputLength,
+                    dataMode: 1,
+                },
+            };
+            source.decimation = decimation;
+        }
+
+        instance.device.queue.writeBuffer(
+            decimation.paramsBuffer,
+            0,
+            new Uint32Array([zoomInfo.first, visibleLength, bucketCount, source.length]));
+
+        const pass = encoder.beginComputePass();
+        pass.setPipeline(instance.decimationPipeline);
+        pass.setBindGroup(0, decimation.bindGroup);
+        pass.dispatchWorkgroups(bucketCount);
+        pass.end();
+
+        return {
+            seriesBuffer: decimation.renderBuffer,
+            zoomInfo: {
+                first: 0,
+                segmentCount: outputLength - 1,
+                zoomedLeft: zoomInfo.zoomedLeft,
+                dx: zoomInfo.dx,
+            },
+        };
+    }
+
+    function writeUniforms(instance, uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, mode) {
         const axisMin = valueOf(series, 'AxisMin') ?? 0;
         const axisMax = valueOf(series, 'AxisMax') ?? 1;
         const axisRange = axisMax - axisMin;
@@ -430,6 +699,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         floats[19] = color[3];
         uints[20] = zoomInfo.first;
         uints[21] = mode;
+        uints[22] = seriesBuffer.dataMode ?? 0;
 
         instance.device.queue.writeBuffer(uniformBuffer, 0, data);
         return true;
@@ -441,7 +711,13 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         if (!instance)
             throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
 
+        const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
+        instance.uploadGenerations.set(id, generation);
         const bytes = new Uint8Array(await streamReference.arrayBuffer());
+
+        if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
+            return;
+
         cacheSeriesBuffer(instance, id, version, length, bytes);
     }
 
@@ -462,26 +738,10 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
         });
 
         const encoder = device.createCommandEncoder();
-        const pass = encoder.beginRenderPass({
-            colorAttachments: [{
-                view: context.getCurrentTexture().createView(),
-                loadOp: 'clear',
-                storeOp: 'store',
-                clearValue: { r: 0, g: 0, b: 0, a: 0 },
-            }],
-        });
+        const renderItems = [];
 
         if (plot) {
             const seriesList = valueOf(payload, 'Series') ?? [];
-
-            pass.setPipeline(pipeline);
-            pass.setScissorRect(
-                Math.max(0, Math.floor(plot.plotLeft)),
-                Math.max(0, Math.floor(plot.plotTop)),
-                Math.max(1, Math.ceil(plot.plotWidth)),
-                Math.max(1, Math.ceil(plot.plotHeight)));
-
-            let drawIndex = 0;
 
             for (const series of seriesList) {
                 const cached = getSeriesBuffer(instance, series);
@@ -494,16 +754,41 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
                 if (!zoomInfo)
                     continue;
 
-                const fillResources = getDrawResources(instance, cached, drawIndex++);
+                const renderItem = getRenderBuffer(instance, cached, zoomInfo, plot, encoder);
+                renderItems.push({ series, ...renderItem });
+            }
+        }
 
-                if (writeUniforms(instance, fillResources.uniformBuffer, payload, series, plot, zoomInfo, width, height, dpr, 0)) {
+        const pass = encoder.beginRenderPass({
+            colorAttachments: [{
+                view: context.getCurrentTexture().createView(),
+                loadOp: 'clear',
+                storeOp: 'store',
+                clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            }],
+        });
+
+        if (plot) {
+            pass.setPipeline(pipeline);
+            pass.setScissorRect(
+                Math.max(0, Math.floor(plot.plotLeft)),
+                Math.max(0, Math.floor(plot.plotTop)),
+                Math.max(1, Math.ceil(plot.plotWidth)),
+                Math.max(1, Math.ceil(plot.plotHeight)));
+
+            let drawIndex = 0;
+
+            for (const { series, seriesBuffer, zoomInfo } of renderItems) {
+                const fillResources = getDrawResources(instance, seriesBuffer, drawIndex++);
+
+                if (writeUniforms(instance, fillResources.uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, 0)) {
                     pass.setBindGroup(0, fillResources.bindGroup);
                     pass.draw(zoomInfo.segmentCount * fillVerticesPerSegment);
                 }
 
-                const lineResources = getDrawResources(instance, cached, drawIndex++);
+                const lineResources = getDrawResources(instance, seriesBuffer, drawIndex++);
 
-                if (writeUniforms(instance, lineResources.uniformBuffer, payload, series, plot, zoomInfo, width, height, dpr, 1)) {
+                if (writeUniforms(instance, lineResources.uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, 1)) {
                     pass.setBindGroup(0, lineResources.bindGroup);
                     pass.draw(zoomInfo.segmentCount * lineVerticesPerSegment);
                 }
@@ -529,7 +814,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
 
             if (instance) {
                 for (const cached of instance.seriesBuffers.values())
-                    cached.buffer.destroy();
+                    destroySeriesBuffer(cached);
 
                 for (const resources of instance.drawResources)
                     resources.uniformBuffer.destroy();

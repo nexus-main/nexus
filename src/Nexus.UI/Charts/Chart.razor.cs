@@ -357,7 +357,7 @@ public partial class Chart : IDisposable
                     !HasSeriesVersion(_sendingSeriesVersions, lineSeries.Id, dataVersion, length))
                 {
                     _sendingSeriesVersions[lineSeries.Id] = (dataVersion, length);
-                    _ = SendSeriesDataAsync(lineSeries, dataVersion, length);
+                    _ = SendSeriesBytesAsync(lineSeries.Id, lineSeries.Data, dataVersion, length);
                 }
 
                 return new
@@ -407,25 +407,25 @@ public partial class Chart : IDisposable
             });
     }
 
-    private async Task SendSeriesDataAsync(LineSeries lineSeries, int dataVersion, int length)
+    private async Task SendSeriesBytesAsync(string seriesId, double[] data, int dataVersion, int length)
     {
         var sent = false;
 
         try
         {
-            var bytes = GetSeriesBytes(lineSeries, dataVersion, length);
+            var bytes = GetSeriesBytes(seriesId, data, dataVersion, length);
             using var stream = new MemoryStream(bytes, writable: false);
             using var streamReference = new DotNetStreamReference(stream);
 
             await JSRuntime.InvokeVoidAsync(
                 "nexus.chartWebGpu.loadSeriesData",
                 _chartId,
-                lineSeries.Id,
+                seriesId,
                 dataVersion,
                 length,
                 streamReference);
 
-            _sentSeriesVersions[lineSeries.Id] = (dataVersion, length);
+            _sentSeriesVersions[seriesId] = (dataVersion, length);
             sent = true;
         }
         catch (ObjectDisposedException) when (_disposed)
@@ -439,14 +439,14 @@ public partial class Chart : IDisposable
         }
         finally
         {
-            if (HasSeriesVersion(_sendingSeriesVersions, lineSeries.Id, dataVersion, length))
-                _sendingSeriesVersions.Remove(lineSeries.Id);
+            if (HasSeriesVersion(_sendingSeriesVersions, seriesId, dataVersion, length))
+                _sendingSeriesVersions.Remove(seriesId);
 
-            if (_seriesBytes.TryGetValue(lineSeries.Id, out var cached) &&
+            if (_seriesBytes.TryGetValue(seriesId, out var cached) &&
                 cached.Version == dataVersion &&
                 cached.Length == length)
             {
-                _seriesBytes.Remove(lineSeries.Id);
+                _seriesBytes.Remove(seriesId);
             }
 
             if (sent && !_disposed && OperatingSystem.IsBrowser())
@@ -454,17 +454,17 @@ public partial class Chart : IDisposable
         }
     }
 
-    private byte[] GetSeriesBytes(LineSeries lineSeries, int dataVersion, int length)
+    private byte[] GetSeriesBytes(string seriesId, double[] data, int dataVersion, int length)
     {
-        if (_seriesBytes.TryGetValue(lineSeries.Id, out var cached) &&
+        if (_seriesBytes.TryGetValue(seriesId, out var cached) &&
             cached.Version == dataVersion &&
             cached.Length == length)
         {
             return cached.Bytes;
         }
 
-        var bytes = ToBytes(lineSeries.Data);
-        _seriesBytes[lineSeries.Id] = (dataVersion, length, bytes);
+        var bytes = ToBytes(data);
+        _seriesBytes[seriesId] = (dataVersion, length, bytes);
         return bytes;
     }
 
@@ -479,9 +479,21 @@ public partial class Chart : IDisposable
                version.Length == length;
     }
 
+    /* Encodes as 32-bit floats rather than the source 64-bit doubles: the
+     * GPU buffer is Float32 anyway, so sending Float64 previously doubled the
+     * Blazor JS-interop payload for no benefit, and forced the JS side to run
+     * a manual, single-threaded, main-thread-blocking element-by-element
+     * downcast loop over every sample after receiving it. Converting here
+     * instead lets the JS side treat the received bytes as a ready-to-use
+     * Float32Array with no per-element work at all. */
     private static byte[] ToBytes(double[] values)
     {
-        return MemoryMarshal.AsBytes(values.AsSpan()).ToArray();
+        var floats = new float[values.Length];
+
+        for (var i = 0; i < values.Length; i++)
+            floats[i] = (float)values[i];
+
+        return MemoryMarshal.AsBytes(floats.AsSpan()).ToArray();
     }
 
     private void DrawAuxiliary(Position relativePosition)
