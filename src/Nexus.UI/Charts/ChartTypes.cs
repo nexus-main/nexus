@@ -27,6 +27,15 @@ public record LineSeries(
     public bool Show { get; set; } = true;
     internal string Id { get; } = Guid.NewGuid().ToString();
     internal SKColor Color { get; set; }
+    internal SyntheticSeriesKind? SyntheticKind { get; init; }
+    internal int SyntheticLength { get; init; }
+}
+
+internal enum SyntheticSeriesKind
+{
+    WindSpeed,
+    Temperature,
+    Pressure
 }
 
 internal record struct Position(

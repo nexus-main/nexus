@@ -488,7 +488,6 @@ fn reduceRange(
             return pending;
 
         const promise = (async () => {
-            const startedAt = performance.now();
             const canvas = document.getElementById(`series_${chartId}`);
 
             if (!canvas || !navigator.gpu) {
@@ -496,19 +495,19 @@ fn reduceRange(
                 return null;
             }
 
-            const adapterStartedAt = performance.now();
             const adapter = await navigator.gpu.requestAdapter();
-            console.log(`[chart-perf] WebGPU adapter: ${(performance.now() - adapterStartedAt).toFixed(1)} ms`);
 
             if (!adapter) {
                 pendingInstances.delete(chartId);
                 return null;
             }
 
-            const deviceStartedAt = performance.now();
-            const device = await adapter.requestDevice();
-            console.log(`[chart-perf] WebGPU device: ${(performance.now() - deviceStartedAt).toFixed(1)} ms`);
-
+            const device = await adapter.requestDevice({
+                requiredLimits: {
+                    maxBufferSize: adapter.limits.maxBufferSize,
+                    maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+                },
+            });
             // If dispose was called while we were waiting, abort and clean up.
             if (!pendingInstances.has(chartId)) {
                 device.destroy();
@@ -519,7 +518,6 @@ fn reduceRange(
             const module = device.createShaderModule({ code: shader });
             const decimationModule = device.createShaderModule({ code: decimationShader });
             const rangeModule = device.createShaderModule({ code: rangeShader });
-            const pipelinesStartedAt = performance.now();
             const pipeline = device.createRenderPipeline({
                 layout: 'auto',
                 vertex: {
@@ -561,7 +559,6 @@ fn reduceRange(
                     entryPoint: 'reduceRange',
                 },
             });
-            console.log(`[chart-perf] WebGPU pipelines: ${(performance.now() - pipelinesStartedAt).toFixed(1)} ms`);
             instance = {
                 canvas,
                 device,
@@ -573,11 +570,9 @@ fn reduceRange(
                 targetResources: new Map(),
                 previewRenderKeys: new Map(),
                 uploadGenerations: new Map(),
-                renderIndex: 0,
             };
             instances.set(chartId, instance);
             pendingInstances.delete(chartId);
-            console.log(`[chart-perf] WebGPU initialization total: ${(performance.now() - startedAt).toFixed(1)} ms`);
             return instance;
         })();
 
@@ -599,7 +594,6 @@ fn reduceRange(
     }
 
     function cacheSeriesBuffer(instance, id, version, length, valuesBytes) {
-        const startedAt = performance.now();
         const key = getSeriesKey(id, version, length);
         const data = toFloat32Array(valuesBytes);
 
@@ -611,9 +605,7 @@ fn reduceRange(
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
-        const writeStartedAt = performance.now();
         instance.device.queue.writeBuffer(buffer, 0, data);
-        const writeMilliseconds = performance.now() - writeStartedAt;
 
         for (const [existingKey, existing] of instance.seriesBuffers) {
             if (existing.id === id && existingKey !== key) {
@@ -624,10 +616,69 @@ fn reduceRange(
 
         const cachedSeries = { id, buffer, pointBuffer: buffer, length: data.length, dataMode: 0, decimations: new Map() };
         instance.seriesBuffers.set(key, cachedSeries);
-        console.log(`[chart-perf] series ${id}: GPU buffer+write submitted ${(performance.now() - startedAt).toFixed(1)} ms (writeBuffer ${writeMilliseconds.toFixed(1)} ms), ${(data.byteLength / 1048576).toFixed(1)} MiB`);
-        instance.device.queue.onSubmittedWorkDone().then(() =>
-            console.log(`[chart-perf] series ${id}: GPU upload queue settled ${(performance.now() - startedAt).toFixed(1)} ms`));
         return cachedSeries;
+    }
+
+    async function generateSyntheticSeriesAsync(chartId, id, version, length, kind) {
+        const instance = await getInstance(chartId);
+
+        if (!instance)
+            throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
+
+        const byteLength = length * Float32Array.BYTES_PER_ELEMENT;
+
+        if (byteLength > instance.device.limits.maxBufferSize ||
+            byteLength > instance.device.limits.maxStorageBufferBindingSize) {
+            throw new Error(
+                `${length.toLocaleString()} samples require a ${Math.ceil(byteLength / 1048576)} MiB storage buffer, ` +
+                `but this GPU supports ${Math.floor(Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize) / 1048576)} MiB`);
+        }
+
+        const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
+        instance.uploadGenerations.set(id, generation);
+        const buffer = instance.device.createBuffer({
+            size: byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        const worker = new Worker('js/chart.synthetic.worker.js');
+
+        try {
+            await new Promise((resolve, reject) => {
+                worker.onerror = event => reject(new Error(event.message));
+                worker.onmessage = event => {
+                    if (event.data.complete) {
+                        resolve(event.data.milliseconds);
+                        return;
+                    }
+
+                    if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation) {
+                        reject(new Error(`Synthetic generation superseded for series ${id}`));
+                        return;
+                    }
+
+                    instance.device.queue.writeBuffer(buffer, event.data.offset * Float32Array.BYTES_PER_ELEMENT, event.data.values);
+                };
+                worker.postMessage({ length, kind, chunkLength: 4 * 1024 * 1024 });
+            });
+            await instance.device.queue.onSubmittedWorkDone();
+
+            for (const [existingKey, existing] of instance.seriesBuffers) {
+                if (existing.id === id) {
+                    destroySeriesBuffer(existing);
+                    instance.seriesBuffers.delete(existingKey);
+                }
+            }
+
+            const cached = { id, buffer, pointBuffer: buffer, length, dataMode: 0, decimations: new Map() };
+            instance.seriesBuffers.set(getSeriesKey(id, version, length), cached);
+            const range = await calculateSeriesRangeAsync(instance, buffer, length);
+            return range;
+        } catch (error) {
+            buffer.destroy();
+            throw error;
+        } finally {
+            worker.terminate();
+        }
     }
 
     function getSeriesBuffer(instance, series) {
@@ -676,7 +727,6 @@ fn reduceRange(
     }
 
     async function calculateSeriesRangeAsync(instance, source, length) {
-        const startedAt = performance.now();
         const workgroupCount = Math.min(maxRangeWorkgroups, Math.max(1, Math.ceil(length / rangeWorkgroupSize)));
         const resultSize = workgroupCount * 16;
         const resultBuffer = instance.device.createBuffer({ size: resultSize, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
@@ -725,7 +775,6 @@ fn reduceRange(
                 hasValue = true;
             }
 
-            console.log(`[chart-perf] GPU range: ${(performance.now() - startedAt).toFixed(1)} ms, ${length.toLocaleString()} points, ${workgroupCount} workgroups`);
             return { hasValue, minimum, maximum };
         } finally {
             if (readbackBuffer.mapState === 'mapped')
@@ -924,18 +973,14 @@ fn reduceRange(
     }
 
     async function loadSeriesDataAsync(chartId, id, version, length, streamReference) {
-        const startedAt = performance.now();
         const instance = await getInstance(chartId);
-        const instanceMilliseconds = performance.now() - startedAt;
 
         if (!instance)
             throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
 
         const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
         instance.uploadGenerations.set(id, generation);
-        const streamStartedAt = performance.now();
         const bytes = new Uint8Array(await streamReference.arrayBuffer());
-        const streamMilliseconds = performance.now() - streamStartedAt;
 
         if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
             return;
@@ -948,12 +993,10 @@ fn reduceRange(
         if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
             return { hasValue: false, minimum: 0, maximum: 0 };
 
-        console.log(`[chart-perf] series ${id}: getInstance ${instanceMilliseconds.toFixed(1)} ms; stream ${(streamMilliseconds).toFixed(1)} ms; JS load total ${(performance.now() - startedAt).toFixed(1)} ms`);
         return range;
     }
 
     async function renderSeriesAsync(chartId, payload) {
-        const startedAt = performance.now();
         const instance = await getInstance(chartId);
 
         if (!instance)
@@ -967,7 +1010,6 @@ fn reduceRange(
             return;
 
         const context = canvas.getContext('webgpu');
-        const renderIndex = ++instance.renderIndex;
         const { width, height, dpr } = ensureCanvasSize(canvas);
         const isPreview = valueOf(payload, 'Preview') ?? false;
         let previewRenderKey = null;
@@ -1046,22 +1088,20 @@ fn reduceRange(
         }
 
         pass.end();
-        const submitStartedAt = performance.now();
         device.queue.submit([encoder.finish()]);
 
         if (previewRenderKey !== null)
             instance.previewRenderKeys.set(target, previewRenderKey);
 
-        const submittedAt = performance.now();
-        console.log(`[chart-perf] render ${renderIndex}: encoded+submitted ${(submittedAt - startedAt).toFixed(1)} ms; submit ${(submittedAt - submitStartedAt).toFixed(1)} ms; ${renderItems.length} series`);
-        device.queue.onSubmittedWorkDone().then(() =>
-            console.log(`[chart-perf] render ${renderIndex}: GPU queue settled ${(performance.now() - submittedAt).toFixed(1)} ms after submit, ${(performance.now() - startedAt).toFixed(1)} ms total`));
     }
 
     window.nexus ??= {};
     window.nexus.chartWebGpu = {
         loadSeriesData(chartId, id, version, length, streamReference) {
             return loadSeriesDataAsync(chartId, id, version, length, streamReference);
+        },
+        generateSyntheticSeries(chartId, id, version, length, kind) {
+            return generateSyntheticSeriesAsync(chartId, id, version, length, kind);
         },
         renderSeries(chartId, payload) {
             renderSeriesAsync(chartId, payload).catch(error => console.error('[chart-webgpu] render failed', error));

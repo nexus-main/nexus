@@ -7,7 +7,6 @@ using Microsoft.JSInterop;
 using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
-using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -36,6 +35,10 @@ public partial class Chart : IDisposable
 
     private SKRect _oldZoomBox;
     private SKRect _zoomBox;
+    private double _oldZoomLeft;
+    private double _oldZoomRight = 1;
+    private double _zoomLeft;
+    private double _zoomRight = 1;
     private DateTime _zoomedBegin;
     private DateTime _zoomedEnd;
 
@@ -43,42 +46,42 @@ public partial class Chart : IDisposable
 
     /* navigator */
     private string NavigatorWindowLeftStyle =>
-        $"{(_zoomBox.Left * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+        $"{(_zoomLeft * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
 
     private string NavigatorWindowWidthStyle =>
-        $"{((_zoomBox.Right - _zoomBox.Left) * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+        $"{((_zoomRight - _zoomLeft) * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
 
     private string NavigatorWindowRightStyle =>
-        $"{(_zoomBox.Right * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+        $"{(_zoomRight * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
 
     private string NavigatorDataLeft =>
-        _zoomBox.Left.ToString("0.########", CultureInfo.InvariantCulture);
+        _zoomLeft.ToString("R", CultureInfo.InvariantCulture);
 
     private string NavigatorDataRight =>
-        _zoomBox.Right.ToString("0.########", CultureInfo.InvariantCulture);
+        _zoomRight.ToString("R", CultureInfo.InvariantCulture);
 
-    private float DetailLeft
+    private double DetailLeft
     {
         get
         {
-            var width = _zoomBox.Width;
-            var detailWidth = Math.Min(1f, width * 8f);
-            return Math.Clamp((_zoomBox.Left + _zoomBox.Right - detailWidth) / 2f, 0f, 1f - detailWidth);
+            var width = _zoomRight - _zoomLeft;
+            var detailWidth = Math.Min(1, width * 8);
+            return Math.Clamp((_zoomLeft + _zoomRight - detailWidth) / 2, 0, 1 - detailWidth);
         }
     }
 
-    private float DetailRight => Math.Min(1f, DetailLeft + _zoomBox.Width * 8f);
-    private bool ShowDetailNavigator => _zoomBox.Width < 0.125f;
-    private float DetailWindowLeft => (_zoomBox.Left - DetailLeft) / (DetailRight - DetailLeft);
-    private float DetailWindowRight => (_zoomBox.Right - DetailLeft) / (DetailRight - DetailLeft);
-    private string DetailDataLeft => DetailLeft.ToString("0.########", CultureInfo.InvariantCulture);
-    private string DetailDataRight => DetailRight.ToString("0.########", CultureInfo.InvariantCulture);
-    private string DetailWindowLeftStyle => $"{(DetailWindowLeft * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
-    private string DetailWindowRightStyle => $"{(DetailWindowRight * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
-    private string DetailWindowWidthStyle => $"{((DetailWindowRight - DetailWindowLeft) * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private double DetailRight => Math.Min(1, DetailLeft + (_zoomRight - _zoomLeft) * 8);
+    private bool ShowDetailNavigator => _zoomRight - _zoomLeft < 0.125;
+    private double DetailWindowLeft => (_zoomLeft - DetailLeft) / (DetailRight - DetailLeft);
+    private double DetailWindowRight => (_zoomRight - DetailLeft) / (DetailRight - DetailLeft);
+    private string DetailDataLeft => DetailLeft.ToString("R", CultureInfo.InvariantCulture);
+    private string DetailDataRight => DetailRight.ToString("R", CultureInfo.InvariantCulture);
+    private string DetailWindowLeftStyle => $"{(DetailWindowLeft * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private string DetailWindowRightStyle => $"{(DetailWindowRight * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private string DetailWindowWidthStyle => $"{((DetailWindowRight - DetailWindowLeft) * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
     private string NavigatorDurationLabel => FormatDuration(_zoomedEnd - _zoomedBegin);
-    private string NavigatorRangeLabel => $"{_zoomedBegin:G}  -  {_zoomedEnd:G}";
-    private string DetailRangeLabel => $"{ToTime(DetailLeft):G}  -  {ToTime(DetailRight):G}";
+    private string NavigatorRangeLabel => FormatRange(_zoomedBegin, _zoomedEnd);
+    private string DetailRangeLabel => FormatRange(ToTime(DetailLeft), ToTime(DetailRight));
 
     /* Common */
     private const float TICK_SIZE = 10;
@@ -338,14 +341,16 @@ public partial class Chart : IDisposable
             .Select(item =>
             {
                 var lineSeries = item.LineSeries;
-                var dataVersion = RuntimeHelpers.GetHashCode(lineSeries.Data);
-                var length = lineSeries.Data.Length;
+                var dataVersion = GetSeriesVersion(lineSeries);
+                var length = GetSeriesLength(lineSeries);
 
                 if (!HasSeriesVersion(_sentSeriesVersions, lineSeries.Id, dataVersion, length) &&
                     !HasSeriesVersion(_sendingSeriesVersions, lineSeries.Id, dataVersion, length))
                 {
                     _sendingSeriesVersions[lineSeries.Id] = (dataVersion, length);
-                    transfers.Add(SendSeriesBytesAsync(lineSeries.Id, lineSeries.Data, dataVersion, length));
+                    transfers.Add(lineSeries.SyntheticKind.HasValue
+                        ? GenerateSyntheticSeriesAsync(lineSeries, dataVersion, length)
+                        : SendSeriesBytesAsync(lineSeries.Id, lineSeries.Data, dataVersion, length));
                 }
 
                 return new
@@ -388,8 +393,8 @@ public partial class Chart : IDisposable
                 },
                 Zoom = new
                 {
-                    Left = _zoomBox.Left,
-                    Right = _zoomBox.Right
+                    Left = _zoomLeft,
+                    Right = _zoomRight
                 },
                 LineWidth = 0.7,
                 FillOpacity = 0.10,
@@ -433,7 +438,6 @@ public partial class Chart : IDisposable
 
     private async Task ApplyRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data)
     {
-        var stopwatch = Stopwatch.StartNew();
         SeriesRange[] ranges;
 
         try
@@ -445,8 +449,6 @@ public partial class Chart : IDisposable
             Console.Error.WriteLine($"[chart-webgpu] series upload or GPU range calculation failed: {exception}");
             return;
         }
-
-        Console.WriteLine($"[chart-perf] transfer batch complete: {stopwatch.Elapsed.TotalMilliseconds:F1} ms, {transfers.Count} series");
 
         if (_disposed || !ReferenceEquals(_axisData, data))
             return;
@@ -473,8 +475,8 @@ public partial class Chart : IDisposable
                     var validRanges = group
                         .Select(series => (Series: series, Range: _seriesRanges.GetValueOrDefault(series.Id)))
                         .Where(item => item.Range.HasValue &&
-                            item.Range.Version == RuntimeHelpers.GetHashCode(item.Series.Data) &&
-                            item.Range.Length == item.Series.Data.Length)
+                            item.Range.Version == GetSeriesVersion(item.Series) &&
+                            item.Range.Length == GetSeriesLength(item.Series))
                         .Select(item => item.Range)
                         .ToArray();
                     var minimum = validRanges.Length == 0 ? 0 : validRanges.Min(range => range.Minimum);
@@ -494,13 +496,10 @@ public partial class Chart : IDisposable
     {
         try
         {
-            var stopwatch = Stopwatch.StartNew();
             var bytes = GetSeriesBytes(seriesId, data, dataVersion, length);
-            var conversionMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
             using var stream = new MemoryStream(bytes, writable: false);
             using var streamReference = new DotNetStreamReference(stream);
 
-            stopwatch.Restart();
             var range = await JSRuntime.InvokeAsync<GpuRange>(
                 "nexus.chartWebGpu.loadSeriesData",
                 _chartId,
@@ -508,8 +507,6 @@ public partial class Chart : IDisposable
                 dataVersion,
                 length,
                 streamReference);
-            Console.WriteLine($"[chart-perf] series {seriesId}: f64->f32 {conversionMilliseconds:F1} ms; JS stream+upload call {stopwatch.Elapsed.TotalMilliseconds:F1} ms; {length:N0} points, {bytes.LongLength / (1024d * 1024d):F1} MiB");
-
             _sentSeriesVersions[seriesId] = (dataVersion, length);
             return new SeriesRange(seriesId, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
         }
@@ -538,6 +535,39 @@ public partial class Chart : IDisposable
             }
         }
     }
+
+    private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, int length)
+    {
+        try
+        {
+            var range = await JSRuntime.InvokeAsync<GpuRange>(
+                "nexus.chartWebGpu.generateSyntheticSeries",
+                _chartId,
+                series.Id,
+                dataVersion,
+                length,
+                series.SyntheticKind!.Value.ToString());
+            _sentSeriesVersions[series.Id] = (dataVersion, length);
+            return new SeriesRange(series.Id, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
+        }
+        catch (JSException exception)
+        {
+            throw new InvalidOperationException($"WebGPU synthetic generation failed for series '{series.Id}'.", exception);
+        }
+        finally
+        {
+            if (HasSeriesVersion(_sendingSeriesVersions, series.Id, dataVersion, length))
+                _sendingSeriesVersions.Remove(series.Id);
+        }
+    }
+
+    private static int GetSeriesLength(LineSeries series) =>
+        series.SyntheticKind.HasValue ? series.SyntheticLength : series.Data.Length;
+
+    private static int GetSeriesVersion(LineSeries series) =>
+        series.SyntheticKind.HasValue
+            ? HashCode.Combine(series.SyntheticKind.Value, series.SyntheticLength)
+            : RuntimeHelpers.GetHashCode(series.Data);
 
     private byte[] GetSeriesBytes(string seriesId, double[] data, int dataVersion, int length)
     {
@@ -606,19 +636,22 @@ public partial class Chart : IDisposable
 
             foreach (var series in lineSeries)
             {
-                var indexLeft = _zoomBox.Left * series.Data.Length;
-                var indexRight = _zoomBox.Right * series.Data.Length;
+                var seriesLength = GetSeriesLength(series);
+                var indexLeft = _zoomLeft * seriesLength;
+                var indexRight = _zoomRight * seriesLength;
                 var indexRange = indexRight - indexLeft;
                 var index = indexLeft + relativePosition.X * indexRange;
                 var snappedIndex = (int)Math.Round(index, MidpointRounding.AwayFromZero);
 
-                if (series.Show && snappedIndex < series.Data.Length)
+                if (series.Show && snappedIndex < seriesLength)
                 {
                     var x = (snappedIndex - indexLeft) / indexRange;
-                    var value = (float)series.Data[snappedIndex];
+                    var value = series.SyntheticKind.HasValue
+                        ? GetSyntheticValue(series.SyntheticKind.Value, snappedIndex)
+                        : (float)series.Data[snappedIndex];
                     var y = (value - axisInfo.Min) / (axisInfo.Max - axisInfo.Min);
 
-                    if (float.IsFinite(x) && 0 <= x && x <= 1 &&
+                    if (double.IsFinite(x) && 0 <= x && x <= 1 &&
                         float.IsFinite(y) && 0 <= y && y <= 1)
                     {
                         JSRuntime.InvokeVoid("nexus.chart.translate", _chartId, $"pointer_{series.Id}", x, 1 - y);
@@ -660,6 +693,25 @@ public partial class Chart : IDisposable
         };
     }
 
+    private static float GetSyntheticValue(SyntheticSeriesKind kind, int index)
+    {
+        if (kind == SyntheticSeriesKind.WindSpeed)
+        {
+            if (index is 0 or 5 or 6 or 10 or 11 or 12 or 15 or 16 or 17 or 18)
+                return float.NaN;
+
+            return index / 4f;
+        }
+
+        var value = unchecked((uint)(index + 1));
+        value = unchecked((value ^ (value >> 16)) * 0x7feb352dU);
+        value = unchecked((value ^ (value >> 15)) * 0x846ca68bU);
+        var random = (value ^ (value >> 16)) / 4294967296d;
+        return kind == SyntheticSeriesKind.Temperature
+            ? (float)(random * 10 - 5)
+            : (float)(random * 100 + 1000);
+    }
+
     private readonly record struct GpuRange(bool HasValue, float Minimum, float Maximum);
     private readonly record struct SeriesRange(string SeriesId, int Version, int Length, bool HasValue, float Minimum, float Maximum);
 
@@ -685,23 +737,23 @@ public partial class Chart : IDisposable
     private void ApplyZoom(SKRect zoomBox)
     {
         /* zoom box */
-        var oldXRange = _oldZoomBox.Right - _oldZoomBox.Left;
+        var oldXRange = _oldZoomRight - _oldZoomLeft;
         var oldYRange = _oldZoomBox.Bottom - _oldZoomBox.Top;
 
+        var newLeft = Math.Max(0, _oldZoomLeft + oldXRange * zoomBox.Left);
+        var newRight = Math.Min(1, _oldZoomLeft + oldXRange * zoomBox.Right);
         var newZoomBox = new SKRect(
-            left: Math.Max(0, _oldZoomBox.Left + oldXRange * zoomBox.Left),
+            left: (float)newLeft,
             top: Math.Max(0, _oldZoomBox.Top + oldYRange * zoomBox.Top),
-            right: Math.Min(1, _oldZoomBox.Left + oldXRange * zoomBox.Right),
+            right: (float)newRight,
             bottom: Math.Min(1, _oldZoomBox.Top + oldYRange * zoomBox.Bottom));
 
-        if (newZoomBox.Width < 1e-6 || newZoomBox.Height < 1e-6)
+        if (newRight - newLeft < MinimumHorizontalZoom || newZoomBox.Height < 1e-6)
             return;
 
         /* time range */
-        var timeRange = LineSeriesData.End - LineSeriesData.Begin;
-
-        _zoomedBegin = LineSeriesData.Begin + timeRange * newZoomBox.Left;
-        _zoomedEnd = LineSeriesData.Begin + timeRange * newZoomBox.Right;
+        _zoomedBegin = ToTime(newLeft);
+        _zoomedEnd = ToTime(newRight);
 
         /* data range */
         foreach (var axesEntry in _axesMap)
@@ -715,6 +767,8 @@ public partial class Chart : IDisposable
 
         _oldZoomBox = newZoomBox;
         _zoomBox = newZoomBox;
+        _oldZoomLeft = _zoomLeft = newLeft;
+        _oldZoomRight = _zoomRight = newRight;
     }
 
     private void ResetZoom()
@@ -722,6 +776,8 @@ public partial class Chart : IDisposable
         /* zoom box */
         _oldZoomBox = _defaultZoomBox;
         _zoomBox = _defaultZoomBox;
+        _oldZoomLeft = _zoomLeft = 0;
+        _oldZoomRight = _zoomRight = 1;
 
         /* time range */
         _zoomedBegin = LineSeriesData.Begin;
@@ -737,28 +793,29 @@ public partial class Chart : IDisposable
         }
     }
 
-    private void SetHorizontalZoom(float left, float right)
+    private void SetHorizontalZoom(double left, double right)
     {
-        left = Math.Clamp(left, 0f, 1f);
-        right = Math.Clamp(right, 0f, 1f);
+        left = Math.Clamp(left, 0, 1);
+        right = Math.Clamp(right, 0, 1);
 
-        if (right - left < 1e-7f)
+        if (right - left < MinimumHorizontalZoom)
             return;
 
-        var newZoomBox = new SKRect(left, _zoomBox.Top, right, _zoomBox.Bottom);
+        var newZoomBox = new SKRect((float)left, _zoomBox.Top, (float)right, _zoomBox.Bottom);
 
-        var timeRange = LineSeriesData.End - LineSeriesData.Begin;
-        _zoomedBegin = LineSeriesData.Begin + timeRange * left;
-        _zoomedEnd = LineSeriesData.Begin + timeRange * right;
+        _zoomedBegin = ToTime(left);
+        _zoomedEnd = ToTime(right);
 
         _oldZoomBox = newZoomBox;
         _zoomBox = newZoomBox;
+        _oldZoomLeft = _zoomLeft = left;
+        _oldZoomRight = _zoomRight = right;
     }
 
     [JSInvokable]
     public void NavigatorZoom(double left, double right)
     {
-        SetHorizontalZoom((float)left, (float)right);
+        SetHorizontalZoom(left, right);
 
         StateHasChanged();
 
@@ -774,14 +831,16 @@ public partial class Chart : IDisposable
         right = Math.Clamp(right, 0, 1);
         bottom = Math.Clamp(bottom, 0, 1);
 
-        if (right - left < 1e-6 || bottom - top < 1e-6)
+        if (right - left < MinimumHorizontalZoom || bottom - top < 1e-6)
             return;
 
         var newZoomBox = new SKRect((float)left, (float)top, (float)right, (float)bottom);
         _oldZoomBox = newZoomBox;
         _zoomBox = newZoomBox;
-        _zoomedBegin = ToTime(newZoomBox.Left);
-        _zoomedEnd = ToTime(newZoomBox.Right);
+        _oldZoomLeft = _zoomLeft = left;
+        _oldZoomRight = _zoomRight = right;
+        _zoomedBegin = ToTime(left);
+        _zoomedEnd = ToTime(right);
 
         foreach (var axisInfo in _axesMap.Keys)
         {
@@ -796,8 +855,13 @@ public partial class Chart : IDisposable
             _skiaView.Invalidate();
     }
 
-    private DateTime ToTime(float position) =>
-        LineSeriesData.Begin + (LineSeriesData.End - LineSeriesData.Begin) * position;
+    private double MinimumHorizontalZoom => 1d / Math.Max(1, (LineSeriesData.End - LineSeriesData.Begin).Ticks);
+
+    private DateTime ToTime(double position)
+    {
+        var rangeTicks = (LineSeriesData.End - LineSeriesData.Begin).Ticks;
+        return LineSeriesData.Begin.AddTicks((long)Math.Round(rangeTicks * position));
+    }
 
     private static string FormatDuration(TimeSpan duration)
     {
@@ -809,9 +873,16 @@ public partial class Chart : IDisposable
             return $"{duration.TotalMinutes:0.##} min";
         if (duration.TotalSeconds >= 1)
             return $"{duration.TotalSeconds:0.##} s";
+        if (duration.TotalMilliseconds >= 1)
+            return $"{duration.TotalMilliseconds:0.###} ms";
+        if (duration.TotalMicroseconds >= 1)
+            return $"{duration.TotalMicroseconds:0.###} us";
 
-        return $"{duration.TotalMilliseconds:0.###} ms";
+        return $"{duration.Ticks * 100} ns";
     }
+
+    private static string FormatRange(DateTime begin, DateTime end) =>
+        $"{begin:yyyy-MM-dd HH:mm:ss.fffffff}  -  {end:yyyy-MM-dd HH:mm:ss.fffffff}";
 
     #endregion
 

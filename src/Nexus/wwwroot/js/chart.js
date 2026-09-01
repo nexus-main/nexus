@@ -234,7 +234,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             e.preventDefault();
             const domainWidth = drag.domainRight - drag.domainLeft;
             const delta = (e.clientX - drag.startX) / drag.rect.width * domainWidth;
-            const minimum = Math.max(1e-6, domainWidth / Math.max(1, drag.rect.width * 4));
+            const minimum = Math.max(Number.EPSILON, domainWidth / Math.max(1, drag.rect.width * 4));
             let left;
             let right;
 
@@ -284,7 +284,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             const step = width * (e.shiftKey ? 0.1 : 0.02) * direction;
 
             if (e.altKey) {
-                const nextRight = clamp(right + step, left + 1e-6, 1);
+                const nextRight = clamp(right + step, left + Number.EPSILON, 1);
                 invokeZoom("NavigatorZoom", [left, nextRight]);
             } else {
                 const nextLeft = clamp(left + step, 0, 1 - width);
