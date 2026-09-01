@@ -45,13 +45,13 @@ public partial class ChartTestPage
             new(
                 "Temperature",
                 "°C",
-                TimeSpan.FromSeconds(1),
+                TimeSpan.FromMilliseconds(500),
                 []) { SyntheticKind = SyntheticSeriesKind.Temperature, SyntheticLength = pointCount },
 
             new(
                 "Pressure",
                 "mbar",
-                TimeSpan.FromSeconds(1),
+                TimeSpan.FromMilliseconds(500),
                 []) { SyntheticKind = SyntheticSeriesKind.Pressure, SyntheticLength = pointCount }
         };
 

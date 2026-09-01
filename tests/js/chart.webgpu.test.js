@@ -225,3 +225,67 @@ test('raw-detail cache evicts least recently used chunks to its budget', async (
     assert.equal(instance.rawChunks.has('second'), true);
     assert.equal(instance.rawCacheBytes, 4);
 });
+
+test('draw resources are trimmed when fewer series are rendered', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    const resources = Array.from({ length: 4 }, () => ({ uniformBuffer: createBuffer(96) }));
+    instance.targetResources.set('series', resources);
+
+    environment.hooks.trimDrawResources(instance, 'series', 2);
+
+    assert.equal(resources.length, 2);
+    assert.equal(instance.targetResources.get('series'), resources);
+
+    environment.hooks.trimDrawResources(instance, 'series', 0);
+    assert.equal(instance.targetResources.has('series'), false);
+});
+
+test('series color preserves its configured alpha', () => {
+    const environment = createEnvironment();
+
+    assert.deepEqual(
+        Array.from(environment.hooks.colorOf({ Color: { Red: 255, Green: 128, Blue: 0, Alpha: 64 } })),
+        [1, 128 / 255, 0, 64 / 255]);
+});
+
+test('gap-preserving reduction reserves three points per bucket plus endpoints', () => {
+    const environment = createEnvironment();
+
+    assert.equal(environment.hooks.reducedPointsPerBucket, 3);
+    assert.equal(environment.hooks.getReducedOutputLength(8), 26);
+});
+
+test('canvas context is configured once and unconfigured when replaced', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    const createCanvas = () => {
+        const context = {
+            configureCalls: 0,
+            unconfigureCalls: 0,
+            configure() { this.configureCalls++; },
+            unconfigure() { this.unconfigureCalls++; },
+        };
+        return { context, getContext() { return context; } };
+    };
+    const first = createCanvas();
+    const second = createCanvas();
+
+    assert.equal(environment.hooks.getCanvasContext(instance, 'series', first), first.context);
+    assert.equal(environment.hooks.getCanvasContext(instance, 'series', first), first.context);
+    assert.equal(first.context.configureCalls, 1);
+
+    assert.equal(environment.hooks.getCanvasContext(instance, 'series', second), second.context);
+    assert.equal(first.context.unconfigureCalls, 1);
+    assert.equal(second.context.configureCalls, 1);
+
+    instance.previewRenderKeys.set('series', 'preview');
+    environment.hooks.releaseCanvasContext(instance, 'series');
+    assert.equal(second.context.unconfigureCalls, 1);
+    assert.equal(instance.canvasContexts.has('series'), false);
+    assert.equal(instance.previewRenderKeys.has('series'), false);
+});

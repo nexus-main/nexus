@@ -15,6 +15,7 @@
     const maxRangeWorkgroups = 1024;
     const defaultCacheBudget = 512 * 1024 * 1024;
     const overviewBucketSize = 256;
+    const reducedPointsPerBucket = 3;
     const syntheticStreamChunkLength = 4 * 1024 * 1024;
     const rawChunkLength = 1024 * 1024;
     const configuredCacheBudgets = new Map();
@@ -222,6 +223,7 @@ var<workgroup> minimumIndices: array<u32, ${overviewBucketSize}>;
 var<workgroup> maximumIndices: array<u32, ${overviewBucketSize}>;
 var<workgroup> valid: array<u32, ${overviewBucketSize}>;
 var<workgroup> nanSeen: array<u32, ${overviewBucketSize}>;
+var<workgroup> nanIndices: array<u32, ${overviewBucketSize}>;
 
 fn isNan(x: f32) -> bool {
     let bits = bitcast<u32>(x);
@@ -248,6 +250,7 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     maximumIndices[lane] = localIndex;
     valid[lane] = hasValue;
     nanSeen[lane] = hasNan;
+    nanIndices[lane] = localIndex;
     workgroupBarrier();
 
     var stride = ${overviewBucketSize / 2}u;
@@ -265,6 +268,9 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
                 }
                 valid[lane] = 1u;
             }
+            if (nanSeen[other] != 0u && (nanSeen[lane] == 0u || nanIndices[other] < nanIndices[lane])) {
+                nanIndices[lane] = nanIndices[other];
+            }
             nanSeen[lane] |= nanSeen[other];
         }
         workgroupBarrier();
@@ -272,17 +278,39 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     }
 
     if (lane == 0u) {
-        let outputIndex = (params.outputBucket + groupId.x) * 2u;
+        let outputIndex = (params.outputBucket + groupId.x) * ${reducedPointsPerBucket}u;
         if (valid[0] == 0u) {
-            let nan = source[groupId.x * ${overviewBucketSize}u];
-            output[outputIndex] = vec2f(f32(params.globalOffset + groupId.x * ${overviewBucketSize}u) / ${overviewBucketSize}.0, nan);
-            output[outputIndex + 1u] = output[outputIndex];
-        } else if (minimumIndices[0] <= maximumIndices[0]) {
-            output[outputIndex] = vec2f(f32(params.globalOffset + minimumIndices[0]) / ${overviewBucketSize}.0, minimums[0]);
-            output[outputIndex + 1u] = vec2f(f32(params.globalOffset + maximumIndices[0]) / ${overviewBucketSize}.0, maximums[0]);
+            let nan = source[nanIndices[0]];
+            let point = vec2f(f32(params.globalOffset + nanIndices[0]) / ${overviewBucketSize}.0, nan);
+            output[outputIndex] = point;
+            output[outputIndex + 1u] = point;
+            output[outputIndex + 2u] = point;
         } else {
-            output[outputIndex] = vec2f(f32(params.globalOffset + maximumIndices[0]) / ${overviewBucketSize}.0, maximums[0]);
-            output[outputIndex + 1u] = vec2f(f32(params.globalOffset + minimumIndices[0]) / ${overviewBucketSize}.0, minimums[0]);
+            var firstIndex = minimumIndices[0];
+            var secondIndex = maximumIndices[0];
+            var firstPoint = vec2f(f32(params.globalOffset + firstIndex) / ${overviewBucketSize}.0, minimums[0]);
+            var secondPoint = vec2f(f32(params.globalOffset + secondIndex) / ${overviewBucketSize}.0, maximums[0]);
+            if (secondIndex < firstIndex) {
+                let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
+                let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
+            }
+            var thirdIndex = secondIndex;
+            var thirdPoint = secondPoint;
+            if (nanSeen[0] != 0u) {
+                thirdIndex = nanIndices[0];
+                thirdPoint = vec2f(f32(params.globalOffset + thirdIndex) / ${overviewBucketSize}.0, source[thirdIndex]);
+                if (thirdIndex < secondIndex) {
+                    let swapIndex = secondIndex; secondIndex = thirdIndex; thirdIndex = swapIndex;
+                    let swapPoint = secondPoint; secondPoint = thirdPoint; thirdPoint = swapPoint;
+                }
+                if (secondIndex < firstIndex) {
+                    let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
+                    let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
+                }
+            }
+            output[outputIndex] = firstPoint;
+            output[outputIndex + 1u] = secondPoint;
+            output[outputIndex + 2u] = thirdPoint;
         }
     }
 }
@@ -302,6 +330,9 @@ var<workgroup> minimums: array<vec2f, ${decimationWorkgroupSize}>;
 var<workgroup> maximums: array<vec2f, ${decimationWorkgroupSize}>;
 var<workgroup> valid: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> minimumIndices: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
 fn isNan(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u && (b & 0x007fffffu) != 0u; }
 @compute @workgroup_size(${decimationWorkgroupSize})
 fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
@@ -316,42 +347,68 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     var maximum = vec2f(0.0);
     var hasValue = 0u;
     var hasNan = 0u;
+    var minimumIndex = 0u;
+    var maximumIndex = 0u;
+    var nanIndex = 0u;
     var index = start + lane;
     while (index < end) {
         let point = source[index];
-        if (isNan(point.y)) { hasNan = 1u; }
+        if (isNan(point.y)) {
+            if (hasNan == 0u || index < nanIndex) { nanIndex = index; }
+            hasNan = 1u;
+        }
         else {
-            if (hasValue == 0u || point.y < minimum.y) { minimum = point; }
-            if (hasValue == 0u || point.y > maximum.y) { maximum = point; }
+            if (hasValue == 0u || point.y < minimum.y) { minimum = point; minimumIndex = index; }
+            if (hasValue == 0u || point.y > maximum.y) { maximum = point; maximumIndex = index; }
             hasValue = 1u;
         }
         index += ${decimationWorkgroupSize}u;
     }
     minimums[lane] = minimum; maximums[lane] = maximum; valid[lane] = hasValue; nanSeen[lane] = hasNan;
+    minimumIndices[lane] = minimumIndex; maximumIndices[lane] = maximumIndex; nanIndices[lane] = nanIndex;
     workgroupBarrier();
     var stride = ${decimationWorkgroupSize / 2}u;
     while (stride > 0u) {
         if (lane < stride) {
             let other = lane + stride;
             if (valid[other] != 0u) {
-                if (valid[lane] == 0u || minimums[other].y < minimums[lane].y) { minimums[lane] = minimums[other]; }
-                if (valid[lane] == 0u || maximums[other].y > maximums[lane].y) { maximums[lane] = maximums[other]; }
+                if (valid[lane] == 0u || minimums[other].y < minimums[lane].y) { minimums[lane] = minimums[other]; minimumIndices[lane] = minimumIndices[other]; }
+                if (valid[lane] == 0u || maximums[other].y > maximums[lane].y) { maximums[lane] = maximums[other]; maximumIndices[lane] = maximumIndices[other]; }
                 valid[lane] = 1u;
             }
+            if (nanSeen[other] != 0u && (nanSeen[lane] == 0u || nanIndices[other] < nanIndices[lane])) { nanIndices[lane] = nanIndices[other]; }
             nanSeen[lane] |= nanSeen[other];
         }
         workgroupBarrier(); stride /= 2u;
     }
     if (lane == 0u) {
-        let outIndex = bucket * 2u + 1u;
+        let outIndex = bucket * ${reducedPointsPerBucket}u + 1u;
         if (bucket == 0u) { output[0] = source[params.first]; }
         if (valid[0] == 0u) {
-            let nan = source[start].y;
-            output[outIndex] = vec2f(source[start].x, nan); output[outIndex + 1u] = vec2f(source[end - 1u].x, nan);
-        } else if (minimums[0].x <= maximums[0].x) {
-            output[outIndex] = minimums[0]; output[outIndex + 1u] = maximums[0];
-        } else { output[outIndex] = maximums[0]; output[outIndex + 1u] = minimums[0]; }
-        if (bucket + 1u == params.bucketCount) { output[outIndex + 2u] = source[params.first + params.visibleLength - 1u]; }
+            let point = source[nanIndices[0]];
+            output[outIndex] = point; output[outIndex + 1u] = point; output[outIndex + 2u] = point;
+        } else {
+            var firstIndex = minimumIndices[0]; var secondIndex = maximumIndices[0];
+            var firstPoint = minimums[0]; var secondPoint = maximums[0];
+            if (secondIndex < firstIndex) {
+                let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
+                let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
+            }
+            var thirdIndex = secondIndex; var thirdPoint = secondPoint;
+            if (nanSeen[0] != 0u) {
+                thirdIndex = nanIndices[0]; thirdPoint = source[thirdIndex];
+                if (thirdIndex < secondIndex) {
+                    let swapIndex = secondIndex; secondIndex = thirdIndex; thirdIndex = swapIndex;
+                    let swapPoint = secondPoint; secondPoint = thirdPoint; thirdPoint = swapPoint;
+                }
+                if (secondIndex < firstIndex) {
+                    let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
+                    let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
+                }
+            }
+            output[outIndex] = firstPoint; output[outIndex + 1u] = secondPoint; output[outIndex + 2u] = thirdPoint;
+        }
+        if (bucket + 1u == params.bucketCount) { output[outIndex + 3u] = source[params.first + params.visibleLength - 1u]; }
     }
 }
 `;
@@ -478,27 +535,46 @@ fn decimate(
     }
 
     if (lane == 0u) {
-        let outputIndex = bucket * 2u + 1u;
+        let outputIndex = bucket * ${reducedPointsPerBucket}u + 1u;
 
         if (bucket == 0u) {
             output[0] = vec2f(0.0, source[params.first]);
         }
 
-        if (valid[0] == 0u || nanSeen[0] != 0u) {
+        if (valid[0] == 0u) {
             let nan = source[nanIndices[0]];
-            output[outputIndex] = vec2f(f32(startOffset), nan);
-            output[outputIndex + 1u] = vec2f(f32(endOffset), nan);
-        } else if (minimumIndices[0] <= maximumIndices[0]) {
-            output[outputIndex] = vec2f(f32(minimumIndices[0] - params.first), minimums[0]);
-            output[outputIndex + 1u] = vec2f(f32(maximumIndices[0] - params.first), maximums[0]);
+            let point = vec2f(f32(nanIndices[0] - params.first), nan);
+            output[outputIndex] = point;
+            output[outputIndex + 1u] = point;
+            output[outputIndex + 2u] = point;
         } else {
-            output[outputIndex] = vec2f(f32(maximumIndices[0] - params.first), maximums[0]);
-            output[outputIndex + 1u] = vec2f(f32(minimumIndices[0] - params.first), minimums[0]);
+            var firstIndex = minimumIndices[0]; var secondIndex = maximumIndices[0];
+            var firstPoint = vec2f(f32(firstIndex - params.first), minimums[0]);
+            var secondPoint = vec2f(f32(secondIndex - params.first), maximums[0]);
+            if (secondIndex < firstIndex) {
+                let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
+                let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
+            }
+            var thirdIndex = secondIndex; var thirdPoint = secondPoint;
+            if (nanSeen[0] != 0u) {
+                thirdIndex = nanIndices[0]; thirdPoint = vec2f(f32(thirdIndex - params.first), source[thirdIndex]);
+                if (thirdIndex < secondIndex) {
+                    let swapIndex = secondIndex; secondIndex = thirdIndex; thirdIndex = swapIndex;
+                    let swapPoint = secondPoint; secondPoint = thirdPoint; thirdPoint = swapPoint;
+                }
+                if (secondIndex < firstIndex) {
+                    let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
+                    let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
+                }
+            }
+            output[outputIndex] = firstPoint;
+            output[outputIndex + 1u] = secondPoint;
+            output[outputIndex + 2u] = thirdPoint;
         }
 
         if (bucket + 1u == params.bucketCount) {
             let last = params.first + params.visibleLength - 1u;
-            output[outputIndex + 2u] = vec2f(f32(params.visibleLength - 1u), source[last]);
+            output[outputIndex + 3u] = vec2f(f32(params.visibleLength - 1u), source[last]);
         }
     }
 }
@@ -603,7 +679,7 @@ fn reduceRange(
             (valueOf(color, 'Red') ?? 0) / 255,
             (valueOf(color, 'Green') ?? 0) / 255,
             (valueOf(color, 'Blue') ?? 0) / 255,
-            1,
+            (valueOf(color, 'Alpha') ?? 255) / 255,
         ];
     }
 
@@ -618,6 +694,35 @@ fn reduceRange(
         }
 
         return { width, height, dpr };
+    }
+
+    function getCanvasContext(instance, target, canvas) {
+        const configured = instance.canvasContexts.get(target);
+
+        if (configured?.canvas === canvas)
+            return configured.context;
+
+        configured?.context.unconfigure?.();
+        instance.previewRenderKeys.delete(target);
+        const context = canvas.getContext('webgpu');
+        context.configure({
+            device: instance.device,
+            format: instance.format,
+            alphaMode: 'premultiplied',
+        });
+        instance.canvasContexts.set(target, { canvas, context });
+        return context;
+    }
+
+    function releaseCanvasContext(instance, target) {
+        const configured = instance.canvasContexts.get(target);
+        configured?.context.unconfigure?.();
+        instance.canvasContexts.delete(target);
+        instance.previewRenderKeys.delete(target);
+    }
+
+    function getReducedOutputLength(bucketCount) {
+        return bucketCount * reducedPointsPerBucket + 2;
     }
 
     function getLifecycleEpoch(chartId) {
@@ -674,6 +779,10 @@ fn reduceRange(
                 resources.uniformBuffer.destroy();
         }
         instance.targetResources.clear();
+
+        for (const { context } of instance.canvasContexts.values())
+            context.unconfigure?.();
+        instance.canvasContexts.clear();
 
     }
 
@@ -814,6 +923,7 @@ fn reduceRange(
                     uploadSessions: new Map(),
                     uploadToken: 0,
                     targetResources: new Map(),
+                    canvasContexts: new Map(),
                     previewRenderKeys: new Map(),
                     uploadGenerations: new Map(),
                     cacheBudget: configuredCacheBudgets.get(chartId) ?? defaultCacheBudget,
@@ -826,7 +936,6 @@ fn reduceRange(
                     rawRequests: new Map(),
                     generationJobs: new Map(),
                     workerRequestId: 0,
-                    renderGeneration: 0,
                     lastPayloads: new Map(),
                     disposed: false,
                 };
@@ -1078,7 +1187,7 @@ fn reduceRange(
         cancelGeneration(instance, id, `Synthetic generation superseded for series ${id}`);
         removeRawSeries(instance, id);
         const overviewBucketCount = Math.ceil(length / overviewBucketSize);
-        const overviewLength = overviewBucketCount * 2;
+        const overviewLength = overviewBucketCount * reducedPointsPerBucket;
         const overviewBytes = overviewLength * 2 * Float32Array.BYTES_PER_ELEMENT;
         const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
 
@@ -1333,6 +1442,19 @@ fn reduceRange(
         return resources;
     }
 
+    function trimDrawResources(instance, target, count) {
+        const resources = instance.targetResources.get(target);
+
+        if (!resources || resources.length <= count)
+            return;
+
+        for (const stale of resources.splice(count))
+            stale.uniformBuffer.destroy();
+
+        if (resources.length === 0)
+            instance.targetResources.delete(target);
+    }
+
     function getPlot(payload, width, height) {
         const plot = valueOf(payload, 'Plot') ?? {};
         const plotLeft = (valueOf(plot, 'Left') ?? 0) * width;
@@ -1387,8 +1509,8 @@ fn reduceRange(
 
         const firstBucket = Math.max(0, Math.floor(left / overviewBucketSize) - 1);
         const lastBucket = Math.min(source.overviewBucketCount - 1, Math.ceil(right / overviewBucketSize));
-        const first = firstBucket * 2;
-        const visibleLength = (lastBucket - firstBucket + 1) * 2;
+        const first = firstBucket * reducedPointsPerBucket;
+        const visibleLength = (lastBucket - firstBucket + 1) * reducedPointsPerBucket;
 
         if (visibleLength < 2)
             return null;
@@ -1410,7 +1532,7 @@ fn reduceRange(
             return { seriesBuffer: source, zoomInfo };
 
         let decimation = source.decimations.get(target);
-        const outputLength = bucketCount * 2 + 2;
+        const outputLength = getReducedOutputLength(bucketCount);
         const outputSize = outputLength * 2 * Float32Array.BYTES_PER_ELEMENT;
 
         if (!decimation || decimation.bucketCount !== bucketCount) {
@@ -1684,10 +1806,12 @@ fn reduceRange(
         const target = valueOf(payload, 'Target') ?? 'series';
         const canvas = document.getElementById(`${target}_${chartId}`);
 
-        if (!canvas)
+        if (!canvas) {
+            releaseCanvasContext(instance, target);
             return;
+        }
 
-        const context = canvas.getContext('webgpu');
+        const context = getCanvasContext(instance, target, canvas);
         const { width, height, dpr } = ensureCanvasSize(canvas);
         const isPreview = valueOf(payload, 'Preview') ?? false;
         instance.lastPayloads.set(target, payload);
@@ -1702,14 +1826,9 @@ fn reduceRange(
 
         const plot = getPlot(payload, width, height);
 
-        context.configure({
-            device,
-            format,
-            alphaMode: 'premultiplied',
-        });
-
         const encoder = device.createCommandEncoder();
         const renderItems = [];
+        let drawResourceCount = 0;
 
         if (plot) {
             const seriesList = valueOf(payload, 'Series') ?? [];
@@ -1760,17 +1879,17 @@ fn reduceRange(
                 Math.max(1, Math.ceil(plot.plotWidth)),
                 Math.max(1, Math.ceil(plot.plotHeight)));
 
-            let drawIndex = 0;
-
             for (const { series, seriesBuffer, zoomInfo } of renderItems) {
-                const fillResources = getDrawResources(instance, seriesBuffer, drawIndex++, target);
+                const fillResources = getDrawResources(instance, seriesBuffer, drawResourceCount++, target);
 
                 if (writeUniforms(instance, fillResources.uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, 0)) {
                     pass.setBindGroup(0, fillResources.bindGroup);
                     pass.draw(zoomInfo.segmentCount * fillVerticesPerSegment);
                 }
+            }
 
-                const lineResources = getDrawResources(instance, seriesBuffer, drawIndex++, target);
+            for (const { series, seriesBuffer, zoomInfo } of renderItems) {
+                const lineResources = getDrawResources(instance, seriesBuffer, drawResourceCount++, target);
 
                 if (writeUniforms(instance, lineResources.uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, 1)) {
                     pass.setBindGroup(0, lineResources.bindGroup);
@@ -1781,6 +1900,7 @@ fn reduceRange(
 
         pass.end();
         device.queue.submit([encoder.finish()]);
+        trimDrawResources(instance, target, drawResourceCount);
 
         if (previewRenderKey !== null)
             instance.previewRenderKeys.set(target, previewRenderKey);
@@ -1874,6 +1994,12 @@ fn reduceRange(
             getSharedGpu,
             getInstance,
             evictRawChunks,
+            trimDrawResources,
+            colorOf,
+            getCanvasContext,
+            releaseCanvasContext,
+            getReducedOutputLength,
+            reducedPointsPerBucket,
         });
     }
 })();

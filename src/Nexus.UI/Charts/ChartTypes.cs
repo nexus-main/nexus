@@ -25,6 +25,8 @@ public record LineSeries(
     double[] Data)
 {
     public bool Show { get; set; } = true;
+    // Increment when Data is mutated or replaced on an existing series.
+    public int DataVersion { get; set; }
     internal string Id { get; } = Guid.NewGuid().ToString();
     internal SKColor Color { get; set; }
     internal SyntheticSeriesKind? SyntheticKind { get; init; }

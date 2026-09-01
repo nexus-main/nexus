@@ -76,6 +76,8 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
             try {
                 await dotNetHelper.invokeMethodAsync(next.method, ...next.values);
+            } catch (error) {
+                console.error('[chart] zoom update failed', error);
             } finally {
                 invokePending = false;
 

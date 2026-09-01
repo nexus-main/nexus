@@ -9,7 +9,6 @@ using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 
 namespace Nexus.UI.Charts;
 
@@ -413,11 +412,6 @@ public partial class Chart : IDisposable
             _chartId,
             new
             {
-                Surface = new
-                {
-                    Width = surfaceWidth,
-                    Height = surfaceHeight
-                },
                 Plot = new
                 {
                     Left = dataBox.Left / surfaceWidth,
@@ -691,7 +685,8 @@ public partial class Chart : IDisposable
             {
                 _webGpuRetrying = false;
                 StateHasChanged();
-                _skiaView.Invalidate();
+                if (OperatingSystem.IsBrowser())
+                    _skiaView.Invalidate();
             }
         }
     }
@@ -713,7 +708,7 @@ public partial class Chart : IDisposable
     private static int GetSeriesVersion(LineSeries series) =>
         series.SyntheticKind.HasValue
             ? HashCode.Combine(series.SyntheticKind.Value, series.SyntheticLength)
-            : RuntimeHelpers.GetHashCode(series.Data);
+            : series.DataVersion;
 
     private static bool HasSeriesVersion(
         Dictionary<string, (int Version, int Length)> versions,
