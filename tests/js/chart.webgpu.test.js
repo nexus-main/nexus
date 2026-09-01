@@ -21,34 +21,55 @@ function deferred() {
     return { promise, resolve };
 }
 
-function createBuffer(size) {
+function createBuffer(size, options = {}) {
     return {
         size,
         destroyed: false,
         mapState: 'unmapped',
+        async mapAsync() {
+            if (options.mapAsync)
+                await options.mapAsync(this);
+            this.mapState = 'mapped';
+        },
+        getMappedRange() { return new ArrayBuffer(size); },
+        unmap() { this.mapState = 'unmapped'; },
         destroy() { this.destroyed = true; },
     };
 }
 
-function createDevice() {
+function createDevice(options = {}) {
     const lost = deferred();
     const device = {
         limits: {
-            maxBufferSize: 1024 * 1024 * 1024,
-            maxStorageBufferBindingSize: 1024 * 1024 * 1024,
+            maxBufferSize: options.maxBufferSize ?? 1024 * 1024 * 1024,
+            maxStorageBufferBindingSize: options.maxStorageBufferBindingSize ?? 1024 * 1024 * 1024,
         },
         lost: lost.promise,
         destroyed: false,
         buffers: [],
+        submissions: 0,
         createShaderModule() { return {}; },
         createRenderPipeline() { return { getBindGroupLayout() { return {}; } }; },
         createComputePipeline() { return { getBindGroupLayout() { return {}; } }; },
         createBuffer({ size }) {
-            const buffer = createBuffer(size);
+            const buffer = createBuffer(size, options);
             this.buffers.push(buffer);
             return buffer;
         },
-        queue: { writeBuffer() {} },
+        createBindGroup() { return {}; },
+        createCommandEncoder() {
+            return {
+                beginComputePass() {
+                    return { setPipeline() {}, setBindGroup() {}, dispatchWorkgroups() {}, end() {} };
+                },
+                beginRenderPass() {
+                    return { setPipeline() {}, setScissorRect() {}, setBindGroup() {}, draw() {}, end() {} };
+                },
+                copyBufferToBuffer() {},
+                finish() { return {}; },
+            };
+        },
+        queue: { writeBuffer() {}, submit() { device.submissions++; }, async onSubmittedWorkDone() {} },
         destroy() { this.destroyed = true; },
         lose(info = { message: 'test loss' }) { lost.resolve(info); },
     };
@@ -58,6 +79,7 @@ function createDevice() {
 function createEnvironment(options = {}) {
     const devices = [];
     const workers = [];
+    const mapRequests = [];
     let requestDeviceCalls = 0;
     const failures = [];
     const canvases = new Map();
@@ -72,8 +94,16 @@ function createEnvironment(options = {}) {
             if (options.failFirstDevice && requestDeviceCalls === 1)
                 throw new Error('device creation failed');
 
-            const device = createDevice();
+            const device = createDevice({
+                maxBufferSize: options.maxBufferSize,
+                maxStorageBufferBindingSize: options.maxStorageBufferBindingSize,
+                mapAsync: options.deferMapAsync
+                    ? () => new Promise(resolve => mapRequests.push(resolve))
+                    : null,
+            });
             devices.push(device);
+            if (options.loseDeviceOnCreation)
+                device.lose();
             return device;
         },
     };
@@ -112,8 +142,21 @@ function createEnvironment(options = {}) {
         },
         document: {
             getElementById(id) {
-                if (!canvases.has(id))
-                    canvases.set(id, {});
+                if (!canvases.has(id)) {
+                    canvases.set(id, options.nullCanvasContext
+                        ? { getContext() { return null; } }
+                        : {
+                            clientWidth: 100,
+                            clientHeight: 100,
+                            getContext() {
+                                return {
+                                    configure() {},
+                                    unconfigure() {},
+                                    getCurrentTexture() { return { createView() { return {}; } }; },
+                                };
+                            },
+                        });
+                }
                 return canvases.get(id);
             },
         },
@@ -138,6 +181,7 @@ function createEnvironment(options = {}) {
         hooks,
         devices,
         workers,
+        mapRequests,
         failures,
         helper,
         get requestDeviceCalls() { return requestDeviceCalls; },
@@ -182,6 +226,17 @@ test('device loss fails every chart using the shared device', async () => {
         [['first', 'GPU connection lost'], ['second', 'GPU connection lost']]);
 });
 
+test('device loss before instance publication does not publish a stale instance', async () => {
+    const environment = createEnvironment({ loseDeviceOnCreation: true });
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+
+    assert.equal(environment.hooks.instances.has('chart'), false);
+    assert.equal(environment.failures.length, 1);
+    assert.equal(environment.failures[0].title, 'WebGPU initialization failed');
+    assert.match(environment.failures[0].message, /lost during chart initialization/i);
+});
+
 test('failed initialization can be retried', async () => {
     const environment = createEnvironment({ failFirstDevice: true });
     environment.api.initialize('chart', environment.helper('chart'));
@@ -206,7 +261,7 @@ test('unsupported WebGPU reports one actionable failure', async () => {
     assert.match(environment.failures[0].message, /hardware acceleration/i);
 });
 
-test('chunk uploads reject gaps and abort destroys partial buffers', async () => {
+test('invalid chunk uploads destroy partial buffers and fail the chart', async () => {
     const environment = createEnvironment();
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
@@ -214,14 +269,42 @@ test('chunk uploads reject gaps and abort destroys partial buffers', async () =>
     const token = await environment.api.beginSeriesUpload('chart', 'series', 1, 4);
     const stream = bytes => ({ arrayBuffer: async () => Uint8Array.from(bytes).buffer });
 
+    const upload = environment.hooks.instances.get('chart').uploadSessions.get(token);
     await assert.rejects(
         environment.api.appendSeriesUpload('chart', token, 4, stream([0, 0, 0, 0])),
         /expected byte offset 0/);
+    await settle();
 
-    const upload = environment.hooks.instances.get('chart').uploadSessions.get(token);
-    environment.api.abortSeriesUpload('chart', token);
     assert.equal(upload.buffer.destroyed, true);
-    assert.equal(environment.hooks.instances.get('chart').uploadSessions.size, 0);
+    assert.equal(environment.hooks.instances.has('chart'), false);
+    assert.equal(environment.failures[0].title, 'WebGPU upload failed');
+});
+
+test('terminal upload failures invalidate the instance and notify the chart', async () => {
+    const environment = createEnvironment({ maxStorageBufferBindingSize: 8 });
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+
+    await assert.rejects(environment.api.beginSeriesUpload('chart', 'series', 1, 3), /exceeding the GPU storage buffer limit/);
+    await settle();
+
+    assert.equal(environment.hooks.instances.has('chart'), false);
+    assert.equal(environment.failures.length, 1);
+    assert.equal(environment.failures[0].title, 'WebGPU upload failed');
+});
+
+test('missing WebGPU canvas context reports a terminal rendering failure', async () => {
+    const environment = createEnvironment({ nullCanvasContext: true });
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+
+    environment.api.renderSeries('chart', {});
+    await settle();
+
+    assert.equal(environment.hooks.instances.has('chart'), false);
+    assert.equal(environment.failures.length, 1);
+    assert.equal(environment.failures[0].title, 'WebGPU rendering failed');
+    assert.match(environment.failures[0].message, /canvas context/i);
 });
 
 test('raw-detail cache evicts least recently used chunks to its budget', async () => {
@@ -231,12 +314,17 @@ test('raw-detail cache evicts least recently used chunks to its budget', async (
     const instance = environment.hooks.instances.get('chart');
     instance.cacheBudget = 8;
     const first = { buffer: createBuffer(4), pointBuffer: null, byteLength: 4, lastUsed: 1, decimations: new Map() };
+    first.buffer.__nexusByteLength = 4;
+    first.buffer.__nexusDestroyed = false;
     first.pointBuffer = first.buffer;
     const second = { buffer: createBuffer(4), pointBuffer: null, byteLength: 4, lastUsed: 2, decimations: new Map() };
+    second.buffer.__nexusByteLength = 4;
+    second.buffer.__nexusDestroyed = false;
     second.pointBuffer = second.buffer;
     instance.rawChunks.set('first', first);
     instance.rawChunks.set('second', second);
     instance.rawCacheBytes = 8;
+    instance.ownedGpuBytes = 8;
 
     environment.hooks.evictRawChunks(instance, 4);
 
@@ -244,6 +332,69 @@ test('raw-detail cache evicts least recently used chunks to its budget', async (
     assert.equal(instance.rawChunks.has('first'), false);
     assert.equal(instance.rawChunks.has('second'), true);
     assert.equal(instance.rawCacheBytes, 4);
+});
+
+test('raw chunks selected earlier in a frame remain pinned under later cache pressure', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    const firstBuffer = createBuffer(12);
+    const firstChunk = {
+        id: 'first', buffer: firstBuffer, pointBuffer: firstBuffer, byteLength: 12,
+        offset: 0, length: 3, lastUsed: 1, dataMode: 0, decimations: new Map(),
+    };
+    instance.rawChunks.set('first:1:0', firstChunk);
+    instance.rawCacheBytes = 12;
+    instance.cacheBudget = 12;
+    instance.uploadGenerations.set('first', 1);
+    instance.uploadGenerations.set('second', 1);
+    const protectedKeys = new Set();
+    const payload = { Zoom: { Left: 0, Right: 1 } };
+    const plot = { plotLeft: 0, plotWidth: 100, plotTop: 0, plotBottom: 100, plotHeight: 100 };
+
+    const firstItems = environment.hooks.getRawRenderItems(
+        instance,
+        { id: 'first', version: 1, length: 3, chartId: 'chart', generation: 1 },
+        { SampleStep: 1 / 3 }, payload, plot, {}, 'series', protectedKeys);
+    const secondItems = environment.hooks.getRawRenderItems(
+        instance,
+        { id: 'second', version: 1, length: 3, chartId: 'chart', generation: 1, kind: 'Sine' },
+        { SampleStep: 1 / 3 }, payload, plot, {}, 'series', protectedKeys);
+
+    assert.equal(firstItems.length, 1);
+    assert.equal(secondItems, null);
+    assert.equal(firstBuffer.destroyed, false);
+    assert.equal(instance.rawChunks.has('first:1:0'), true);
+});
+
+test('synthetic cancellation waits for in-flight range work before destroying buffers', async () => {
+    const environment = createEnvironment({ deferMapAsync: true });
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    const firstGeneration = environment.api.generateSyntheticSeries('chart', 'series', 1, 2, 'Sine');
+    await settle();
+    const requestId = instance.generationJobs.get('series').requestId;
+    const transientBuffer = environment.devices[0].buffers[0];
+    const overviewBuffer = environment.devices[0].buffers[1];
+    instance.workerCallbacks.get(requestId).onmessage({
+        data: { requestId, offset: 0, values: new Float32Array([1, 2]) },
+    });
+    await settle();
+
+    const replacement = environment.api.generateSyntheticSeries('chart', 'series', 2, 2, 'Sine');
+    replacement.catch(() => {});
+    await settle();
+    assert.equal(transientBuffer.destroyed, false);
+    assert.equal(overviewBuffer.destroyed, false);
+
+    environment.mapRequests.shift()();
+    await assert.rejects(firstGeneration, /superseded/);
+    await settle();
+    assert.equal(transientBuffer.destroyed, true);
+    assert.equal(overviewBuffer.destroyed, true);
+    environment.api.dispose('chart');
 });
 
 test('draw resources are trimmed when fewer series are rendered', async () => {
@@ -271,11 +422,79 @@ test('series color preserves its configured alpha', () => {
         [1, 128 / 255, 0, 64 / 255]);
 });
 
+test('fill shader multiplies fill opacity by series alpha', () => {
+    const shaderSource = scripts.find(script => script.name === 'chart.webgpu.shaders.js').source;
+    assert.match(shaderSource, /uniforms\.color\.a \* uniforms\.fillOpacity/);
+});
+
 test('gap-preserving reduction reserves three points per bucket plus endpoints', () => {
     const environment = createEnvironment();
 
     assert.equal(environment.hooks.reducedPointsPerBucket, 3);
     assert.equal(environment.hooks.getReducedOutputLength(8), 26);
+});
+
+test('every reduction shader blanks buckets containing multiple NaN runs', () => {
+    const shaderSource = scripts.find(script => script.name === 'chart.webgpu.shaders.js').source;
+    assert.equal((shaderSource.match(/nanRunCounts\[0\] >= 2u/g) ?? []).length, 3);
+});
+
+test('tracked buffers enforce the total chart budget and release exactly once', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    instance.cacheBudget = 12;
+
+    const first = environment.hooks.createTrackedBuffer(instance, { size: 8, usage: 1 });
+    assert.equal(instance.ownedGpuBytes, 8);
+    assert.throws(
+        () => environment.hooks.createTrackedBuffer(instance, { size: 8, usage: 1 }),
+        /GPU memory budget/);
+    assert.equal(instance.ownedGpuBytes, 8);
+
+    environment.hooks.destroyTrackedBuffer(instance, first);
+    environment.hooks.destroyTrackedBuffer(instance, first);
+    assert.equal(instance.ownedGpuBytes, 0);
+});
+
+test('releasing a target removes retained payloads and destroys target resources', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    const uniformBuffer = environment.hooks.createTrackedBuffer(instance, { size: 96, usage: 1 });
+    const outputBuffer = environment.hooks.createTrackedBuffer(instance, { size: 32, usage: 1 });
+    const paramsBuffer = environment.hooks.createTrackedBuffer(instance, { size: 16, usage: 1 });
+    const source = { decimations: new Map([['navigator-detail-series:series:0', {
+        outputBuffer, paramsBuffer, byteLength: 48,
+    }]]) };
+    instance.seriesBuffers.set('series', source);
+    instance.targetResources.set('navigator-detail-series', [{ uniformBuffer }]);
+    instance.lastPayloads.set('navigator-detail-series', {});
+    instance.previewRenderKeys.set('navigator-detail-series', 'key');
+    instance.auxiliaryBytes = 48;
+
+    environment.api.releaseTarget('chart', 'navigator-detail-series');
+
+    assert.equal(instance.lastPayloads.has('navigator-detail-series'), false);
+    assert.equal(instance.targetResources.has('navigator-detail-series'), false);
+    assert.equal(source.decimations.size, 0);
+    assert.equal(instance.ownedGpuBytes, 0);
+    assert.equal(instance.auxiliaryBytes, 0);
+});
+
+test('render scheduling retains only the latest pending payload per target', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    const first = environment.hooks.scheduleRender('chart', { Marker: 'first' });
+    environment.hooks.scheduleRender('chart', { Marker: 'second' });
+    environment.hooks.scheduleRender('chart', { Marker: 'latest' });
+    await first;
+
+    const instance = environment.hooks.instances.get('chart');
+    assert.equal(instance.lastPayloads.get('series').Marker, 'latest');
+    assert.ok(environment.devices[0].submissions <= 2);
 });
 
 test('canvas context is configured once and unconfigured when replaced', async () => {

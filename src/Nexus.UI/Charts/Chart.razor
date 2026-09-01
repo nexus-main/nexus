@@ -28,8 +28,6 @@
             data-zoom-top="@(_zoomBox.Top.ToString("R", System.Globalization.CultureInfo.InvariantCulture))"
             data-zoom-right="@NavigatorDataRight"
             data-zoom-bottom="@(_zoomBox.Bottom.ToString("R", System.Globalization.CultureInfo.InvariantCulture))"
-            @onmousemove="OnMouseMove"
-            @onmouseleave="OnMouseLeave"
             @ondblclick="OnDoubleClick">
 
             <div id="crosshairs-x_@(_chartId)" class="crosshairs-x" style="display: none;"></div>

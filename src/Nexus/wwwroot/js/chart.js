@@ -32,6 +32,33 @@ nexus.chart.hide = function (chartId, elementId) {
     element.style.display = "none"
 };
 
+nexus.chart.updateAuxiliary = function (chartId, x, y, timeText, updates) {
+    nexus.chart.setTextContent(chartId, "value_datetime", timeText);
+    nexus.chart.translate(chartId, "crosshairs-x", 0, y);
+    nexus.chart.translate(chartId, "crosshairs-y", x, 0);
+
+    for (const update of updates) {
+        const id = update.id ?? update.Id;
+        const visible = update.visible ?? update.Visible;
+        const text = update.text ?? update.Text;
+        if (visible)
+            nexus.chart.translate(chartId, `pointer_${id}`, update.x ?? update.X, update.y ?? update.Y);
+        else
+            nexus.chart.hide(chartId, `pointer_${id}`);
+        nexus.chart.setTextContent(chartId, `value_${id}`, text);
+    }
+};
+
+nexus.chart.clearAuxiliary = function (chartId) {
+    nexus.chart.hide(chartId, "crosshairs-x");
+    nexus.chart.hide(chartId, "crosshairs-y");
+    const chart = document.getElementById(`chart_${chartId}`);
+    for (const pointer of chart?.querySelectorAll(".pointer") ?? [])
+        pointer.style.display = "none";
+    for (const value of chart?.parentElement?.querySelectorAll('[id^="value_"]') ?? [])
+        value.textContent = "--";
+};
+
 nexus.chart.toRelative = function (chartId, clientX, clientY) {
    
     let overlay = document
@@ -62,6 +89,9 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
     const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(value, maximum));
     let invokePending = false;
     let pendingZoom = null;
+    let pointerInvokePending = false;
+    let pendingPointer = null;
+    let disposed = false;
 
     function invokeZoom(method, values) {
         pendingZoom = { method, values };
@@ -92,9 +122,45 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         disposers.push(() => element.removeEventListener(name, handler, options));
     }
 
+    function invokePointer(x, y) {
+        pendingPointer = [x, y];
+        if (pointerInvokePending)
+            return;
+
+        pointerInvokePending = true;
+        requestAnimationFrame(async () => {
+            const next = pendingPointer;
+            pendingPointer = null;
+            try {
+                if (!disposed && next)
+                    await dotNetHelper.invokeMethodAsync("PointerMoved", ...next);
+            } catch (error) {
+                console.error('[chart] pointer update failed', error);
+            } finally {
+                pointerInvokePending = false;
+                if (!disposed && pendingPointer)
+                    invokePointer(...pendingPointer);
+            }
+        });
+    }
+
     if (overlay && selection) {
         let drag = null;
         const axisLockRatio = 1 / Math.tan(15 * Math.PI / 180);
+
+        listen(overlay, "mousemove", e => {
+            const rect = overlay.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0)
+                return;
+            invokePointer(
+                clamp((e.clientX - rect.left) / rect.width, 0, 1),
+                clamp((e.clientY - rect.top) / rect.height, 0, 1));
+        });
+        listen(overlay, "mouseleave", () => {
+            pendingPointer = null;
+            dotNetHelper.invokeMethodAsync("PointerLeft")
+                .catch(error => console.error('[chart] pointer leave failed', error));
+        });
 
         listen(overlay, "wheel", e => {
             if (e.cancelable)
@@ -315,7 +381,11 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
     initNavigator("navigator");
     initNavigator("navigator-detail");
-    nexus.chart.charts[chartId] = { dispose: () => disposers.forEach(dispose => dispose()) };
+    nexus.chart.charts[chartId] = { dispose: () => {
+        disposed = true;
+        pendingPointer = null;
+        disposers.forEach(dispose => dispose());
+    } };
 };
 
 nexus.chart.dispose = function (chartId) {

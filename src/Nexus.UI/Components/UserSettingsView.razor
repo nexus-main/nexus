@@ -55,10 +55,10 @@ MaxWidth="MaxWidth.Medium">
                 <div class="text-cyan-700 border-b my-3 text-lg">Charts</div>
 
                 <MudNumericField T="int"
-                                 Label="GPU raw-data cache (MiB)"
+                                 Label="Chart GPU buffer budget (MiB)"
                                  Variant="Variant.Outlined"
                                  Min="16"
-                                 HelperText="Maximum GPU memory retained per chart for raw synthetic detail samples. Resident series, overviews, and derived rendering buffers are not included."
+                                 HelperText="Maximum GPU buffer memory owned by each chart, including resident series, synthetic detail, overviews, and rendering work buffers."
                                  @bind-Value:get="ChartGpuCacheBudgetMiB"
                                  @bind-Value:set="SetChartGpuCacheBudget" />
 

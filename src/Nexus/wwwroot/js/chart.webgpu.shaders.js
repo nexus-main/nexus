@@ -184,7 +184,7 @@ fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
     if (uniforms.mode == 0u) {
         var out: VertexOut;
         out.position = toNdc(fillVertex(a, b, local));
-        out.color = vec4f(uniforms.color.rgb, uniforms.fillOpacity);
+        out.color = vec4f(uniforms.color.rgb, uniforms.color.a * uniforms.fillOpacity);
         return out;
     }
 
@@ -216,6 +216,7 @@ var<workgroup> maximumIndices: array<u32, ${overviewBucketSize}>;
 var<workgroup> valid: array<u32, ${overviewBucketSize}>;
 var<workgroup> nanSeen: array<u32, ${overviewBucketSize}>;
 var<workgroup> nanIndices: array<u32, ${overviewBucketSize}>;
+var<workgroup> nanRunCounts: array<u32, ${overviewBucketSize}>;
 
 fn isNan(x: f32) -> bool {
     let bits = bitcast<u32>(x);
@@ -229,11 +230,15 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     var value = 0.0;
     var hasValue = 0u;
     var hasNan = 0u;
+    var nanRunCount = 0u;
 
     if (localIndex < params.sourceLength) {
         value = source[localIndex];
         hasNan = select(0u, 1u, isNan(value));
         hasValue = select(1u, 0u, isNan(value));
+        if (hasNan != 0u && (lane == 0u || !isNan(source[localIndex - 1u]))) {
+            nanRunCount = 1u;
+        }
     }
 
     minimums[lane] = value;
@@ -243,6 +248,7 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     valid[lane] = hasValue;
     nanSeen[lane] = hasNan;
     nanIndices[lane] = localIndex;
+    nanRunCounts[lane] = nanRunCount;
     workgroupBarrier();
 
     var stride = ${overviewBucketSize / 2}u;
@@ -264,6 +270,7 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
                 nanIndices[lane] = nanIndices[other];
             }
             nanSeen[lane] |= nanSeen[other];
+            nanRunCounts[lane] = min(2u, nanRunCounts[lane] + nanRunCounts[other]);
         }
         workgroupBarrier();
         stride /= 2u;
@@ -271,7 +278,7 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
 
     if (lane == 0u) {
         let outputIndex = (params.outputBucket + groupId.x) * ${reducedPointsPerBucket}u;
-        if (valid[0] == 0u) {
+        if (valid[0] == 0u || nanRunCounts[0] >= 2u) {
             let nan = source[nanIndices[0]];
             let point = vec2f(f32(params.globalOffset + nanIndices[0]) / ${overviewBucketSize}.0, nan);
             output[outputIndex] = point;
@@ -325,6 +332,7 @@ var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> minimumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> nanRunCounts: array<u32, ${decimationWorkgroupSize}>;
 fn isNan(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u; }
 @compute @workgroup_size(${decimationWorkgroupSize})
 fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
@@ -342,12 +350,14 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     var minimumIndex = 0u;
     var maximumIndex = 0u;
     var nanIndex = 0u;
+    var nanRunCount = 0u;
     var index = start + lane;
     while (index < end) {
         let point = source[index];
         if (isNan(point.y)) {
             if (hasNan == 0u || index < nanIndex) { nanIndex = index; }
             hasNan = 1u;
+            if (index == start || !isNan(source[index - 1u].y)) { nanRunCount = min(2u, nanRunCount + 1u); }
         }
         else {
             if (hasValue == 0u || point.y < minimum.y) { minimum = point; minimumIndex = index; }
@@ -358,6 +368,7 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     }
     minimums[lane] = minimum; maximums[lane] = maximum; valid[lane] = hasValue; nanSeen[lane] = hasNan;
     minimumIndices[lane] = minimumIndex; maximumIndices[lane] = maximumIndex; nanIndices[lane] = nanIndex;
+    nanRunCounts[lane] = nanRunCount;
     workgroupBarrier();
     var stride = ${decimationWorkgroupSize / 2}u;
     while (stride > 0u) {
@@ -370,13 +381,14 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
             }
             if (nanSeen[other] != 0u && (nanSeen[lane] == 0u || nanIndices[other] < nanIndices[lane])) { nanIndices[lane] = nanIndices[other]; }
             nanSeen[lane] |= nanSeen[other];
+            nanRunCounts[lane] = min(2u, nanRunCounts[lane] + nanRunCounts[other]);
         }
         workgroupBarrier(); stride /= 2u;
     }
     if (lane == 0u) {
         let outIndex = bucket * ${reducedPointsPerBucket}u + 1u;
         if (bucket == 0u) { output[0] = source[params.first]; }
-        if (valid[0] == 0u) {
+        if (valid[0] == 0u || nanRunCounts[0] >= 2u) {
             let point = source[nanIndices[0]];
             output[outIndex] = point; output[outIndex + 1u] = point; output[outIndex + 2u] = point;
         } else {
@@ -424,6 +436,7 @@ var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> valid: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> nanRunCounts: array<u32, ${decimationWorkgroupSize}>;
 
 fn isNan(x: f32) -> bool {
     let bits = bitcast<u32>(x);
@@ -456,6 +469,7 @@ fn decimate(
     var hasValue = 0u;
     var hasNan = 0u;
     var nanIndex = 0u;
+    var nanRunCount = 0u;
     var index = start + lane;
 
     while (index < end) {
@@ -467,6 +481,9 @@ fn decimate(
             }
 
             hasNan = 1u;
+            if (index == start || !isNan(source[index - 1u])) {
+                nanRunCount = min(2u, nanRunCount + 1u);
+            }
         } else {
             if (hasValue == 0u || value < minimum || (value == minimum && index < minimumIndex)) {
                 minimum = value;
@@ -491,6 +508,7 @@ fn decimate(
     valid[lane] = hasValue;
     nanSeen[lane] = hasNan;
     nanIndices[lane] = nanIndex;
+    nanRunCounts[lane] = nanRunCount;
     workgroupBarrier();
 
     var stride = ${decimationWorkgroupSize / 2}u;
@@ -520,6 +538,7 @@ fn decimate(
             }
 
             nanSeen[lane] |= nanSeen[lane + stride];
+            nanRunCounts[lane] = min(2u, nanRunCounts[lane] + nanRunCounts[lane + stride]);
         }
 
         workgroupBarrier();
@@ -533,7 +552,7 @@ fn decimate(
             output[0] = vec2f(0.0, source[params.first]);
         }
 
-        if (valid[0] == 0u) {
+        if (valid[0] == 0u || nanRunCounts[0] >= 2u) {
             let nan = source[nanIndices[0]];
             let point = vec2f(f32(nanIndices[0] - params.first), nan);
             output[outputIndex] = point;

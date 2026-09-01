@@ -30,14 +30,14 @@
     }
 
     function destroySeriesBuffer(instance, cached) {
-        cached.buffer.destroy();
+        ns.destroyTrackedBuffer(instance, cached.buffer);
 
         if (cached.pointBuffer !== cached.buffer)
-            cached.pointBuffer.destroy();
+            ns.destroyTrackedBuffer(instance, cached.pointBuffer);
 
         for (const decimation of cached.decimations?.values() ?? []) {
-            decimation.outputBuffer.destroy();
-            decimation.paramsBuffer.destroy();
+            ns.destroyTrackedBuffer(instance, decimation.outputBuffer);
+            ns.destroyTrackedBuffer(instance, decimation.paramsBuffer);
             instance.auxiliaryBytes -= decimation.byteLength;
         }
     }
@@ -48,18 +48,21 @@
         instance.rawCacheBytes -= chunk.byteLength;
     }
 
-    function evictRawChunks(instance, requiredBytes, protectedKeys = new Set()) {
+    function evictRawChunks(instance, requiredBytes, protectedKeys = new Set(), budget = instance.cacheBudget) {
         const candidates = [...instance.rawChunks.entries()]
             .filter(([key]) => !protectedKeys.has(key))
             .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
 
-        while (instance.rawCacheBytes + instance.rawReservedBytes + requiredBytes > instance.cacheBudget && candidates.length) {
+        while (instance.ownedGpuBytes + instance.rawReservedBytes + requiredBytes > budget && candidates.length) {
             const [key, chunk] = candidates.shift();
             destroyRawChunk(instance, key, chunk);
         }
 
-        if (requiredBytes > 0 && instance.rawCacheBytes + instance.rawReservedBytes + requiredBytes > instance.cacheBudget)
-            throw new Error(`Chart raw-detail cache budget (${instance.cacheBudget} bytes) cannot fit a ${requiredBytes}-byte chunk`);
+        if (requiredBytes > 0 && instance.ownedGpuBytes + instance.rawReservedBytes + requiredBytes > budget) {
+            const error = new Error(`Chart GPU memory budget (${budget} bytes) cannot fit a ${requiredBytes}-byte allocation`);
+            error.webGpuCacheCapacity = true;
+            throw error;
+        }
     }
 
     function removeRawSeries(instance, id) {
@@ -67,7 +70,7 @@
             if (request.id === id) {
                 cancelWorkerRequest(instance, request.requestId);
                 instance.rawReservedBytes -= request.byteLength;
-                request.reject(new Error(`Raw chunk request superseded for series ${id}`));
+                request.reject(ns.cancellationError(`Raw chunk request superseded for series ${id}`));
                 instance.rawRequests.delete(key);
             }
         }
@@ -83,8 +86,9 @@
         if (!job)
             return;
 
+        job.cancelled = true;
         cancelWorkerRequest(instance, job.requestId);
-        job.reject(new Error(reason));
+        job.reject(ns.cancellationError(reason));
     }
 
     function synchronizeSeries(instance, activeIds) {
@@ -111,7 +115,7 @@
             if (active.has(upload.id))
                 continue;
 
-            upload.buffer?.destroy();
+            ns.destroyTrackedBuffer(instance, upload.buffer);
             instance.uploadSessions.delete(token);
         }
     }
@@ -131,7 +135,7 @@
             if (upload.id !== id)
                 continue;
 
-            upload.buffer?.destroy();
+            ns.destroyTrackedBuffer(instance, upload.buffer);
             instance.uploadSessions.delete(token);
         }
 
@@ -140,7 +144,7 @@
         removeRawSeries(instance, id);
         const token = ++instance.uploadToken;
         const buffer = length >= 2
-            ? instance.device.createBuffer({
+            ? ns.createTrackedBuffer(instance, {
                 size: byteLength,
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             })
@@ -153,11 +157,11 @@
         const instance = await getInstance(chartId);
         const upload = instance?.uploadSessions.get(token);
         if (!upload)
-            throw new Error(`Series upload ${token} is no longer active`);
+            throw ns.cancellationError(`Series upload ${token} is no longer active`);
 
         const bytes = new Uint8Array(await streamReference.arrayBuffer());
         if (instances.get(chartId) !== instance || instance.uploadSessions.get(token) !== upload)
-            throw new Error(`Series upload ${token} was superseded`);
+            throw ns.cancellationError(`Series upload ${token} was superseded`);
         if (!Number.isSafeInteger(byteOffset) || byteOffset !== upload.writtenBytes)
             throw new Error(`Series upload ${token} expected byte offset ${upload.writtenBytes}, received ${byteOffset}`);
         if (bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0 || byteOffset + bytes.byteLength > upload.byteLength)
@@ -172,7 +176,7 @@
         const instance = await getInstance(chartId);
         const upload = instance?.uploadSessions.get(token);
         if (!upload)
-            throw new Error(`Series upload ${token} is no longer active`);
+            throw ns.cancellationError(`Series upload ${token} is no longer active`);
         if (upload.writtenBytes !== upload.byteLength)
             throw new Error(`Series upload ${token} is incomplete (${upload.writtenBytes} of ${upload.byteLength} bytes)`);
 
@@ -180,7 +184,7 @@
             ? await calculateSeriesRangeAsync(instance, upload.buffer, upload.length)
             : { hasValue: false, minimum: 0, maximum: 0 };
         if (instances.get(chartId) !== instance || instance.uploadSessions.get(token) !== upload)
-            throw new Error(`Series upload ${token} was superseded`);
+            throw ns.cancellationError(`Series upload ${token} was superseded`);
 
         for (const [existingKey, existing] of instance.seriesBuffers) {
             if (existing.id === upload.id) {
@@ -215,7 +219,7 @@
         if (!upload)
             return;
 
-        upload.buffer?.destroy();
+        ns.destroyTrackedBuffer(instance, upload.buffer);
         instance.uploadSessions.delete(token);
     }
 
@@ -234,7 +238,7 @@
             if (upload.id !== id)
                 continue;
 
-            upload.buffer?.destroy();
+            ns.destroyTrackedBuffer(instance, upload.buffer);
             instance.uploadSessions.delete(token);
         }
         cancelGeneration(instance, id, `Synthetic generation superseded for series ${id}`);
@@ -254,12 +258,23 @@
         const reservedBytes = overviewBytes + transientBytes;
         instance.generationReservedBytes += reservedBytes;
 
-        const transientBuffer = instance.device.createBuffer({
-            size: transientBytes,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-        const overviewBuffer = instance.device.createBuffer({ size: overviewBytes, usage: GPUBufferUsage.STORAGE });
-        const paramsBuffer = instance.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        let transientBuffer = null;
+        let overviewBuffer = null;
+        let paramsBuffer = null;
+        try {
+            transientBuffer = ns.createTrackedBuffer(instance, {
+                size: transientBytes,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            });
+            overviewBuffer = ns.createTrackedBuffer(instance, { size: overviewBytes, usage: GPUBufferUsage.STORAGE });
+            paramsBuffer = ns.createTrackedBuffer(instance, { size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        } catch (error) {
+            instance.generationReservedBytes -= reservedBytes;
+            ns.destroyTrackedBuffer(instance, transientBuffer);
+            ns.destroyTrackedBuffer(instance, overviewBuffer);
+            ns.destroyTrackedBuffer(instance, paramsBuffer);
+            throw error;
+        }
         const bindGroup = instance.device.createBindGroup({
             layout: instance.overviewPipeline.getBindGroupLayout(0),
             entries: [
@@ -275,32 +290,43 @@
         let rangeHasValue = false;
 
         let rejectGeneration;
-        const job = { requestId, reservedBytes, reject: error => rejectGeneration?.(error) };
+        const job = {
+            requestId,
+            reservedBytes,
+            cancelled: false,
+            handlerPromise: null,
+            reject: error => rejectGeneration?.(error),
+        };
         instance.generationJobs.set(id, job);
+
+        function ensureGenerationIsActive() {
+            if (job.cancelled || instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
+                throw ns.cancellationError(`Synthetic generation superseded for series ${id}`);
+        }
 
         try {
             await new Promise((resolve, reject) => {
                 rejectGeneration = reject;
                 instance.workerCallbacks.set(requestId, {
                     onerror: event => reject(new Error(event.message)),
-                    onmessage: async event => {
+                    onmessage: event => {
                         if (event.data.requestId !== requestId)
                             return;
 
                         if (event.data.complete) {
-                            resolve();
+                            if (job.cancelled)
+                                reject(ns.cancellationError(`Synthetic generation superseded for series ${id}`));
+                            else
+                                resolve();
                             return;
                         }
 
-                        if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation) {
-                            reject(new Error(`Synthetic generation superseded for series ${id}`));
-                            return;
-                        }
-
-                        try {
+                        const handlerPromise = (async () => {
+                            ensureGenerationIsActive();
                             const values = event.data.values;
                             instance.device.queue.writeBuffer(transientBuffer, 0, values);
                             const chunkRange = await calculateSeriesRangeAsync(instance, transientBuffer, values.length);
+                            ensureGenerationIsActive();
                             if (chunkRange.hasValue) {
                                 rangeMinimum = rangeHasValue ? Math.min(rangeMinimum, chunkRange.minimum) : chunkRange.minimum;
                                 rangeMaximum = rangeHasValue ? Math.max(rangeMaximum, chunkRange.maximum) : chunkRange.maximum;
@@ -318,17 +344,22 @@
                             pass.end();
                             instance.device.queue.submit([encoder.finish()]);
                             await instance.device.queue.onSubmittedWorkDone();
+                            ensureGenerationIsActive();
                             worker.postMessage({ type: 'ack', requestId });
-                        } catch (error) {
+                        })();
+                        job.handlerPromise = handlerPromise;
+                        handlerPromise.catch(error => {
                             reject(error);
-                        }
+                        }).finally(() => {
+                            if (job.handlerPromise === handlerPromise)
+                                job.handlerPromise = null;
+                        });
                     },
                 });
                 worker.postMessage({ type: 'stream', requestId, length, kind, chunkLength: syntheticStreamChunkLength });
             });
 
-            if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
-                throw new Error(`Synthetic generation superseded for series ${id}`);
+            ensureGenerationIsActive();
 
             for (const [existingKey, existing] of instance.seriesBuffers) {
                 if (existing.id === id) {
@@ -338,23 +369,29 @@
                 }
             }
 
-            transientBuffer.destroy();
             const cached = {
                 id, version, kind, length, buffer: overviewBuffer, pointBuffer: overviewBuffer,
                 overviewLength, overviewBucketCount, byteLength: overviewBytes, dataMode: 1, synthetic: true, decimations: new Map(),
             };
             instance.seriesBuffers.set(getSeriesKey(id, version, length), cached);
             instance.persistentBytes += overviewBytes;
+            overviewBuffer = null;
             return { hasValue: rangeHasValue, minimum: rangeMinimum, maximum: rangeMaximum };
-        } catch (error) {
-            transientBuffer.destroy();
-            overviewBuffer.destroy();
-            throw error;
         } finally {
+            if (job.handlerPromise) {
+                try {
+                    await job.handlerPromise;
+                } catch {
+                    // The outer generation promise reports the handler failure.
+                }
+            }
+
             if (instance.generationJobs.get(id) === job)
                 instance.generationJobs.delete(id);
             instance.generationReservedBytes -= reservedBytes;
-            paramsBuffer.destroy();
+            ns.destroyTrackedBuffer(instance, transientBuffer);
+            ns.destroyTrackedBuffer(instance, overviewBuffer);
+            ns.destroyTrackedBuffer(instance, paramsBuffer);
             cancelWorkerRequest(instance, requestId);
         }
     }
@@ -408,11 +445,14 @@
     async function calculateSeriesRangeAsync(instance, source, length) {
         const workgroupCount = Math.min(maxRangeWorkgroups, Math.max(1, Math.ceil(length / rangeWorkgroupSize)));
         const resultSize = workgroupCount * 16;
-        const resultBuffer = instance.device.createBuffer({ size: resultSize, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
-        const readbackBuffer = instance.device.createBuffer({ size: resultSize, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-        const paramsBuffer = instance.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        let resultBuffer = null;
+        let readbackBuffer = null;
+        let paramsBuffer = null;
 
         try {
+            resultBuffer = ns.createTrackedBuffer(instance, { size: resultSize, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+            readbackBuffer = ns.createTrackedBuffer(instance, { size: resultSize, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+            paramsBuffer = ns.createTrackedBuffer(instance, { size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
             instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([length, workgroupCount, 0, 0]));
             const bindGroup = instance.device.createBindGroup({
                 layout: instance.rangePipeline.getBindGroupLayout(0),
@@ -456,12 +496,12 @@
 
             return { hasValue, minimum, maximum };
         } finally {
-            if (readbackBuffer.mapState === 'mapped')
+            if (readbackBuffer?.mapState === 'mapped')
                 readbackBuffer.unmap();
 
-            resultBuffer.destroy();
-            readbackBuffer.destroy();
-            paramsBuffer.destroy();
+            ns.destroyTrackedBuffer(instance, resultBuffer);
+            ns.destroyTrackedBuffer(instance, readbackBuffer);
+            ns.destroyTrackedBuffer(instance, paramsBuffer);
         }
     }
     function rawChunkKey(source, chunkIndex) {
@@ -499,11 +539,15 @@
             rejectRequest = reject;
         });
         const request = { id: source.id, requestId, promise, reject: rejectRequest, byteLength };
+        let reservationActive = true;
         instance.rawRequests.set(key, request);
         instance.workerCallbacks.set(requestId, {
             onerror: event => {
                 instance.rawRequests.delete(key);
-                instance.rawReservedBytes -= byteLength;
+                if (reservationActive) {
+                    instance.rawReservedBytes -= byteLength;
+                    reservationActive = false;
+                }
                 rejectRequest(new Error(`Raw chunk ${chunkIndex} generation failed: ${event.message}`));
             },
             onmessage: event => {
@@ -512,10 +556,12 @@
 
                 try {
                     if (instances.get(source.chartId) !== instance || instance.uploadGenerations.get(source.id) !== source.generation)
-                        throw new Error(`Raw chunk request superseded for series ${source.id}`);
+                        throw ns.cancellationError(`Raw chunk request superseded for series ${source.id}`);
 
                     const values = event.data.values;
-                    const buffer = instance.device.createBuffer({
+                    instance.rawReservedBytes -= byteLength;
+                    reservationActive = false;
+                    const buffer = ns.createTrackedBuffer(instance, {
                         size: values.byteLength,
                         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
                     });
@@ -525,7 +571,6 @@
                         offset, length: values.length, byteLength: values.byteLength, lastUsed: performance.now(),
                     };
                     instance.rawChunks.set(key, chunk);
-                    instance.rawReservedBytes -= byteLength;
                     instance.rawCacheBytes += chunk.byteLength;
                     instance.rawRequests.delete(key);
                     instance.workerCallbacks.delete(requestId);
@@ -535,7 +580,10 @@
                 } catch (error) {
                     instance.rawRequests.delete(key);
                     instance.workerCallbacks.delete(requestId);
-                    instance.rawReservedBytes -= byteLength;
+                    if (reservationActive) {
+                        instance.rawReservedBytes -= byteLength;
+                        reservationActive = false;
+                    }
                     rejectRequest(error);
                 }
             },
@@ -547,11 +595,14 @@
     function rerenderLastPayloads(instance) {
         for (const [target, payload] of instance.lastPayloads) {
             instance.previewRenderKeys.delete(target);
-            ns.renderSeriesAsync(instance.chartId, payload).catch(error => console.error('[chart-webgpu] raw rerender failed', error));
+            ns.scheduleRender(instance.chartId, payload).catch(error => {
+                    if (!ns.isCancellationError(error))
+                        console.error('[chart-webgpu] raw rerender failed', error);
+                });
         }
     }
 
-    function getRawRenderItems(instance, source, series, payload, plot, encoder, target) {
+    function getRawRenderItems(instance, source, series, payload, plot, encoder, target, protectedKeys) {
         const timeWindow = ns.getTimeWindow(payload, series, source.length);
 
         if (!timeWindow)
@@ -565,15 +616,24 @@
 
         const firstChunk = Math.floor(left / rawChunkLength);
         const lastChunk = Math.floor(right / rawChunkLength);
-        const protectedKeys = new Set();
         for (let index = firstChunk; index <= lastChunk; index++)
             protectedKeys.add(rawChunkKey(source, index));
 
         for (let index = firstChunk; index <= lastChunk; index++) {
             try {
-                requestRawChunk(instance, source, index, protectedKeys).catch(error => console.error('[chart-webgpu] raw request failed', error));
+                requestRawChunk(instance, source, index, protectedKeys).catch(error => {
+                    if (!ns.isCancellationError(error)) {
+                        ns.reportRuntimeFailure(
+                            source.chartId,
+                            source.lifecycleEpoch,
+                            'WebGPU data generation failed',
+                            `${error?.message ?? error} Retry the chart to recreate its GPU resources.`);
+                        console.error('[chart-webgpu] raw request failed', error);
+                    }
+                });
             } catch (error) {
-                console.error('[chart-webgpu] raw request failed', error);
+                if (!error?.webGpuCacheCapacity)
+                    throw error;
             }
         }
 
@@ -606,7 +666,7 @@
                 zoomedLeft: plot.plotLeft + ((chunk.offset + localFirst - indexLeft) / indexRange) * plot.plotWidth,
                 dx: plot.plotWidth / indexRange,
             };
-            items.push(ns.getRenderBuffer(instance, chunk, zoomInfo, plot, encoder, `${target}:${source.id}:${index}`));
+            items.push(ns.getRenderBuffer(instance, chunk, zoomInfo, plot, encoder, `${target}:${source.id}:${index}`, protectedKeys));
         }
 
         return items.length ? items : null;

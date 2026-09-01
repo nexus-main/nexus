@@ -3,14 +3,64 @@
     const {
         instances, pendingInstances, lifecycleEpochs, failureStates, dotNetHelpers, configuredCacheBudgets,
         valueOf, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
-        getSharedGpu, getInstance, advanceLifecycleEpoch, destroyInstance, getSyntheticWorker, evictRawChunks,
+        getSharedGpu, getInstance, getLifecycleEpoch, advanceLifecycleEpoch, isCancellationError,
+        reportRuntimeFailure, destroyInstance, getSyntheticWorker, evictRawChunks,
+        createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
         synchronizeSeries, appendSeriesUploadAsync, completeSeriesUploadAsync, abortSeriesUpload,
         generateSyntheticSeriesAsync, getSeriesBuffer, getPreviewRenderKey, getRawRenderItems, createSeriesUpload,
         uniformBufferSize, fillVerticesPerSegment, lineVerticesPerSegment, decimationFactor,
         decimationBucketsPerPixel, maxDecimationBuckets, overviewBucketSize, reducedPointsPerBucket,
     } = ns;
+    const renderStates = new Map();
 
-    function getDrawResources(instance, seriesBuffer, drawIndex, target) {
+    function renderStateKey(chartId, target) {
+        return `${chartId}:${target}`;
+    }
+
+    function invalidateChartRenders(chartId) {
+        for (const [key, state] of renderStates) {
+            if (!key.startsWith(`${chartId}:`))
+                continue;
+            state.generation++;
+            state.pending = null;
+            renderStates.delete(key);
+        }
+    }
+
+    function destroyTargetDecimations(instance, target) {
+        for (const source of [...instance.seriesBuffers.values(), ...instance.rawChunks.values()]) {
+            for (const [key, decimation] of source.decimations ?? []) {
+                if (key !== target && !key.startsWith(`${target}:`))
+                    continue;
+                destroyTrackedBuffer(instance, decimation.outputBuffer);
+                destroyTrackedBuffer(instance, decimation.paramsBuffer);
+                instance.auxiliaryBytes -= decimation.byteLength;
+                source.decimations.delete(key);
+            }
+        }
+    }
+
+    function releaseTarget(chartId, target) {
+        const key = renderStateKey(chartId, target);
+        const state = renderStates.get(key);
+        if (state) {
+            state.generation++;
+            state.pending = null;
+            renderStates.delete(key);
+        }
+
+        const instance = instances.get(chartId);
+        if (!instance)
+            return;
+
+        instance.lastPayloads.delete(target);
+        instance.previewRenderKeys.delete(target);
+        trimDrawResources(instance, target, 0);
+        releaseCanvasContext(instance, target);
+        destroyTargetDecimations(instance, target);
+    }
+
+    function getDrawResources(instance, seriesBuffer, drawIndex, target, protectedRawKeys) {
         let targetResources = instance.targetResources.get(target);
 
         if (!targetResources) {
@@ -23,12 +73,12 @@
         if (resources?.seriesBuffer === seriesBuffer)
             return resources;
 
-        resources?.uniformBuffer.destroy();
+        destroyTrackedBuffer(instance, resources?.uniformBuffer);
 
-        const uniformBuffer = instance.device.createBuffer({
+        const uniformBuffer = createTrackedBuffer(instance, {
             size: uniformBufferSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
+        }, protectedRawKeys);
         const bindGroup = instance.device.createBindGroup({
             layout: instance.pipeline.getBindGroupLayout(0),
             entries: [
@@ -50,7 +100,7 @@
             return;
 
         for (const stale of resources.splice(count))
-            stale.uniformBuffer.destroy();
+            destroyTrackedBuffer(instance, stale.uniformBuffer);
 
         if (resources.length === 0)
             instance.targetResources.delete(target);
@@ -135,7 +185,7 @@
         };
     }
 
-    function getRenderBuffer(instance, source, zoomInfo, plot, encoder, target) {
+    function getRenderBuffer(instance, source, zoomInfo, plot, encoder, target, protectedRawKeys) {
         const visibleLength = zoomInfo.segmentCount + 1;
         const bucketCount = Math.min(maxDecimationBuckets, Math.max(2, Math.ceil(plot.plotWidth * decimationBucketsPerPixel)));
 
@@ -148,20 +198,28 @@
 
         if (!decimation || decimation.bucketCount !== bucketCount) {
             if (decimation) {
-                decimation.outputBuffer.destroy();
-                decimation.paramsBuffer.destroy();
+                destroyTrackedBuffer(instance, decimation.outputBuffer);
+                destroyTrackedBuffer(instance, decimation.paramsBuffer);
                 instance.auxiliaryBytes -= decimation.byteLength;
             }
 
             const allocationBytes = outputSize + 16;
-            const outputBuffer = instance.device.createBuffer({
-                size: outputSize,
-                usage: GPUBufferUsage.STORAGE,
-            });
-            const paramsBuffer = instance.device.createBuffer({
-                size: 16,
-                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-            });
+            let outputBuffer = null;
+            let paramsBuffer = null;
+            try {
+                outputBuffer = createTrackedBuffer(instance, {
+                    size: outputSize,
+                    usage: GPUBufferUsage.STORAGE,
+                }, protectedRawKeys);
+                paramsBuffer = createTrackedBuffer(instance, {
+                    size: 16,
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                }, protectedRawKeys);
+            } catch (error) {
+                destroyTrackedBuffer(instance, outputBuffer);
+                destroyTrackedBuffer(instance, paramsBuffer);
+                throw error;
+            }
             const bindGroup = instance.device.createBindGroup({
                 layout: (source.dataMode === 1 ? instance.pointDecimationPipeline : instance.decimationPipeline).getBindGroupLayout(0),
                 entries: [
@@ -263,7 +321,25 @@
         return createSeriesUpload(instance, id, version, length);
     }
 
-    async function renderSeriesAsync(chartId, payload) {
+    async function runRuntimeOperation(chartId, title, action) {
+        const epoch = getLifecycleEpoch(chartId);
+
+        try {
+            return await action();
+        } catch (error) {
+            if (!isCancellationError(error)) {
+                reportRuntimeFailure(
+                    chartId,
+                    epoch,
+                    title,
+                    `${error?.message ?? error} Retry the chart to recreate its GPU resources.`);
+            }
+
+            throw error;
+        }
+    }
+
+    async function renderSeriesAsync(chartId, payload, renderState = null, renderGeneration = 0) {
         const instance = await getInstance(chartId);
 
         if (!instance)
@@ -271,6 +347,8 @@
 
         const { device, format, pipeline } = instance;
         const target = valueOf(payload, 'Target') ?? 'series';
+        if (renderState && (renderState.generation !== renderGeneration || renderStates.get(renderStateKey(chartId, target)) !== renderState))
+            throw ns.cancellationError(`Rendering target ${target} was superseded`);
         const canvas = document.getElementById(`${target}_${chartId}`);
 
         if (!canvas) {
@@ -295,6 +373,7 @@
 
         const encoder = device.createCommandEncoder();
         const renderItems = [];
+        const protectedRawKeys = new Set();
         let drawResourceCount = 0;
 
         if (plot) {
@@ -308,8 +387,9 @@
 
                 cached.chartId = chartId;
                 cached.generation = instance.uploadGenerations.get(cached.id);
+                cached.lifecycleEpoch = getLifecycleEpoch(chartId);
                 if (cached.synthetic) {
-                    const rawItems = getRawRenderItems(instance, cached, series, payload, plot, encoder, target);
+                    const rawItems = getRawRenderItems(instance, cached, series, payload, plot, encoder, target, protectedRawKeys);
                     if (rawItems) {
                         for (const rawItem of rawItems)
                             renderItems.push({ series, ...rawItem });
@@ -324,7 +404,7 @@
                 if (!zoomInfo)
                     continue;
 
-                const renderItem = getRenderBuffer(instance, cached, zoomInfo, plot, encoder, target);
+                const renderItem = getRenderBuffer(instance, cached, zoomInfo, plot, encoder, target, protectedRawKeys);
                 renderItems.push({ series, ...renderItem });
             }
         }
@@ -347,7 +427,7 @@
                 Math.max(1, Math.ceil(plot.plotHeight)));
 
             for (const { series, seriesBuffer, zoomInfo } of renderItems) {
-                const fillResources = getDrawResources(instance, seriesBuffer, drawResourceCount++, target);
+                const fillResources = getDrawResources(instance, seriesBuffer, drawResourceCount++, target, protectedRawKeys);
 
                 if (writeUniforms(instance, fillResources.uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, 0)) {
                     pass.setBindGroup(0, fillResources.bindGroup);
@@ -356,7 +436,7 @@
             }
 
             for (const { series, seriesBuffer, zoomInfo } of renderItems) {
-                const lineResources = getDrawResources(instance, seriesBuffer, drawResourceCount++, target);
+                const lineResources = getDrawResources(instance, seriesBuffer, drawResourceCount++, target, protectedRawKeys);
 
                 if (writeUniforms(instance, lineResources.uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, 1)) {
                     pass.setBindGroup(0, lineResources.bindGroup);
@@ -374,7 +454,41 @@
 
     }
 
-    Object.assign(ns, { getRenderBuffer, getTimeWindow, renderSeriesAsync });
+    function scheduleRender(chartId, payload) {
+        const target = valueOf(payload, 'Target') ?? 'series';
+        const key = renderStateKey(chartId, target);
+        let state = renderStates.get(key);
+        if (!state) {
+            state = { generation: 0, pending: null, running: false };
+            renderStates.set(key, state);
+        }
+        state.pending = payload;
+        if (state.running)
+            return state.promise;
+
+        state.running = true;
+        const generation = state.generation;
+        state.promise = (async () => {
+            try {
+                while (state.pending && state.generation === generation) {
+                    const next = state.pending;
+                    state.pending = null;
+                    await runRuntimeOperation(chartId, 'WebGPU rendering failed', () =>
+                        renderSeriesAsync(chartId, next, state, generation));
+                }
+            } finally {
+                state.running = false;
+                if (renderStates.get(key) === state && !state.pending)
+                    renderStates.delete(key);
+            }
+        })();
+        return state.promise;
+    }
+
+    Object.assign(ns, {
+        getRenderBuffer, getTimeWindow, runRuntimeOperation, renderSeriesAsync, scheduleRender,
+        releaseTarget, invalidateChartRenders,
+    });
 
     window.nexus ??= {};
     window.nexus.chartWebGpu = {
@@ -396,8 +510,10 @@
 
             const instance = instances.get(chartId);
             if (instance) {
+                evictRawChunks(instance, 0, new Set(), bytes);
+                if (instance.ownedGpuBytes + instance.rawReservedBytes > bytes)
+                    throw new Error(`Chart GPU memory budget cannot be lowered below its ${instance.ownedGpuBytes + instance.rawReservedBytes} bytes of active allocations`);
                 instance.cacheBudget = bytes;
-                evictRawChunks(instance, 0);
             }
 
             configuredCacheBudgets.set(chartId, bytes);
@@ -408,23 +524,32 @@
                 synchronizeSeries(instance, activeIds);
         },
         beginSeriesUpload(chartId, id, version, length) {
-            return beginSeriesUploadAsync(chartId, id, version, length);
+            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+                beginSeriesUploadAsync(chartId, id, version, length));
         },
         appendSeriesUpload(chartId, token, byteOffset, streamReference) {
-            return appendSeriesUploadAsync(chartId, token, byteOffset, streamReference);
+            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+                appendSeriesUploadAsync(chartId, token, byteOffset, streamReference));
         },
         completeSeriesUpload(chartId, token) {
-            return completeSeriesUploadAsync(chartId, token);
+            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+                completeSeriesUploadAsync(chartId, token));
         },
         abortSeriesUpload(chartId, token) {
             abortSeriesUpload(chartId, token);
         },
         generateSyntheticSeries(chartId, id, version, length, kind) {
-            return generateSyntheticSeriesAsync(chartId, id, version, length, kind);
+            return runRuntimeOperation(chartId, 'WebGPU data generation failed', () =>
+                generateSyntheticSeriesAsync(chartId, id, version, length, kind));
         },
         renderSeries(chartId, payload) {
-            renderSeriesAsync(chartId, payload).catch(error => console.error('[chart-webgpu] render failed', error));
+            scheduleRender(chartId, payload)
+                .catch(error => {
+                    if (!isCancellationError(error))
+                        console.error('[chart-webgpu] render failed', error);
+                });
         },
+        releaseTarget,
         async retry(chartId) {
             advanceLifecycleEpoch(chartId);
             pendingInstances.delete(chartId);
@@ -462,6 +587,7 @@
             failureStates,
             getSharedGpu,
             getInstance,
+            runRuntimeOperation,
             evictRawChunks,
             trimDrawResources,
             colorOf,
@@ -473,6 +599,12 @@
             getTimeWindow,
             getZoomInfo,
             getSyntheticOverviewZoom,
+            getRawRenderItems,
+            scheduleRender,
+            releaseTarget,
+            renderStates,
+            createTrackedBuffer,
+            destroyTrackedBuffer,
         });
     }
 })();

@@ -25,6 +25,7 @@ public partial class Chart : IDisposable
     private readonly Dictionary<string, (int Version, int Length)> _sendingSeriesVersions = new();
     private readonly Dictionary<string, SeriesRange> _seriesRanges = new();
     private LineSeriesData? _axisData;
+    private SeriesParameterSnapshot[] _seriesParameterSnapshots = [];
     private bool _axisBeginAtZero;
     private bool _disposed;
     private int _gpuCacheBudgetMiB;
@@ -193,12 +194,21 @@ public partial class Chart : IDisposable
 
     protected override void OnParametersSet()
     {
-        if (ReferenceEquals(_axisData, LineSeriesData) && _axisBeginAtZero == BeginAtZero)
+        AssignSeriesColors();
+        var snapshots = LineSeriesData.Series.Select(CreateSeriesParameterSnapshot).ToArray();
+        var dataChanged = !ReferenceEquals(_axisData, LineSeriesData);
+        var seriesChanged = !_seriesParameterSnapshots.SequenceEqual(snapshots);
+
+        if (!dataChanged && !seriesChanged && _axisBeginAtZero == BeginAtZero)
             return;
 
-        var dataChanged = !ReferenceEquals(_axisData, LineSeriesData);
         _axisData = LineSeriesData;
         _axisBeginAtZero = BeginAtZero;
+        _seriesParameterSnapshots = snapshots;
+
+        foreach (var seriesId in _seriesRanges.Keys.Except(snapshots.Select(snapshot => snapshot.Id)).ToArray())
+            _seriesRanges.Remove(seriesId);
+
         RebuildAxes(LineSeriesData);
 
         if (dataChanged)
@@ -210,13 +220,12 @@ public partial class Chart : IDisposable
         _gpuCacheBudgetMiB = AppState.UISettings.EffectiveChartGpuCacheBudgetMiB;
         AppState.PropertyChanged += OnAppStatePropertyChanged;
 
-        /* line series color */
-        for (int i = 0; i < LineSeriesData.Series.Count; i++)
-        {
-            var color = _colors[i % _colors.Length];
-            LineSeriesData.Series[i].Color = color;
-        }
+    }
 
+    private void AssignSeriesColors()
+    {
+        for (var index = 0; index < LineSeriesData.Series.Count; index++)
+            LineSeriesData.Series[index].Color = _colors[index % _colors.Length];
     }
 
     private void OnAppStatePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -240,23 +249,11 @@ public partial class Chart : IDisposable
         }
     }
 
-    private void OnMouseMove(MouseEventArgs e)
-    {
-        var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
-        DrawAuxiliary(relativePosition);
-    }
+    [JSInvokable]
+    public void PointerMoved(double x, double y) => DrawAuxiliary(new Position((float)x, (float)y));
 
-    private void OnMouseLeave(MouseEventArgs e)
-    {
-        JSRuntime.InvokeVoid("nexus.chart.hide", _chartId, "crosshairs-x");
-        JSRuntime.InvokeVoid("nexus.chart.hide", _chartId, "crosshairs-y");
-
-        foreach (var series in LineSeriesData.Series)
-        {
-            JSRuntime.InvokeVoid("nexus.chart.hide", _chartId, $"pointer_{series.Id}");
-            JSRuntime.InvokeVoid("nexus.chart.setTextContent", _chartId, $"value_{series.Id}", "--");
-        }
-    }
+    [JSInvokable]
+    public void PointerLeft() => JSRuntime.InvokeVoid("nexus.chart.clearAuxiliary", _chartId);
 
     private void OnDoubleClick(MouseEventArgs e)
     {
@@ -464,6 +461,10 @@ public partial class Chart : IDisposable
                     Series = series
                 });
         }
+        else
+        {
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.releaseTarget", _chartId, "navigator-detail-series");
+        }
 
         if (transfers.Count > 0)
             _ = ApplyRangesAfterTransfersAsync(transfers, LineSeriesData, webGpuGeneration);
@@ -471,23 +472,30 @@ public partial class Chart : IDisposable
 
     private async Task ApplyRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data, int webGpuGeneration)
     {
-        SeriesRange[] ranges;
-
-        try
+        var outcomes = await Task.WhenAll(transfers.Select(async transfer =>
         {
-            ranges = await Task.WhenAll(transfers);
-        }
-        catch (Exception exception) when (!_disposed)
-        {
-            Console.Error.WriteLine($"[chart-webgpu] series upload or GPU range calculation failed: {exception}");
-            return;
-        }
+            try
+            {
+                return (Range: (SeriesRange?)await transfer, Error: (Exception?)null);
+            }
+            catch (Exception exception)
+            {
+                return (Range: (SeriesRange?)null, Error: exception);
+            }
+        }));
 
         if (_disposed || webGpuGeneration != _webGpuGeneration || !ReferenceEquals(_axisData, data))
             return;
 
-        foreach (var range in ranges)
+        foreach (var outcome in outcomes)
         {
+            if (outcome.Error is not null)
+            {
+                Console.Error.WriteLine($"[chart-webgpu] series upload or GPU range calculation failed: {outcome.Error}");
+                continue;
+            }
+
+            var range = outcome.Range!.Value;
             if (HasSeriesVersion(_sentSeriesVersions, range.SeriesId, range.Version, range.Length))
                 _seriesRanges[range.SeriesId] = range;
         }
@@ -519,10 +527,7 @@ public partial class Chart : IDisposable
                 group => group.ToArray());
 
         foreach (var axisInfo in _axesMap.Keys)
-        {
-            axisInfo.Min = axisInfo.OriginalMin;
-            axisInfo.Max = axisInfo.OriginalMax;
-        }
+            ApplyVerticalZoom(axisInfo, _zoomBox);
     }
 
     private async Task<SeriesRange> SendSeriesBytesAsync(string seriesId, double[] data, int dataVersion, int length, int webGpuGeneration)
@@ -733,11 +738,7 @@ public partial class Chart : IDisposable
         var currentTimeBegin = _zoomedBegin + zoomedTimeRange * relativePosition.X;
         var currentTimeBeginString = currentTimeBegin.ToString(_timeAxisConfig.CursorLabelFormat);
 
-        JSRuntime.InvokeVoid("nexus.chart.setTextContent", _chartId, $"value_datetime", currentTimeBeginString);
-
-        // crosshairs
-        JSRuntime.InvokeVoid("nexus.chart.translate", _chartId, "crosshairs-x", 0, relativePosition.Y);
-        JSRuntime.InvokeVoid("nexus.chart.translate", _chartId, "crosshairs-y", relativePosition.X, 0);
+        var updates = new List<AuxiliarySeriesUpdate>();
 
         // points
         foreach (var axesEntry in _axesMap)
@@ -773,22 +774,27 @@ public partial class Chart : IDisposable
                     if (double.IsFinite(x) && 0 <= x && x <= 1 &&
                         float.IsFinite(y) && 0 <= y && y <= 1)
                     {
-                        JSRuntime.InvokeVoid("nexus.chart.translate", _chartId, $"pointer_{series.Id}", x, 1 - y);
-
                         var valueString = string.IsNullOrWhiteSpace(series.Unit)
                             ? value.ToString(formatString)
                             : $"{value.ToString(formatString)} {@series.Unit}";
 
-                        JSRuntime.InvokeVoid("nexus.chart.setTextContent", _chartId, $"value_{series.Id}", valueString);
+                        updates.Add(new AuxiliarySeriesUpdate(series.Id, true, x, 1 - y, valueString));
 
                         continue;
                     }
                 }
 
-                JSRuntime.InvokeVoid("nexus.chart.hide", _chartId, $"pointer_{series.Id}");
-                JSRuntime.InvokeVoid("nexus.chart.setTextContent", _chartId, $"value_{series.Id}", "--");
+                updates.Add(new AuxiliarySeriesUpdate(series.Id, false, 0, 0, "--"));
             }
         }
+
+        JSRuntime.InvokeVoid(
+            "nexus.chart.updateAuxiliary",
+            _chartId,
+            relativePosition.X,
+            relativePosition.Y,
+            currentTimeBeginString,
+            updates);
 
     }
 
@@ -833,6 +839,11 @@ public partial class Chart : IDisposable
 
     private readonly record struct GpuRange(bool HasValue, float Minimum, float Maximum);
     private readonly record struct SeriesRange(string SeriesId, int Version, int Length, bool HasValue, float Minimum, float Maximum);
+    private readonly record struct SeriesParameterSnapshot(string Id, int Version, int Length, string Unit, TimeSpan SamplePeriod);
+    private readonly record struct AuxiliarySeriesUpdate(string Id, bool Visible, double X, double Y, string Text);
+
+    private static SeriesParameterSnapshot CreateSeriesParameterSnapshot(LineSeries series) =>
+        new(series.Id, GetSeriesVersion(series), GetSeriesLength(series), series.Unit, series.SamplePeriod);
 
     #endregion
 
@@ -878,10 +889,7 @@ public partial class Chart : IDisposable
         foreach (var axesEntry in _axesMap)
         {
             var axisInfo = axesEntry.Key;
-            var originalDataRange = axisInfo.OriginalMax - axisInfo.OriginalMin;
-
-            axisInfo.Min = axisInfo.OriginalMin + (1 - newZoomBox.Bottom) * originalDataRange;
-            axisInfo.Max = axisInfo.OriginalMax - newZoomBox.Top * originalDataRange;
+            ApplyVerticalZoom(axisInfo, newZoomBox);
         }
 
         _oldZoomBox = newZoomBox;
@@ -962,11 +970,7 @@ public partial class Chart : IDisposable
         _zoomedEnd = ToTime(right);
 
         foreach (var axisInfo in _axesMap.Keys)
-        {
-            var range = axisInfo.OriginalMax - axisInfo.OriginalMin;
-            axisInfo.Min = axisInfo.OriginalMin + (1 - newZoomBox.Bottom) * range;
-            axisInfo.Max = axisInfo.OriginalMax - newZoomBox.Top * range;
-        }
+            ApplyVerticalZoom(axisInfo, newZoomBox);
 
         StateHasChanged();
 
@@ -975,6 +979,13 @@ public partial class Chart : IDisposable
     }
 
     private double MinimumHorizontalZoom => 1d / Math.Max(1, (LineSeriesData.End - LineSeriesData.Begin).Ticks);
+
+    private static void ApplyVerticalZoom(AxisInfo axisInfo, SKRect zoomBox)
+    {
+        var range = axisInfo.OriginalMax - axisInfo.OriginalMin;
+        axisInfo.Min = axisInfo.OriginalMin + (1 - zoomBox.Bottom) * range;
+        axisInfo.Max = axisInfo.OriginalMax - zoomBox.Top * range;
+    }
 
     private DateTime ToTime(double position)
     {

@@ -54,6 +54,9 @@
         configured?.context.unconfigure?.();
         instance.previewRenderKeys.delete(target);
         const context = canvas.getContext('webgpu');
+        if (!context)
+            throw new Error('The browser could not create a WebGPU canvas context.');
+
         context.configure({
             device: instance.device,
             format: instance.format,
@@ -74,6 +77,30 @@
         return bucketCount * reducedPointsPerBucket + 2;
     }
 
+    function destroyTrackedBuffer(instance, buffer) {
+        if (!buffer || buffer.__nexusDestroyed)
+            return;
+
+        buffer.__nexusDestroyed = true;
+        instance.ownedGpuBytes -= buffer.__nexusByteLength ?? 0;
+        buffer.destroy();
+    }
+
+    function ensureGpuCapacity(instance, requiredBytes, protectedRawKeys = new Set(), budget = instance.cacheBudget) {
+        ns.evictRawChunks?.(instance, requiredBytes, protectedRawKeys, budget);
+        if (instance.ownedGpuBytes + instance.rawReservedBytes + requiredBytes > budget)
+            throw new Error(`Chart GPU memory budget (${budget} bytes) cannot fit a ${requiredBytes}-byte allocation`);
+    }
+
+    function createTrackedBuffer(instance, descriptor, protectedRawKeys) {
+        ensureGpuCapacity(instance, descriptor.size, protectedRawKeys);
+        const buffer = instance.device.createBuffer(descriptor);
+        buffer.__nexusByteLength = descriptor.size;
+        buffer.__nexusDestroyed = false;
+        instance.ownedGpuBytes += descriptor.size;
+        return buffer;
+    }
+
     function getLifecycleEpoch(chartId) {
         return lifecycleEpochs.get(chartId) ?? 0;
     }
@@ -82,6 +109,16 @@
         const epoch = getLifecycleEpoch(chartId) + 1;
         lifecycleEpochs.set(chartId, epoch);
         return epoch;
+    }
+
+    function cancellationError(message) {
+        const error = new Error(message);
+        error.webGpuCancelled = true;
+        return error;
+    }
+
+    function isCancellationError(error) {
+        return error?.webGpuCancelled === true;
     }
 
     function reportFailure(chartId, title, message) {
@@ -95,11 +132,27 @@
             .catch(error => console.error('[chart-webgpu] failure callback failed', error));
     }
 
+    function reportRuntimeFailure(chartId, epoch, title, message) {
+        if (getLifecycleEpoch(chartId) !== epoch || failureStates.has(chartId))
+            return;
+
+        advanceLifecycleEpoch(chartId);
+        pendingInstances.delete(chartId);
+        const instance = instances.get(chartId);
+        instances.delete(chartId);
+
+        if (instance)
+            destroyInstance(instance, `${title}: ${message}`);
+
+        reportFailure(chartId, title, message);
+    }
+
     function destroyInstance(instance, reason) {
         if (!instance || instance.disposed)
             return;
 
         instance.disposed = true;
+        ns.invalidateChartRenders?.(instance.chartId);
 
         for (const id of [...instance.generationJobs.keys()])
             ns.cancelGeneration(instance, id, reason);
@@ -107,7 +160,7 @@
         for (const request of instance.rawRequests.values()) {
             ns.cancelWorkerRequest(instance, request.requestId);
             instance.rawReservedBytes -= request.byteLength;
-            request.reject(new Error(reason));
+            request.reject(cancellationError(reason));
         }
         instance.rawRequests.clear();
         instance.syntheticWorker?.terminate();
@@ -122,18 +175,20 @@
         instance.seriesBuffers.clear();
 
         for (const upload of instance.uploadSessions.values())
-            upload.buffer?.destroy();
+            destroyTrackedBuffer(instance, upload.buffer);
         instance.uploadSessions.clear();
 
         for (const targetResources of instance.targetResources.values()) {
             for (const resources of targetResources)
-                resources.uniformBuffer.destroy();
+                destroyTrackedBuffer(instance, resources.uniformBuffer);
         }
         instance.targetResources.clear();
 
         for (const { context } of instance.canvasContexts.values())
             context.unconfigure?.();
         instance.canvasContexts.clear();
+        instance.lastPayloads.clear();
+        instance.previewRenderKeys.clear();
 
     }
 
@@ -172,6 +227,7 @@
                 const pointDecimationModule = device.createShaderModule({ code: pointDecimationShader });
                 bundle = {
                     generation,
+                    alive: true,
                     device,
                     format,
                     pipeline: device.createRenderPipeline({
@@ -209,11 +265,13 @@
             }
 
             device.lost.then(info => {
-                if (sharedGpu !== bundle)
-                    return;
+                bundle.alive = false;
 
-                sharedGpu = null;
-                sharedGpuGeneration++;
+                if (sharedGpu === bundle) {
+                    sharedGpu = null;
+                    sharedGpuGeneration++;
+                }
+
                 const detail = info.message ? ` ${info.message}` : '';
                 for (const [chartId, instance] of [...instances]) {
                     if (instance.gpuGeneration !== bundle.generation)
@@ -265,6 +323,8 @@
                 const gpu = await getSharedGpu();
                 if (getLifecycleEpoch(chartId) !== epoch)
                     return null;
+                if (!gpu.alive || sharedGpu !== gpu || gpu.generation !== sharedGpuGeneration)
+                    throw new Error('The WebGPU device was lost during chart initialization.');
 
                 instance = {
                     chartId,
@@ -278,6 +338,7 @@
                     previewRenderKeys: new Map(),
                     uploadGenerations: new Map(),
                     cacheBudget: configuredCacheBudgets.get(chartId) ?? defaultCacheBudget,
+                    ownedGpuBytes: 0,
                     persistentBytes: 0,
                     rawCacheBytes: 0,
                     rawReservedBytes: 0,
@@ -326,6 +387,8 @@
     Object.assign(ns, {
         instances, pendingInstances, lifecycleEpochs, failureStates, dotNetHelpers, configuredCacheBudgets,
         valueOf, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
-        getLifecycleEpoch, advanceLifecycleEpoch, reportFailure, destroyInstance, getSharedGpu, getInstance,
+        createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
+        getLifecycleEpoch, advanceLifecycleEpoch, cancellationError, isCancellationError,
+        reportFailure, reportRuntimeFailure, destroyInstance, getSharedGpu, getInstance,
     });
 })();
