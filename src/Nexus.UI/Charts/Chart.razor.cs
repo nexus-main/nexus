@@ -32,14 +32,10 @@ public partial class Chart : IDisposable
     private bool _disposed;
 
     /* zoom */
-    private bool _isDragging;
     private readonly DotNetObjectReference<Chart> _dotNetHelper;
 
     private SKRect _oldZoomBox;
     private SKRect _zoomBox;
-    private Position _zoomStart;
-    private Position _zoomEnd;
-
     private DateTime _zoomedBegin;
     private DateTime _zoomedEnd;
 
@@ -52,11 +48,37 @@ public partial class Chart : IDisposable
     private string NavigatorWindowWidthStyle =>
         $"{((_zoomBox.Right - _zoomBox.Left) * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
 
+    private string NavigatorWindowRightStyle =>
+        $"{(_zoomBox.Right * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+
     private string NavigatorDataLeft =>
-        _zoomBox.Left.ToString("0.######", CultureInfo.InvariantCulture);
+        _zoomBox.Left.ToString("0.########", CultureInfo.InvariantCulture);
 
     private string NavigatorDataRight =>
-        _zoomBox.Right.ToString("0.######", CultureInfo.InvariantCulture);
+        _zoomBox.Right.ToString("0.########", CultureInfo.InvariantCulture);
+
+    private float DetailLeft
+    {
+        get
+        {
+            var width = _zoomBox.Width;
+            var detailWidth = Math.Min(1f, width * 8f);
+            return Math.Clamp((_zoomBox.Left + _zoomBox.Right - detailWidth) / 2f, 0f, 1f - detailWidth);
+        }
+    }
+
+    private float DetailRight => Math.Min(1f, DetailLeft + _zoomBox.Width * 8f);
+    private bool ShowDetailNavigator => _zoomBox.Width < 0.125f;
+    private float DetailWindowLeft => (_zoomBox.Left - DetailLeft) / (DetailRight - DetailLeft);
+    private float DetailWindowRight => (_zoomBox.Right - DetailLeft) / (DetailRight - DetailLeft);
+    private string DetailDataLeft => DetailLeft.ToString("0.########", CultureInfo.InvariantCulture);
+    private string DetailDataRight => DetailRight.ToString("0.########", CultureInfo.InvariantCulture);
+    private string DetailWindowLeftStyle => $"{(DetailWindowLeft * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private string DetailWindowRightStyle => $"{(DetailWindowRight * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private string DetailWindowWidthStyle => $"{((DetailWindowRight - DetailWindowLeft) * 100f).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private string NavigatorDurationLabel => FormatDuration(_zoomedEnd - _zoomedBegin);
+    private string NavigatorRangeLabel => $"{_zoomedBegin:G}  -  {_zoomedEnd:G}";
+    private string DetailRangeLabel => $"{ToTime(DetailLeft):G}  -  {ToTime(DetailRight):G}";
 
     /* Common */
     private const float TICK_SIZE = 10;
@@ -188,39 +210,7 @@ public partial class Chart : IDisposable
     protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender && OperatingSystem.IsBrowser())
-            JSRuntime.InvokeVoid("nexus.chart.initNavigator", _chartId, _dotNetHelper);
-    }
-
-    private void OnMouseDown(MouseEventArgs e)
-    {
-        var position = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
-        _zoomStart = position;
-        _zoomEnd = position;
-
-        JSRuntime.InvokeVoid("nexus.util.addMouseUpEvent", _dotNetHelper);
-
-        _isDragging = true;
-    }
-
-    [JSInvokable]
-    public void OnMouseUp()
-    {
-        _isDragging = false;
-
-        JSRuntime.InvokeVoid("nexus.chart.resize", _chartId, "selection", 0, 1, 0, 0);
-
-        var zoomBox = CreateZoomBox(_zoomStart, _zoomEnd);
-
-        if (zoomBox.Width > 0 &&
-            zoomBox.Height > 0)
-        {
-            ApplyZoom(zoomBox);
-
-            if (OperatingSystem.IsBrowser())
-                _skiaView.Invalidate();
-
-            StateHasChanged();
-        }
+            JSRuntime.InvokeVoid("nexus.chart.initInteractions", _chartId, _dotNetHelper);
     }
 
     private void OnMouseMove(MouseEventArgs e)
@@ -244,6 +234,7 @@ public partial class Chart : IDisposable
     private void OnDoubleClick(MouseEventArgs e)
     {
         ResetZoom();
+        StateHasChanged();
 
         var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
         DrawAuxiliary(relativePosition);
@@ -284,6 +275,7 @@ public partial class Chart : IDisposable
 
         ApplyZoom(zoomBox);
         DrawAuxiliary(relativePosition);
+        StateHasChanged();
 
         if (OperatingSystem.IsBrowser())
             _skiaView.Invalidate();
@@ -369,6 +361,8 @@ public partial class Chart : IDisposable
                     },
                     AxisMin = item.AxisInfo.Min,
                     AxisMax = item.AxisInfo.Max,
+                    OverviewAxisMin = item.AxisInfo.OriginalMin,
+                    OverviewAxisMax = item.AxisInfo.OriginalMax,
                     DataVersion = dataVersion,
                     Length = length
                 };
@@ -401,6 +395,37 @@ public partial class Chart : IDisposable
                 FillOpacity = 0.10,
                 Series = series
             });
+
+        JSRuntime.InvokeVoid(
+            "nexus.chartWebGpu.renderSeries",
+            _chartId,
+            new
+            {
+                Target = "navigator-overview-series",
+                Preview = true,
+                Plot = new { Left = 0, Top = 0, Right = 1, Bottom = 1 },
+                Zoom = new { Left = 0, Right = 1 },
+                LineWidth = 0.65,
+                FillOpacity = 0.08,
+                Series = series
+            });
+
+        if (ShowDetailNavigator)
+        {
+            JSRuntime.InvokeVoid(
+                "nexus.chartWebGpu.renderSeries",
+                _chartId,
+                new
+                {
+                    Target = "navigator-detail-series",
+                    Preview = true,
+                    Plot = new { Left = 0, Top = 0, Right = 1, Bottom = 1 },
+                    Zoom = new { Left = DetailLeft, Right = DetailRight },
+                    LineWidth = 0.65,
+                    FillOpacity = 0.08,
+                    Series = series
+                });
+        }
 
         if (transfers.Count > 0)
             _ = ApplyRangesAfterTransfersAsync(transfers, LineSeriesData);
@@ -613,21 +638,6 @@ public partial class Chart : IDisposable
             }
         }
 
-        // selection
-        if (_isDragging)
-        {
-            _zoomEnd = relativePosition;
-            var zoomBox = CreateZoomBox(_zoomStart, _zoomEnd);
-
-            JSRuntime.InvokeVoid(
-                "nexus.chart.resize",
-                _chartId,
-                "selection",
-                zoomBox.Left,
-                zoomBox.Top,
-                zoomBox.Right,
-                zoomBox.Bottom);
-        }
     }
 
     private AxisInfo CreateAxisInfo(string unit, float min, float max)
@@ -657,14 +667,19 @@ public partial class Chart : IDisposable
 
     #region Zoom
 
-    private static SKRect CreateZoomBox(Position start, Position end)
+    [JSInvokable]
+    public void DragZoom(double left, double top, double right, double bottom)
     {
-        var left = Math.Min(start.X, end.X);
-        var top = 0;
-        var right = Math.Max(start.X, end.X);
-        var bottom = 1;
+        var zoomBox = new SKRect((float)left, (float)top, (float)right, (float)bottom);
 
-        return new SKRect(left, top, right, bottom);
+        if (zoomBox.Width <= 0 || zoomBox.Height <= 0)
+            return;
+
+        ApplyZoom(zoomBox);
+        StateHasChanged();
+
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
     }
 
     private void ApplyZoom(SKRect zoomBox)
@@ -727,7 +742,7 @@ public partial class Chart : IDisposable
         left = Math.Clamp(left, 0f, 1f);
         right = Math.Clamp(right, 0f, 1f);
 
-        if (right - left < 1e-4f)
+        if (right - left < 1e-7f)
             return;
 
         var newZoomBox = new SKRect(left, _zoomBox.Top, right, _zoomBox.Bottom);
@@ -749,6 +764,53 @@ public partial class Chart : IDisposable
 
         if (OperatingSystem.IsBrowser())
             _skiaView.Invalidate();
+    }
+
+    [JSInvokable]
+    public void SetViewport(double left, double top, double right, double bottom)
+    {
+        left = Math.Clamp(left, 0, 1);
+        top = Math.Clamp(top, 0, 1);
+        right = Math.Clamp(right, 0, 1);
+        bottom = Math.Clamp(bottom, 0, 1);
+
+        if (right - left < 1e-6 || bottom - top < 1e-6)
+            return;
+
+        var newZoomBox = new SKRect((float)left, (float)top, (float)right, (float)bottom);
+        _oldZoomBox = newZoomBox;
+        _zoomBox = newZoomBox;
+        _zoomedBegin = ToTime(newZoomBox.Left);
+        _zoomedEnd = ToTime(newZoomBox.Right);
+
+        foreach (var axisInfo in _axesMap.Keys)
+        {
+            var range = axisInfo.OriginalMax - axisInfo.OriginalMin;
+            axisInfo.Min = axisInfo.OriginalMin + (1 - newZoomBox.Bottom) * range;
+            axisInfo.Max = axisInfo.OriginalMax - newZoomBox.Top * range;
+        }
+
+        StateHasChanged();
+
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
+    }
+
+    private DateTime ToTime(float position) =>
+        LineSeriesData.Begin + (LineSeriesData.End - LineSeriesData.Begin) * position;
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalDays >= 1)
+            return $"{duration.TotalDays:0.##} d";
+        if (duration.TotalHours >= 1)
+            return $"{duration.TotalHours:0.##} h";
+        if (duration.TotalMinutes >= 1)
+            return $"{duration.TotalMinutes:0.##} min";
+        if (duration.TotalSeconds >= 1)
+            return $"{duration.TotalSeconds:0.##} s";
+
+        return $"{duration.TotalMilliseconds:0.###} ms";
     }
 
     #endregion
@@ -1134,7 +1196,10 @@ public partial class Chart : IDisposable
         _disposed = true;
 
         if (OperatingSystem.IsBrowser())
+        {
+            JSRuntime.InvokeVoid("nexus.chart.dispose", _chartId);
             JSRuntime.InvokeVoid("nexus.chartWebGpu.dispose", _chartId);
+        }
 
         _sentSeriesVersions.Clear();
         _sendingSeriesVersions.Clear();

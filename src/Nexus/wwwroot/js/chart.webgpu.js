@@ -515,7 +515,6 @@ fn reduceRange(
                 return null;
             }
 
-            const context = canvas.getContext('webgpu');
             const format = navigator.gpu.getPreferredCanvasFormat();
             const module = device.createShaderModule({ code: shader });
             const decimationModule = device.createShaderModule({ code: decimationShader });
@@ -565,14 +564,14 @@ fn reduceRange(
             console.log(`[chart-perf] WebGPU pipelines: ${(performance.now() - pipelinesStartedAt).toFixed(1)} ms`);
             instance = {
                 canvas,
-                context,
                 device,
                 format,
                 pipeline,
                 decimationPipeline,
                 rangePipeline,
                 seriesBuffers: new Map(),
-                drawResources: [],
+                targetResources: new Map(),
+                previewRenderKeys: new Map(),
                 uploadGenerations: new Map(),
                 renderIndex: 0,
             };
@@ -592,8 +591,11 @@ fn reduceRange(
 
     function destroySeriesBuffer(cached) {
         cached.buffer.destroy();
-        cached.decimation?.outputBuffer.destroy();
-        cached.decimation?.paramsBuffer.destroy();
+
+        for (const decimation of cached.decimations?.values() ?? []) {
+            decimation.outputBuffer.destroy();
+            decimation.paramsBuffer.destroy();
+        }
     }
 
     function cacheSeriesBuffer(instance, id, version, length, valuesBytes) {
@@ -620,7 +622,7 @@ fn reduceRange(
             }
         }
 
-        const cachedSeries = { id, buffer, pointBuffer: buffer, length: data.length, dataMode: 0 };
+        const cachedSeries = { id, buffer, pointBuffer: buffer, length: data.length, dataMode: 0, decimations: new Map() };
         instance.seriesBuffers.set(key, cachedSeries);
         console.log(`[chart-perf] series ${id}: GPU buffer+write submitted ${(performance.now() - startedAt).toFixed(1)} ms (writeBuffer ${writeMilliseconds.toFixed(1)} ms), ${(data.byteLength / 1048576).toFixed(1)} MiB`);
         instance.device.queue.onSubmittedWorkDone().then(() =>
@@ -637,6 +639,40 @@ fn reduceRange(
             return null;
 
         return instance.seriesBuffers.get(getSeriesKey(id, version, length)) ?? null;
+    }
+
+    function getPreviewRenderKey(instance, payload, width, height) {
+        const zoom = valueOf(payload, 'Zoom') ?? {};
+        const seriesList = valueOf(payload, 'Series') ?? [];
+        const seriesKey = seriesList.map(series => {
+            const id = valueOf(series, 'Id');
+            const version = valueOf(series, 'DataVersion') ?? 0;
+            const length = valueOf(series, 'Length') ?? 0;
+            const color = valueOf(series, 'Color') ?? {};
+
+            return [
+                id,
+                version,
+                length,
+                instance.seriesBuffers.has(getSeriesKey(id, version, length)),
+                valueOf(series, 'OverviewAxisMin'),
+                valueOf(series, 'OverviewAxisMax'),
+                valueOf(color, 'Red'),
+                valueOf(color, 'Green'),
+                valueOf(color, 'Blue'),
+                valueOf(color, 'Alpha'),
+            ];
+        });
+
+        return JSON.stringify([
+            width,
+            height,
+            valueOf(zoom, 'Left') ?? 0,
+            valueOf(zoom, 'Right') ?? 1,
+            valueOf(payload, 'LineWidth') ?? 0.7,
+            valueOf(payload, 'FillOpacity') ?? 0.10,
+            seriesKey,
+        ]);
     }
 
     async function calculateSeriesRangeAsync(instance, source, length) {
@@ -701,8 +737,15 @@ fn reduceRange(
         }
     }
 
-    function getDrawResources(instance, seriesBuffer, drawIndex) {
-        let resources = instance.drawResources[drawIndex];
+    function getDrawResources(instance, seriesBuffer, drawIndex, target) {
+        let targetResources = instance.targetResources.get(target);
+
+        if (!targetResources) {
+            targetResources = [];
+            instance.targetResources.set(target, targetResources);
+        }
+
+        let resources = targetResources[drawIndex];
 
         if (resources?.seriesBuffer === seriesBuffer)
             return resources;
@@ -723,7 +766,7 @@ fn reduceRange(
         });
 
         resources = { seriesBuffer, uniformBuffer, bindGroup };
-        instance.drawResources[drawIndex] = resources;
+        targetResources[drawIndex] = resources;
         return resources;
     }
 
@@ -769,14 +812,14 @@ fn reduceRange(
         return { first, segmentCount: visibleLength - 1, zoomedLeft, dx };
     }
 
-    function getRenderBuffer(instance, source, zoomInfo, plot, encoder) {
+    function getRenderBuffer(instance, source, zoomInfo, plot, encoder, target) {
         const visibleLength = zoomInfo.segmentCount + 1;
         const bucketCount = Math.min(maxDecimationBuckets, Math.max(2, Math.ceil(plot.plotWidth * decimationBucketsPerPixel)));
 
         if (visibleLength <= bucketCount * decimationFactor)
             return { seriesBuffer: source, zoomInfo };
 
-        let decimation = source.decimation;
+        let decimation = source.decimations.get(target);
         const outputLength = bucketCount * 2 + 2;
         const outputSize = outputLength * 2 * Float32Array.BYTES_PER_ELEMENT;
 
@@ -813,7 +856,7 @@ fn reduceRange(
                     dataMode: 1,
                 },
             };
-            source.decimation = decimation;
+            source.decimations.set(target, decimation);
         }
 
         instance.device.queue.writeBuffer(
@@ -839,8 +882,9 @@ fn reduceRange(
     }
 
     function writeUniforms(instance, uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, mode) {
-        const axisMin = valueOf(series, 'AxisMin') ?? 0;
-        const axisMax = valueOf(series, 'AxisMax') ?? 1;
+        const preview = valueOf(payload, 'Preview') ?? false;
+        const axisMin = preview ? (valueOf(series, 'OverviewAxisMin') ?? 0) : (valueOf(series, 'AxisMin') ?? 0);
+        const axisMax = preview ? (valueOf(series, 'OverviewAxisMax') ?? 1) : (valueOf(series, 'AxisMax') ?? 1);
         const axisRange = axisMax - axisMin;
 
         if (!Number.isFinite(axisRange) || axisRange === 0)
@@ -915,9 +959,26 @@ fn reduceRange(
         if (!instance)
             return;
 
-        const { canvas, context, device, format, pipeline } = instance;
+        const { device, format, pipeline } = instance;
+        const target = valueOf(payload, 'Target') ?? 'series';
+        const canvas = document.getElementById(`${target}_${chartId}`);
+
+        if (!canvas)
+            return;
+
+        const context = canvas.getContext('webgpu');
         const renderIndex = ++instance.renderIndex;
         const { width, height, dpr } = ensureCanvasSize(canvas);
+        const isPreview = valueOf(payload, 'Preview') ?? false;
+        let previewRenderKey = null;
+
+        if (isPreview) {
+            previewRenderKey = getPreviewRenderKey(instance, payload, width, height);
+
+            if (instance.previewRenderKeys.get(target) === previewRenderKey)
+                return;
+        }
+
         const plot = getPlot(payload, width, height);
 
         context.configure({
@@ -943,7 +1004,7 @@ fn reduceRange(
                 if (!zoomInfo)
                     continue;
 
-                const renderItem = getRenderBuffer(instance, cached, zoomInfo, plot, encoder);
+                const renderItem = getRenderBuffer(instance, cached, zoomInfo, plot, encoder, target);
                 renderItems.push({ series, ...renderItem });
             }
         }
@@ -968,14 +1029,14 @@ fn reduceRange(
             let drawIndex = 0;
 
             for (const { series, seriesBuffer, zoomInfo } of renderItems) {
-                const fillResources = getDrawResources(instance, seriesBuffer, drawIndex++);
+                const fillResources = getDrawResources(instance, seriesBuffer, drawIndex++, target);
 
                 if (writeUniforms(instance, fillResources.uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, 0)) {
                     pass.setBindGroup(0, fillResources.bindGroup);
                     pass.draw(zoomInfo.segmentCount * fillVerticesPerSegment);
                 }
 
-                const lineResources = getDrawResources(instance, seriesBuffer, drawIndex++);
+                const lineResources = getDrawResources(instance, seriesBuffer, drawIndex++, target);
 
                 if (writeUniforms(instance, lineResources.uniformBuffer, seriesBuffer, payload, series, plot, zoomInfo, width, height, dpr, 1)) {
                     pass.setBindGroup(0, lineResources.bindGroup);
@@ -987,6 +1048,10 @@ fn reduceRange(
         pass.end();
         const submitStartedAt = performance.now();
         device.queue.submit([encoder.finish()]);
+
+        if (previewRenderKey !== null)
+            instance.previewRenderKeys.set(target, previewRenderKey);
+
         const submittedAt = performance.now();
         console.log(`[chart-perf] render ${renderIndex}: encoded+submitted ${(submittedAt - startedAt).toFixed(1)} ms; submit ${(submittedAt - submitStartedAt).toFixed(1)} ms; ${renderItems.length} series`);
         device.queue.onSubmittedWorkDone().then(() =>
@@ -1010,8 +1075,10 @@ fn reduceRange(
                 for (const cached of instance.seriesBuffers.values())
                     destroySeriesBuffer(cached);
 
-                for (const resources of instance.drawResources)
-                    resources.uniformBuffer.destroy();
+                for (const targetResources of instance.targetResources.values()) {
+                    for (const resources of targetResources)
+                        resources.uniformBuffer.destroy();
+                }
             }
 
             instances.delete(chartId);
