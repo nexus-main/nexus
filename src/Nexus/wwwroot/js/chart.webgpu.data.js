@@ -1,6 +1,6 @@
 (function () {
     const ns = window.__nexusChartWebGpu;
-    const { instances, getInstance, valueOf, overviewBucketSize, reducedPointsPerBucket, syntheticStreamChunkLength, rawChunkLength, rangeWorkgroupSize, maxRangeWorkgroups } = ns;
+    const { instances, dotNetHelpers, getInstance, valueOf, overviewBucketSize, reducedPointsPerBucket, syntheticStreamChunkLength, rawChunkLength, rangeWorkgroupSize, maxRangeWorkgroups } = ns;
 
     function getSyntheticWorker(instance) {
         if (instance.syntheticWorker)
@@ -108,114 +108,36 @@
                 cancelGeneration(instance, id, `Series ${id} was removed`);
         }
 
-        for (const [token, upload] of instance.uploadSessions) {
+        for (const [token, upload] of instance.chunkedUploadSessions) {
             if (active.has(upload.id))
                 continue;
 
-            ns.destroyTrackedBuffer(instance, upload.buffer);
-            instance.uploadSessions.delete(token);
+            destroyChunkedUpload(instance, upload);
+            instance.chunkedUploadSessions.delete(token);
         }
     }
 
-    function createSeriesUpload(instance, id, version, length) {
-        if (!Number.isSafeInteger(length) || length < 0)
-            throw new Error(`Series length must be a non-negative safe integer (received ${length})`);
-
-        const byteLength = length * Float32Array.BYTES_PER_ELEMENT;
-        if (!Number.isSafeInteger(byteLength))
-            throw new Error(`Series byte length is not a safe integer (${byteLength})`);
-        const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
-        if (byteLength > deviceLimit)
-            throw new Error(`Series requires ${byteLength} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
-
-        for (const [token, upload] of instance.uploadSessions) {
-            if (upload.id !== id)
-                continue;
-
-            ns.destroyTrackedBuffer(instance, upload.buffer);
-            instance.uploadSessions.delete(token);
-        }
-
-        const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
-        instance.uploadGenerations.set(id, generation);
-        removeRawSeries(instance, id);
-        const token = ++instance.uploadToken;
-        const buffer = length >= 2
-            ? ns.createTrackedBuffer(instance, {
-                size: byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            })
-            : null;
-        instance.uploadSessions.set(token, { id, version, length, byteLength, buffer, generation, writtenBytes: 0 });
-        return token;
+    function destroyChunkedUpload(instance, upload) {
+        ns.destroyTrackedBuffer(instance, upload.transientBuffer);
+        ns.destroyTrackedBuffer(instance, upload.overviewBuffer);
+        ns.destroyTrackedBuffer(instance, upload.paramsBuffer);
     }
 
-    async function appendSeriesUploadAsync(chartId, token, byteOffset, streamReference) {
-        const instance = await getInstance(chartId);
-        const upload = instance?.uploadSessions.get(token);
-        if (!upload)
-            throw ns.cancellationError(`Series upload ${token} is no longer active`);
-
-        const bytes = new Uint8Array(await streamReference.arrayBuffer());
-        if (instances.get(chartId) !== instance || instance.uploadSessions.get(token) !== upload)
-            throw ns.cancellationError(`Series upload ${token} was superseded`);
-        if (!Number.isSafeInteger(byteOffset) || byteOffset !== upload.writtenBytes)
-            throw new Error(`Series upload ${token} expected byte offset ${upload.writtenBytes}, received ${byteOffset}`);
-        if (bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0 || byteOffset + bytes.byteLength > upload.byteLength)
-            throw new Error(`Series upload ${token} contains invalid or excess data`);
-
-        if (bytes.byteLength > 0 && upload.buffer)
-            instance.device.queue.writeBuffer(upload.buffer, byteOffset, bytes);
-        upload.writtenBytes += bytes.byteLength;
-    }
-
-    async function completeSeriesUploadAsync(chartId, token) {
-        const instance = await getInstance(chartId);
-        const upload = instance?.uploadSessions.get(token);
-        if (!upload)
-            throw ns.cancellationError(`Series upload ${token} is no longer active`);
-        if (upload.writtenBytes !== upload.byteLength)
-            throw new Error(`Series upload ${token} is incomplete (${upload.writtenBytes} of ${upload.byteLength} bytes)`);
-
-        const range = upload.buffer
-            ? await calculateSeriesRangeAsync(instance, upload.buffer, upload.length)
-            : { hasValue: false, minimum: 0, maximum: 0 };
-        if (instances.get(chartId) !== instance || instance.uploadSessions.get(token) !== upload)
-            throw ns.cancellationError(`Series upload ${token} was superseded`);
-
-        for (const [existingKey, existing] of instance.seriesBuffers) {
-            if (existing.id === upload.id) {
-                destroySeriesBuffer(instance, existing);
-                instance.seriesBuffers.delete(existingKey);
-            }
-        }
-
-        if (upload.buffer) {
-            const key = getSeriesKey(upload.id, upload.version, upload.length);
-            const cachedSeries = {
-                id: upload.id,
-                buffer: upload.buffer,
-                pointBuffer: upload.buffer,
-                length: upload.length,
-                byteLength: upload.byteLength,
-                dataMode: 0,
-                decimations: new Map(),
-            };
-            instance.seriesBuffers.set(key, cachedSeries);
-        }
-
-        instance.uploadSessions.delete(token);
+    async function processOverviewChunkAsync(instance, transientBuffer, paramsBuffer, bindGroup, offset, values, count) {
+        instance.device.queue.writeBuffer(transientBuffer, 0, values);
+        const range = await calculateSeriesRangeAsync(instance, transientBuffer, count);
+        instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([
+            offset, count, Math.floor(offset / overviewBucketSize), 0,
+        ]));
+        const encoder = instance.device.createCommandEncoder();
+        const pass = encoder.beginComputePass();
+        pass.setPipeline(instance.overviewPipeline);
+        pass.setBindGroup(0, bindGroup);
+        pass.dispatchWorkgroups(Math.ceil(count / overviewBucketSize));
+        pass.end();
+        instance.device.queue.submit([encoder.finish()]);
+        await instance.device.queue.onSubmittedWorkDone();
         return range;
-    }
-
-    function abortSeriesUpload(chartId, token) {
-        const instance = instances.get(chartId);
-        const upload = instance?.uploadSessions.get(token);
-        if (!upload)
-            return;
-
-        ns.destroyTrackedBuffer(instance, upload.buffer);
-        instance.uploadSessions.delete(token);
     }
 
     async function generateSyntheticSeriesAsync(chartId, id, version, length, kind) {
@@ -229,13 +151,6 @@
 
         const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
         instance.uploadGenerations.set(id, generation);
-        for (const [token, upload] of instance.uploadSessions) {
-            if (upload.id !== id)
-                continue;
-
-            ns.destroyTrackedBuffer(instance, upload.buffer);
-            instance.uploadSessions.delete(token);
-        }
         cancelGeneration(instance, id, `Synthetic generation superseded for series ${id}`);
         removeRawSeries(instance, id);
         const overviewBucketCount = Math.ceil(length / overviewBucketSize);
@@ -314,27 +229,15 @@
                         const handlerPromise = (async () => {
                             ensureGenerationIsActive();
                             const values = event.data.values;
-                            instance.device.queue.writeBuffer(transientBuffer, 0, values);
-                            const chunkRange = await calculateSeriesRangeAsync(instance, transientBuffer, values.length);
+                            const chunkRange = await processOverviewChunkAsync(
+                                instance, transientBuffer, paramsBuffer, bindGroup,
+                                event.data.offset, values, values.length);
                             ensureGenerationIsActive();
                             if (chunkRange.hasValue) {
                                 rangeMinimum = rangeHasValue ? Math.min(rangeMinimum, chunkRange.minimum) : chunkRange.minimum;
                                 rangeMaximum = rangeHasValue ? Math.max(rangeMaximum, chunkRange.maximum) : chunkRange.maximum;
                                 rangeHasValue = true;
                             }
-
-                            instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([
-                                event.data.offset, values.length, Math.floor(event.data.offset / overviewBucketSize), 0,
-                            ]));
-                            const encoder = instance.device.createCommandEncoder();
-                            const pass = encoder.beginComputePass();
-                            pass.setPipeline(instance.overviewPipeline);
-                            pass.setBindGroup(0, bindGroup);
-                            pass.dispatchWorkgroups(Math.ceil(values.length / overviewBucketSize));
-                            pass.end();
-                            instance.device.queue.submit([encoder.finish()]);
-                            await instance.device.queue.onSubmittedWorkDone();
-                            ensureGenerationIsActive();
                             worker.postMessage({ type: 'ack', requestId });
                         })();
                         job.handlerPromise = handlerPromise;
@@ -381,6 +284,132 @@
             ns.destroyTrackedBuffer(instance, paramsBuffer);
             cancelWorkerRequest(instance, requestId);
         }
+    }
+
+    async function beginChunkedSeriesAsync(chartId, id, version, length) {
+        const instance = await getInstance(chartId);
+        if (!instance)
+            throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
+        if (!Number.isSafeInteger(length) || length < 2)
+            throw new Error(`Chunked series length must be a safe integer of at least 2 (received ${length})`);
+
+        const overviewBucketCount = Math.ceil(length / overviewBucketSize);
+        const overviewLength = overviewBucketCount * reducedPointsPerBucket;
+        const overviewBytes = overviewLength * 2 * Float32Array.BYTES_PER_ELEMENT;
+        const transientBytes = Math.min(syntheticStreamChunkLength, length) * Float32Array.BYTES_PER_ELEMENT;
+        const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
+        if (overviewBytes > deviceLimit)
+            throw new Error(`Persistent overview requires ${overviewBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
+        if (transientBytes > deviceLimit)
+            throw new Error(`Series stream chunk requires ${transientBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
+
+        const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
+        instance.uploadGenerations.set(id, generation);
+        removeRawSeries(instance, id);
+        for (const [token, upload] of instance.chunkedUploadSessions) {
+            if (upload.id === id) {
+                destroyChunkedUpload(instance, upload);
+                instance.chunkedUploadSessions.delete(token);
+            }
+        }
+        const token = ++instance.uploadToken;
+        let transientBuffer = null;
+        let overviewBuffer = null;
+        let paramsBuffer = null;
+        try {
+            transientBuffer = ns.createTrackedBuffer(instance, {
+                size: transientBytes,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            });
+            overviewBuffer = ns.createTrackedBuffer(instance, {
+                size: overviewBytes,
+                usage: GPUBufferUsage.STORAGE,
+            });
+            paramsBuffer = ns.createTrackedBuffer(instance, {
+                size: 16,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            });
+            const bindGroup = instance.device.createBindGroup({
+                layout: instance.overviewPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: { buffer: transientBuffer } },
+                    { binding: 1, resource: { buffer: overviewBuffer } },
+                    { binding: 2, resource: { buffer: paramsBuffer } },
+                ],
+            });
+            instance.chunkedUploadSessions.set(token, {
+                id, version, length, generation, overviewLength, overviewBucketCount,
+                transientBuffer, overviewBuffer, paramsBuffer, bindGroup,
+                writtenLength: 0, rangeHasValue: false, rangeMinimum: 0, rangeMaximum: 0,
+            });
+            return token;
+        } catch (error) {
+            ns.destroyTrackedBuffer(instance, transientBuffer);
+            ns.destroyTrackedBuffer(instance, overviewBuffer);
+            ns.destroyTrackedBuffer(instance, paramsBuffer);
+            throw error;
+        }
+    }
+
+    async function appendChunkedSeriesAsync(chartId, token, offset, streamReference) {
+        const instance = await getInstance(chartId);
+        const upload = instance?.chunkedUploadSessions.get(token);
+        if (!upload)
+            throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
+        const bytes = new Uint8Array(await streamReference.arrayBuffer());
+        if (bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
+            throw new Error(`Chunked series upload ${token} contains invalid data`);
+        const count = bytes.byteLength / Float32Array.BYTES_PER_ELEMENT;
+        if (offset !== upload.writtenLength || offset + count > upload.length)
+            throw new Error(`Chunked series upload ${token} expected sample offset ${upload.writtenLength}, received ${offset}`);
+
+        const range = await processOverviewChunkAsync(
+            instance, upload.transientBuffer, upload.paramsBuffer,
+            upload.bindGroup, offset, bytes, count);
+        if (instances.get(chartId) !== instance || instance.chunkedUploadSessions.get(token) !== upload)
+            throw ns.cancellationError(`Chunked series upload ${token} was superseded`);
+        if (range.hasValue) {
+            upload.rangeMinimum = upload.rangeHasValue ? Math.min(upload.rangeMinimum, range.minimum) : range.minimum;
+            upload.rangeMaximum = upload.rangeHasValue ? Math.max(upload.rangeMaximum, range.maximum) : range.maximum;
+            upload.rangeHasValue = true;
+        }
+
+        upload.writtenLength += count;
+    }
+
+    async function completeChunkedSeriesAsync(chartId, token) {
+        const instance = await getInstance(chartId);
+        const upload = instance?.chunkedUploadSessions.get(token);
+        if (!upload)
+            throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
+        if (upload.writtenLength !== upload.length)
+            throw new Error(`Chunked series upload ${token} is incomplete`);
+
+        for (const [existingKey, existing] of instance.seriesBuffers) {
+            if (existing.id === upload.id) {
+                destroySeriesBuffer(instance, existing);
+                instance.seriesBuffers.delete(existingKey);
+            }
+        }
+        instance.seriesBuffers.set(getSeriesKey(upload.id, upload.version, upload.length), {
+            id: upload.id, version: upload.version, length: upload.length,
+            buffer: upload.overviewBuffer, pointBuffer: upload.overviewBuffer,
+            overviewLength: upload.overviewLength, overviewBucketCount: upload.overviewBucketCount,
+            dataMode: 1, chunked: true, decimations: new Map(),
+        });
+        ns.destroyTrackedBuffer(instance, upload.transientBuffer);
+        ns.destroyTrackedBuffer(instance, upload.paramsBuffer);
+        instance.chunkedUploadSessions.delete(token);
+        return { hasValue: upload.rangeHasValue, minimum: upload.rangeMinimum, maximum: upload.rangeMaximum };
+    }
+
+    function abortChunkedSeries(chartId, token) {
+        const instance = instances.get(chartId);
+        const upload = instance?.chunkedUploadSessions.get(token);
+        if (!upload)
+            return;
+        destroyChunkedUpload(instance, upload);
+        instance.chunkedUploadSessions.delete(token);
     }
 
     function getSeriesBuffer(instance, series) {
@@ -518,7 +547,6 @@
         instance.rawReservedBytes += byteLength;
 
         const requestId = ++instance.workerRequestId;
-        const worker = getSyntheticWorker(instance);
         let resolveRequest;
         let rejectRequest;
         const promise = new Promise((resolve, reject) => {
@@ -528,9 +556,11 @@
         const request = { id: source.id, requestId, promise, reject: rejectRequest, byteLength };
         let reservationActive = true;
         instance.rawRequests.set(key, request);
-        instance.workerCallbacks.set(requestId, {
+        const callbacks = {
+            byteLength,
             onerror: event => {
                 instance.rawRequests.delete(key);
+                instance.workerCallbacks.delete(requestId);
                 if (reservationActive) {
                     instance.rawReservedBytes -= byteLength;
                     reservationActive = false;
@@ -573,9 +603,33 @@
                     rejectRequest(error);
                 }
             },
-        });
-        worker.postMessage({ type: 'raw', requestId, offset, count, kind: source.kind });
+        };
+        instance.workerCallbacks.set(requestId, callbacks);
+        if (source.synthetic) {
+            getSyntheticWorker(instance).postMessage({ type: 'raw', requestId, offset, count, kind: source.kind });
+        } else {
+            const helper = dotNetHelpers.get(source.chartId);
+            if (!helper)
+                callbacks.onerror({ message: `Chart ${source.chartId} is no longer active` });
+            else
+                helper.invokeMethodAsync('ProvideSeriesChunk', source.id, offset, count, requestId)
+                    .catch(error => callbacks.onerror({ message: error?.message ?? error }));
+        }
         return promise;
+    }
+
+    async function provideSeriesChunkAsync(chartId, requestId, streamReference) {
+        const instance = instances.get(chartId);
+        const callbacks = instance?.workerCallbacks.get(requestId);
+        if (!callbacks)
+            return;
+
+        const bytes = await streamReference.arrayBuffer();
+        if (bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
+            throw new Error(`Raw chunk response ${requestId} has an invalid byte length`);
+        if (bytes.byteLength !== callbacks.byteLength)
+            throw new Error(`Raw chunk response ${requestId} has an unexpected byte length`);
+        callbacks.onmessage({ data: { requestId, values: new Float32Array(bytes) } });
     }
 
     function rerenderLastPayloads(instance) {
@@ -664,8 +718,9 @@
 
     Object.assign(ns, {
         getSyntheticWorker, cancelWorkerRequest, getSeriesKey, destroySeriesBuffer, destroyRawChunk,
-        evictRawChunks, removeRawSeries, cancelGeneration, synchronizeSeries, createSeriesUpload,
-        appendSeriesUploadAsync, completeSeriesUploadAsync, abortSeriesUpload, generateSyntheticSeriesAsync,
+        evictRawChunks, removeRawSeries, cancelGeneration, synchronizeSeries, generateSyntheticSeriesAsync,
+        destroyChunkedUpload, beginChunkedSeriesAsync, appendChunkedSeriesAsync,
+        completeChunkedSeriesAsync, abortChunkedSeries, provideSeriesChunkAsync,
         getSeriesBuffer, getPreviewRenderKey, calculateSeriesRangeAsync, rawChunkKey, requestRawChunk,
         rerenderLastPayloads, getRawRenderItems,
     });

@@ -18,19 +18,62 @@ public record LineSeriesData(
     IList<LineSeries> Series
 );
 
-public record LineSeries(
-    string Name,
-    string Unit,
-    TimeSpan SamplePeriod,
-    double[] Data)
+public sealed class LineSeries
 {
+    public LineSeries(string name, string unit, TimeSpan samplePeriod, double[] data)
+        : this(name, unit, samplePeriod, LineSeriesSource.FromArray(data))
+    {
+    }
+
+    private LineSeries(string name, string unit, TimeSpan samplePeriod, LineSeriesSource source)
+    {
+        Name = name;
+        Unit = unit;
+        SamplePeriod = samplePeriod;
+        Source = source;
+    }
+
+    public string Name { get; }
+    public string Unit { get; }
+    public TimeSpan SamplePeriod { get; }
+    internal LineSeriesSource Source { get; }
     public bool Show { get; set; } = true;
-    // Increment when Data is mutated or replaced on an existing series.
-    public int DataVersion { get; set; }
     internal string Id { get; } = Guid.NewGuid().ToString();
     internal SKColor Color { get; set; }
     internal SyntheticSeriesKind? SyntheticKind { get; init; }
     internal int SyntheticLength { get; init; }
+}
+
+internal sealed class LineSeriesSource
+{
+    private LineSeriesSource(double[] values)
+    {
+        Values = values;
+        Length = values.Length;
+    }
+
+    public int Length { get; }
+    private double[] Values { get; }
+
+    public static LineSeriesSource FromArray(double[] values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        return new LineSeriesSource((double[])values.Clone());
+    }
+
+    internal ReadOnlyMemory<double> Read(int offset, int count) => Values.AsMemory(offset, count);
+
+    internal bool TryGetValue(int index, out double value)
+    {
+        if ((uint)index < (uint)Values.Length)
+        {
+            value = Values[index];
+            return true;
+        }
+
+        value = 0;
+        return false;
+    }
 }
 
 internal enum SyntheticSeriesKind

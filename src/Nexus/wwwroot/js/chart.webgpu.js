@@ -6,8 +6,10 @@
         getSharedGpu, getInstance, getLifecycleEpoch, advanceLifecycleEpoch, isCancellationError,
         reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, getSyntheticWorker, evictRawChunks,
         createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
-        synchronizeSeries, appendSeriesUploadAsync, completeSeriesUploadAsync, abortSeriesUpload,
-        generateSyntheticSeriesAsync, getSeriesBuffer, getPreviewRenderKey, getRawRenderItems, createSeriesUpload,
+        synchronizeSeries,
+        generateSyntheticSeriesAsync, beginChunkedSeriesAsync, appendChunkedSeriesAsync,
+        completeChunkedSeriesAsync, abortChunkedSeries, provideSeriesChunkAsync,
+        getSeriesBuffer, getPreviewRenderKey, getRawRenderItems,
         uniformBufferSize, fillVerticesPerSegment, lineVerticesPerSegment, decimationFactor,
         decimationBucketsPerPixel, maxDecimationBuckets, overviewBucketSize, reducedPointsPerBucket, rawChunkLength,
     } = ns;
@@ -201,7 +203,6 @@
                 destroyTrackedBuffer(instance, decimation.paramsBuffer);
             }
 
-            const allocationBytes = outputSize + 16;
             let outputBuffer = null;
             let paramsBuffer = null;
             try {
@@ -232,7 +233,6 @@
                 outputBuffer,
                 paramsBuffer,
                 bindGroup,
-                byteLength: allocationBytes,
                 renderBuffer: {
                     buffer: source.buffer,
                     pointBuffer: outputBuffer,
@@ -309,15 +309,6 @@
         return true;
     }
 
-    async function beginSeriesUploadAsync(chartId, id, version, length) {
-        const instance = await getInstance(chartId);
-
-        if (!instance)
-            throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
-
-        return createSeriesUpload(instance, id, version, length);
-    }
-
     async function runRuntimeOperation(chartId, title, action) {
         const epoch = getLifecycleEpoch(chartId);
 
@@ -385,7 +376,7 @@
                 cached.chartId = chartId;
                 cached.generation = instance.uploadGenerations.get(cached.id);
                 cached.lifecycleEpoch = getLifecycleEpoch(chartId);
-                if (cached.synthetic) {
+                if (cached.chunked || cached.synthetic) {
                     const rawItems = getRawRenderItems(instance, cached, series, payload, plot, encoder, target, protectedRawKeys);
                     if (rawItems) {
                         for (const rawItem of rawItems)
@@ -394,7 +385,7 @@
                     }
                 }
 
-                const zoomInfo = cached.synthetic
+                const zoomInfo = cached.chunked || cached.synthetic
                     ? getSyntheticOverviewZoom(payload, series, cached, plot)
                     : getZoomInfo(payload, series, cached.length, plot);
 
@@ -508,52 +499,39 @@
             configuredCacheBudgets.set(chartId, bytes);
             const instance = instances.get(chartId);
             if (instance) {
-                let reclaimableBytes = 0;
-                for (const chunk of instance.rawChunks.values()) {
-                    const buffers = new Set([chunk.buffer, chunk.pointBuffer]);
-                    for (const decimation of chunk.decimations?.values() ?? []) {
-                        buffers.add(decimation.outputBuffer);
-                        buffers.add(decimation.paramsBuffer);
-                    }
-                    for (const buffer of buffers) {
-                        if (buffer && !buffer.__nexusDestroyed)
-                            reclaimableBytes += buffer.__nexusByteLength ?? 0;
-                    }
-                }
-                if (instance.ownedGpuBytes + instance.rawReservedBytes - reclaimableBytes > bytes)
-                    return false;
-
-                evictRawChunks(instance, 0, new Set(), bytes);
-                if (instance.ownedGpuBytes + instance.rawReservedBytes > bytes)
-                    return false;
                 instance.cacheBudget = bytes;
+                evictRawChunks(instance, 0, new Set(), bytes);
             }
 
-            return true;
+            return !instance || instance.ownedGpuBytes + instance.rawReservedBytes <= bytes;
         },
         synchronizeSeries(chartId, activeIds) {
             const instance = instances.get(chartId);
             if (instance)
                 synchronizeSeries(instance, activeIds);
         },
-        beginSeriesUpload(chartId, id, version, length) {
-            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
-                beginSeriesUploadAsync(chartId, id, version, length));
-        },
-        appendSeriesUpload(chartId, token, byteOffset, streamReference) {
-            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
-                appendSeriesUploadAsync(chartId, token, byteOffset, streamReference));
-        },
-        completeSeriesUpload(chartId, token) {
-            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
-                completeSeriesUploadAsync(chartId, token));
-        },
-        abortSeriesUpload(chartId, token) {
-            abortSeriesUpload(chartId, token);
-        },
         generateSyntheticSeries(chartId, id, version, length, kind) {
             return runRuntimeOperation(chartId, 'WebGPU data generation failed', () =>
                 generateSyntheticSeriesAsync(chartId, id, version, length, kind));
+        },
+        beginChunkedSeries(chartId, id, version, length) {
+            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+                beginChunkedSeriesAsync(chartId, id, version, length));
+        },
+        appendChunkedSeries(chartId, token, offset, streamReference) {
+            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+                appendChunkedSeriesAsync(chartId, token, offset, streamReference));
+        },
+        completeChunkedSeries(chartId, token) {
+            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+                completeChunkedSeriesAsync(chartId, token));
+        },
+        abortChunkedSeries(chartId, token) {
+            abortChunkedSeries(chartId, token);
+        },
+        provideSeriesChunk(chartId, requestId, streamReference) {
+            return runRuntimeOperation(chartId, 'WebGPU data loading failed', () =>
+                provideSeriesChunkAsync(chartId, requestId, streamReference));
         },
         renderSeries(chartId, payload) {
             scheduleRender(chartId, payload)
@@ -577,6 +555,7 @@
             return (await getInstance(chartId)) !== null;
         },
         dispose(chartId) {
+            const pending = pendingInstances.get(chartId);
             advanceLifecycleEpoch(chartId);
             pendingInstances.delete(chartId);
 
@@ -589,6 +568,8 @@
             configuredCacheBudgets.delete(chartId);
             failureStates.delete(chartId);
             dotNetHelpers.delete(chartId);
+            if (!pending)
+                lifecycleEpochs.delete(chartId);
             releaseSharedGpuIfUnused();
         },
     };

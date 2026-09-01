@@ -75,9 +75,8 @@ fn dataValue(index: u32) -> f32 {
     return value;
 }
 
-fn isNan(x: f32) -> bool {
-    // WGSL has no isnan() builtin, and "x != x" is unreliable under fast-math/indeterminate values.
-    // Bit-pattern test (exponent all 1s, mantissa non-zero) is unambiguous across drivers.
+fn isNonFinite(x: f32) -> bool {
+    // Treat both infinities and NaNs as gaps. The exponent bit test is reliable across drivers.
     let bits = bitcast<u32>(x);
     return (bits & 0x7f800000u) == 0x7f800000u;
 }
@@ -174,7 +173,7 @@ fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
     let valueA = dataValue(index);
     let valueB = dataValue(index + 1u);
 
-    if (isNan(valueA) || isNan(valueB) || uniforms.axis.y == 0.0) {
+    if (isNonFinite(valueA) || isNonFinite(valueB) || uniforms.axis.y == 0.0) {
         return emptyVertex();
     }
 
@@ -218,7 +217,7 @@ var<workgroup> nanSeen: array<u32, ${overviewBucketSize}>;
 var<workgroup> nanIndices: array<u32, ${overviewBucketSize}>;
 var<workgroup> nanRunCounts: array<u32, ${overviewBucketSize}>;
 
-fn isNan(x: f32) -> bool {
+fn isNonFinite(x: f32) -> bool {
     let bits = bitcast<u32>(x);
     return (bits & 0x7f800000u) == 0x7f800000u;
 }
@@ -234,9 +233,9 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
 
     if (localIndex < params.sourceLength) {
         value = source[localIndex];
-        hasNan = select(0u, 1u, isNan(value));
-        hasValue = select(1u, 0u, isNan(value));
-        if (hasNan != 0u && (lane == 0u || !isNan(source[localIndex - 1u]))) {
+        hasNan = select(0u, 1u, isNonFinite(value));
+        hasValue = select(1u, 0u, isNonFinite(value));
+        if (hasNan != 0u && (lane == 0u || !isNonFinite(source[localIndex - 1u]))) {
             nanRunCount = 1u;
         }
     }
@@ -333,7 +332,7 @@ var<workgroup> minimumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanRunCounts: array<u32, ${decimationWorkgroupSize}>;
-fn isNan(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u; }
+fn isNonFinite(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u; }
 @compute @workgroup_size(${decimationWorkgroupSize})
 fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
     let bucket = groupId.x;
@@ -354,10 +353,10 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     var index = start + lane;
     while (index < end) {
         let point = source[index];
-        if (isNan(point.y)) {
+        if (isNonFinite(point.y)) {
             if (hasNan == 0u || index < nanIndex) { nanIndex = index; }
             hasNan = 1u;
-            if (index == start || !isNan(source[index - 1u].y)) { nanRunCount = min(2u, nanRunCount + 1u); }
+            if (index == start || !isNonFinite(source[index - 1u].y)) { nanRunCount = min(2u, nanRunCount + 1u); }
         }
         else {
             if (hasValue == 0u || point.y < minimum.y) { minimum = point; minimumIndex = index; }
@@ -438,7 +437,7 @@ var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanRunCounts: array<u32, ${decimationWorkgroupSize}>;
 
-fn isNan(x: f32) -> bool {
+fn isNonFinite(x: f32) -> bool {
     let bits = bitcast<u32>(x);
     return (bits & 0x7f800000u) == 0x7f800000u;
 }
@@ -475,13 +474,13 @@ fn decimate(
     while (index < end) {
         let value = source[index];
 
-        if (isNan(value)) {
+        if (isNonFinite(value)) {
             if (hasNan == 0u || index < nanIndex) {
                 nanIndex = index;
             }
 
             hasNan = 1u;
-            if (index == start || !isNan(source[index - 1u])) {
+            if (index == start || !isNonFinite(source[index - 1u])) {
                 nanRunCount = min(2u, nanRunCount + 1u);
             }
         } else {

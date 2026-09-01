@@ -127,10 +127,11 @@ else
                 {
                     var resourcePath = catalogItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value);
 
-                    var response = await Client.V1.Data
+                    using var response = await Client.V1.Data
                         .GetStreamAsync(resourcePath, begin, end, _cts!.Token);
+                    var elementCount = checked((int)Utilities.GetElementCount(begin, end, AppState.Settings.SamplePeriod.Value));
+                    var data = await ReadAsDoubleAsync(response, elementCount, progress => receivedBytes += progress, _cts!.Token);
 
-                    var data = await ReadAsDoubleAsync(response, progress => receivedBytes += progress, _cts!.Token);
                     var resource = catalogItem.BaseItem.Resource;
                     var kindAsString = Utilities.KindToString(kind);
 
@@ -196,14 +197,10 @@ else
 
     private async Task<double[]> ReadAsDoubleAsync(
         HttpResponseMessage response,
+        int elementCount,
         Action<long> reportProgress, 
         CancellationToken cancellationToken = default)
     {
-        var elementCount = Utilities.GetElementCount(
-            AppState.Settings.Begin, 
-            AppState.Settings.End, 
-            AppState.Settings.SamplePeriod.Value);
-
         var doubleBuffer = new double[elementCount];
         var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
         var stream = await response.Content.ReadAsStreamAsync(cancellationToken);

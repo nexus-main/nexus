@@ -175,9 +175,9 @@
             ns.destroySeriesBuffer(instance, cached);
         instance.seriesBuffers.clear();
 
-        for (const upload of instance.uploadSessions.values())
-            destroyTrackedBuffer(instance, upload.buffer);
-        instance.uploadSessions.clear();
+        for (const upload of instance.chunkedUploadSessions.values())
+            ns.destroyChunkedUpload(instance, upload);
+        instance.chunkedUploadSessions.clear();
 
         for (const targetResources of instance.targetResources.values()) {
             for (const resources of targetResources)
@@ -349,7 +349,7 @@
                     ...gpu,
                     gpuGeneration: gpu.generation,
                     seriesBuffers: new Map(),
-                    uploadSessions: new Map(),
+                    chunkedUploadSessions: new Map(),
                     uploadToken: 0,
                     targetResources: new Map(),
                     canvasContexts: new Map(),

@@ -18,7 +18,7 @@ public partial class Chart : IDisposable
     private readonly string _chartId = Guid.NewGuid().ToString();
     private Dictionary<AxisInfo, LineSeries[]> _axesMap = default!;
 
-    /* tracks which (DataVersion, Length) was last transmitted to the JS/WebGPU side
+    /* tracks which immutable series identity and length was transmitted to JS/WebGPU
      * per series id, so unchanged data is not re-serialized and re-marshaled on
      * every redraw (zoom, pan, resize, series toggle). */
     private readonly Dictionary<string, (int Version, int Length)> _sentSeriesVersions = new();
@@ -372,7 +372,7 @@ public partial class Chart : IDisposable
                     _sendingSeriesVersions[lineSeries.Id] = (dataVersion, length);
                     transfers.Add(lineSeries.SyntheticKind.HasValue
                         ? GenerateSyntheticSeriesAsync(lineSeries, dataVersion, length, webGpuGeneration)
-                        : SendSeriesBytesAsync(lineSeries.Id, lineSeries.Data, dataVersion, length, webGpuGeneration));
+                        : PrepareSeriesAsync(lineSeries, dataVersion, length, webGpuGeneration));
                 }
 
                 return new
@@ -531,85 +531,92 @@ public partial class Chart : IDisposable
             ApplyVerticalZoom(axisInfo, _zoomBox);
     }
 
-    private async Task<SeriesRange> SendSeriesBytesAsync(string seriesId, double[] data, int dataVersion, int length, int webGpuGeneration)
+    private async Task<SeriesRange> PrepareSeriesAsync(LineSeries series, int dataVersion, int length, int webGpuGeneration)
     {
         long? uploadToken = null;
-
         try
         {
+            if (length < 2)
+            {
+                _sentSeriesVersions[series.Id] = (dataVersion, length);
+                return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+            }
+
             uploadToken = await JSRuntime.InvokeAsync<long>(
-                "nexus.chartWebGpu.beginSeriesUpload",
-                _chartId,
-                seriesId,
-                dataVersion,
-                length);
+                "nexus.chartWebGpu.beginChunkedSeries", _chartId, series.Id, dataVersion, length);
+            const int chunkLength = 4 * 1024 * 1024;
+            var bytes = GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
 
-            const int chunkLength = 256 * 1024;
-            var buffer = GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
-            long byteOffset = 0;
-
-            for (var offset = 0; offset < data.Length; offset += chunkLength)
+            for (var offset = 0; offset < length; offset += chunkLength)
             {
                 if (_disposed || webGpuGeneration != _webGpuGeneration)
-                    return new SeriesRange(seriesId, dataVersion, length, false, 0, 0);
+                    return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
 
-                var count = Math.Min(chunkLength, data.Length - offset);
-                var byteCount = count * sizeof(float);
-                FillFloatBuffer(buffer, data, offset, count);
-                using var stream = new MemoryStream(buffer, 0, byteCount, writable: false, publiclyVisible: true);
+                var count = Math.Min(chunkLength, length - offset);
+                FillFloatBytes(bytes.AsSpan(0, count * sizeof(float)), series.Source.Read(offset, count).Span);
+                using var stream = new MemoryStream(bytes, 0, count * sizeof(float), writable: false, publiclyVisible: true);
                 using var streamReference = new DotNetStreamReference(stream);
                 await JSRuntime.InvokeVoidAsync(
-                    "nexus.chartWebGpu.appendSeriesUpload",
-                    _chartId,
-                    uploadToken.Value,
-                    byteOffset,
-                    streamReference);
-                byteOffset += byteCount;
+                    "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, streamReference);
             }
 
             if (_disposed || webGpuGeneration != _webGpuGeneration)
-                return new SeriesRange(seriesId, dataVersion, length, false, 0, 0);
+                return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
 
             var range = await JSRuntime.InvokeAsync<GpuRange>(
-                "nexus.chartWebGpu.completeSeriesUpload",
-                _chartId,
-                uploadToken.Value);
+                "nexus.chartWebGpu.completeChunkedSeries", _chartId, uploadToken.Value);
             uploadToken = null;
             if (!_disposed && webGpuGeneration == _webGpuGeneration)
-                _sentSeriesVersions[seriesId] = (dataVersion, length);
+                _sentSeriesVersions[series.Id] = (dataVersion, length);
 
-            return new SeriesRange(seriesId, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
+            return new SeriesRange(series.Id, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
         }
         catch (ObjectDisposedException) when (_disposed)
         {
-            return new SeriesRange(seriesId, dataVersion, length, false, 0, 0);
+            return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
         }
         catch (JSDisconnectedException) when (_disposed)
         {
-            return new SeriesRange(seriesId, dataVersion, length, false, 0, 0);
+            return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
         }
         catch (JSException exception)
         {
-            throw new InvalidOperationException($"WebGPU upload or range calculation failed for series '{seriesId}'.", exception);
+            throw new InvalidOperationException($"WebGPU upload failed for series '{series.Id}'.", exception);
         }
         finally
         {
             if (uploadToken.HasValue && OperatingSystem.IsBrowser())
-                JSRuntime.InvokeVoid("nexus.chartWebGpu.abortSeriesUpload", _chartId, uploadToken.Value);
+                JSRuntime.InvokeVoid("nexus.chartWebGpu.abortChunkedSeries", _chartId, uploadToken.Value);
 
             if (webGpuGeneration == _webGpuGeneration &&
-                HasSeriesVersion(_sendingSeriesVersions, seriesId, dataVersion, length))
+                HasSeriesVersion(_sendingSeriesVersions, series.Id, dataVersion, length))
             {
-                _sendingSeriesVersions.Remove(seriesId);
+                _sendingSeriesVersions.Remove(series.Id);
             }
         }
     }
 
-    private static void FillFloatBuffer(byte[] buffer, double[] values, int offset, int count)
+    [JSInvokable]
+    public async Task ProvideSeriesChunk(string seriesId, int offset, int count, long requestId)
     {
-        var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(buffer.AsSpan(0, count * sizeof(float)));
-        for (var index = 0; index < count; index++)
-            floats[index] = (float)values[offset + index];
+        var series = LineSeriesData.Series.SingleOrDefault(item => item.Id == seriesId);
+        if (series is null || offset < 0 || count < 0 || offset > series.Source.Length - count)
+            throw new InvalidOperationException($"Raw data request for series '{seriesId}' is no longer valid.");
+
+        var values = series.Source.Read(offset, count);
+        var bytes = GC.AllocateUninitializedArray<byte>(count * sizeof(float));
+        FillFloatBytes(bytes, values.Span);
+
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var streamReference = new DotNetStreamReference(stream);
+        await JSRuntime.InvokeVoidAsync("nexus.chartWebGpu.provideSeriesChunk", _chartId, requestId, streamReference);
+    }
+
+    private static void FillFloatBytes(Span<byte> destination, ReadOnlySpan<double> source)
+    {
+        var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(destination);
+        for (var index = 0; index < source.Length; index++)
+            floats[index] = (float)source[index];
     }
 
     private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, int length, int webGpuGeneration)
@@ -717,12 +724,12 @@ public partial class Chart : IDisposable
     }
 
     private static int GetSeriesLength(LineSeries series) =>
-        series.SyntheticKind.HasValue ? series.SyntheticLength : series.Data.Length;
+        series.SyntheticKind.HasValue ? series.SyntheticLength : series.Source.Length;
 
     private static int GetSeriesVersion(LineSeries series) =>
         series.SyntheticKind.HasValue
             ? HashCode.Combine(series.SyntheticKind.Value, series.SyntheticLength)
-            : series.DataVersion;
+            : 0;
 
     private static bool HasSeriesVersion(
         Dictionary<string, (int Version, int Length)> versions,
@@ -770,12 +777,14 @@ public partial class Chart : IDisposable
                 if (series.Show && snappedIndex >= 0 && snappedIndex < seriesLength)
                 {
                     var x = (snappedIndex * sampleStep - _zoomLeft) / zoomRange;
+                    var sourceValue = 0.0;
+                    var hasValue = series.SyntheticKind.HasValue || series.Source.TryGetValue(snappedIndex, out sourceValue);
                     var value = series.SyntheticKind.HasValue
                         ? GetSyntheticValue(series.SyntheticKind.Value, snappedIndex)
-                        : (float)series.Data[snappedIndex];
+                        : (float)sourceValue;
                     var y = (value - axisInfo.Min) / (axisInfo.Max - axisInfo.Min);
 
-                    if (double.IsFinite(x) && 0 <= x && x <= 1 &&
+                    if (hasValue && double.IsFinite(x) && 0 <= x && x <= 1 &&
                         float.IsFinite(y) && 0 <= y && y <= 1)
                     {
                         var valueString = string.IsNullOrWhiteSpace(series.Unit)

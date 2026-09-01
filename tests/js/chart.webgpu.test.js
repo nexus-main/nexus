@@ -268,21 +268,22 @@ test('unsupported WebGPU reports one actionable failure', async () => {
     assert.match(environment.failures[0].message, /hardware acceleration/i);
 });
 
-test('invalid chunk uploads destroy partial buffers and fail the chart', async () => {
+test('invalid chunked uploads destroy partial buffers and fail the chart', async () => {
     const environment = createEnvironment();
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
 
-    const token = await environment.api.beginSeriesUpload('chart', 'series', 1, 4);
+    const token = await environment.api.beginChunkedSeries('chart', 'series', 1, 4);
     const stream = bytes => ({ arrayBuffer: async () => Uint8Array.from(bytes).buffer });
 
-    const upload = environment.hooks.instances.get('chart').uploadSessions.get(token);
+    const upload = environment.hooks.instances.get('chart').chunkedUploadSessions.get(token);
     await assert.rejects(
-        environment.api.appendSeriesUpload('chart', token, 4, stream([0, 0, 0, 0])),
-        /expected byte offset 0/);
+        environment.api.appendChunkedSeries('chart', token, 1, stream([0, 0, 0, 0])),
+        /expected sample offset 0/);
     await settle();
 
-    assert.equal(upload.buffer.destroyed, true);
+    assert.equal(upload.transientBuffer.destroyed, true);
+    assert.equal(upload.overviewBuffer.destroyed, true);
     assert.equal(environment.hooks.instances.has('chart'), false);
     assert.equal(environment.failures[0].title, 'WebGPU upload failed');
 });
@@ -292,7 +293,7 @@ test('terminal upload failures invalidate the instance and notify the chart', as
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
 
-    await assert.rejects(environment.api.beginSeriesUpload('chart', 'series', 1, 3), /exceeding the GPU storage buffer limit/);
+    await assert.rejects(environment.api.beginChunkedSeries('chart', 'series', 1, 3), /exceeding the GPU storage buffer limit/);
     await settle();
 
     assert.equal(environment.hooks.instances.has('chart'), false);
@@ -521,7 +522,7 @@ test('releasing a target removes retained payloads and destroys target resources
     assert.equal(instance.ownedGpuBytes, 0);
 });
 
-test('deferring a lower budget does not evict raw chunks', async () => {
+test('a lower budget applies immediately and evicts raw chunks even while persistently over budget', async () => {
     const environment = createEnvironment();
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
@@ -533,12 +534,75 @@ test('deferring a lower budget does not evict raw chunks', async () => {
     });
 
     assert.equal(environment.api.setCacheBudget('chart', 6), false);
-    assert.equal(raw.destroyed, false);
-    assert.equal(instance.rawChunks.has('raw'), true);
-    assert.equal(instance.cacheBudget > 6, true);
+    assert.equal(raw.destroyed, true);
+    assert.equal(instance.rawChunks.has('raw'), false);
+    assert.equal(instance.cacheBudget, 6);
+    assert.throws(
+        () => environment.hooks.createTrackedBuffer(instance, { size: 1, usage: 1 }),
+        /GPU memory budget/);
 
     environment.hooks.destroyTrackedBuffer(instance, persistent);
     environment.api.dispose('chart');
+});
+
+test('disposing an initialized chart removes its lifecycle epoch', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+
+    environment.api.dispose('chart');
+
+    assert.equal(environment.hooks.lifecycleEpochs.has('chart'), false);
+});
+
+test('chunked series keeps only its overview resident', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const length = 1024;
+    const overviewBytes = Math.ceil(length / 256) * 3 * 2 * Float32Array.BYTES_PER_ELEMENT;
+    const stream = { arrayBuffer: async () => new Float32Array(length).buffer };
+
+    const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length);
+    await environment.api.appendChunkedSeries('chart', token, 0, stream);
+    await environment.api.completeChunkedSeries('chart', token);
+
+    const instance = environment.hooks.instances.get('chart');
+    const source = instance.seriesBuffers.get(`series:0:${length}`);
+    assert.equal(source.chunked, true);
+    assert.equal(source.buffer.size, overviewBytes);
+    assert.equal(instance.ownedGpuBytes, overviewBytes);
+});
+
+test('chunked series requests raw detail from its .NET provider', async () => {
+    const environment = createEnvironment();
+    const calls = [];
+    const helper = {
+        invokeMethodAsync(method, ...args) {
+            calls.push([method, ...args]);
+            return Promise.resolve();
+        },
+    };
+    environment.api.initialize('chart', helper);
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    instance.uploadGenerations.set('series', 1);
+    const source = {
+        id: 'series', version: 0, length: 3, chartId: 'chart', generation: 1, chunked: true,
+    };
+
+    environment.hooks.getRawRenderItems(
+        instance, source, { SampleStep: 1 / 3 }, { Zoom: { Left: 0, Right: 1 } },
+        { plotLeft: 0, plotWidth: 100, plotTop: 0, plotBottom: 100, plotHeight: 100 },
+        instance.device.createCommandEncoder(), 'series', new Set());
+
+    assert.equal(calls[0][0], 'ProvideSeriesChunk');
+    assert.deepEqual(calls[0].slice(1, 4), ['series', 0, 3]);
+    const requestId = calls[0][4];
+    await environment.api.provideSeriesChunk('chart', requestId, {
+        arrayBuffer: async () => new Float32Array([1, 2, 3]).buffer,
+    });
+    assert.equal(instance.rawChunks.get('series:0:0').length, 3);
 });
 
 test('render scheduling retains only the latest pending payload per target', async () => {
