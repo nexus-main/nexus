@@ -1168,8 +1168,9 @@ fn reduceRange(
 
     function getZoomInfo(payload, length, plot) {
         const zoom = valueOf(payload, 'Zoom') ?? {};
-        const indexLeft = (valueOf(zoom, 'Left') ?? 0) * length;
-        const indexRight = (valueOf(zoom, 'Right') ?? 1) * length;
+        const lastIndex = length - 1;
+        const indexLeft = (valueOf(zoom, 'Left') ?? 0) * lastIndex;
+        const indexRight = (valueOf(zoom, 'Right') ?? 1) * lastIndex;
         const indexRange = indexRight - indexLeft;
 
         if (!Number.isFinite(indexRange) || indexRange <= 0)

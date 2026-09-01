@@ -674,13 +674,14 @@ public partial class Chart : IDisposable
             foreach (var series in lineSeries)
             {
                 var seriesLength = GetSeriesLength(series);
-                var indexLeft = _zoomLeft * seriesLength;
-                var indexRight = _zoomRight * seriesLength;
+                var lastIndex = seriesLength - 1;
+                var indexLeft = _zoomLeft * lastIndex;
+                var indexRight = _zoomRight * lastIndex;
                 var indexRange = indexRight - indexLeft;
                 var index = indexLeft + relativePosition.X * indexRange;
                 var snappedIndex = (int)Math.Round(index, MidpointRounding.AwayFromZero);
 
-                if (series.Show && snappedIndex < seriesLength)
+                if (series.Show && snappedIndex >= 0 && snappedIndex < seriesLength)
                 {
                     var x = (snappedIndex - indexLeft) / indexRange;
                     var value = series.SyntheticKind.HasValue

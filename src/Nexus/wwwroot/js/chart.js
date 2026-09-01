@@ -97,7 +97,8 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             if (e.button !== 0 && e.button !== 1)
                 return;
 
-            e.preventDefault();
+            if (e.cancelable)
+                e.preventDefault();
             overlay.setPointerCapture(e.pointerId);
             const rect = overlay.getBoundingClientRect();
             drag = {
@@ -197,7 +198,8 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             if (e.button !== 0)
                 return;
 
-            e.preventDefault();
+            if (e.cancelable)
+                e.preventDefault();
             e.stopPropagation();
             track.setPointerCapture(e.pointerId);
             drag = {
@@ -231,7 +233,8 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             if (!drag || drag.pointerId !== e.pointerId)
                 return;
 
-            e.preventDefault();
+            if (e.cancelable)
+                e.preventDefault();
             const domainWidth = drag.domainRight - drag.domainLeft;
             const delta = (e.clientX - drag.startX) / drag.rect.width * domainWidth;
             const minimum = Math.max(Number.EPSILON, domainWidth / Math.max(1, drag.rect.width * 4));
@@ -259,7 +262,8 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         listen(track, "pointerup", end);
         listen(track, "pointercancel", end);
         listen(track, "wheel", e => {
-            e.preventDefault();
+            if (e.cancelable)
+                e.preventDefault();
             const rect = track.getBoundingClientRect();
             const domainLeft = parseFloat(track.dataset.domainLeft);
             const domainRight = parseFloat(track.dataset.domainRight);
@@ -276,7 +280,8 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             if (e.key !== "ArrowLeft" && e.key !== "ArrowRight")
                 return;
 
-            e.preventDefault();
+            if (e.cancelable)
+                e.preventDefault();
             const direction = e.key === "ArrowLeft" ? -1 : 1;
             const left = parseFloat(win.dataset.left);
             const right = parseFloat(win.dataset.right);
