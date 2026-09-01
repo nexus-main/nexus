@@ -1,6 +1,6 @@
 ﻿@using SkiaSharp.Views.Blazor
 
-<div class="chart-container">
+<div class="chart-container @(_webGpuErrorTitle is null ? "" : "webgpu-unavailable")">
 
     <div id="chart_@(_chartId)" class="chart">
 
@@ -9,6 +9,19 @@
         <SKGLView @ref="_skiaView"
             OnPaintSurface="PaintSurface">
         </SKGLView>
+
+        @if (_webGpuErrorTitle is not null)
+        {
+            <div class="webgpu-error" role="alert">
+                <div class="webgpu-error-content">
+                    <strong>@_webGpuErrorTitle</strong>
+                    <span>@_webGpuErrorMessage</span>
+                    <button type="button" @onclick="RetryWebGpuAsync" disabled="@_webGpuRetrying">
+                        @(_webGpuRetrying ? "Retrying..." : "Retry WebGPU")
+                    </button>
+                </div>
+            </div>
+        }
 
         <div id="overlay_@(_chartId)" class="overlay" 
             data-zoom-left="@NavigatorDataLeft"

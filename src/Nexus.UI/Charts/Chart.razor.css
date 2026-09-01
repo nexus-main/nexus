@@ -54,6 +54,62 @@
         z-index: 1;
     }
 
+    .webgpu-error {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        box-sizing: border-box;
+        background: rgba(248, 250, 251, 0.88);
+    }
+
+    .webgpu-error-content {
+        display: flex;
+        width: min(34rem, 100%);
+        flex-direction: column;
+        align-items: center;
+        gap: 0.7rem;
+        color: #25323a;
+        text-align: center;
+    }
+
+    .webgpu-error-content strong {
+        font-size: 1rem;
+    }
+
+    .webgpu-error-content span {
+        color: #59636b;
+        font-size: 0.85rem;
+        line-height: 1.45;
+    }
+
+    .webgpu-error-content button {
+        padding: 0.45rem 0.8rem;
+        color: white;
+        background: #0072bd;
+        border: 0;
+        border-radius: 3px;
+        cursor: pointer;
+        font: inherit;
+    }
+
+    .webgpu-error-content button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+    }
+
+    .webgpu-unavailable .overlay,
+    .webgpu-unavailable .navigator-shell {
+        pointer-events: none;
+    }
+
+    .webgpu-unavailable .navigator-series {
+        opacity: 0;
+    }
+
     ::deep canvas {
         position: absolute;
         left: 0;

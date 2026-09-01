@@ -72,6 +72,7 @@ jobs:
 
       - name: Test
         run: |
+          node --test tests/js/chart.webgpu.test.js
           dotnet test -c Release /p:BuildProjectReferences=false
           pyright
           pytest

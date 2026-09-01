@@ -10,7 +10,6 @@ using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Nexus.UI.Charts;
 
@@ -25,12 +24,15 @@ public partial class Chart : IDisposable
      * every redraw (zoom, pan, resize, series toggle). */
     private readonly Dictionary<string, (int Version, int Length)> _sentSeriesVersions = new();
     private readonly Dictionary<string, (int Version, int Length)> _sendingSeriesVersions = new();
-    private readonly Dictionary<string, (int Version, int Length, byte[] Bytes)> _seriesBytes = new();
     private readonly Dictionary<string, SeriesRange> _seriesRanges = new();
     private LineSeriesData? _axisData;
     private bool _axisBeginAtZero;
     private bool _disposed;
     private int _gpuCacheBudgetMiB;
+    private int _webGpuGeneration;
+    private string? _webGpuErrorTitle;
+    private string? _webGpuErrorMessage;
+    private bool _webGpuRetrying;
 
     /* zoom */
     private readonly DotNetObjectReference<Chart> _dotNetHelper;
@@ -235,6 +237,7 @@ public partial class Chart : IDisposable
     {
         if (firstRender && OperatingSystem.IsBrowser())
         {
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.initialize", _chartId, _dotNetHelper);
             JSRuntime.InvokeVoid("nexus.chartWebGpu.setCacheBudget", _chartId, (long)_gpuCacheBudgetMiB * 1024 * 1024);
             JSRuntime.InvokeVoid("nexus.chart.initInteractions", _chartId, _dotNetHelper);
         }
@@ -354,8 +357,10 @@ public partial class Chart : IDisposable
 
     private void RenderSeries(SKRect dataBox, float surfaceWidth, float surfaceHeight)
     {
-        if (!OperatingSystem.IsBrowser())
+        if (!OperatingSystem.IsBrowser() || _webGpuErrorTitle is not null)
             return;
+
+        var webGpuGeneration = _webGpuGeneration;
 
         JSRuntime.InvokeVoid(
             "nexus.chartWebGpu.synchronizeSeries",
@@ -378,8 +383,8 @@ public partial class Chart : IDisposable
                 {
                     _sendingSeriesVersions[lineSeries.Id] = (dataVersion, length);
                     transfers.Add(lineSeries.SyntheticKind.HasValue
-                        ? GenerateSyntheticSeriesAsync(lineSeries, dataVersion, length)
-                        : SendSeriesBytesAsync(lineSeries.Id, lineSeries.Data, dataVersion, length));
+                        ? GenerateSyntheticSeriesAsync(lineSeries, dataVersion, length, webGpuGeneration)
+                        : SendSeriesBytesAsync(lineSeries.Id, lineSeries.Data, dataVersion, length, webGpuGeneration));
                 }
 
                 return new
@@ -462,10 +467,10 @@ public partial class Chart : IDisposable
         }
 
         if (transfers.Count > 0)
-            _ = ApplyRangesAfterTransfersAsync(transfers, LineSeriesData);
+            _ = ApplyRangesAfterTransfersAsync(transfers, LineSeriesData, webGpuGeneration);
     }
 
-    private async Task ApplyRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data)
+    private async Task ApplyRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data, int webGpuGeneration)
     {
         SeriesRange[] ranges;
 
@@ -479,7 +484,7 @@ public partial class Chart : IDisposable
             return;
         }
 
-        if (_disposed || !ReferenceEquals(_axisData, data))
+        if (_disposed || webGpuGeneration != _webGpuGeneration || !ReferenceEquals(_axisData, data))
             return;
 
         foreach (var range in ranges)
@@ -521,22 +526,50 @@ public partial class Chart : IDisposable
         }
     }
 
-    private async Task<SeriesRange> SendSeriesBytesAsync(string seriesId, double[] data, int dataVersion, int length)
+    private async Task<SeriesRange> SendSeriesBytesAsync(string seriesId, double[] data, int dataVersion, int length, int webGpuGeneration)
     {
+        long? uploadToken = null;
+
         try
         {
-            var bytes = GetSeriesBytes(seriesId, data, dataVersion, length);
-            using var stream = new MemoryStream(bytes, writable: false);
-            using var streamReference = new DotNetStreamReference(stream);
-
-            var range = await JSRuntime.InvokeAsync<GpuRange>(
-                "nexus.chartWebGpu.loadSeriesData",
+            uploadToken = await JSRuntime.InvokeAsync<long>(
+                "nexus.chartWebGpu.beginSeriesUpload",
                 _chartId,
                 seriesId,
                 dataVersion,
-                length,
-                streamReference);
-            _sentSeriesVersions[seriesId] = (dataVersion, length);
+                length);
+
+            const int chunkLength = 256 * 1024;
+            var buffer = GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
+            long byteOffset = 0;
+
+            for (var offset = 0; offset < data.Length; offset += chunkLength)
+            {
+                if (_disposed || webGpuGeneration != _webGpuGeneration)
+                    return new SeriesRange(seriesId, dataVersion, length, false, 0, 0);
+
+                var count = Math.Min(chunkLength, data.Length - offset);
+                var byteCount = count * sizeof(float);
+                FillFloatBuffer(buffer, data, offset, count);
+                using var stream = new MemoryStream(buffer, 0, byteCount, writable: false, publiclyVisible: true);
+                using var streamReference = new DotNetStreamReference(stream);
+                await JSRuntime.InvokeVoidAsync(
+                    "nexus.chartWebGpu.appendSeriesUpload",
+                    _chartId,
+                    uploadToken.Value,
+                    byteOffset,
+                    streamReference);
+                byteOffset += byteCount;
+            }
+
+            var range = await JSRuntime.InvokeAsync<GpuRange>(
+                "nexus.chartWebGpu.completeSeriesUpload",
+                _chartId,
+                uploadToken.Value);
+            uploadToken = null;
+            if (webGpuGeneration == _webGpuGeneration)
+                _sentSeriesVersions[seriesId] = (dataVersion, length);
+
             return new SeriesRange(seriesId, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
         }
         catch (ObjectDisposedException) when (_disposed)
@@ -553,19 +586,25 @@ public partial class Chart : IDisposable
         }
         finally
         {
-            if (HasSeriesVersion(_sendingSeriesVersions, seriesId, dataVersion, length))
-                _sendingSeriesVersions.Remove(seriesId);
+            if (uploadToken.HasValue && OperatingSystem.IsBrowser())
+                JSRuntime.InvokeVoid("nexus.chartWebGpu.abortSeriesUpload", _chartId, uploadToken.Value);
 
-            if (_seriesBytes.TryGetValue(seriesId, out var cached) &&
-                cached.Version == dataVersion &&
-                cached.Length == length)
+            if (webGpuGeneration == _webGpuGeneration &&
+                HasSeriesVersion(_sendingSeriesVersions, seriesId, dataVersion, length))
             {
-                _seriesBytes.Remove(seriesId);
+                _sendingSeriesVersions.Remove(seriesId);
             }
         }
     }
 
-    private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, int length)
+    private static void FillFloatBuffer(byte[] buffer, double[] values, int offset, int count)
+    {
+        var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(buffer.AsSpan(0, count * sizeof(float)));
+        for (var index = 0; index < count; index++)
+            floats[index] = (float)values[offset + index];
+    }
+
+    private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, int length, int webGpuGeneration)
     {
         try
         {
@@ -576,7 +615,9 @@ public partial class Chart : IDisposable
                 dataVersion,
                 length,
                 series.SyntheticKind!.Value.ToString());
-            _sentSeriesVersions[series.Id] = (dataVersion, length);
+            if (webGpuGeneration == _webGpuGeneration)
+                _sentSeriesVersions[series.Id] = (dataVersion, length);
+
             return new SeriesRange(series.Id, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
         }
         catch (ObjectDisposedException) when (_disposed)
@@ -593,9 +634,77 @@ public partial class Chart : IDisposable
         }
         finally
         {
-            if (HasSeriesVersion(_sendingSeriesVersions, series.Id, dataVersion, length))
+            if (webGpuGeneration == _webGpuGeneration &&
+                HasSeriesVersion(_sendingSeriesVersions, series.Id, dataVersion, length))
+            {
                 _sendingSeriesVersions.Remove(series.Id);
+            }
         }
+    }
+
+    [JSInvokable]
+    public Task WebGpuFailed(string title, string message)
+    {
+        return InvokeAsync(() =>
+        {
+            if (_disposed)
+                return;
+
+            ResetWebGpuState();
+            _webGpuErrorTitle = title;
+            _webGpuErrorMessage = message;
+            _webGpuRetrying = false;
+            StateHasChanged();
+        });
+    }
+
+    private async Task RetryWebGpuAsync()
+    {
+        if (_disposed || _webGpuRetrying)
+            return;
+
+        ResetWebGpuState();
+        _webGpuRetrying = true;
+        var webGpuGeneration = _webGpuGeneration;
+
+        try
+        {
+            var initialized = await JSRuntime.InvokeAsync<bool>("nexus.chartWebGpu.retry", _chartId);
+
+            if (_disposed || webGpuGeneration != _webGpuGeneration || !initialized)
+                return;
+
+            _webGpuErrorTitle = null;
+            _webGpuErrorMessage = null;
+        }
+        catch (JSException exception) when (!_disposed)
+        {
+            if (webGpuGeneration == _webGpuGeneration)
+            {
+                _webGpuErrorTitle = "WebGPU initialization failed";
+                _webGpuErrorMessage = $"The chart could not initialize WebGPU: {exception.Message}";
+            }
+        }
+        finally
+        {
+            if (!_disposed && webGpuGeneration == _webGpuGeneration)
+            {
+                _webGpuRetrying = false;
+                StateHasChanged();
+                _skiaView.Invalidate();
+            }
+        }
+    }
+
+    private void ResetWebGpuState()
+    {
+        _webGpuGeneration++;
+        _sentSeriesVersions.Clear();
+        _sendingSeriesVersions.Clear();
+        _seriesRanges.Clear();
+
+        if (_axisData is not null)
+            RebuildAxes(_axisData);
     }
 
     private static int GetSeriesLength(LineSeries series) =>
@@ -606,20 +715,6 @@ public partial class Chart : IDisposable
             ? HashCode.Combine(series.SyntheticKind.Value, series.SyntheticLength)
             : RuntimeHelpers.GetHashCode(series.Data);
 
-    private byte[] GetSeriesBytes(string seriesId, double[] data, int dataVersion, int length)
-    {
-        if (_seriesBytes.TryGetValue(seriesId, out var cached) &&
-            cached.Version == dataVersion &&
-            cached.Length == length)
-        {
-            return cached.Bytes;
-        }
-
-        var bytes = ToBytes(data);
-        _seriesBytes[seriesId] = (dataVersion, length, bytes);
-        return bytes;
-    }
-
     private static bool HasSeriesVersion(
         Dictionary<string, (int Version, int Length)> versions,
         string seriesId,
@@ -629,24 +724,6 @@ public partial class Chart : IDisposable
         return versions.TryGetValue(seriesId, out var version) &&
                version.Version == dataVersion &&
                version.Length == length;
-    }
-
-    /* Encodes as 32-bit floats rather than the source 64-bit doubles: the
-     * GPU buffer is Float32 anyway, so sending Float64 previously doubled the
-     * Blazor JS-interop payload for no benefit, and forced the JS side to run
-     * a manual, single-threaded, main-thread-blocking element-by-element
-     * downcast loop over every sample after receiving it. Converting here
-     * instead lets the JS side treat the received bytes as a ready-to-use
-     * Float32Array with no per-element work at all. */
-    private static byte[] ToBytes(double[] values)
-    {
-        var bytes = GC.AllocateUninitializedArray<byte>(checked(values.Length * sizeof(float)));
-        var floats = MemoryMarshal.Cast<byte, float>(bytes);
-
-        for (var i = 0; i < values.Length; i++)
-            floats[i] = (float)values[i];
-
-        return bytes;
     }
 
     private void DrawAuxiliary(Position relativePosition)
@@ -1313,7 +1390,6 @@ public partial class Chart : IDisposable
 
         _sentSeriesVersions.Clear();
         _sendingSeriesVersions.Clear();
-        _seriesBytes.Clear();
         _seriesRanges.Clear();
         _dotNetHelper?.Dispose();
     }

@@ -1,6 +1,9 @@
 (function () {
     const instances = new Map();
     const pendingInstances = new Map();
+    const lifecycleEpochs = new Map();
+    const failureStates = new Map();
+    const dotNetHelpers = new Map();
     const uniformBufferSize = 96;
     const fillVerticesPerSegment = 6;
     const lineVerticesPerSegment = 18;
@@ -15,6 +18,9 @@
     const syntheticStreamChunkLength = 4 * 1024 * 1024;
     const rawChunkLength = 1024 * 1024;
     const configuredCacheBudgets = new Map();
+    let sharedGpu = null;
+    let pendingSharedGpu = null;
+    let sharedGpuGeneration = 0;
 
     const shader = `
 struct Uniforms {
@@ -601,25 +607,6 @@ fn reduceRange(
         ];
     }
 
-    // Bytes arrive already encoded as 32-bit floats (see Chart.razor.cs
-    // ToBytes), so this is a plain reinterpretation of the buffer - a
-    // zero-copy view when 4-byte aligned (the common case), and a single
-    // native (non-scripted) copy otherwise. No manual per-element
-    // conversion loop is needed here anymore.
-    function toFloat32Array(bytes) {
-        if (!bytes)
-            return new Float32Array(0);
-
-        if (bytes instanceof Uint8Array) {
-            if (bytes.byteOffset % 4 === 0)
-                return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
-
-            return new Float32Array(bytes.slice().buffer);
-        }
-
-        return new Float32Array(bytes);
-    }
-
     function ensureCanvasSize(canvas) {
         const dpr = window.devicePixelRatio || 1;
         const width = Math.max(1, Math.round(canvas.clientWidth * dpr));
@@ -633,31 +620,78 @@ fn reduceRange(
         return { width, height, dpr };
     }
 
-    async function getInstance(chartId) {
-        let instance = instances.get(chartId);
+    function getLifecycleEpoch(chartId) {
+        return lifecycleEpochs.get(chartId) ?? 0;
+    }
 
-        if (instance)
-            return instance;
+    function advanceLifecycleEpoch(chartId) {
+        const epoch = getLifecycleEpoch(chartId) + 1;
+        lifecycleEpochs.set(chartId, epoch);
+        return epoch;
+    }
 
-        let pending = pendingInstances.get(chartId);
+    function reportFailure(chartId, title, message) {
+        const current = failureStates.get(chartId);
+        if (current?.title === title && current?.message === message)
+            return;
 
-        if (pending)
-            return pending;
+        failureStates.set(chartId, { title, message });
+        const helper = dotNetHelpers.get(chartId);
+        helper?.invokeMethodAsync('WebGpuFailed', title, message)
+            .catch(error => console.error('[chart-webgpu] failure callback failed', error));
+    }
 
-        const promise = (async () => {
-            const canvas = document.getElementById(`series_${chartId}`);
+    function destroyInstance(instance, reason) {
+        if (!instance || instance.disposed)
+            return;
 
-            if (!canvas || !navigator.gpu) {
-                pendingInstances.delete(chartId);
-                return null;
-            }
+        instance.disposed = true;
+
+        for (const id of [...instance.generationJobs.keys()])
+            cancelGeneration(instance, id, reason);
+
+        for (const request of instance.rawRequests.values()) {
+            request.worker.postMessage({ type: 'cancel', requestId: request.requestId });
+            request.worker.terminate();
+            instance.rawReservedBytes -= request.byteLength;
+            request.reject(new Error(reason));
+        }
+        instance.rawRequests.clear();
+
+        for (const [key, chunk] of instance.rawChunks)
+            destroyRawChunk(instance, key, chunk);
+
+        for (const cached of instance.seriesBuffers.values())
+            destroySeriesBuffer(instance, cached);
+        instance.seriesBuffers.clear();
+
+        for (const upload of instance.uploadSessions.values())
+            upload.buffer?.destroy();
+        instance.uploadSessions.clear();
+
+        for (const targetResources of instance.targetResources.values()) {
+            for (const resources of targetResources)
+                resources.uniformBuffer.destroy();
+        }
+        instance.targetResources.clear();
+
+    }
+
+    async function getSharedGpu() {
+        if (sharedGpu)
+            return sharedGpu;
+
+        if (pendingSharedGpu)
+            return pendingSharedGpu;
+
+        const generation = ++sharedGpuGeneration;
+        pendingSharedGpu = Promise.resolve().then(async () => {
+            if (!navigator.gpu)
+                throw new Error('WebGPU is not available. Use a current WebGPU-capable browser and ensure hardware acceleration is enabled.');
 
             const adapter = await navigator.gpu.requestAdapter();
-
-            if (!adapter) {
-                pendingInstances.delete(chartId);
-                return null;
-            }
+            if (!adapter)
+                throw new Error('No compatible GPU adapter was found. Ensure hardware acceleration is enabled, then retry.');
 
             const device = await adapter.requestDevice({
                 requiredLimits: {
@@ -665,101 +699,166 @@ fn reduceRange(
                     maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
                 },
             });
-            // If dispose was called while we were waiting, abort and clean up.
-            if (!pendingInstances.has(chartId)) {
+            let bundle;
+            try {
+                if (generation !== sharedGpuGeneration)
+                    throw new Error('WebGPU initialization was superseded.');
+
+                const format = navigator.gpu.getPreferredCanvasFormat();
+                const module = device.createShaderModule({ code: shader });
+                const decimationModule = device.createShaderModule({ code: decimationShader });
+                const rangeModule = device.createShaderModule({ code: rangeShader });
+                const overviewModule = device.createShaderModule({ code: overviewShader });
+                const pointDecimationModule = device.createShaderModule({ code: pointDecimationShader });
+                bundle = {
+                    generation,
+                    device,
+                    format,
+                    pipeline: device.createRenderPipeline({
+                        layout: 'auto',
+                        vertex: { module, entryPoint: 'vertexMain' },
+                        fragment: {
+                            module,
+                            entryPoint: 'fragmentMain',
+                            targets: [{
+                                format,
+                                blend: {
+                                    color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+                                    alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+                                },
+                            }],
+                        },
+                        primitive: { topology: 'triangle-list' },
+                    }),
+                    decimationPipeline: device.createComputePipeline({
+                        layout: 'auto', compute: { module: decimationModule, entryPoint: 'decimate' },
+                    }),
+                    rangePipeline: device.createComputePipeline({
+                        layout: 'auto', compute: { module: rangeModule, entryPoint: 'reduceRange' },
+                    }),
+                    overviewPipeline: device.createComputePipeline({
+                        layout: 'auto', compute: { module: overviewModule, entryPoint: 'reduceOverview' },
+                    }),
+                    pointDecimationPipeline: device.createComputePipeline({
+                        layout: 'auto', compute: { module: pointDecimationModule, entryPoint: 'decimatePoints' },
+                    }),
+                };
+            } catch (error) {
                 device.destroy();
-                return null;
+                throw error;
             }
 
-            const format = navigator.gpu.getPreferredCanvasFormat();
-            const module = device.createShaderModule({ code: shader });
-            const decimationModule = device.createShaderModule({ code: decimationShader });
-            const rangeModule = device.createShaderModule({ code: rangeShader });
-            const overviewModule = device.createShaderModule({ code: overviewShader });
-            const pointDecimationModule = device.createShaderModule({ code: pointDecimationShader });
-            const pipeline = device.createRenderPipeline({
-                layout: 'auto',
-                vertex: {
-                    module,
-                    entryPoint: 'vertexMain',
-                },
-                fragment: {
-                    module,
-                    entryPoint: 'fragmentMain',
-                    targets: [{
-                        format,
-                        blend: {
-                            color: {
-                                srcFactor: 'src-alpha',
-                                dstFactor: 'one-minus-src-alpha',
-                                operation: 'add',
-                            },
-                            alpha: {
-                                srcFactor: 'one',
-                                dstFactor: 'one-minus-src-alpha',
-                                operation: 'add',
-                            },
-                        },
-                    }],
-                },
-                primitive: { topology: 'triangle-list' },
-            });
-            const decimationPipeline = device.createComputePipeline({
-                layout: 'auto',
-                compute: {
-                    module: decimationModule,
-                    entryPoint: 'decimate',
-                },
-            });
-            const rangePipeline = device.createComputePipeline({
-                layout: 'auto',
-                compute: {
-                    module: rangeModule,
-                    entryPoint: 'reduceRange',
-                },
-            });
-            const overviewPipeline = device.createComputePipeline({
-                layout: 'auto',
-                compute: { module: overviewModule, entryPoint: 'reduceOverview' },
-            });
-            const pointDecimationPipeline = device.createComputePipeline({
-                layout: 'auto',
-                compute: { module: pointDecimationModule, entryPoint: 'decimatePoints' },
-            });
-            instance = {
-                chartId,
-                canvas,
-                device,
-                format,
-                pipeline,
-                decimationPipeline,
-                rangePipeline,
-                overviewPipeline,
-                pointDecimationPipeline,
-                seriesBuffers: new Map(),
-                targetResources: new Map(),
-                previewRenderKeys: new Map(),
-                uploadGenerations: new Map(),
-                cacheBudget: configuredCacheBudgets.get(chartId) ?? defaultCacheBudget,
-                persistentBytes: 0,
-                rawCacheBytes: 0,
-                rawReservedBytes: 0,
-                generationReservedBytes: 0,
-                auxiliaryBytes: 0,
-                rawChunks: new Map(),
-                rawRequests: new Map(),
-                generationJobs: new Map(),
-                workerRequestId: 0,
-                renderGeneration: 0,
-                lastPayloads: new Map(),
-            };
-            instances.set(chartId, instance);
-            pendingInstances.delete(chartId);
-            return instance;
-        })();
+            device.lost.then(info => {
+                if (sharedGpu !== bundle)
+                    return;
 
-        pendingInstances.set(chartId, promise);
-        return promise;
+                sharedGpu = null;
+                sharedGpuGeneration++;
+                const detail = info.message ? ` ${info.message}` : '';
+                for (const [chartId, instance] of [...instances]) {
+                    if (instance.gpuGeneration !== bundle.generation)
+                        continue;
+
+                    advanceLifecycleEpoch(chartId);
+                    instances.delete(chartId);
+                    destroyInstance(instance, `WebGPU device lost for chart ${chartId}`);
+                    reportFailure(chartId, 'GPU connection lost', `The browser lost access to the GPU.${detail} Retry the chart to recreate its GPU resources.`);
+                }
+            }).catch(error => console.error('[chart-webgpu] device loss handler failed', error));
+
+            sharedGpu = bundle;
+            return bundle;
+        }).finally(() => {
+            pendingSharedGpu = null;
+        });
+
+        return pendingSharedGpu;
+    }
+
+    async function getInstance(chartId) {
+        let instance = instances.get(chartId);
+
+        if (instance)
+            return instance;
+
+        const failure = failureStates.get(chartId);
+        if (failure)
+            throw new Error(failure.message);
+
+        let pending = pendingInstances.get(chartId);
+
+        if (pending)
+            return pending.promise;
+
+        const epoch = getLifecycleEpoch(chartId);
+        const entry = { epoch, promise: null };
+        entry.promise = Promise.resolve().then(async () => {
+            try {
+                if (getLifecycleEpoch(chartId) !== epoch)
+                    return null;
+
+                const canvas = document.getElementById(`series_${chartId}`);
+
+                if (!canvas)
+                    throw new Error('The chart canvas is unavailable.');
+
+                const gpu = await getSharedGpu();
+                if (getLifecycleEpoch(chartId) !== epoch)
+                    return null;
+
+                instance = {
+                    chartId,
+                    ...gpu,
+                    gpuGeneration: gpu.generation,
+                    seriesBuffers: new Map(),
+                    uploadSessions: new Map(),
+                    uploadToken: 0,
+                    targetResources: new Map(),
+                    previewRenderKeys: new Map(),
+                    uploadGenerations: new Map(),
+                    cacheBudget: configuredCacheBudgets.get(chartId) ?? defaultCacheBudget,
+                    persistentBytes: 0,
+                    rawCacheBytes: 0,
+                    rawReservedBytes: 0,
+                    generationReservedBytes: 0,
+                    auxiliaryBytes: 0,
+                    rawChunks: new Map(),
+                    rawRequests: new Map(),
+                    generationJobs: new Map(),
+                    workerRequestId: 0,
+                    renderGeneration: 0,
+                    lastPayloads: new Map(),
+                    disposed: false,
+                };
+
+                if (getLifecycleEpoch(chartId) !== epoch) {
+                    destroyInstance(instance, `Chart ${chartId} initialization was superseded`);
+                    return null;
+                }
+
+                instances.set(chartId, instance);
+                return instance;
+            } catch (error) {
+                if (!failureStates.has(chartId) && getLifecycleEpoch(chartId) === epoch) {
+                    const unavailable = !navigator.gpu || error?.message?.startsWith('No compatible GPU adapter');
+                    reportFailure(
+                        chartId,
+                        unavailable ? 'WebGPU unavailable' : 'WebGPU initialization failed',
+                        unavailable ? error.message : `The chart could not initialize WebGPU: ${error?.message ?? error}. Check browser hardware acceleration, then retry.`);
+                }
+
+                throw error;
+            } finally {
+                if (pendingInstances.get(chartId) === entry)
+                    pendingInstances.delete(chartId);
+
+                if (!dotNetHelpers.has(chartId) && !instances.has(chartId))
+                    lifecycleEpochs.delete(chartId);
+            }
+        });
+
+        pendingInstances.set(chartId, entry);
+        return entry.promise;
     }
 
     function getSeriesKey(id, version, length) {
@@ -790,13 +889,13 @@ fn reduceRange(
             .filter(([key]) => !protectedKeys.has(key))
             .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
 
-        while (instance.persistentBytes + instance.rawCacheBytes + instance.rawReservedBytes + instance.generationReservedBytes + instance.auxiliaryBytes + requiredBytes > instance.cacheBudget && candidates.length) {
+        while (instance.rawCacheBytes + instance.rawReservedBytes + requiredBytes > instance.cacheBudget && candidates.length) {
             const [key, chunk] = candidates.shift();
             destroyRawChunk(instance, key, chunk);
         }
 
-        if (requiredBytes > 0 && instance.persistentBytes + instance.rawCacheBytes + instance.rawReservedBytes + instance.generationReservedBytes + instance.auxiliaryBytes + requiredBytes > instance.cacheBudget)
-            throw new Error(`Chart GPU cache budget (${instance.cacheBudget} bytes) cannot fit a ${requiredBytes}-byte chunk with ${instance.persistentBytes} persistent bytes`);
+        if (requiredBytes > 0 && instance.rawCacheBytes + instance.rawReservedBytes + requiredBytes > instance.cacheBudget)
+            throw new Error(`Chart raw-detail cache budget (${instance.cacheBudget} bytes) cannot fit a ${requiredBytes}-byte chunk`);
     }
 
     function removeRawSeries(instance, id) {
@@ -845,40 +944,117 @@ fn reduceRange(
             if (!active.has(id))
                 cancelGeneration(instance, id, `Series ${id} was removed`);
         }
+
+        for (const [token, upload] of instance.uploadSessions) {
+            if (active.has(upload.id))
+                continue;
+
+            upload.buffer?.destroy();
+            instance.uploadSessions.delete(token);
+        }
     }
 
-    function cacheSeriesBuffer(instance, id, version, length, valuesBytes) {
-        const key = getSeriesKey(id, version, length);
-        const data = toFloat32Array(valuesBytes);
+    function createSeriesUpload(instance, id, version, length) {
+        if (!Number.isSafeInteger(length) || length < 0)
+            throw new Error(`Series length must be a non-negative safe integer (received ${length})`);
 
-        if (data.length < 2)
-            return null;
-
+        const byteLength = length * Float32Array.BYTES_PER_ELEMENT;
+        if (!Number.isSafeInteger(byteLength))
+            throw new Error(`Series byte length is not a safe integer (${byteLength})`);
         const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
-        if (data.byteLength > deviceLimit)
-            throw new Error(`Series requires ${data.byteLength} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
+        if (byteLength > deviceLimit)
+            throw new Error(`Series requires ${byteLength} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
 
-        evictRawChunks(instance, data.byteLength);
+        for (const [token, upload] of instance.uploadSessions) {
+            if (upload.id !== id)
+                continue;
 
-        const buffer = instance.device.createBuffer({
-            size: data.byteLength,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
+            upload.buffer?.destroy();
+            instance.uploadSessions.delete(token);
+        }
 
-        instance.device.queue.writeBuffer(buffer, 0, data);
+        const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
+        instance.uploadGenerations.set(id, generation);
+        removeRawSeries(instance, id);
+        const token = ++instance.uploadToken;
+        const buffer = length >= 2
+            ? instance.device.createBuffer({
+                size: byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            })
+            : null;
+        instance.uploadSessions.set(token, { id, version, length, byteLength, buffer, generation, writtenBytes: 0 });
+        return token;
+    }
+
+    async function appendSeriesUploadAsync(chartId, token, byteOffset, streamReference) {
+        const instance = await getInstance(chartId);
+        const upload = instance?.uploadSessions.get(token);
+        if (!upload)
+            throw new Error(`Series upload ${token} is no longer active`);
+
+        const bytes = new Uint8Array(await streamReference.arrayBuffer());
+        if (instances.get(chartId) !== instance || instance.uploadSessions.get(token) !== upload)
+            throw new Error(`Series upload ${token} was superseded`);
+        if (!Number.isSafeInteger(byteOffset) || byteOffset !== upload.writtenBytes)
+            throw new Error(`Series upload ${token} expected byte offset ${upload.writtenBytes}, received ${byteOffset}`);
+        if (bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0 || byteOffset + bytes.byteLength > upload.byteLength)
+            throw new Error(`Series upload ${token} contains invalid or excess data`);
+
+        if (bytes.byteLength > 0 && upload.buffer)
+            instance.device.queue.writeBuffer(upload.buffer, byteOffset, bytes);
+        upload.writtenBytes += bytes.byteLength;
+    }
+
+    async function completeSeriesUploadAsync(chartId, token) {
+        const instance = await getInstance(chartId);
+        const upload = instance?.uploadSessions.get(token);
+        if (!upload)
+            throw new Error(`Series upload ${token} is no longer active`);
+        if (upload.writtenBytes !== upload.byteLength)
+            throw new Error(`Series upload ${token} is incomplete (${upload.writtenBytes} of ${upload.byteLength} bytes)`);
+
+        const range = upload.buffer
+            ? await calculateSeriesRangeAsync(instance, upload.buffer, upload.length)
+            : { hasValue: false, minimum: 0, maximum: 0 };
+        if (instances.get(chartId) !== instance || instance.uploadSessions.get(token) !== upload)
+            throw new Error(`Series upload ${token} was superseded`);
 
         for (const [existingKey, existing] of instance.seriesBuffers) {
-            if (existing.id === id) {
+            if (existing.id === upload.id) {
                 instance.persistentBytes -= existing.byteLength ?? 0;
                 destroySeriesBuffer(instance, existing);
                 instance.seriesBuffers.delete(existingKey);
             }
         }
 
-        const cachedSeries = { id, buffer, pointBuffer: buffer, length: data.length, byteLength: data.byteLength, dataMode: 0, decimations: new Map() };
-        instance.seriesBuffers.set(key, cachedSeries);
-        instance.persistentBytes += data.byteLength;
-        return cachedSeries;
+        if (upload.buffer) {
+            const key = getSeriesKey(upload.id, upload.version, upload.length);
+            const cachedSeries = {
+                id: upload.id,
+                buffer: upload.buffer,
+                pointBuffer: upload.buffer,
+                length: upload.length,
+                byteLength: upload.byteLength,
+                dataMode: 0,
+                decimations: new Map(),
+            };
+            instance.seriesBuffers.set(key, cachedSeries);
+            instance.persistentBytes += upload.byteLength;
+        }
+
+        instance.uploadSessions.delete(token);
+        return range;
+    }
+
+    function abortSeriesUpload(chartId, token) {
+        const instance = instances.get(chartId);
+        const upload = instance?.uploadSessions.get(token);
+        if (!upload)
+            return;
+
+        upload.buffer?.destroy();
+        instance.uploadSessions.delete(token);
     }
 
     async function generateSyntheticSeriesAsync(chartId, id, version, length, kind) {
@@ -892,6 +1068,13 @@ fn reduceRange(
 
         const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
         instance.uploadGenerations.set(id, generation);
+        for (const [token, upload] of instance.uploadSessions) {
+            if (upload.id !== id)
+                continue;
+
+            upload.buffer?.destroy();
+            instance.uploadSessions.delete(token);
+        }
         cancelGeneration(instance, id, `Synthetic generation superseded for series ${id}`);
         removeRawSeries(instance, id);
         const overviewBucketCount = Math.ceil(length / overviewBucketSize);
@@ -907,7 +1090,6 @@ fn reduceRange(
             throw new Error(`Synthetic stream chunk requires ${transientBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
 
         const reservedBytes = overviewBytes + transientBytes;
-        evictRawChunks(instance, reservedBytes);
         instance.generationReservedBytes += reservedBytes;
 
         const transientBuffer = instance.device.createBuffer({
@@ -1239,8 +1421,6 @@ fn reduceRange(
             }
 
             const allocationBytes = outputSize + 16;
-            evictRawChunks(instance, allocationBytes);
-
             const outputBuffer = instance.device.createBuffer({
                 size: outputSize,
                 usage: GPUBufferUsage.STORAGE,
@@ -1485,29 +1665,13 @@ fn reduceRange(
         return true;
     }
 
-    async function loadSeriesDataAsync(chartId, id, version, length, streamReference) {
+    async function beginSeriesUploadAsync(chartId, id, version, length) {
         const instance = await getInstance(chartId);
 
         if (!instance)
             throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
 
-        const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
-        instance.uploadGenerations.set(id, generation);
-        removeRawSeries(instance, id);
-        const bytes = new Uint8Array(await streamReference.arrayBuffer());
-
-        if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
-            return;
-
-        const cached = cacheSeriesBuffer(instance, id, version, length, bytes);
-        const range = cached
-            ? await calculateSeriesRangeAsync(instance, cached.buffer, cached.length)
-            : { hasValue: false, minimum: 0, maximum: 0 };
-
-        if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
-            return { hasValue: false, minimum: 0, maximum: 0 };
-
-        return range;
+        return createSeriesUpload(instance, id, version, length);
     }
 
     async function renderSeriesAsync(chartId, payload) {
@@ -1625,6 +1789,18 @@ fn reduceRange(
 
     window.nexus ??= {};
     window.nexus.chartWebGpu = {
+        initialize(chartId, dotNetHelper) {
+            dotNetHelpers.set(chartId, dotNetHelper);
+
+            const failure = failureStates.get(chartId);
+            if (failure) {
+                dotNetHelper.invokeMethodAsync('WebGpuFailed', failure.title, failure.message)
+                    .catch(error => console.error('[chart-webgpu] failure callback failed', error));
+                return;
+            }
+
+            getInstance(chartId).catch(error => console.error('[chart-webgpu] initialization failed', error));
+        },
         setCacheBudget(chartId, bytes) {
             if (!Number.isSafeInteger(bytes) || bytes < 0)
                 throw new Error(`Cache budget must be a non-negative safe integer (received ${bytes})`);
@@ -1642,8 +1818,17 @@ fn reduceRange(
             if (instance)
                 synchronizeSeries(instance, activeIds);
         },
-        loadSeriesData(chartId, id, version, length, streamReference) {
-            return loadSeriesDataAsync(chartId, id, version, length, streamReference);
+        beginSeriesUpload(chartId, id, version, length) {
+            return beginSeriesUploadAsync(chartId, id, version, length);
+        },
+        appendSeriesUpload(chartId, token, byteOffset, streamReference) {
+            return appendSeriesUploadAsync(chartId, token, byteOffset, streamReference);
+        },
+        completeSeriesUpload(chartId, token) {
+            return completeSeriesUploadAsync(chartId, token);
+        },
+        abortSeriesUpload(chartId, token) {
+            abortSeriesUpload(chartId, token);
         },
         generateSyntheticSeries(chartId, id, version, length, kind) {
             return generateSyntheticSeriesAsync(chartId, id, version, length, kind);
@@ -1651,38 +1836,44 @@ fn reduceRange(
         renderSeries(chartId, payload) {
             renderSeriesAsync(chartId, payload).catch(error => console.error('[chart-webgpu] render failed', error));
         },
-        dispose(chartId) {
+        async retry(chartId) {
+            advanceLifecycleEpoch(chartId);
             pendingInstances.delete(chartId);
 
             const instance = instances.get(chartId);
-
             if (instance) {
-                for (const id of [...instance.generationJobs.keys()])
-                    cancelGeneration(instance, id, `Chart ${chartId} was disposed`);
-
-                for (const request of instance.rawRequests.values()) {
-                    request.worker.postMessage({ type: 'cancel', requestId: request.requestId });
-                    request.worker.terminate();
-                    instance.rawReservedBytes -= request.byteLength;
-                    request.reject(new Error(`Chart ${chartId} was disposed`));
-                }
-
-                for (const [key, chunk] of instance.rawChunks)
-                    destroyRawChunk(instance, key, chunk);
-
-                for (const cached of instance.seriesBuffers.values())
-                    destroySeriesBuffer(instance, cached);
-
-                for (const targetResources of instance.targetResources.values()) {
-                    for (const resources of targetResources)
-                        resources.uniformBuffer.destroy();
-                }
-
-                instance.device.destroy();
+                instances.delete(chartId);
+                destroyInstance(instance, `Chart ${chartId} WebGPU retry`);
             }
 
+            failureStates.delete(chartId);
+            return (await getInstance(chartId)) !== null;
+        },
+        dispose(chartId) {
+            advanceLifecycleEpoch(chartId);
+            pendingInstances.delete(chartId);
+
+            const instance = instances.get(chartId);
             instances.delete(chartId);
+
+            if (instance)
+                destroyInstance(instance, `Chart ${chartId} was disposed`);
+
             configuredCacheBudgets.delete(chartId);
+            failureStates.delete(chartId);
+            dotNetHelpers.delete(chartId);
         },
     };
+
+    if (globalThis.__nexusChartWebGpuTestHooks) {
+        Object.assign(globalThis.__nexusChartWebGpuTestHooks, {
+            instances,
+            pendingInstances,
+            lifecycleEpochs,
+            failureStates,
+            getSharedGpu,
+            getInstance,
+            evictRawChunks,
+        });
+    }
 })();

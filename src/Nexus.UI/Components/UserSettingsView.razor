@@ -58,7 +58,7 @@ MaxWidth="MaxWidth.Medium">
                                  Label="GPU raw-data cache (MiB)"
                                  Variant="Variant.Outlined"
                                  Min="16"
-                                 HelperText="Maximum GPU memory retained by each chart, including overview and detailed data."
+                                 HelperText="Maximum GPU memory retained per chart for raw synthetic detail samples. Resident series, overviews, and derived rendering buffers are not included."
                                  @bind-Value:get="ChartGpuCacheBudgetMiB"
                                  @bind-Value:set="SetChartGpuCacheBudget" />
 
