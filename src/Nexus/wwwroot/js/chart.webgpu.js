@@ -4,12 +4,12 @@
         instances, pendingInstances, lifecycleEpochs, failureStates, dotNetHelpers, configuredCacheBudgets,
         valueOf, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
         getSharedGpu, getInstance, getLifecycleEpoch, advanceLifecycleEpoch, isCancellationError,
-        reportRuntimeFailure, destroyInstance, getSyntheticWorker, evictRawChunks,
+        reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, getSyntheticWorker, evictRawChunks,
         createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
         synchronizeSeries, appendSeriesUploadAsync, completeSeriesUploadAsync, abortSeriesUpload,
         generateSyntheticSeriesAsync, getSeriesBuffer, getPreviewRenderKey, getRawRenderItems, createSeriesUpload,
         uniformBufferSize, fillVerticesPerSegment, lineVerticesPerSegment, decimationFactor,
-        decimationBucketsPerPixel, maxDecimationBuckets, overviewBucketSize, reducedPointsPerBucket,
+        decimationBucketsPerPixel, maxDecimationBuckets, overviewBucketSize, reducedPointsPerBucket, rawChunkLength,
     } = ns;
     const renderStates = new Map();
 
@@ -34,7 +34,6 @@
                     continue;
                 destroyTrackedBuffer(instance, decimation.outputBuffer);
                 destroyTrackedBuffer(instance, decimation.paramsBuffer);
-                instance.auxiliaryBytes -= decimation.byteLength;
                 source.decimations.delete(key);
             }
         }
@@ -200,7 +199,6 @@
             if (decimation) {
                 destroyTrackedBuffer(instance, decimation.outputBuffer);
                 destroyTrackedBuffer(instance, decimation.paramsBuffer);
-                instance.auxiliaryBytes -= decimation.byteLength;
             }
 
             const allocationBytes = outputSize + 16;
@@ -243,7 +241,6 @@
                 },
             };
             source.decimations.set(target, decimation);
-            instance.auxiliaryBytes += allocationBytes;
         }
 
         instance.device.queue.writeBuffer(
@@ -508,15 +505,31 @@
             if (!Number.isSafeInteger(bytes) || bytes < 0)
                 throw new Error(`Cache budget must be a non-negative safe integer (received ${bytes})`);
 
+            configuredCacheBudgets.set(chartId, bytes);
             const instance = instances.get(chartId);
             if (instance) {
+                let reclaimableBytes = 0;
+                for (const chunk of instance.rawChunks.values()) {
+                    const buffers = new Set([chunk.buffer, chunk.pointBuffer]);
+                    for (const decimation of chunk.decimations?.values() ?? []) {
+                        buffers.add(decimation.outputBuffer);
+                        buffers.add(decimation.paramsBuffer);
+                    }
+                    for (const buffer of buffers) {
+                        if (buffer && !buffer.__nexusDestroyed)
+                            reclaimableBytes += buffer.__nexusByteLength ?? 0;
+                    }
+                }
+                if (instance.ownedGpuBytes + instance.rawReservedBytes - reclaimableBytes > bytes)
+                    return false;
+
                 evictRawChunks(instance, 0, new Set(), bytes);
                 if (instance.ownedGpuBytes + instance.rawReservedBytes > bytes)
-                    throw new Error(`Chart GPU memory budget cannot be lowered below its ${instance.ownedGpuBytes + instance.rawReservedBytes} bytes of active allocations`);
+                    return false;
                 instance.cacheBudget = bytes;
             }
 
-            configuredCacheBudgets.set(chartId, bytes);
+            return true;
         },
         synchronizeSeries(chartId, activeIds) {
             const instance = instances.get(chartId);
@@ -576,6 +589,7 @@
             configuredCacheBudgets.delete(chartId);
             failureStates.delete(chartId);
             dotNetHelpers.delete(chartId);
+            releaseSharedGpuIfUnused();
         },
     };
 
@@ -605,6 +619,8 @@
             renderStates,
             createTrackedBuffer,
             destroyTrackedBuffer,
+            releaseSharedGpuIfUnused,
+            rawChunkLength,
         });
     }
 })();

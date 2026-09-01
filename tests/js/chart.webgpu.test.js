@@ -209,6 +209,13 @@ test('charts share one WebGPU device and pipelines', async () => {
     environment.api.dispose('first');
     assert.equal(environment.devices[0].destroyed, false);
     environment.api.dispose('second');
+    assert.equal(environment.devices[0].destroyed, true);
+
+    environment.api.initialize('third', environment.helper('third'));
+    await settle();
+    assert.equal(environment.requestDeviceCalls, 2);
+    assert.equal(environment.devices[1].destroyed, false);
+    environment.api.dispose('third');
 });
 
 test('device loss fails every chart using the shared device', async () => {
@@ -323,7 +330,6 @@ test('raw-detail cache evicts least recently used chunks to its budget', async (
     second.pointBuffer = second.buffer;
     instance.rawChunks.set('first', first);
     instance.rawChunks.set('second', second);
-    instance.rawCacheBytes = 8;
     instance.ownedGpuBytes = 8;
 
     environment.hooks.evictRawChunks(instance, 4);
@@ -331,7 +337,7 @@ test('raw-detail cache evicts least recently used chunks to its budget', async (
     assert.equal(first.buffer.destroyed, true);
     assert.equal(instance.rawChunks.has('first'), false);
     assert.equal(instance.rawChunks.has('second'), true);
-    assert.equal(instance.rawCacheBytes, 4);
+    assert.equal(instance.ownedGpuBytes, 4);
 });
 
 test('raw chunks selected earlier in a frame remain pinned under later cache pressure', async () => {
@@ -345,7 +351,6 @@ test('raw chunks selected earlier in a frame remain pinned under later cache pre
         offset: 0, length: 3, lastUsed: 1, dataMode: 0, decimations: new Map(),
     };
     instance.rawChunks.set('first:1:0', firstChunk);
-    instance.rawCacheBytes = 12;
     instance.cacheBudget = 12;
     instance.uploadGenerations.set('first', 1);
     instance.uploadGenerations.set('second', 1);
@@ -366,6 +371,40 @@ test('raw chunks selected earlier in a frame remain pinned under later cache pre
     assert.equal(secondItems, null);
     assert.equal(firstBuffer.destroyed, false);
     assert.equal(instance.rawChunks.has('first:1:0'), true);
+});
+
+test('an exact raw chunk boundary renders from the preceding overlap chunk', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    const length = environment.hooks.rawChunkLength * 2;
+    const buffer = environment.hooks.createTrackedBuffer(instance, {
+        size: (environment.hooks.rawChunkLength + 1) * Float32Array.BYTES_PER_ELEMENT,
+        usage: 1,
+    });
+    const chunk = {
+        id: 'series', buffer, pointBuffer: buffer, byteLength: buffer.size,
+        offset: 0, length: environment.hooks.rawChunkLength + 1,
+        lastUsed: 1, dataMode: 0, decimations: new Map(),
+    };
+    instance.rawChunks.set('series:1:0', chunk);
+    instance.uploadGenerations.set('series', 1);
+    const encoder = instance.device.createCommandEncoder();
+
+    const items = environment.hooks.getRawRenderItems(
+        instance,
+        { id: 'series', version: 1, length, chartId: 'chart', generation: 1, kind: 'Sine' },
+        { SampleStep: 1 / length },
+        { Zoom: { Left: 0, Right: 0.5 } },
+        { plotLeft: 0, plotWidth: 100, plotTop: 0, plotBottom: 100, plotHeight: 100 },
+        encoder,
+        'series',
+        new Set());
+
+    assert.equal(items.length, 1);
+    assert.equal(instance.rawRequests.has('series:1:1'), true);
+    environment.api.dispose('chart');
 });
 
 test('synthetic cancellation waits for in-flight range work before destroying buffers', async () => {
@@ -473,7 +512,6 @@ test('releasing a target removes retained payloads and destroys target resources
     instance.targetResources.set('navigator-detail-series', [{ uniformBuffer }]);
     instance.lastPayloads.set('navigator-detail-series', {});
     instance.previewRenderKeys.set('navigator-detail-series', 'key');
-    instance.auxiliaryBytes = 48;
 
     environment.api.releaseTarget('chart', 'navigator-detail-series');
 
@@ -481,7 +519,26 @@ test('releasing a target removes retained payloads and destroys target resources
     assert.equal(instance.targetResources.has('navigator-detail-series'), false);
     assert.equal(source.decimations.size, 0);
     assert.equal(instance.ownedGpuBytes, 0);
-    assert.equal(instance.auxiliaryBytes, 0);
+});
+
+test('deferring a lower budget does not evict raw chunks', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    const persistent = environment.hooks.createTrackedBuffer(instance, { size: 8, usage: 1 });
+    const raw = environment.hooks.createTrackedBuffer(instance, { size: 4, usage: 1 });
+    instance.rawChunks.set('raw', {
+        buffer: raw, pointBuffer: raw, byteLength: 4, lastUsed: 1, decimations: new Map(),
+    });
+
+    assert.equal(environment.api.setCacheBudget('chart', 6), false);
+    assert.equal(raw.destroyed, false);
+    assert.equal(instance.rawChunks.has('raw'), true);
+    assert.equal(instance.cacheBudget > 6, true);
+
+    environment.hooks.destroyTrackedBuffer(instance, persistent);
+    environment.api.dispose('chart');
 });
 
 test('render scheduling retains only the latest pending payload per target', async () => {

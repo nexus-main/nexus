@@ -252,9 +252,6 @@ public partial class Chart : IDisposable
     [JSInvokable]
     public void PointerMoved(double x, double y) => DrawAuxiliary(new Position((float)x, (float)y));
 
-    [JSInvokable]
-    public void PointerLeft() => JSRuntime.InvokeVoid("nexus.chart.clearAuxiliary", _chartId);
-
     private void OnDoubleClick(MouseEventArgs e)
     {
         ResetZoom();
@@ -273,26 +270,17 @@ public partial class Chart : IDisposable
         const float FACTOR = 0.15f;
 
         var relativePosition = new Position((float)x, (float)y);
-
         var zoomHorizontal = !shiftKey;
         var zoomVertical = shiftKey;
-
         var zoomIn = deltaY < 0;
 
         var zoomBox = new SKRect
         {
-            Left = zoomHorizontal
-                ? relativePosition.X * (zoomIn ? +FACTOR : -FACTOR)
-                : 0,
-
-            Top = zoomVertical
-                ? relativePosition.Y * (zoomIn ? +FACTOR : -FACTOR)
-                : 0,
-
+            Left = zoomHorizontal ? relativePosition.X * (zoomIn ? +FACTOR : -FACTOR) : 0,
+            Top = zoomVertical ? relativePosition.Y * (zoomIn ? +FACTOR : -FACTOR) : 0,
             Right = zoomHorizontal
                 ? relativePosition.X + (1 - relativePosition.X) * (zoomIn ? (1 - FACTOR) : (1 + FACTOR))
                 : 1,
-
             Bottom = zoomVertical
                 ? relativePosition.Y + (1 - relativePosition.Y) * (zoomIn ? (1 - FACTOR) : (1 + FACTOR))
                 : 1
@@ -467,7 +455,20 @@ public partial class Chart : IDisposable
         }
 
         if (transfers.Count > 0)
-            _ = ApplyRangesAfterTransfersAsync(transfers, LineSeriesData, webGpuGeneration);
+            _ = ObserveRangesAfterTransfersAsync(transfers, LineSeriesData, webGpuGeneration);
+    }
+
+    private async Task ObserveRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data, int webGpuGeneration)
+    {
+        try
+        {
+            await ApplyRangesAfterTransfersAsync(transfers, data, webGpuGeneration);
+        }
+        catch (Exception exception)
+        {
+            if (!_disposed)
+                Console.Error.WriteLine($"[chart-webgpu] transfer completion failed: {exception}");
+        }
     }
 
     private async Task ApplyRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data, int webGpuGeneration)
@@ -566,12 +567,15 @@ public partial class Chart : IDisposable
                 byteOffset += byteCount;
             }
 
+            if (_disposed || webGpuGeneration != _webGpuGeneration)
+                return new SeriesRange(seriesId, dataVersion, length, false, 0, 0);
+
             var range = await JSRuntime.InvokeAsync<GpuRange>(
                 "nexus.chartWebGpu.completeSeriesUpload",
                 _chartId,
                 uploadToken.Value);
             uploadToken = null;
-            if (webGpuGeneration == _webGpuGeneration)
+            if (!_disposed && webGpuGeneration == _webGpuGeneration)
                 _sentSeriesVersions[seriesId] = (dataVersion, length);
 
             return new SeriesRange(seriesId, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
@@ -1395,6 +1399,7 @@ public partial class Chart : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        _webGpuGeneration++;
         AppState.PropertyChanged -= OnAppStatePropertyChanged;
 
         if (OperatingSystem.IsBrowser())

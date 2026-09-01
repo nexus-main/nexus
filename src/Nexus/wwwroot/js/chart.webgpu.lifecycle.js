@@ -144,6 +144,7 @@
         if (instance)
             destroyInstance(instance, `${title}: ${message}`);
 
+        releaseSharedGpuIfUnused();
         reportFailure(chartId, title, message);
     }
 
@@ -190,6 +191,20 @@
         instance.lastPayloads.clear();
         instance.previewRenderKeys.clear();
 
+    }
+
+    function releaseSharedGpuIfUnused() {
+        if (instances.size > 0 || pendingInstances.size > 0)
+            return;
+
+        sharedGpuGeneration++;
+        if (!sharedGpu)
+            return;
+
+        const gpu = sharedGpu;
+        sharedGpu = null;
+        gpu.alive = false;
+        gpu.device.destroy();
     }
 
     async function getSharedGpu() {
@@ -294,6 +309,9 @@
     }
 
     async function getInstance(chartId) {
+        if (!dotNetHelpers.has(chartId))
+            throw cancellationError(`Chart ${chartId} is no longer active`);
+
         let instance = instances.get(chartId);
 
         if (instance)
@@ -339,11 +357,7 @@
                     uploadGenerations: new Map(),
                     cacheBudget: configuredCacheBudgets.get(chartId) ?? defaultCacheBudget,
                     ownedGpuBytes: 0,
-                    persistentBytes: 0,
-                    rawCacheBytes: 0,
                     rawReservedBytes: 0,
-                    generationReservedBytes: 0,
-                    auxiliaryBytes: 0,
                     rawChunks: new Map(),
                     rawRequests: new Map(),
                     generationJobs: new Map(),
@@ -389,6 +403,6 @@
         valueOf, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
         createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
         getLifecycleEpoch, advanceLifecycleEpoch, cancellationError, isCancellationError,
-        reportFailure, reportRuntimeFailure, destroyInstance, getSharedGpu, getInstance,
+        reportFailure, reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, getSharedGpu, getInstance,
     });
 })();

@@ -38,14 +38,12 @@
         for (const decimation of cached.decimations?.values() ?? []) {
             ns.destroyTrackedBuffer(instance, decimation.outputBuffer);
             ns.destroyTrackedBuffer(instance, decimation.paramsBuffer);
-            instance.auxiliaryBytes -= decimation.byteLength;
         }
     }
 
     function destroyRawChunk(instance, key, chunk) {
         destroySeriesBuffer(instance, chunk);
         instance.rawChunks.delete(key);
-        instance.rawCacheBytes -= chunk.byteLength;
     }
 
     function evictRawChunks(instance, requiredBytes, protectedKeys = new Set(), budget = instance.cacheBudget) {
@@ -98,7 +96,6 @@
             if (active.has(cached.id))
                 continue;
 
-            instance.persistentBytes -= cached.byteLength ?? 0;
             destroySeriesBuffer(instance, cached);
             instance.seriesBuffers.delete(key);
             removeRawSeries(instance, cached.id);
@@ -188,7 +185,6 @@
 
         for (const [existingKey, existing] of instance.seriesBuffers) {
             if (existing.id === upload.id) {
-                instance.persistentBytes -= existing.byteLength ?? 0;
                 destroySeriesBuffer(instance, existing);
                 instance.seriesBuffers.delete(existingKey);
             }
@@ -206,7 +202,6 @@
                 decimations: new Map(),
             };
             instance.seriesBuffers.set(key, cachedSeries);
-            instance.persistentBytes += upload.byteLength;
         }
 
         instance.uploadSessions.delete(token);
@@ -255,9 +250,6 @@
         if (transientBytes > deviceLimit)
             throw new Error(`Synthetic stream chunk requires ${transientBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
 
-        const reservedBytes = overviewBytes + transientBytes;
-        instance.generationReservedBytes += reservedBytes;
-
         let transientBuffer = null;
         let overviewBuffer = null;
         let paramsBuffer = null;
@@ -269,7 +261,6 @@
             overviewBuffer = ns.createTrackedBuffer(instance, { size: overviewBytes, usage: GPUBufferUsage.STORAGE });
             paramsBuffer = ns.createTrackedBuffer(instance, { size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
         } catch (error) {
-            instance.generationReservedBytes -= reservedBytes;
             ns.destroyTrackedBuffer(instance, transientBuffer);
             ns.destroyTrackedBuffer(instance, overviewBuffer);
             ns.destroyTrackedBuffer(instance, paramsBuffer);
@@ -292,7 +283,6 @@
         let rejectGeneration;
         const job = {
             requestId,
-            reservedBytes,
             cancelled: false,
             handlerPromise: null,
             reject: error => rejectGeneration?.(error),
@@ -363,7 +353,6 @@
 
             for (const [existingKey, existing] of instance.seriesBuffers) {
                 if (existing.id === id) {
-                    instance.persistentBytes -= existing.byteLength ?? 0;
                     destroySeriesBuffer(instance, existing);
                     instance.seriesBuffers.delete(existingKey);
                 }
@@ -374,7 +363,6 @@
                 overviewLength, overviewBucketCount, byteLength: overviewBytes, dataMode: 1, synthetic: true, decimations: new Map(),
             };
             instance.seriesBuffers.set(getSeriesKey(id, version, length), cached);
-            instance.persistentBytes += overviewBytes;
             overviewBuffer = null;
             return { hasValue: rangeHasValue, minimum: rangeMinimum, maximum: rangeMaximum };
         } finally {
@@ -388,7 +376,6 @@
 
             if (instance.generationJobs.get(id) === job)
                 instance.generationJobs.delete(id);
-            instance.generationReservedBytes -= reservedBytes;
             ns.destroyTrackedBuffer(instance, transientBuffer);
             ns.destroyTrackedBuffer(instance, overviewBuffer);
             ns.destroyTrackedBuffer(instance, paramsBuffer);
@@ -571,7 +558,6 @@
                         offset, length: values.length, byteLength: values.byteLength, lastUsed: performance.now(),
                     };
                     instance.rawChunks.set(key, chunk);
-                    instance.rawCacheBytes += chunk.byteLength;
                     instance.rawRequests.delete(key);
                     instance.workerCallbacks.delete(requestId);
                     evictRawChunks(instance, 0);
@@ -615,7 +601,7 @@
             return null;
 
         const firstChunk = Math.floor(left / rawChunkLength);
-        const lastChunk = Math.floor(right / rawChunkLength);
+        const lastChunk = Math.floor((right - 1) / rawChunkLength);
         for (let index = firstChunk; index <= lastChunk; index++)
             protectedKeys.add(rawChunkKey(source, index));
 
@@ -642,9 +628,13 @@
                 continue;
 
             try {
-                requestRawChunk(instance, source, index, protectedKeys).catch(error => console.error('[chart-webgpu] raw prefetch failed', error));
+                requestRawChunk(instance, source, index, protectedKeys).catch(error => {
+                    if (!ns.isCancellationError(error))
+                        console.error('[chart-webgpu] raw prefetch failed', error);
+                });
             } catch (error) {
-                console.error('[chart-webgpu] raw prefetch skipped', error);
+                if (!ns.isCancellationError(error))
+                    console.error('[chart-webgpu] raw prefetch skipped', error);
             }
         }
 

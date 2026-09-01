@@ -50,8 +50,11 @@ nexus.chart.updateAuxiliary = function (chartId, x, y, timeText, updates) {
 };
 
 nexus.chart.clearAuxiliary = function (chartId) {
-    nexus.chart.hide(chartId, "crosshairs-x");
-    nexus.chart.hide(chartId, "crosshairs-y");
+    for (const id of ["crosshairs-x", "crosshairs-y"]) {
+        const element = document.getElementById(`${id}_${chartId}`);
+        if (element)
+            element.style.display = "none";
+    }
     const chart = document.getElementById(`chart_${chartId}`);
     for (const pointer of chart?.querySelectorAll(".pointer") ?? [])
         pointer.style.display = "none";
@@ -87,6 +90,45 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
     const selection = document.getElementById(`selection_${chartId}`);
     const disposers = [];
     const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(value, maximum));
+    const finiteNumber = (value, fallback) => {
+        const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    };
+    const fitInterval = (left, right) => {
+        const width = right - left;
+        if (width >= 1)
+            return [0, 1];
+        if (left < 0)
+            return [0, width];
+        if (right > 1)
+            return [1 - width, 1];
+        return [left, right];
+    };
+    const zoomInterval = (left, right, relativeAnchor, factor, minimumWidth) => {
+        left = clamp(finiteNumber(left, 0), 0, 1);
+        right = clamp(finiteNumber(right, 1), left, 1);
+        relativeAnchor = clamp(finiteNumber(relativeAnchor, 0.5), 0, 1);
+        factor = finiteNumber(factor, 1);
+        minimumWidth = clamp(finiteNumber(minimumWidth, Number.EPSILON), Number.MIN_VALUE, 1);
+        let width = right - left;
+        if (width < minimumWidth) {
+            const center = clamp((left + right) / 2, 0, 1);
+            left = clamp(center - minimumWidth / 2, 0, 1 - minimumWidth);
+            right = left + minimumWidth;
+            width = minimumWidth;
+        }
+
+        const anchor = left + relativeAnchor * width;
+        const representableStep = Number.EPSILON * Math.max(1, Math.abs(left), Math.abs(right));
+        const scaledWidth = width * factor;
+        const nextWidth = clamp(
+            factor > 1 ? Math.max(scaledWidth, width + representableStep) : scaledWidth,
+            minimumWidth,
+            1);
+        return fitInterval(
+            anchor - relativeAnchor * nextWidth,
+            anchor + (1 - relativeAnchor) * nextWidth);
+    };
     let invokePending = false;
     let pendingZoom = null;
     let pointerInvokePending = false;
@@ -105,13 +147,14 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             pendingZoom = null;
 
             try {
-                await dotNetHelper.invokeMethodAsync(next.method, ...next.values);
+                if (!disposed && next)
+                    await dotNetHelper.invokeMethodAsync(next.method, ...next.values);
             } catch (error) {
                 console.error('[chart] zoom update failed', error);
             } finally {
                 invokePending = false;
 
-                if (pendingZoom)
+                if (!disposed && pendingZoom)
                     invokeZoom(pendingZoom.method, pendingZoom.values);
             }
         });
@@ -158,20 +201,29 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         });
         listen(overlay, "mouseleave", () => {
             pendingPointer = null;
-            dotNetHelper.invokeMethodAsync("PointerLeft")
-                .catch(error => console.error('[chart] pointer leave failed', error));
+            if (!disposed)
+                nexus.chart.clearAuxiliary(chartId);
         });
 
         listen(overlay, "wheel", e => {
             if (e.cancelable)
                 e.preventDefault();
             const rect = overlay.getBoundingClientRect();
-            invokeZoom("WheelZoom", [
-                clamp((e.clientX - rect.left) / rect.width, 0, 1),
-                clamp((e.clientY - rect.top) / rect.height, 0, 1),
-                e.deltaY,
-                e.shiftKey,
-            ]);
+            const relativeX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+            const relativeY = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+            if (e.shiftKey) {
+                invokeZoom("WheelZoom", [relativeX, relativeY, e.deltaY, true]);
+            } else {
+                const viewport = zoomInterval(
+                    overlay.dataset.zoomLeft,
+                    overlay.dataset.zoomRight,
+                    relativeX,
+                    e.deltaY < 0 ? 0.85 : 1 / 0.85,
+                    overlay.dataset.minimumHorizontalZoom);
+                overlay.dataset.zoomLeft = viewport[0].toString();
+                overlay.dataset.zoomRight = viewport[1].toString();
+                invokeZoom("NavigatorZoom", viewport);
+            }
         }, { passive: false });
 
         listen(overlay, "pointerdown", e => {
@@ -352,10 +404,9 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             const left = parseFloat(win.dataset.left);
             const right = parseFloat(win.dataset.right);
             const factor = e.deltaY < 0 ? 0.9 : 1.1111111111111112;
-            invokeZoom("NavigatorZoom", [
-                clamp(anchor - (anchor - left) * factor, 0, 1),
-                clamp(anchor + (right - anchor) * factor, 0, 1),
-            ]);
+            invokeZoom("NavigatorZoom", fitInterval(
+                anchor - (anchor - left) * factor,
+                anchor + (right - anchor) * factor));
         }, { passive: false });
         listen(win, "keydown", e => {
             if (e.key !== "ArrowLeft" && e.key !== "ArrowRight")
@@ -384,6 +435,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
     nexus.chart.charts[chartId] = { dispose: () => {
         disposed = true;
         pendingPointer = null;
+        pendingZoom = null;
         disposers.forEach(dispose => dispose());
     } };
 };
