@@ -207,7 +207,7 @@ public partial class Chart : IDisposable
 
     protected override void OnInitialized()
     {
-        _gpuCacheBudgetMiB = EffectiveGpuCacheBudgetMiB(AppState.UISettings.ChartGpuCacheBudgetMiB);
+        _gpuCacheBudgetMiB = AppState.UISettings.EffectiveChartGpuCacheBudgetMiB;
         AppState.PropertyChanged += OnAppStatePropertyChanged;
 
         /* line series color */
@@ -224,13 +224,11 @@ public partial class Chart : IDisposable
         if (e.PropertyName != nameof(AppState.UISettings) || _disposed)
             return;
 
-        _gpuCacheBudgetMiB = EffectiveGpuCacheBudgetMiB(AppState.UISettings.ChartGpuCacheBudgetMiB);
+        _gpuCacheBudgetMiB = AppState.UISettings.EffectiveChartGpuCacheBudgetMiB;
 
         if (OperatingSystem.IsBrowser())
             JSRuntime.InvokeVoid("nexus.chartWebGpu.setCacheBudget", _chartId, (long)_gpuCacheBudgetMiB * 1024 * 1024);
     }
-
-    private static int EffectiveGpuCacheBudgetMiB(int value) => value <= 0 ? 512 : Math.Max(16, value);
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -272,16 +270,17 @@ public partial class Chart : IDisposable
             _skiaView.Invalidate();
     }
 
-    private void OnWheel(WheelEventArgs e)
+    [JSInvokable]
+    public void WheelZoom(double x, double y, double deltaY, bool shiftKey)
     {
         const float FACTOR = 0.15f;
 
-        var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
+        var relativePosition = new Position((float)x, (float)y);
 
-        var zoomHorizontal = !e.ShiftKey;
-        var zoomVertical = e.ShiftKey;
+        var zoomHorizontal = !shiftKey;
+        var zoomVertical = shiftKey;
 
-        var zoomIn = e.DeltaY < 0;
+        var zoomIn = deltaY < 0;
 
         var zoomBox = new SKRect
         {

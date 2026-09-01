@@ -405,14 +405,12 @@ MaxWidth="MaxWidth.Medium">
         AppState.UISettings = AppState.UISettings;
     }
 
-    private int ChartGpuCacheBudgetMiB => EffectiveChartGpuCacheBudgetMiB(AppState.UISettings.ChartGpuCacheBudgetMiB);
+    private int ChartGpuCacheBudgetMiB => AppState.UISettings.EffectiveChartGpuCacheBudgetMiB;
 
     private void SetChartGpuCacheBudget(int value)
     {
         AppState.UISettings = AppState.UISettings with { ChartGpuCacheBudgetMiB = Math.Max(16, value) };
     }
-
-    private static int EffectiveChartGpuCacheBudgetMiB(int value) => value <= 0 ? 512 : Math.Max(16, value);
 
     private bool IsAdmin(ClaimsPrincipal user)
     {

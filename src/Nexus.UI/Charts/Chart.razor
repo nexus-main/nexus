@@ -30,9 +30,7 @@
             data-zoom-bottom="@(_zoomBox.Bottom.ToString("R", System.Globalization.CultureInfo.InvariantCulture))"
             @onmousemove="OnMouseMove"
             @onmouseleave="OnMouseLeave"
-            @ondblclick="OnDoubleClick"
-            @onwheel="OnWheel"
-            @onwheel:preventDefault>
+            @ondblclick="OnDoubleClick">
 
             <div id="crosshairs-x_@(_chartId)" class="crosshairs-x" style="display: none;"></div>
             <div id="crosshairs-y_@(_chartId)" class="crosshairs-y" style="display: none;"></div>

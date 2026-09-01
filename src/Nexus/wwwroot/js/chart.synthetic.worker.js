@@ -1,5 +1,4 @@
 const streams = new Map();
-const cancelled = new Set();
 
 function generate(offset, count, kind) {
     const values = new Float32Array(count);
@@ -33,7 +32,7 @@ function generate(offset, count, kind) {
 function sendNext(requestId) {
     const stream = streams.get(requestId);
 
-    if (!stream || cancelled.delete(requestId)) {
+    if (!stream) {
         streams.delete(requestId);
         return;
     }
@@ -65,13 +64,9 @@ self.onmessage = event => {
     } else if (message.type === 'ack') {
         sendNext(message.requestId);
     } else if (message.type === 'raw') {
-        if (cancelled.delete(message.requestId))
-            return;
-
         const values = generate(message.offset, message.count, message.kind);
         self.postMessage({ requestId: message.requestId, offset: message.offset, values, complete: true }, [values.buffer]);
     } else if (message.type === 'cancel') {
-        cancelled.add(message.requestId);
         streams.delete(message.requestId);
     }
 };

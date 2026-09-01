@@ -50,6 +50,7 @@ function createDevice() {
 
 function createEnvironment(options = {}) {
     const devices = [];
+    const workers = [];
     let requestDeviceCalls = 0;
     const failures = [];
     const canvases = new Map();
@@ -84,6 +85,16 @@ function createEnvironment(options = {}) {
         Math,
         JSON,
         performance: { now: () => 1 },
+        Worker: class {
+            constructor(url) {
+                this.url = url;
+                this.messages = [];
+                this.terminated = false;
+                workers.push(this);
+            }
+            postMessage(message) { this.messages.push(message); }
+            terminate() { this.terminated = true; }
+        },
         GPUBufferUsage: { STORAGE: 1, COPY_DST: 2, COPY_SRC: 4, MAP_READ: 8, UNIFORM: 16 },
         GPUMapMode: { READ: 1 },
         navigator: options.noGpu ? {} : {
@@ -118,6 +129,7 @@ function createEnvironment(options = {}) {
         api: context.nexus.chartWebGpu,
         hooks,
         devices,
+        workers,
         failures,
         helper,
         get requestDeviceCalls() { return requestDeviceCalls; },
@@ -288,4 +300,19 @@ test('canvas context is configured once and unconfigured when replaced', async (
     assert.equal(second.context.unconfigureCalls, 1);
     assert.equal(instance.canvasContexts.has('series'), false);
     assert.equal(instance.previewRenderKeys.has('series'), false);
+});
+
+test('synthetic work reuses one worker per chart and terminates it on disposal', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+
+    const first = environment.hooks.getSyntheticWorker(instance);
+    const second = environment.hooks.getSyntheticWorker(instance);
+
+    assert.equal(first, second);
+    assert.equal(environment.workers.length, 1);
+    environment.api.dispose('chart');
+    assert.equal(first.terminated, true);
 });

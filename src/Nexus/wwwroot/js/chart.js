@@ -96,6 +96,18 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         let drag = null;
         const axisLockRatio = 1 / Math.tan(15 * Math.PI / 180);
 
+        listen(overlay, "wheel", e => {
+            if (e.cancelable)
+                e.preventDefault();
+            const rect = overlay.getBoundingClientRect();
+            invokeZoom("WheelZoom", [
+                clamp((e.clientX - rect.left) / rect.width, 0, 1),
+                clamp((e.clientY - rect.top) / rect.height, 0, 1),
+                e.deltaY,
+                e.shiftKey,
+            ]);
+        }, { passive: false });
+
         listen(overlay, "pointerdown", e => {
             if (e.button !== 0 && e.button !== 1)
                 return;

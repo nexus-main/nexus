@@ -87,7 +87,7 @@ fn isNan(x: f32) -> bool {
     // WGSL has no isnan() builtin, and "x != x" is unreliable under fast-math/indeterminate values.
     // Bit-pattern test (exponent all 1s, mantissa non-zero) is unambiguous across drivers.
     let bits = bitcast<u32>(x);
-    return (bits & 0x7f800000u) == 0x7f800000u && (bits & 0x007fffffu) != 0u;
+    return (bits & 0x7f800000u) == 0x7f800000u;
 }
 
 fn emptyVertex() -> VertexOut {
@@ -227,7 +227,7 @@ var<workgroup> nanIndices: array<u32, ${overviewBucketSize}>;
 
 fn isNan(x: f32) -> bool {
     let bits = bitcast<u32>(x);
-    return (bits & 0x7f800000u) == 0x7f800000u && (bits & 0x007fffffu) != 0u;
+    return (bits & 0x7f800000u) == 0x7f800000u;
 }
 
 @compute @workgroup_size(${overviewBucketSize})
@@ -333,7 +333,7 @@ var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> minimumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
-fn isNan(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u && (b & 0x007fffffu) != 0u; }
+fn isNan(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u; }
 @compute @workgroup_size(${decimationWorkgroupSize})
 fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
     let bucket = groupId.x;
@@ -435,7 +435,7 @@ var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
 
 fn isNan(x: f32) -> bool {
     let bits = bitcast<u32>(x);
-    return (bits & 0x7f800000u) == 0x7f800000u && (bits & 0x007fffffu) != 0u;
+    return (bits & 0x7f800000u) == 0x7f800000u;
 }
 
 @compute @workgroup_size(${decimationWorkgroupSize})
@@ -746,6 +746,29 @@ fn reduceRange(
             .catch(error => console.error('[chart-webgpu] failure callback failed', error));
     }
 
+    function getSyntheticWorker(instance) {
+        if (instance.syntheticWorker)
+            return instance.syntheticWorker;
+
+        const worker = new Worker('js/chart.synthetic.worker.js');
+        worker.onmessage = event => instance.workerCallbacks.get(event.data.requestId)?.onmessage(event);
+        worker.onerror = event => {
+            const callbacks = [...instance.workerCallbacks.values()];
+            instance.workerCallbacks.clear();
+            instance.syntheticWorker = null;
+            worker.terminate();
+            for (const callback of callbacks)
+                callback.onerror(event);
+        };
+        instance.syntheticWorker = worker;
+        return worker;
+    }
+
+    function cancelWorkerRequest(instance, requestId) {
+        instance.workerCallbacks.delete(requestId);
+        instance.syntheticWorker?.postMessage({ type: 'cancel', requestId });
+    }
+
     function destroyInstance(instance, reason) {
         if (!instance || instance.disposed)
             return;
@@ -756,12 +779,14 @@ fn reduceRange(
             cancelGeneration(instance, id, reason);
 
         for (const request of instance.rawRequests.values()) {
-            request.worker.postMessage({ type: 'cancel', requestId: request.requestId });
-            request.worker.terminate();
+            cancelWorkerRequest(instance, request.requestId);
             instance.rawReservedBytes -= request.byteLength;
             request.reject(new Error(reason));
         }
         instance.rawRequests.clear();
+        instance.syntheticWorker?.terminate();
+        instance.syntheticWorker = null;
+        instance.workerCallbacks.clear();
 
         for (const [key, chunk] of instance.rawChunks)
             destroyRawChunk(instance, key, chunk);
@@ -936,6 +961,8 @@ fn reduceRange(
                     rawRequests: new Map(),
                     generationJobs: new Map(),
                     workerRequestId: 0,
+                    syntheticWorker: null,
+                    workerCallbacks: new Map(),
                     lastPayloads: new Map(),
                     disposed: false,
                 };
@@ -1010,8 +1037,7 @@ fn reduceRange(
     function removeRawSeries(instance, id) {
         for (const [key, request] of instance.rawRequests) {
             if (request.id === id) {
-                request.worker.postMessage({ type: 'cancel', requestId: request.requestId });
-                request.worker.terminate();
+                cancelWorkerRequest(instance, request.requestId);
                 instance.rawReservedBytes -= request.byteLength;
                 request.reject(new Error(`Raw chunk request superseded for series ${id}`));
                 instance.rawRequests.delete(key);
@@ -1029,8 +1055,7 @@ fn reduceRange(
         if (!job)
             return;
 
-        job.worker.postMessage({ type: 'cancel', requestId: job.requestId });
-        job.worker.terminate();
+        cancelWorkerRequest(instance, job.requestId);
         job.reject(new Error(reason));
     }
 
@@ -1215,60 +1240,62 @@ fn reduceRange(
                 { binding: 2, resource: { buffer: paramsBuffer } },
             ],
         });
-        const worker = new Worker('js/chart.synthetic.worker.js');
+        const worker = getSyntheticWorker(instance);
         const requestId = ++instance.workerRequestId;
         let rangeMinimum = 0;
         let rangeMaximum = 0;
         let rangeHasValue = false;
 
         let rejectGeneration;
-        const job = { worker, requestId, reservedBytes, reject: error => rejectGeneration?.(error) };
+        const job = { requestId, reservedBytes, reject: error => rejectGeneration?.(error) };
         instance.generationJobs.set(id, job);
 
         try {
             await new Promise((resolve, reject) => {
                 rejectGeneration = reject;
-                worker.onerror = event => reject(new Error(event.message));
-                worker.onmessage = async event => {
-                    if (event.data.requestId !== requestId)
-                        return;
+                instance.workerCallbacks.set(requestId, {
+                    onerror: event => reject(new Error(event.message)),
+                    onmessage: async event => {
+                        if (event.data.requestId !== requestId)
+                            return;
 
-                    if (event.data.complete) {
-                        resolve();
-                        return;
-                    }
-
-                    if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation) {
-                        reject(new Error(`Synthetic generation superseded for series ${id}`));
-                        return;
-                    }
-
-                    try {
-                        const values = event.data.values;
-                        instance.device.queue.writeBuffer(transientBuffer, 0, values);
-                        const chunkRange = await calculateSeriesRangeAsync(instance, transientBuffer, values.length);
-                        if (chunkRange.hasValue) {
-                            rangeMinimum = rangeHasValue ? Math.min(rangeMinimum, chunkRange.minimum) : chunkRange.minimum;
-                            rangeMaximum = rangeHasValue ? Math.max(rangeMaximum, chunkRange.maximum) : chunkRange.maximum;
-                            rangeHasValue = true;
+                        if (event.data.complete) {
+                            resolve();
+                            return;
                         }
 
-                        instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([
-                            event.data.offset, values.length, Math.floor(event.data.offset / overviewBucketSize), 0,
-                        ]));
-                        const encoder = instance.device.createCommandEncoder();
-                        const pass = encoder.beginComputePass();
-                        pass.setPipeline(instance.overviewPipeline);
-                        pass.setBindGroup(0, bindGroup);
-                        pass.dispatchWorkgroups(Math.ceil(values.length / overviewBucketSize));
-                        pass.end();
-                        instance.device.queue.submit([encoder.finish()]);
-                        await instance.device.queue.onSubmittedWorkDone();
-                        worker.postMessage({ type: 'ack', requestId });
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
+                        if (instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation) {
+                            reject(new Error(`Synthetic generation superseded for series ${id}`));
+                            return;
+                        }
+
+                        try {
+                            const values = event.data.values;
+                            instance.device.queue.writeBuffer(transientBuffer, 0, values);
+                            const chunkRange = await calculateSeriesRangeAsync(instance, transientBuffer, values.length);
+                            if (chunkRange.hasValue) {
+                                rangeMinimum = rangeHasValue ? Math.min(rangeMinimum, chunkRange.minimum) : chunkRange.minimum;
+                                rangeMaximum = rangeHasValue ? Math.max(rangeMaximum, chunkRange.maximum) : chunkRange.maximum;
+                                rangeHasValue = true;
+                            }
+
+                            instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([
+                                event.data.offset, values.length, Math.floor(event.data.offset / overviewBucketSize), 0,
+                            ]));
+                            const encoder = instance.device.createCommandEncoder();
+                            const pass = encoder.beginComputePass();
+                            pass.setPipeline(instance.overviewPipeline);
+                            pass.setBindGroup(0, bindGroup);
+                            pass.dispatchWorkgroups(Math.ceil(values.length / overviewBucketSize));
+                            pass.end();
+                            instance.device.queue.submit([encoder.finish()]);
+                            await instance.device.queue.onSubmittedWorkDone();
+                            worker.postMessage({ type: 'ack', requestId });
+                        } catch (error) {
+                            reject(error);
+                        }
+                    },
+                });
                 worker.postMessage({ type: 'stream', requestId, length, kind, chunkLength: syntheticStreamChunkLength });
             });
 
@@ -1300,7 +1327,7 @@ fn reduceRange(
                 instance.generationJobs.delete(id);
             instance.generationReservedBytes -= reservedBytes;
             paramsBuffer.destroy();
-            worker.terminate();
+            cancelWorkerRequest(instance, requestId);
         }
     }
 
@@ -1627,54 +1654,55 @@ fn reduceRange(
         instance.rawReservedBytes += byteLength;
 
         const requestId = ++instance.workerRequestId;
-        const worker = new Worker('js/chart.synthetic.worker.js');
+        const worker = getSyntheticWorker(instance);
         let resolveRequest;
         let rejectRequest;
         const promise = new Promise((resolve, reject) => {
             resolveRequest = resolve;
             rejectRequest = reject;
         });
-        const request = { id: source.id, requestId, worker, promise, reject: rejectRequest, byteLength };
+        const request = { id: source.id, requestId, promise, reject: rejectRequest, byteLength };
         instance.rawRequests.set(key, request);
-        worker.onerror = event => {
-            instance.rawRequests.delete(key);
-            instance.rawReservedBytes -= byteLength;
-            worker.terminate();
-            rejectRequest(new Error(`Raw chunk ${chunkIndex} generation failed: ${event.message}`));
-        };
-        worker.onmessage = event => {
-            if (event.data.requestId !== requestId)
-                return;
-
-            try {
-                if (instances.get(source.chartId) !== instance || instance.uploadGenerations.get(source.id) !== source.generation)
-                    throw new Error(`Raw chunk request superseded for series ${source.id}`);
-
-                const values = event.data.values;
-                const buffer = instance.device.createBuffer({
-                    size: values.byteLength,
-                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-                });
-                instance.device.queue.writeBuffer(buffer, 0, values);
-                const chunk = {
-                    id: source.id, buffer, pointBuffer: buffer, dataMode: 0, decimations: new Map(),
-                    offset, length: values.length, byteLength: values.byteLength, lastUsed: performance.now(),
-                };
-                instance.rawChunks.set(key, chunk);
-                instance.rawReservedBytes -= byteLength;
-                instance.rawCacheBytes += chunk.byteLength;
-                instance.rawRequests.delete(key);
-                evictRawChunks(instance, 0);
-                worker.terminate();
-                resolveRequest(chunk);
-                rerenderLastPayloads(instance);
-            } catch (error) {
+        instance.workerCallbacks.set(requestId, {
+            onerror: event => {
                 instance.rawRequests.delete(key);
                 instance.rawReservedBytes -= byteLength;
-                worker.terminate();
-                rejectRequest(error);
-            }
-        };
+                rejectRequest(new Error(`Raw chunk ${chunkIndex} generation failed: ${event.message}`));
+            },
+            onmessage: event => {
+                if (event.data.requestId !== requestId)
+                    return;
+
+                try {
+                    if (instances.get(source.chartId) !== instance || instance.uploadGenerations.get(source.id) !== source.generation)
+                        throw new Error(`Raw chunk request superseded for series ${source.id}`);
+
+                    const values = event.data.values;
+                    const buffer = instance.device.createBuffer({
+                        size: values.byteLength,
+                        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                    });
+                    instance.device.queue.writeBuffer(buffer, 0, values);
+                    const chunk = {
+                        id: source.id, buffer, pointBuffer: buffer, dataMode: 0, decimations: new Map(),
+                        offset, length: values.length, byteLength: values.byteLength, lastUsed: performance.now(),
+                    };
+                    instance.rawChunks.set(key, chunk);
+                    instance.rawReservedBytes -= byteLength;
+                    instance.rawCacheBytes += chunk.byteLength;
+                    instance.rawRequests.delete(key);
+                    instance.workerCallbacks.delete(requestId);
+                    evictRawChunks(instance, 0);
+                    resolveRequest(chunk);
+                    rerenderLastPayloads(instance);
+                } catch (error) {
+                    instance.rawRequests.delete(key);
+                    instance.workerCallbacks.delete(requestId);
+                    instance.rawReservedBytes -= byteLength;
+                    rejectRequest(error);
+                }
+            },
+        });
         worker.postMessage({ type: 'raw', requestId, offset, count, kind: source.kind });
         return promise;
     }
@@ -2000,6 +2028,7 @@ fn reduceRange(
             releaseCanvasContext,
             getReducedOutputLength,
             reducedPointsPerBucket,
+            getSyntheticWorker,
         });
     }
 })();
