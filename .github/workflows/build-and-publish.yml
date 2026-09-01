@@ -55,7 +55,7 @@ jobs:
         run: |
           npm install -g pyright@1.1.369
           python -m pip install frictionless==4.40.9 build wheel httpx pytest pytest-asyncio
-          npm install -g tailwindcss@3.4.3
+          npm install -g tailwindcss@3.4.18
           dotnet tool install -g Microsoft.Web.LibraryManager.Cli
           dotnet workload install --temp-dir tmp wasm-tools-net9
 
@@ -72,6 +72,7 @@ jobs:
 
       - name: Test
         run: |
+          node --test tests/js/*.test.js
           dotnet test -c Release /p:BuildProjectReferences=false
           pyright
           pytest

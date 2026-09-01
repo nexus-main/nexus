@@ -1,19 +1,35 @@
 ﻿@using SkiaSharp.Views.Blazor
 
-<div class="chart-container">
+<div class="chart-container @(_webGpuErrorTitle is null ? "" : "webgpu-unavailable")">
 
     <div id="chart_@(_chartId)" class="chart">
+
+        <canvas id="series_@(_chartId)" class="series-layer"></canvas>
 
         <SKGLView @ref="_skiaView"
             OnPaintSurface="PaintSurface">
         </SKGLView>
 
+        @if (_webGpuErrorTitle is not null)
+        {
+            <div class="webgpu-error" role="alert">
+                <div class="webgpu-error-content">
+                    <strong>@_webGpuErrorTitle</strong>
+                    <span>@_webGpuErrorMessage</span>
+                    <button type="button" @onclick="RetryWebGpuAsync" disabled="@_webGpuRetrying">
+                        @(_webGpuRetrying ? "Retrying..." : "Retry WebGPU")
+                    </button>
+                </div>
+            </div>
+        }
+
         <div id="overlay_@(_chartId)" class="overlay" 
-            @onmousedown="OnMouseDown"
-            @onmousemove="OnMouseMove"
-            @onmouseleave="OnMouseLeave"
-            @ondblclick="OnDoubleClick"
-            @onwheel="OnWheel">
+            data-zoom-left="@NavigatorDataLeft"
+            data-zoom-top="@(_zoomBox.Top.ToString("R", System.Globalization.CultureInfo.InvariantCulture))"
+            data-zoom-right="@NavigatorDataRight"
+            data-zoom-bottom="@(_zoomBox.Bottom.ToString("R", System.Globalization.CultureInfo.InvariantCulture))"
+            data-minimum-horizontal-zoom="@MinimumHorizontalZoom.ToString("R", System.Globalization.CultureInfo.InvariantCulture)"
+            @ondblclick="OnDoubleClick">
 
             <div id="crosshairs-x_@(_chartId)" class="crosshairs-x" style="display: none;"></div>
             <div id="crosshairs-y_@(_chartId)" class="crosshairs-y" style="display: none;"></div>
@@ -43,5 +59,52 @@
                 <div id="value_@(series.Id)_@(_chartId)">--</div>
             </div>
         }
+    </div>
+
+    <div class="navigator-shell">
+        <div class="navigator-heading">
+            <span>Full range</span>
+            <span class="navigator-range">@NavigatorRangeLabel</span>
+        </div>
+        <div id="navigator-track_@(_chartId)" class="navigator-track navigator-overview"
+             data-domain-left="0" data-domain-right="1"
+             data-begin="@LineSeriesData.Begin.ToString("O")" data-end="@LineSeriesData.End.ToString("O")">
+            <canvas id="navigator-overview-series_@(_chartId)" class="navigator-series"></canvas>
+            <div class="navigator-shade navigator-shade-left" style="width: @NavigatorWindowLeftStyle;"></div>
+            <div class="navigator-shade navigator-shade-right" style="left: @NavigatorWindowRightStyle;"></div>
+            <div id="navigator-window_@(_chartId)"
+                 class="navigator-window"
+                 role="slider" tabindex="0" aria-label="Visible time range"
+                 data-left="@NavigatorDataLeft"
+                 data-right="@NavigatorDataRight"
+                 style="left: @NavigatorWindowLeftStyle; width: @NavigatorWindowWidthStyle;">
+                <div id="navigator-handle-left_@(_chartId)" class="navigator-handle navigator-handle-left"></div>
+                <div id="navigator-handle-right_@(_chartId)" class="navigator-handle navigator-handle-right"></div>
+                <span class="navigator-duration">@NavigatorDurationLabel</span>
+            </div>
+        </div>
+
+        <div class="navigator-detail @(ShowDetailNavigator ? "visible" : "")">
+            <div class="navigator-heading navigator-detail-heading">
+                <span>Precision view</span>
+                <span>@DetailRangeLabel</span>
+            </div>
+            <div id="navigator-detail-track_@(_chartId)" class="navigator-track"
+                 data-domain-left="@DetailDataLeft" data-domain-right="@DetailDataRight"
+                 data-begin="@LineSeriesData.Begin.ToString("O")" data-end="@LineSeriesData.End.ToString("O")">
+                <canvas id="navigator-detail-series_@(_chartId)" class="navigator-series"></canvas>
+                <div class="navigator-shade navigator-shade-left" style="width: @DetailWindowLeftStyle;"></div>
+                <div class="navigator-shade navigator-shade-right" style="left: @DetailWindowRightStyle;"></div>
+                <div id="navigator-detail-window_@(_chartId)"
+                     class="navigator-window navigator-detail-window"
+                     role="slider" tabindex="0" aria-label="Visible time range precision control"
+                     data-left="@NavigatorDataLeft" data-right="@NavigatorDataRight"
+                     style="left: @DetailWindowLeftStyle; width: @DetailWindowWidthStyle;">
+                    <div id="navigator-detail-handle-left_@(_chartId)" class="navigator-handle navigator-handle-left"></div>
+                    <div id="navigator-detail-handle-right_@(_chartId)" class="navigator-handle navigator-handle-right"></div>
+                    <span class="navigator-duration">@NavigatorDurationLabel</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>

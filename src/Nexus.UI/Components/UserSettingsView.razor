@@ -52,6 +52,16 @@ MaxWidth="MaxWidth.Medium">
                     </form>
                 </div>
 
+                <div class="text-cyan-700 border-b my-3 text-lg">Charts</div>
+
+                <MudNumericField T="int"
+                                 Label="Chart GPU buffer budget (MiB)"
+                                 Variant="Variant.Outlined"
+                                 Min="16"
+                                 HelperText="Maximum GPU buffer memory owned by each chart, including resident series, synthetic detail, overviews, and rendering work buffers."
+                                 @bind-Value:get="ChartGpuCacheBudgetMiB"
+                                 @bind-Value:set="SetChartGpuCacheBudget" />
+
                 <div class="text-cyan-700 border-b my-3 text-lg">Hide catalogs</div>
 
                 <div class="flex flex-col gap-5">
@@ -393,6 +403,13 @@ MaxWidth="MaxWidth.Medium">
     private void SaveUISettings()
     {
         AppState.UISettings = AppState.UISettings;
+    }
+
+    private int ChartGpuCacheBudgetMiB => AppState.UISettings.EffectiveChartGpuCacheBudgetMiB;
+
+    private void SetChartGpuCacheBudget(int value)
+    {
+        AppState.UISettings = AppState.UISettings with { ChartGpuCacheBudgetMiB = Math.Max(16, value) };
     }
 
     private bool IsAdmin(ClaimsPrincipal user)

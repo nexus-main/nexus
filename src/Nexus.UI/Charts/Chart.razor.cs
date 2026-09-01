@@ -4,9 +4,11 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
+using Nexus.UI.Core;
 using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
+using System.Globalization;
 
 namespace Nexus.UI.Charts;
 
@@ -16,19 +18,74 @@ public partial class Chart : IDisposable
     private readonly string _chartId = Guid.NewGuid().ToString();
     private Dictionary<AxisInfo, LineSeries[]> _axesMap = default!;
 
+    /* tracks which immutable series identity and length was transmitted to JS/WebGPU
+     * per series id, so unchanged data is not re-serialized and re-marshaled on
+     * every redraw (zoom, pan, resize, series toggle). */
+    private readonly Dictionary<string, (int Version, int Length)> _sentSeriesVersions = new();
+    private readonly Dictionary<string, (int Version, int Length)> _sendingSeriesVersions = new();
+    private readonly Dictionary<string, SeriesRange> _seriesRanges = new();
+    private LineSeriesData? _axisData;
+    private SeriesParameterSnapshot[] _seriesParameterSnapshots = [];
+    private bool _axisBeginAtZero;
+    private bool _disposed;
+    private int _gpuCacheBudgetMiB;
+    private int _webGpuGeneration;
+    private string? _webGpuErrorTitle;
+    private string? _webGpuErrorMessage;
+    private bool _webGpuRetrying;
+
     /* zoom */
-    private bool _isDragging;
     private readonly DotNetObjectReference<Chart> _dotNetHelper;
 
     private SKRect _oldZoomBox;
     private SKRect _zoomBox;
-    private Position _zoomStart;
-    private Position _zoomEnd;
-
+    private double _oldZoomLeft;
+    private double _oldZoomRight = 1;
+    private double _zoomLeft;
+    private double _zoomRight = 1;
     private DateTime _zoomedBegin;
     private DateTime _zoomedEnd;
 
     private readonly SKRect _defaultZoomBox = new SKRect(0, 0, 1, 1);
+
+    /* navigator */
+    private string NavigatorWindowLeftStyle =>
+        $"{(_zoomLeft * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+    private string NavigatorWindowWidthStyle =>
+        $"{((_zoomRight - _zoomLeft) * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+    private string NavigatorWindowRightStyle =>
+        $"{(_zoomRight * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+    private string NavigatorDataLeft =>
+        _zoomLeft.ToString("R", CultureInfo.InvariantCulture);
+
+    private string NavigatorDataRight =>
+        _zoomRight.ToString("R", CultureInfo.InvariantCulture);
+
+    private double DetailLeft
+    {
+        get
+        {
+            var width = _zoomRight - _zoomLeft;
+            var detailWidth = Math.Min(1, width * 8);
+            return Math.Clamp((_zoomLeft + _zoomRight - detailWidth) / 2, 0, 1 - detailWidth);
+        }
+    }
+
+    private double DetailRight => Math.Min(1, DetailLeft + (_zoomRight - _zoomLeft) * 8);
+    private bool ShowDetailNavigator => _zoomRight - _zoomLeft < 0.125;
+    private double DetailWindowLeft => (_zoomLeft - DetailLeft) / (DetailRight - DetailLeft);
+    private double DetailWindowRight => (_zoomRight - DetailLeft) / (DetailRight - DetailLeft);
+    private string DetailDataLeft => DetailLeft.ToString("R", CultureInfo.InvariantCulture);
+    private string DetailDataRight => DetailRight.ToString("R", CultureInfo.InvariantCulture);
+    private string DetailWindowLeftStyle => $"{(DetailWindowLeft * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private string DetailWindowRightStyle => $"{(DetailWindowRight * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private string DetailWindowWidthStyle => $"{((DetailWindowRight - DetailWindowLeft) * 100).ToString("0.##", CultureInfo.InvariantCulture)}%";
+    private string NavigatorDurationLabel => FormatDuration(_zoomedEnd - _zoomedBegin);
+    private string NavigatorRangeLabel => FormatRange(_zoomedBegin, _zoomedEnd);
+    private string DetailRangeLabel => FormatRange(ToTime(DetailLeft), ToTime(DetailRight));
 
     /* Common */
     private const float TICK_SIZE = 10;
@@ -126,6 +183,9 @@ public partial class Chart : IDisposable
     [Inject]
     public IJSInProcessRuntime JSRuntime { get; set; } = default!;
 
+    [Inject]
+    public AppState AppState { get; set; } = default!;
+
     [Parameter]
     public LineSeriesData LineSeriesData { get; set; } = default!;
 
@@ -134,89 +194,68 @@ public partial class Chart : IDisposable
 
     protected override void OnParametersSet()
     {
-        if (BeginAtZero || _zoomBox == _defaultZoomBox)
-        {
-            Task.Run(() =>
-            {
-                _axesMap = LineSeriesData.Series
-                    .GroupBy(lineSeries => lineSeries.Unit)
-                    .ToDictionary(group => GetAxisInfo(group.Key, group), group => group.ToArray());
+        AssignSeriesColors();
+        var snapshots = LineSeriesData.Series.Select(CreateSeriesParameterSnapshot).ToArray();
+        var dataChanged = !ReferenceEquals(_axisData, LineSeriesData);
+        var seriesChanged = !_seriesParameterSnapshots.SequenceEqual(snapshots);
 
-                if (OperatingSystem.IsBrowser())
-                    _skiaView.Invalidate();
-            });
-        }
+        if (!dataChanged && !seriesChanged && _axisBeginAtZero == BeginAtZero)
+            return;
+
+        _axisData = LineSeriesData;
+        _axisBeginAtZero = BeginAtZero;
+        _seriesParameterSnapshots = snapshots;
+
+        foreach (var seriesId in _seriesRanges.Keys.Except(snapshots.Select(snapshot => snapshot.Id)).ToArray())
+            _seriesRanges.Remove(seriesId);
+
+        RebuildAxes(LineSeriesData);
+
+        if (dataChanged)
+            ResetZoom();
     }
 
     protected override void OnInitialized()
     {
-        /* line series color */
-        for (int i = 0; i < LineSeriesData.Series.Count; i++)
-        {
-            var color = _colors[i % _colors.Length];
-            LineSeriesData.Series[i].Color = color;
-        }
+        _gpuCacheBudgetMiB = AppState.UISettings.EffectiveChartGpuCacheBudgetMiB;
+        AppState.PropertyChanged += OnAppStatePropertyChanged;
 
-        /* axes info */
-        _axesMap = LineSeriesData.Series
-            .GroupBy(lineSeries => lineSeries.Unit)
-            .ToDictionary(group => GetAxisInfo(group.Key, group), group => group.ToArray());
-
-        /* zoom */
-        ResetZoom();
     }
 
-    private void OnMouseDown(MouseEventArgs e)
+    private void AssignSeriesColors()
     {
-        var position = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
-        _zoomStart = position;
-        _zoomEnd = position;
+        for (var index = 0; index < LineSeriesData.Series.Count; index++)
+            LineSeriesData.Series[index].Color = _colors[index % _colors.Length];
+    }
 
-        JSRuntime.InvokeVoid("nexus.util.addMouseUpEvent", _dotNetHelper);
+    private void OnAppStatePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(AppState.UISettings) || _disposed)
+            return;
 
-        _isDragging = true;
+        _gpuCacheBudgetMiB = AppState.UISettings.EffectiveChartGpuCacheBudgetMiB;
+
+        if (OperatingSystem.IsBrowser())
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.setCacheBudget", _chartId, (long)_gpuCacheBudgetMiB * 1024 * 1024);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && OperatingSystem.IsBrowser())
+        {
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.initialize", _chartId, _dotNetHelper);
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.setCacheBudget", _chartId, (long)_gpuCacheBudgetMiB * 1024 * 1024);
+            JSRuntime.InvokeVoid("nexus.chart.initInteractions", _chartId, _dotNetHelper);
+        }
     }
 
     [JSInvokable]
-    public void OnMouseUp()
-    {
-        _isDragging = false;
-
-        JSRuntime.InvokeVoid("nexus.chart.resize", _chartId, "selection", 0, 1, 0, 0);
-
-        var zoomBox = CreateZoomBox(_zoomStart, _zoomEnd);
-
-        if (zoomBox.Width > 0 &&
-            zoomBox.Height > 0)
-        {
-            ApplyZoom(zoomBox);
-
-            if (OperatingSystem.IsBrowser())
-                _skiaView.Invalidate();
-        }
-    }
-
-    private void OnMouseMove(MouseEventArgs e)
-    {
-        var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
-        DrawAuxiliary(relativePosition);
-    }
-
-    private void OnMouseLeave(MouseEventArgs e)
-    {
-        JSRuntime.InvokeVoid("nexus.chart.hide", _chartId, "crosshairs-x");
-        JSRuntime.InvokeVoid("nexus.chart.hide", _chartId, "crosshairs-y");
-
-        foreach (var series in LineSeriesData.Series)
-        {
-            JSRuntime.InvokeVoid("nexus.chart.hide", _chartId, $"pointer_{series.Id}");
-            JSRuntime.InvokeVoid("nexus.chart.setTextContent", _chartId, $"value_{series.Id}", "--");
-        }
-    }
+    public void PointerMoved(double x, double y) => DrawAuxiliary(new Position((float)x, (float)y));
 
     private void OnDoubleClick(MouseEventArgs e)
     {
         ResetZoom();
+        StateHasChanged();
 
         var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
         DrawAuxiliary(relativePosition);
@@ -225,34 +264,31 @@ public partial class Chart : IDisposable
             _skiaView.Invalidate();
     }
 
-    private void OnWheel(WheelEventArgs e)
+    [JSInvokable]
+    public void WheelZoom(double x, double y, double deltaY, bool shiftKey)
     {
-        const float FACTOR = 0.25f;
+        const float FACTOR = 0.15f;
 
-        var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
+        var relativePosition = new Position((float)x, (float)y);
+        var zoomHorizontal = !shiftKey;
+        var zoomVertical = shiftKey;
+        var zoomIn = deltaY < 0;
 
         var zoomBox = new SKRect
         {
-            Left = relativePosition.X * (e.DeltaY < 0
-            ? +FACTOR          // +0.25
-            : -FACTOR),        // -0.25
-
-            Top = relativePosition.Y * (e.DeltaY < 0
-            ? +FACTOR          // +0.25
-            : -FACTOR),        // -0.25
-
-            Right = relativePosition.X + (1 - relativePosition.X) * (e.DeltaY < 0
-            ? (1 - FACTOR)      // +0.75
-            : (1 + FACTOR)),    // +1.25
-
-            Bottom = relativePosition.Y + (1 - relativePosition.Y) * (e.DeltaY < 0
-            ? (1 - FACTOR)      // +0.75
-            : (1 + FACTOR))    // +1.25
+            Left = zoomHorizontal ? relativePosition.X * (zoomIn ? +FACTOR : -FACTOR) : 0,
+            Top = zoomVertical ? relativePosition.Y * (zoomIn ? +FACTOR : -FACTOR) : 0,
+            Right = zoomHorizontal
+                ? relativePosition.X + (1 - relativePosition.X) * (zoomIn ? (1 - FACTOR) : (1 + FACTOR))
+                : 1,
+            Bottom = zoomVertical
+                ? relativePosition.Y + (1 - relativePosition.Y) * (zoomIn ? (1 - FACTOR) : (1 + FACTOR))
+                : 1
         };
-
 
         ApplyZoom(zoomBox);
         DrawAuxiliary(relativePosition);
+        StateHasChanged();
 
         if (OperatingSystem.IsBrowser())
             _skiaView.Invalidate();
@@ -289,25 +325,6 @@ public partial class Chart : IDisposable
         /* series */
         var dataBox = new SKRect(xMin, yMin, xMax, yMax);
 
-        using (var canvasRestore = new SKAutoCanvasRestore(canvas))
-        {
-            canvas.ClipRect(dataBox);
-
-            /* for each axis */
-            foreach (var axesEntry in _axesMap)
-            {
-                var axisInfo = axesEntry.Key;
-                var lineSeries = axesEntry.Value;
-
-                /* for each dataset */
-                foreach (var series in lineSeries)
-                {
-                    var zoomInfo = GetZoomInfo(dataBox, _zoomBox, series.Data);
-                    DrawSeries(canvas, zoomInfo, series, axisInfo);
-                }
-            }
-        }
-
         /* overlay */
         JSRuntime.InvokeVoid(
             "nexus.chart.resize",
@@ -317,6 +334,412 @@ public partial class Chart : IDisposable
             dataBox.Top / surfaceSize.Height,
             dataBox.Right / surfaceSize.Width,
             dataBox.Bottom / surfaceSize.Height);
+
+        RenderSeries(dataBox, surfaceSize.Width, surfaceSize.Height);
+    }
+
+    private void RenderSeries(SKRect dataBox, float surfaceWidth, float surfaceHeight)
+    {
+        if (!OperatingSystem.IsBrowser() || _webGpuErrorTitle is not null)
+            return;
+
+        var durationTicks = (LineSeriesData.End - LineSeriesData.Begin).Ticks;
+
+        if (durationTicks <= 0)
+            return;
+
+        var webGpuGeneration = _webGpuGeneration;
+
+        JSRuntime.InvokeVoid(
+            "nexus.chartWebGpu.synchronizeSeries",
+            _chartId,
+            LineSeriesData.Series.Select(lineSeries => lineSeries.Id).ToArray());
+
+        var transfers = new List<Task<SeriesRange>>();
+        var series = _axesMap
+            .SelectMany(entry => entry.Value
+                .Where(lineSeries => lineSeries.Show)
+                .Select(lineSeries => (AxisInfo: entry.Key, LineSeries: lineSeries)))
+            .Select(item =>
+            {
+                var lineSeries = item.LineSeries;
+                var dataVersion = GetSeriesVersion(lineSeries);
+                var length = GetSeriesLength(lineSeries);
+
+                if (!HasSeriesVersion(_sentSeriesVersions, lineSeries.Id, dataVersion, length) &&
+                    !HasSeriesVersion(_sendingSeriesVersions, lineSeries.Id, dataVersion, length))
+                {
+                    _sendingSeriesVersions[lineSeries.Id] = (dataVersion, length);
+                    transfers.Add(lineSeries.SyntheticKind.HasValue
+                        ? GenerateSyntheticSeriesAsync(lineSeries, dataVersion, length, webGpuGeneration)
+                        : PrepareSeriesAsync(lineSeries, dataVersion, length, webGpuGeneration));
+                }
+
+                return new
+                {
+                    lineSeries.Id,
+                    lineSeries.Show,
+                    Color = new
+                    {
+                        lineSeries.Color.Red,
+                        lineSeries.Color.Green,
+                        lineSeries.Color.Blue,
+                        lineSeries.Color.Alpha
+                    },
+                    AxisMin = item.AxisInfo.Min,
+                    AxisMax = item.AxisInfo.Max,
+                    OverviewAxisMin = item.AxisInfo.OriginalMin,
+                    OverviewAxisMax = item.AxisInfo.OriginalMax,
+                    DataVersion = dataVersion,
+                    Length = length,
+                    SampleStep = (double)lineSeries.SamplePeriod.Ticks / durationTicks
+                };
+            })
+            .ToArray();
+
+        JSRuntime.InvokeVoid(
+            "nexus.chartWebGpu.renderSeries",
+            _chartId,
+            new
+            {
+                Plot = new
+                {
+                    Left = dataBox.Left / surfaceWidth,
+                    Top = dataBox.Top / surfaceHeight,
+                    Right = dataBox.Right / surfaceWidth,
+                    Bottom = dataBox.Bottom / surfaceHeight
+                },
+                Zoom = new
+                {
+                    Left = _zoomLeft,
+                    Right = _zoomRight
+                },
+                LineWidth = 0.7,
+                FillOpacity = 0.10,
+                Series = series
+            });
+
+        JSRuntime.InvokeVoid(
+            "nexus.chartWebGpu.renderSeries",
+            _chartId,
+            new
+            {
+                Target = "navigator-overview-series",
+                Preview = true,
+                Plot = new { Left = 0, Top = 0, Right = 1, Bottom = 1 },
+                Zoom = new { Left = 0, Right = 1 },
+                LineWidth = 0.65,
+                FillOpacity = 0.08,
+                Series = series
+            });
+
+        if (ShowDetailNavigator)
+        {
+            JSRuntime.InvokeVoid(
+                "nexus.chartWebGpu.renderSeries",
+                _chartId,
+                new
+                {
+                    Target = "navigator-detail-series",
+                    Preview = true,
+                    Plot = new { Left = 0, Top = 0, Right = 1, Bottom = 1 },
+                    Zoom = new { Left = DetailLeft, Right = DetailRight },
+                    LineWidth = 0.65,
+                    FillOpacity = 0.08,
+                    Series = series
+                });
+        }
+        else
+        {
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.releaseTarget", _chartId, "navigator-detail-series");
+        }
+
+        if (transfers.Count > 0)
+            _ = ObserveRangesAfterTransfersAsync(transfers, LineSeriesData, webGpuGeneration);
+    }
+
+    private async Task ObserveRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data, int webGpuGeneration)
+    {
+        try
+        {
+            await ApplyRangesAfterTransfersAsync(transfers, data, webGpuGeneration);
+        }
+        catch (Exception exception)
+        {
+            if (!_disposed)
+                Console.Error.WriteLine($"[chart-webgpu] transfer completion failed: {exception}");
+        }
+    }
+
+    private async Task ApplyRangesAfterTransfersAsync(List<Task<SeriesRange>> transfers, LineSeriesData data, int webGpuGeneration)
+    {
+        var outcomes = await Task.WhenAll(transfers.Select(async transfer =>
+        {
+            try
+            {
+                return (Range: (SeriesRange?)await transfer, Error: (Exception?)null);
+            }
+            catch (Exception exception)
+            {
+                return (Range: (SeriesRange?)null, Error: exception);
+            }
+        }));
+
+        if (_disposed || webGpuGeneration != _webGpuGeneration || !ReferenceEquals(_axisData, data))
+            return;
+
+        foreach (var outcome in outcomes)
+        {
+            if (outcome.Error is not null)
+            {
+                Console.Error.WriteLine($"[chart-webgpu] series upload or GPU range calculation failed: {outcome.Error}");
+                continue;
+            }
+
+            var range = outcome.Range!.Value;
+            if (HasSeriesVersion(_sentSeriesVersions, range.SeriesId, range.Version, range.Length))
+                _seriesRanges[range.SeriesId] = range;
+        }
+
+        RebuildAxes(data);
+
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
+    }
+
+    private void RebuildAxes(LineSeriesData data)
+    {
+        _axesMap = data.Series
+            .GroupBy(series => series.Unit)
+            .ToDictionary(
+                group =>
+                {
+                    var validRanges = group
+                        .Select(series => (Series: series, Range: _seriesRanges.GetValueOrDefault(series.Id)))
+                        .Where(item => item.Range.HasValue &&
+                            item.Range.Version == GetSeriesVersion(item.Series) &&
+                            item.Range.Length == GetSeriesLength(item.Series))
+                        .Select(item => item.Range)
+                        .ToArray();
+                    var minimum = validRanges.Length == 0 ? 0 : validRanges.Min(range => range.Minimum);
+                    var maximum = validRanges.Length == 0 ? 0 : validRanges.Max(range => range.Maximum);
+                    return CreateAxisInfo(group.Key, minimum, maximum);
+                },
+                group => group.ToArray());
+
+        foreach (var axisInfo in _axesMap.Keys)
+            ApplyVerticalZoom(axisInfo, _zoomBox);
+    }
+
+    private async Task<SeriesRange> PrepareSeriesAsync(LineSeries series, int dataVersion, int length, int webGpuGeneration)
+    {
+        long? uploadToken = null;
+        try
+        {
+            if (length < 2)
+            {
+                _sentSeriesVersions[series.Id] = (dataVersion, length);
+                return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+            }
+
+            uploadToken = await JSRuntime.InvokeAsync<long>(
+                "nexus.chartWebGpu.beginChunkedSeries", _chartId, series.Id, dataVersion, length);
+            const int chunkLength = 4 * 1024 * 1024;
+            var bytes = GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
+
+            for (var offset = 0; offset < length; offset += chunkLength)
+            {
+                if (_disposed || webGpuGeneration != _webGpuGeneration)
+                    return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+
+                var count = Math.Min(chunkLength, length - offset);
+                FillFloatBytes(bytes.AsSpan(0, count * sizeof(float)), series.Source.Read(offset, count).Span);
+                using var stream = new MemoryStream(bytes, 0, count * sizeof(float), writable: false, publiclyVisible: true);
+                using var streamReference = new DotNetStreamReference(stream);
+                await JSRuntime.InvokeVoidAsync(
+                    "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, streamReference);
+            }
+
+            if (_disposed || webGpuGeneration != _webGpuGeneration)
+                return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+
+            var range = await JSRuntime.InvokeAsync<GpuRange>(
+                "nexus.chartWebGpu.completeChunkedSeries", _chartId, uploadToken.Value);
+            uploadToken = null;
+            if (!_disposed && webGpuGeneration == _webGpuGeneration)
+                _sentSeriesVersions[series.Id] = (dataVersion, length);
+
+            return new SeriesRange(series.Id, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
+        }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+            return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+        }
+        catch (JSDisconnectedException) when (_disposed)
+        {
+            return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+        }
+        catch (JSException exception)
+        {
+            throw new InvalidOperationException($"WebGPU upload failed for series '{series.Id}'.", exception);
+        }
+        finally
+        {
+            if (uploadToken.HasValue && OperatingSystem.IsBrowser())
+                JSRuntime.InvokeVoid("nexus.chartWebGpu.abortChunkedSeries", _chartId, uploadToken.Value);
+
+            if (webGpuGeneration == _webGpuGeneration &&
+                HasSeriesVersion(_sendingSeriesVersions, series.Id, dataVersion, length))
+            {
+                _sendingSeriesVersions.Remove(series.Id);
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task ProvideSeriesChunk(string seriesId, int offset, int count, long requestId)
+    {
+        var series = LineSeriesData.Series.SingleOrDefault(item => item.Id == seriesId);
+        if (series is null || offset < 0 || count < 0 || offset > series.Source.Length - count)
+            throw new InvalidOperationException($"Raw data request for series '{seriesId}' is no longer valid.");
+
+        var values = series.Source.Read(offset, count);
+        var bytes = GC.AllocateUninitializedArray<byte>(count * sizeof(float));
+        FillFloatBytes(bytes, values.Span);
+
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var streamReference = new DotNetStreamReference(stream);
+        await JSRuntime.InvokeVoidAsync("nexus.chartWebGpu.provideSeriesChunk", _chartId, requestId, streamReference);
+    }
+
+    private static void FillFloatBytes(Span<byte> destination, ReadOnlySpan<double> source)
+    {
+        var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(destination);
+        for (var index = 0; index < source.Length; index++)
+            floats[index] = (float)source[index];
+    }
+
+    private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, int length, int webGpuGeneration)
+    {
+        try
+        {
+            var range = await JSRuntime.InvokeAsync<GpuRange>(
+                "nexus.chartWebGpu.generateSyntheticSeries",
+                _chartId,
+                series.Id,
+                dataVersion,
+                length,
+                series.SyntheticKind!.Value.ToString());
+            if (webGpuGeneration == _webGpuGeneration)
+                _sentSeriesVersions[series.Id] = (dataVersion, length);
+
+            return new SeriesRange(series.Id, dataVersion, length, range.HasValue, range.Minimum, range.Maximum);
+        }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+            return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+        }
+        catch (JSDisconnectedException) when (_disposed)
+        {
+            return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+        }
+        catch (JSException exception)
+        {
+            throw new InvalidOperationException($"WebGPU synthetic generation failed for series '{series.Id}'.", exception);
+        }
+        finally
+        {
+            if (webGpuGeneration == _webGpuGeneration &&
+                HasSeriesVersion(_sendingSeriesVersions, series.Id, dataVersion, length))
+            {
+                _sendingSeriesVersions.Remove(series.Id);
+            }
+        }
+    }
+
+    [JSInvokable]
+    public Task WebGpuFailed(string title, string message)
+    {
+        return InvokeAsync(() =>
+        {
+            if (_disposed)
+                return;
+
+            ResetWebGpuState();
+            _webGpuErrorTitle = title;
+            _webGpuErrorMessage = message;
+            _webGpuRetrying = false;
+            StateHasChanged();
+        });
+    }
+
+    private async Task RetryWebGpuAsync()
+    {
+        if (_disposed || _webGpuRetrying)
+            return;
+
+        ResetWebGpuState();
+        _webGpuRetrying = true;
+        var webGpuGeneration = _webGpuGeneration;
+
+        try
+        {
+            var initialized = await JSRuntime.InvokeAsync<bool>("nexus.chartWebGpu.retry", _chartId);
+
+            if (_disposed || webGpuGeneration != _webGpuGeneration || !initialized)
+                return;
+
+            _webGpuErrorTitle = null;
+            _webGpuErrorMessage = null;
+        }
+        catch (JSException exception) when (!_disposed)
+        {
+            if (webGpuGeneration == _webGpuGeneration)
+            {
+                _webGpuErrorTitle = "WebGPU initialization failed";
+                _webGpuErrorMessage = $"The chart could not initialize WebGPU: {exception.Message}";
+            }
+        }
+        finally
+        {
+            if (!_disposed && webGpuGeneration == _webGpuGeneration)
+            {
+                _webGpuRetrying = false;
+                StateHasChanged();
+                if (OperatingSystem.IsBrowser())
+                    _skiaView.Invalidate();
+            }
+        }
+    }
+
+    private void ResetWebGpuState()
+    {
+        _webGpuGeneration++;
+        _sentSeriesVersions.Clear();
+        _sendingSeriesVersions.Clear();
+        _seriesRanges.Clear();
+
+        if (_axisData is not null)
+            RebuildAxes(_axisData);
+    }
+
+    private static int GetSeriesLength(LineSeries series) =>
+        series.SyntheticKind.HasValue ? series.SyntheticLength : series.Source.Length;
+
+    private static int GetSeriesVersion(LineSeries series) =>
+        series.SyntheticKind.HasValue
+            ? HashCode.Combine(series.SyntheticKind.Value, series.SyntheticLength)
+            : 0;
+
+    private static bool HasSeriesVersion(
+        Dictionary<string, (int Version, int Length)> versions,
+        string seriesId,
+        int dataVersion,
+        int length)
+    {
+        return versions.TryGetValue(seriesId, out var version) &&
+               version.Version == dataVersion &&
+               version.Length == length;
     }
 
     private void DrawAuxiliary(Position relativePosition)
@@ -326,11 +749,7 @@ public partial class Chart : IDisposable
         var currentTimeBegin = _zoomedBegin + zoomedTimeRange * relativePosition.X;
         var currentTimeBeginString = currentTimeBegin.ToString(_timeAxisConfig.CursorLabelFormat);
 
-        JSRuntime.InvokeVoid("nexus.chart.setTextContent", _chartId, $"value_datetime", currentTimeBeginString);
-
-        // crosshairs
-        JSRuntime.InvokeVoid("nexus.chart.translate", _chartId, "crosshairs-x", 0, relativePosition.Y);
-        JSRuntime.InvokeVoid("nexus.chart.translate", _chartId, "crosshairs-y", relativePosition.X, 0);
+        var updates = new List<AuxiliarySeriesUpdate>();
 
         // points
         foreach (var axesEntry in _axesMap)
@@ -343,86 +762,57 @@ public partial class Chart : IDisposable
 
             foreach (var series in lineSeries)
             {
-                var indexLeft = _zoomBox.Left * series.Data.Length;
-                var indexRight = _zoomBox.Right * series.Data.Length;
-                var indexRange = indexRight - indexLeft;
-                var index = indexLeft + relativePosition.X * indexRange;
-                var snappedIndex = (int)Math.Round(index, MidpointRounding.AwayFromZero);
+                var seriesLength = GetSeriesLength(series);
+                var durationTicks = (LineSeriesData.End - LineSeriesData.Begin).Ticks;
+                var sampleStep = durationTicks > 0
+                    ? (double)series.SamplePeriod.Ticks / durationTicks
+                    : 0;
+                var zoomRange = _zoomRight - _zoomLeft;
+                var position = _zoomLeft + relativePosition.X * zoomRange;
+                var index = position / sampleStep;
+                var snappedIndex = double.IsFinite(index)
+                    ? (int)Math.Round(index, MidpointRounding.AwayFromZero)
+                    : -1;
 
-                if (series.Show && snappedIndex < series.Data.Length)
+                if (series.Show && snappedIndex >= 0 && snappedIndex < seriesLength)
                 {
-                    var x = (snappedIndex - indexLeft) / indexRange;
-                    var value = (float)series.Data[snappedIndex];
+                    var x = (snappedIndex * sampleStep - _zoomLeft) / zoomRange;
+                    var sourceValue = 0.0;
+                    var hasValue = series.SyntheticKind.HasValue || series.Source.TryGetValue(snappedIndex, out sourceValue);
+                    var value = series.SyntheticKind.HasValue
+                        ? GetSyntheticValue(series.SyntheticKind.Value, snappedIndex)
+                        : (float)sourceValue;
                     var y = (value - axisInfo.Min) / (axisInfo.Max - axisInfo.Min);
 
-                    if (float.IsFinite(x) && 0 <= x && x <= 1 &&
+                    if (hasValue && double.IsFinite(x) && 0 <= x && x <= 1 &&
                         float.IsFinite(y) && 0 <= y && y <= 1)
                     {
-                        JSRuntime.InvokeVoid("nexus.chart.translate", _chartId, $"pointer_{series.Id}", x, 1 - y);
-
                         var valueString = string.IsNullOrWhiteSpace(series.Unit)
                             ? value.ToString(formatString)
                             : $"{value.ToString(formatString)} {@series.Unit}";
 
-                        JSRuntime.InvokeVoid("nexus.chart.setTextContent", _chartId, $"value_{series.Id}", valueString);
+                        updates.Add(new AuxiliarySeriesUpdate(series.Id, true, x, 1 - y, valueString));
 
                         continue;
                     }
                 }
 
-                JSRuntime.InvokeVoid("nexus.chart.hide", _chartId, $"pointer_{series.Id}");
-                JSRuntime.InvokeVoid("nexus.chart.setTextContent", _chartId, $"value_{series.Id}", "--");
+                updates.Add(new AuxiliarySeriesUpdate(series.Id, false, 0, 0, "--"));
             }
         }
 
-        // selection
-        if (_isDragging)
-        {
-            _zoomEnd = relativePosition;
-            var zoomBox = CreateZoomBox(_zoomStart, _zoomEnd);
+        JSRuntime.InvokeVoid(
+            "nexus.chart.updateAuxiliary",
+            _chartId,
+            relativePosition.X,
+            relativePosition.Y,
+            currentTimeBeginString,
+            updates);
 
-            JSRuntime.InvokeVoid(
-                "nexus.chart.resize",
-                _chartId,
-                "selection",
-                zoomBox.Left,
-                zoomBox.Top,
-                zoomBox.Right,
-                zoomBox.Bottom);
-        }
     }
 
-    private AxisInfo GetAxisInfo(string unit, IEnumerable<LineSeries> lineDatasets)
+    private AxisInfo CreateAxisInfo(string unit, float min, float max)
     {
-        var min = float.PositiveInfinity;
-        var max = float.NegativeInfinity;
-
-        foreach (var lineDataset in lineDatasets)
-        {
-            var data = lineDataset.Data;
-            var length = data.Length;
-
-            for (int i = 0; i < length; i++)
-            {
-                var value = (float)data[i];
-
-                if (!double.IsNaN(value))
-                {
-                    if (value < min)
-                        min = value;
-
-                    if (value > max)
-                        max = value;
-                }
-            }
-        }
-
-        if (min == double.PositiveInfinity || max == double.NegativeInfinity)
-        {
-            min = 0;
-            max = 0;
-        }
-
         GetYLimits(min, max, out var minLimit, out var maxLimit, out var _);
 
         if (BeginAtZero)
@@ -434,97 +824,91 @@ public partial class Chart : IDisposable
                 maxLimit = 0;
         }
 
-        var axisInfo = new AxisInfo(unit, minLimit, maxLimit)
+        return new AxisInfo(unit, minLimit, maxLimit)
         {
             Min = minLimit,
             Max = maxLimit
         };
-
-        return axisInfo;
     }
+
+    private static float GetSyntheticValue(SyntheticSeriesKind kind, int index)
+    {
+        if (kind == SyntheticSeriesKind.WindSpeed)
+        {
+            if (index is 0 or 5 or 6 or 10 or 11 or 12 or 15 or 16 or 17 or 18)
+                return float.NaN;
+
+            return index / 4f;
+        }
+
+        var value = unchecked((uint)(index + 1));
+        value = unchecked((value ^ (value >> 16)) * 0x7feb352dU);
+        value = unchecked((value ^ (value >> 15)) * 0x846ca68bU);
+        var random = (value ^ (value >> 16)) / 4294967296d;
+        return kind == SyntheticSeriesKind.Temperature
+            ? (float)(random * 10 - 5)
+            : (float)(random * 100 + 1000);
+    }
+
+    private readonly record struct GpuRange(bool HasValue, float Minimum, float Maximum);
+    private readonly record struct SeriesRange(string SeriesId, int Version, int Length, bool HasValue, float Minimum, float Maximum);
+    private readonly record struct SeriesParameterSnapshot(string Id, int Version, int Length, string Unit, TimeSpan SamplePeriod);
+    private readonly record struct AuxiliarySeriesUpdate(string Id, bool Visible, double X, double Y, string Text);
+
+    private static SeriesParameterSnapshot CreateSeriesParameterSnapshot(LineSeries series) =>
+        new(series.Id, GetSeriesVersion(series), GetSeriesLength(series), series.Unit, series.SamplePeriod);
 
     #endregion
 
     #region Zoom
 
-    private static ZoomInfo GetZoomInfo(SKRect dataBox, SKRect zoomBox, double[] data)
+    [JSInvokable]
+    public void DragZoom(double left, double top, double right, double bottom)
     {
-        /* zoom x */
-        var indexLeft = zoomBox.Left * data.Length;
-        var indexRight = zoomBox.Right * data.Length;
-        var indexRange = indexRight - indexLeft;
+        var zoomBox = new SKRect((float)left, (float)top, (float)right, (float)bottom);
 
-        /* left */
-        /* --> find left index of zoomed data and floor the result to include enough data in the final plot */
-        var indexLeftRounded = (int)Math.Floor(indexLeft);
-        /* --> find how far left the most left data point is relative to the data box */
-        var indexLeftShift = (indexLeft - indexLeftRounded) / indexRange;
-        var zoomedLeft = dataBox.Left - dataBox.Width * indexLeftShift;
+        if (zoomBox.Width <= 0 || zoomBox.Height <= 0)
+            return;
 
-        /* right */
-        /* --> find right index of zoomed data and ceil the result to include enough data in the final plot */
-        var indexRightRounded = (int)Math.Ceiling(indexRight);
-        /* --> find how far right the most right data point is relative to the data box */
-        var indexRightShift = (indexRightRounded - indexRight) / indexRange;
-        var zoomedRight = dataBox.Right + dataBox.Width * indexRightShift;
+        ApplyZoom(zoomBox);
+        StateHasChanged();
 
-        /* create data array and data box */
-        var intendedLength = (indexRightRounded + 1) - indexLeftRounded;
-        var zoomedData = data[indexLeftRounded..Math.Min((indexRightRounded + 1), data.Length)];
-        var zoomedDataBox = new SKRect(zoomedLeft, dataBox.Top, zoomedRight, dataBox.Bottom);
-
-        /* A full series and a zoomed series are plotted differently:
-         * Full: Plot all data from dataBox.Left to dataBox.Right - 1 sample (no more data available, so it is impossible to draw more)
-         * Zoomed: Plot all data from dataBox.Left to dataBox.Right (this is possible because more data are available on the right)
-         */
-        var isClippedRight = zoomedData.Length < intendedLength;
-
-        return new ZoomInfo(zoomedData, zoomedDataBox, isClippedRight);
-    }
-
-    private static SKRect CreateZoomBox(Position start, Position end)
-    {
-        var left = Math.Min(start.X, end.X);
-        var top = 0;
-        var right = Math.Max(start.X, end.X);
-        var bottom = 1;
-
-        return new SKRect(left, top, right, bottom);
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
     }
 
     private void ApplyZoom(SKRect zoomBox)
     {
         /* zoom box */
-        var oldXRange = _oldZoomBox.Right - _oldZoomBox.Left;
+        var oldXRange = _oldZoomRight - _oldZoomLeft;
         var oldYRange = _oldZoomBox.Bottom - _oldZoomBox.Top;
 
+        var newLeft = Math.Max(0, _oldZoomLeft + oldXRange * zoomBox.Left);
+        var newRight = Math.Min(1, _oldZoomLeft + oldXRange * zoomBox.Right);
         var newZoomBox = new SKRect(
-            left: Math.Max(0, _oldZoomBox.Left + oldXRange * zoomBox.Left),
+            left: (float)newLeft,
             top: Math.Max(0, _oldZoomBox.Top + oldYRange * zoomBox.Top),
-            right: Math.Min(1, _oldZoomBox.Left + oldXRange * zoomBox.Right),
+            right: (float)newRight,
             bottom: Math.Min(1, _oldZoomBox.Top + oldYRange * zoomBox.Bottom));
 
-        if (newZoomBox.Width < 1e-6 || newZoomBox.Height < 1e-6)
+        if (newRight - newLeft < MinimumHorizontalZoom || newZoomBox.Height < 1e-6)
             return;
 
         /* time range */
-        var timeRange = LineSeriesData.End - LineSeriesData.Begin;
-
-        _zoomedBegin = LineSeriesData.Begin + timeRange * newZoomBox.Left;
-        _zoomedEnd = LineSeriesData.Begin + timeRange * newZoomBox.Right;
+        _zoomedBegin = ToTime(newLeft);
+        _zoomedEnd = ToTime(newRight);
 
         /* data range */
         foreach (var axesEntry in _axesMap)
         {
             var axisInfo = axesEntry.Key;
-            var originalDataRange = axisInfo.OriginalMax - axisInfo.OriginalMin;
-
-            axisInfo.Min = axisInfo.OriginalMin + (1 - newZoomBox.Bottom) * originalDataRange;
-            axisInfo.Max = axisInfo.OriginalMax - newZoomBox.Top * originalDataRange;
+            ApplyVerticalZoom(axisInfo, newZoomBox);
         }
 
         _oldZoomBox = newZoomBox;
         _zoomBox = newZoomBox;
+        _oldZoomLeft = _zoomLeft = newLeft;
+        _oldZoomRight = _zoomRight = newRight;
     }
 
     private void ResetZoom()
@@ -532,6 +916,8 @@ public partial class Chart : IDisposable
         /* zoom box */
         _oldZoomBox = _defaultZoomBox;
         _zoomBox = _defaultZoomBox;
+        _oldZoomLeft = _zoomLeft = 0;
+        _oldZoomRight = _zoomRight = 1;
 
         /* time range */
         _zoomedBegin = LineSeriesData.Begin;
@@ -546,6 +932,100 @@ public partial class Chart : IDisposable
             axisInfo.Max = axisInfo.OriginalMax;
         }
     }
+
+    private void SetHorizontalZoom(double left, double right)
+    {
+        left = Math.Clamp(left, 0, 1);
+        right = Math.Clamp(right, 0, 1);
+
+        if (right - left < MinimumHorizontalZoom)
+            return;
+
+        var newZoomBox = new SKRect((float)left, _zoomBox.Top, (float)right, _zoomBox.Bottom);
+
+        _zoomedBegin = ToTime(left);
+        _zoomedEnd = ToTime(right);
+
+        _oldZoomBox = newZoomBox;
+        _zoomBox = newZoomBox;
+        _oldZoomLeft = _zoomLeft = left;
+        _oldZoomRight = _zoomRight = right;
+    }
+
+    [JSInvokable]
+    public void NavigatorZoom(double left, double right)
+    {
+        SetHorizontalZoom(left, right);
+
+        StateHasChanged();
+
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
+    }
+
+    [JSInvokable]
+    public void SetViewport(double left, double top, double right, double bottom)
+    {
+        left = Math.Clamp(left, 0, 1);
+        top = Math.Clamp(top, 0, 1);
+        right = Math.Clamp(right, 0, 1);
+        bottom = Math.Clamp(bottom, 0, 1);
+
+        if (right - left < MinimumHorizontalZoom || bottom - top < 1e-6)
+            return;
+
+        var newZoomBox = new SKRect((float)left, (float)top, (float)right, (float)bottom);
+        _oldZoomBox = newZoomBox;
+        _zoomBox = newZoomBox;
+        _oldZoomLeft = _zoomLeft = left;
+        _oldZoomRight = _zoomRight = right;
+        _zoomedBegin = ToTime(left);
+        _zoomedEnd = ToTime(right);
+
+        foreach (var axisInfo in _axesMap.Keys)
+            ApplyVerticalZoom(axisInfo, newZoomBox);
+
+        StateHasChanged();
+
+        if (OperatingSystem.IsBrowser())
+            _skiaView.Invalidate();
+    }
+
+    private double MinimumHorizontalZoom => 1d / Math.Max(1, (LineSeriesData.End - LineSeriesData.Begin).Ticks);
+
+    private static void ApplyVerticalZoom(AxisInfo axisInfo, SKRect zoomBox)
+    {
+        var range = axisInfo.OriginalMax - axisInfo.OriginalMin;
+        axisInfo.Min = axisInfo.OriginalMin + (1 - zoomBox.Bottom) * range;
+        axisInfo.Max = axisInfo.OriginalMax - zoomBox.Top * range;
+    }
+
+    private DateTime ToTime(double position)
+    {
+        var rangeTicks = (LineSeriesData.End - LineSeriesData.Begin).Ticks;
+        return LineSeriesData.Begin.AddTicks((long)Math.Round(rangeTicks * position));
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalDays >= 1)
+            return $"{duration.TotalDays:0.##} d";
+        if (duration.TotalHours >= 1)
+            return $"{duration.TotalHours:0.##} h";
+        if (duration.TotalMinutes >= 1)
+            return $"{duration.TotalMinutes:0.##} min";
+        if (duration.TotalSeconds >= 1)
+            return $"{duration.TotalSeconds:0.##} s";
+        if (duration.TotalMilliseconds >= 1)
+            return $"{duration.TotalMilliseconds:0.###} ms";
+        if (duration.TotalMicroseconds >= 1)
+            return $"{duration.TotalMicroseconds:0.###} us";
+
+        return $"{duration.Ticks * 100} ns";
+    }
+
+    private static string FormatRange(DateTime begin, DateTime end) =>
+        $"{begin:yyyy-MM-dd HH:mm:ss.fffffff}  -  {end:yyyy-MM-dd HH:mm:ss.fffffff}";
 
     #endregion
 
@@ -876,109 +1356,6 @@ public partial class Chart : IDisposable
 
     #endregion
 
-    #region Series
-
-    private static void DrawSeries(
-        SKCanvas canvas,
-        ZoomInfo zoomInfo,
-        LineSeries series,
-        AxisInfo axisInfo)
-    {
-        var dataBox = zoomInfo.DataBox;
-        var data = zoomInfo.Data.Span;
-
-        /* get y scale factor */
-        var dataRange = axisInfo.Max - axisInfo.Min;
-        var yScaleFactor = dataBox.Height / dataRange;
-
-        /* get dx */
-        var dx = zoomInfo.IsClippedRight
-            ? dataBox.Width / data.Length
-            : dataBox.Width / (data.Length - 1);
-
-        /* draw */
-        if (series.Show)
-            DrawPath(canvas, axisInfo.Min, dataBox, dx, yScaleFactor, data, series.Color);
-    }
-
-    private static void DrawPath(
-        SKCanvas canvas,
-        float dataMin,
-        SKRect dataArea,
-        float dx,
-        float yScaleFactor,
-        Span<double> data,
-        SKColor color)
-    {
-        using var strokePaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = color,
-            IsAntialias = false /* improves performance */
-        };
-
-        using var fillPaint = new SKPaint
-        {
-            Style = SKPaintStyle.Fill,
-            Color = new SKColor(color.Red, color.Green, color.Blue, 0x19)
-        };
-
-        var consumed = 0;
-        var length = data.Length;
-        var zeroHeight = dataArea.Bottom - (0 - dataMin) * yScaleFactor;
-
-        while (consumed < length)
-        {
-            /* create path */
-            var stroke_path = new SKPath();
-            var fill_path = new SKPath();
-            var x = dataArea.Left + dx * consumed;
-            var y0 = dataArea.Bottom - ((float)data[consumed] - dataMin) * yScaleFactor;
-
-            stroke_path.MoveTo(x, y0);
-            fill_path.MoveTo(x, zeroHeight);
-
-            for (int i = consumed; i < length; i++)
-            {
-                var value = (float)data[i];
-
-                if (float.IsNaN(value)) // all NaN's in a row will be consumed a few lines later
-                    break;
-
-                var y = dataArea.Bottom - (value - dataMin) * yScaleFactor;
-                x = dataArea.Left + dx * consumed; // do NOT 'currentX += dx' because it constantly accumulates a small error
-
-                stroke_path.LineTo(x, y);
-                fill_path.LineTo(x, y);
-
-                consumed++;
-            }
-
-            x = dataArea.Left + dx * consumed - dx;
-
-            fill_path.LineTo(x, zeroHeight);
-            fill_path.Close();
-
-            /* draw path */
-            canvas.DrawPath(stroke_path, strokePaint);
-            canvas.DrawPath(fill_path, fillPaint);
-
-            /* consume NaNs */
-            for (int i = consumed; i < length; i++)
-            {
-                var value = (float)data[i];
-
-                if (float.IsNaN(value))
-                    consumed++;
-
-                else
-                    break;
-            }
-        }
-    }
-
-    #endregion
-
     #region Helpers
 
     private static string ToEngineering(double value)
@@ -1030,6 +1407,19 @@ public partial class Chart : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
+        _webGpuGeneration++;
+        AppState.PropertyChanged -= OnAppStatePropertyChanged;
+
+        if (OperatingSystem.IsBrowser())
+        {
+            JSRuntime.InvokeVoid("nexus.chart.dispose", _chartId);
+            JSRuntime.InvokeVoid("nexus.chartWebGpu.dispose", _chartId);
+        }
+
+        _sentSeriesVersions.Clear();
+        _sendingSeriesVersions.Clear();
+        _seriesRanges.Clear();
         _dotNetHelper?.Dispose();
     }
 

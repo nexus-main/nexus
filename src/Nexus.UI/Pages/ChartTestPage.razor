@@ -2,7 +2,22 @@
 
 <PageTitle>Chart Test Page</PageTitle>
 
-<div class="row-start-2 col-start-2 col-span-2 row-span-2 p-5 flex">
-    <Chart LineSeriesData="_lineSeriesData" BeginAtZero="true" />
-</div>
+<div class="h-full min-h-0 p-5 flex flex-col">
+    <MudSelect T="int"
+               @bind-Value="SelectedCount"
+               Label="Timeline samples (500 ms)"
+               Variant="Variant.Outlined"
+               Margin="Margin.Dense"
+               Style="width: 230px; max-width: 100%; margin-bottom: 1rem;">
+        <MudSelectItem Value="120">Default (120)</MudSelectItem>
+        <MudSelectItem Value="100_000">100 k</MudSelectItem>
+        <MudSelectItem Value="1_000_000">1 M</MudSelectItem>
+        <MudSelectItem Value="10_000_000">10 M</MudSelectItem>
+        <MudSelectItem Value="100_000_000">100 M</MudSelectItem>
+        <MudSelectItem Value="1_000_000_000">1 G</MudSelectItem>
+    </MudSelect>
 
+    <div class="flex-1 min-h-0">
+        <Chart @key="SelectedCount" LineSeriesData="_lineSeriesData" BeginAtZero="true" />
+    </div>
+</div>

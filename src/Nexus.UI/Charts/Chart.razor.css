@@ -44,12 +44,79 @@
     flex: 1;
 }
 
+    .series-layer {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    .webgpu-error {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        box-sizing: border-box;
+        background: rgba(248, 250, 251, 0.88);
+    }
+
+    .webgpu-error-content {
+        display: flex;
+        width: min(34rem, 100%);
+        flex-direction: column;
+        align-items: center;
+        gap: 0.7rem;
+        color: #25323a;
+        text-align: center;
+    }
+
+    .webgpu-error-content strong {
+        font-size: 1rem;
+    }
+
+    .webgpu-error-content span {
+        color: #59636b;
+        font-size: 0.85rem;
+        line-height: 1.45;
+    }
+
+    .webgpu-error-content button {
+        padding: 0.45rem 0.8rem;
+        color: white;
+        background: #0072bd;
+        border: 0;
+        border-radius: 3px;
+        cursor: pointer;
+        font: inherit;
+    }
+
+    .webgpu-error-content button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+    }
+
+    .webgpu-unavailable .overlay,
+    .webgpu-unavailable .navigator-shell {
+        pointer-events: none;
+    }
+
+    .webgpu-unavailable .navigator-series {
+        opacity: 0;
+    }
+
     ::deep canvas {
         position: absolute;
         left: 0;
         top: 0;
         width: 100%;
         height: 100%;
+        z-index: 0;
     }
 
     .pointer {
@@ -65,6 +132,7 @@
 
 .overlay {
     position: relative;
+    z-index: 2;
 }
 
     .overlay * {
@@ -87,6 +155,181 @@
 
     .selection {
         position: absolute;
-        background: rgba(0, 0, 0, 0.07);
-        height: 100%;
+        display: none;
+        background: rgba(0, 114, 189, 0.12);
+        border: 1px solid rgba(0, 114, 189, 0.9);
+        box-sizing: border-box;
     }
+
+.navigator-shell {
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0 0.25rem;
+    box-sizing: border-box;
+    color: #59636b;
+    font-size: 0.72rem;
+    user-select: none;
+}
+
+.navigator-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    min-height: 18px;
+    padding: 0 2px;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+}
+
+.navigator-range {
+    font-family: "Courier New", monospace;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.navigator-track {
+    position: relative;
+    width: 100%;
+    height: 46px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #f8fafb, #edf1f3);
+    border: 1px solid #cbd3d8;
+    border-radius: 5px;
+    box-sizing: border-box;
+    box-shadow: inset 0 1px 2px rgba(26, 39, 48, 0.08);
+    touch-action: none;
+    cursor: crosshair;
+}
+
+.navigator-series {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.navigator-shade {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    background: rgba(35, 45, 52, 0.42);
+    pointer-events: none;
+}
+
+.navigator-shade-left {
+    left: 0;
+}
+
+.navigator-shade-right {
+    right: 0;
+}
+
+.navigator-window {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    background: rgba(0, 114, 189, 0.08);
+    border: 1px solid rgb(0, 114, 189);
+    border-radius: 3px;
+    cursor: grab;
+    box-sizing: border-box;
+    touch-action: none;
+}
+
+.navigator-window:active {
+    cursor: grabbing;
+}
+
+.navigator-window:focus-visible {
+    outline: 2px solid #0072bd;
+    outline-offset: -3px;
+}
+
+.navigator-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 16px;
+    cursor: ew-resize;
+    touch-action: none;
+}
+
+.navigator-handle::after {
+    content: "";
+    position: absolute;
+    top: 9px;
+    bottom: 9px;
+    left: 6px;
+    width: 3px;
+    border-radius: 2px;
+    background: rgb(0, 114, 189);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+
+.navigator-handle-left {
+    left: -8px;
+}
+
+.navigator-handle-right {
+    right: -8px;
+}
+
+.navigator-duration {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    max-width: calc(100% - 18px);
+    padding: 2px 5px;
+    overflow: hidden;
+    color: #173444;
+    background: rgba(255, 255, 255, 0.84);
+    border-radius: 3px;
+    font-family: "Courier New", monospace;
+    font-size: 0.68rem;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.navigator-detail {
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: height 180ms ease, opacity 140ms ease, margin-top 180ms ease;
+}
+
+.navigator-detail.visible {
+    height: 64px;
+    margin-top: 7px;
+    opacity: 1;
+}
+
+.navigator-detail:not(.visible) .navigator-track,
+.navigator-detail:not(.visible) .navigator-heading {
+    visibility: hidden;
+}
+
+.navigator-detail-heading {
+    color: #0072bd;
+}
+
+@media (max-width: 640px) {
+    .navigator-range {
+        display: none;
+    }
+
+    .navigator-track {
+        height: 42px;
+    }
+
+    .navigator-detail.visible {
+        height: 60px;
+    }
+}
