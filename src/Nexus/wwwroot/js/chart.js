@@ -92,6 +92,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
     if (overlay && selection) {
         let drag = null;
+        const axisLockRatio = 1 / Math.tan(15 * Math.PI / 180);
 
         listen(overlay, "pointerdown", e => {
             if (e.button !== 0 && e.button !== 1)
@@ -140,8 +141,8 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
             const dx = Math.abs(x - drag.startX) * drag.rect.width;
             const dy = Math.abs(y - drag.startY) * drag.rect.height;
-            const horizontal = dx > dy * 2;
-            const vertical = dy > dx * 2;
+            const horizontal = dx > dy * axisLockRatio;
+            const vertical = dy > dx * axisLockRatio;
             const left = horizontal || !vertical ? Math.min(drag.startX, x) : 0;
             const right = horizontal || !vertical ? Math.max(drag.startX, x) : 1;
             const top = vertical || !horizontal ? Math.min(drag.startY, y) : 0;
@@ -170,8 +171,8 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             if (Math.hypot(dx, dy) < 6)
                 return;
 
-            const horizontal = dx > dy * 2;
-            const vertical = dy > dx * 2;
+            const horizontal = dx > dy * axisLockRatio;
+            const vertical = dy > dx * axisLockRatio;
             invokeZoom("DragZoom", [
                 horizontal || !vertical ? Math.min(finished.startX, finished.currentX) : 0,
                 vertical || !horizontal ? Math.min(finished.startY, finished.currentY) : 0,
@@ -270,7 +271,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             const anchor = domainLeft + clamp((e.clientX - rect.left) / rect.width, 0, 1) * (domainRight - domainLeft);
             const left = parseFloat(win.dataset.left);
             const right = parseFloat(win.dataset.right);
-            const factor = e.deltaY < 0 ? 0.8 : 1.25;
+            const factor = e.deltaY < 0 ? 0.9 : 1.1111111111111112;
             invokeZoom("NavigatorZoom", [
                 clamp(anchor - (anchor - left) * factor, 0, 1),
                 clamp(anchor + (right - anchor) * factor, 0, 1),

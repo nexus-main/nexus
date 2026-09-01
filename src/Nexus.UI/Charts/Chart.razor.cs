@@ -272,7 +272,7 @@ public partial class Chart : IDisposable
 
     private void OnWheel(WheelEventArgs e)
     {
-        const float FACTOR = 0.25f;
+        const float FACTOR = 0.15f;
 
         var relativePosition = JSRuntime.Invoke<Position>("nexus.chart.toRelative", _chartId, e.ClientX, e.ClientY);
 

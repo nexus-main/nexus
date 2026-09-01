@@ -1558,7 +1558,7 @@ fn reduceRange(
 
                 cached.chartId = chartId;
                 cached.generation = instance.uploadGenerations.get(cached.id);
-                if (cached.synthetic && !isPreview) {
+                if (cached.synthetic) {
                     const rawItems = getRawRenderItems(instance, cached, payload, plot, encoder, target);
                     if (rawItems) {
                         for (const rawItem of rawItems)
