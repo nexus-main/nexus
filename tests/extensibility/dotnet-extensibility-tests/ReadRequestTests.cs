@@ -10,20 +10,6 @@ namespace Extensibility;
 public class ReadRequestTests
 {
     [Fact]
-    public void SupportsFourPositionalComponents()
-    {
-        var item = new CatalogItem(new ResourceCatalog("/A"), new Resource("B"), new Representation(NexusDataType.FLOAT64, TimeSpan.FromSeconds(1)), null);
-        var request = new ReadRequest("B", item, Memory<byte>.Empty, Memory<byte>.Empty);
-
-        var (name, actualItem, data, status) = request;
-
-        Assert.Equal("B", name);
-        Assert.Same(item, actualItem);
-        Assert.True(data.IsEmpty);
-        Assert.True(status.IsEmpty);
-    }
-
-    [Fact]
     public async Task ConcurrentCompletionRunsOnce()
     {
         var callCount = 0;

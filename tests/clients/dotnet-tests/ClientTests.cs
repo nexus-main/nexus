@@ -9,7 +9,6 @@ using System.Text.Json.Serialization;
 using Moq;
 using Moq.Protected;
 using Nexus.Api.V1;
-using Nexus.Api.V2;
 using Xunit;
 
 namespace Nexus.Api.Tests;

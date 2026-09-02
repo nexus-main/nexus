@@ -7,10 +7,28 @@ from nexus_extensibility import (CatalogItem, NexusDataType, ReadRequest,
 
 
 class ReadRequestTests:
-    def completion_is_serialized_and_not_retried_test(self):
-        asyncio.run(self._completion_is_serialized_and_not_retried())
+    def concurrent_completion_runs_once_test(self):
+        asyncio.run(self._concurrent_completion_runs_once())
 
-    async def _completion_is_serialized_and_not_retried(self):
+    async def _concurrent_completion_runs_once(self):
+        calls = 0
+
+        async def complete():
+            nonlocal calls
+            calls += 1
+
+        request = self._create_request()
+        cast(Any, request)._configure_completion(complete)
+
+        await asyncio.gather(*(request.complete() for _ in range(10)))
+
+        assert request.is_completed
+        assert calls == 1
+
+    def failed_completion_is_not_retried_test(self):
+        asyncio.run(self._failed_completion_is_not_retried())
+
+    async def _failed_completion_is_not_retried(self):
         calls = 0
 
         async def complete():
@@ -20,17 +38,21 @@ class ReadRequestTests:
 
             raise RuntimeError("failed")
 
-        item = CatalogItem(
-            ResourceCatalog("/catalog"),
-            Resource("resource"),
-            Representation(NexusDataType.FLOAT64, timedelta(seconds=1)),
-            None)
-        request = ReadRequest("resource", item, memoryview(b""), memoryview(b""))
+        request = self._create_request()
         cast(Any, request)._configure_completion(complete)
 
         results = await asyncio.gather(request.complete(), request.complete(), return_exceptions=True)
 
         assert isinstance(results[0], RuntimeError)
         assert isinstance(results[1], RuntimeError)
-        assert calls == 1
         assert not request.is_completed
+        assert calls == 1
+
+    @staticmethod
+    def _create_request():
+        item = CatalogItem(
+            ResourceCatalog("/catalog"),
+            Resource("resource"),
+            Representation(NexusDataType.FLOAT64, timedelta(seconds=1)),
+            None)
+        return ReadRequest("resource", item, memoryview(b""), memoryview(b""))
