@@ -5,6 +5,8 @@
     "tests/clients/python-tests",
     "tests/extensibility/python-extensibility-tests"
   ],
+  "venvPath": ".",
+  "venv": ".venv",
   "stubPath": "",
   "executionEnvironments": [
     {

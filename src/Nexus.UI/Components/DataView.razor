@@ -1,6 +1,4 @@
-﻿@using System.Runtime.InteropServices
-@using System.Buffers
-@implements IDisposable
+﻿@implements IDisposable
 
 @inject ISnackbar Snackbar
 @inject AppState AppState
@@ -98,9 +96,6 @@ else
     {
         _showReloadButton = false;
 
-        var receivedBytes = 0L;
-        var byteCount = AppState.Settings.GetTotalByteCount();
-
         if (AppState.Settings.IsSizeLimitExceeded)
         {
             _sizeLimitExceeded = true;
@@ -125,7 +120,6 @@ else
             while (_isLoading)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(500));
-                _progress = receivedBytes / (double)byteCount;
                 StateHasChanged();
             }
         });
@@ -134,29 +128,40 @@ else
         {
             var begin = AppState.Settings.Begin;
             var end = AppState.Settings.End;
+            var requests = AppState.Settings.SelectedCatalogItems
+                .ToList()
+                .SelectMany(catalogItem => catalogItem.Kinds.Select(kind =>
+                (
+                    CatalogItem: catalogItem,
+                    Kind: kind,
+                    ResourcePath: catalogItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value)
+                )))
+                .ToList();
             var lineSeriesSet = new List<LineSeries>();
 
-            foreach (var catalogItem in AppState.Settings.SelectedCatalogItems.ToList())
+            if (requests.Count > 0)
             {
-                foreach (var kind in catalogItem.Kinds)
+                var resourcePaths = requests.Select(request => request.ResourcePath).ToArray();
+                var data = await Client.LoadAsync(
+                    begin,
+                    end,
+                    resourcePaths,
+                    progress => _progress = progress,
+                    _cts!.Token);
+
+                foreach (var request in requests)
                 {
-                    var resourcePath = catalogItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value);
-
-                    using var response = await Client.V1.Data
-                        .GetStreamAsync(resourcePath, begin, end, _cts!.Token);
-                    var elementCount = checked((int)Utilities.GetElementCount(begin, end, AppState.Settings.SamplePeriod.Value));
-                    var data = await ReadAsDoubleAsync(response, elementCount, progress => receivedBytes += progress, _cts!.Token);
-
-                    var resource = catalogItem.BaseItem.Resource;
-                    var kindAsString = Utilities.KindToString(kind);
-
+                    var dataResponse = data[request.ResourcePath];
+                    var kindAsString = Utilities.KindToString(request.Kind);
                     var name = kindAsString is null
-                        ? resource.Id
-                        : $"{resource.Id} ({kindAsString})";
+                        ? dataResponse.Name!
+                        : $"{dataResponse.Name} ({kindAsString})";
 
-                    var unit = resource.Properties.GetStringValue(CatalogItemViewModel.UNIT_KEY) ?? string.Empty;
-
-                    lineSeriesSet.Add(new LineSeries(name, unit, AppState.Settings.SamplePeriod.Value, data));
+                    lineSeriesSet.Add(new LineSeries(
+                        name,
+                        dataResponse.Unit ?? string.Empty,
+                        AppState.Settings.SamplePeriod.Value,
+                        dataResponse.Values));
                 }
             }
 
@@ -176,97 +181,6 @@ else
         }
 
         StateHasChanged();
-    }
-
-    @* private async Task<double[]> ReadAsDoubleAsync(
-        HttpResponseMessage response,
-        Action<long> reportProgress, 
-        CancellationToken cancellationToken = default)
-    {
-        var elementCount = Utilities.GetElementCount(
-            AppState.Settings.Begin, 
-            AppState.Settings.End, 
-            AppState.Settings.SamplePeriod.Value);
-
-        // var doubleBuffer = new double[elementCount];
-        // var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
-        var byteBuffer = new byte[elementCount * 8].AsMemory();
-        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
-        {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken);
-
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
-
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
-            reportProgress(bytesRead);
-        }
-
-        var doubleBuffer = MemoryMarshal.Cast<byte, double>(byteBuffer.Span).ToArray();
-
-        return doubleBuffer;
-    } *@
-
-    private async Task<double[]> ReadAsDoubleAsync(
-        HttpResponseMessage response,
-        int elementCount,
-        Action<long> reportProgress, 
-        CancellationToken cancellationToken = default)
-    {
-        var doubleBuffer = new double[elementCount];
-        var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
-        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
-        {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken);
-
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
-
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
-            reportProgress(bytesRead);
-        }
-
-        return doubleBuffer;
-    }
-
-    internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
-        where TFrom : struct
-        where TTo : struct
-    {
-        private readonly TFrom[] _from;
-
-        private GCHandle _gcHandle;
-
-        public CastMemoryManager(TFrom[] from) => _from = from;
-
-        public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.AsSpan());
-
-        protected override void Dispose(bool disposing)
-        {
-            //
-        }
-
-        public override unsafe MemoryHandle Pin(int elementIndex = 0)
-        {
-            _gcHandle = GCHandle.Alloc(_from, GCHandleType.Pinned);
-
-            return new MemoryHandle(
-                (void*)(_gcHandle.AddrOfPinnedObject() + elementIndex * Marshal.SizeOf<TTo>()), 
-                _gcHandle, 
-                this);
-        }
-
-        public override void Unpin()
-        {
-            if (_gcHandle.IsAllocated)
-                _gcHandle.Free();
-        }
     }
 
     public void Dispose()

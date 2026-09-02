@@ -1,9 +1,10 @@
 import base64
 import json
+from datetime import datetime
 
 import pytest
 from httpx import AsyncClient, MockTransport, Request, Response, codes
-from nexus_api import NexusAsyncClient
+from nexus_api import NexusAsyncClient, NexusException
 
 nexus_configuration_header_key = "Nexus-Configuration"
 
@@ -63,3 +64,76 @@ async def can_add_configuration_test():
         _ = await client.v1.catalogs.get(catalog_id)
 
         # assert (already asserted in _handler)
+
+
+def _load_with_channel_fault_handler(request: Request):
+    path = request.url.path
+
+    if path == "/api/v1/catalogs/search-items":
+        catalog_item_map = {
+            "/A/B/C": {
+                "catalog": {
+                    "id": "my-catalog",
+                    "properties": None,
+                    "resources": None
+                },
+                "resource": {
+                    "id": "C",
+                    "properties": None,
+                    "representations": None
+                },
+                "representation": {
+                    "dataType": "float64",
+                    "samplePeriod": "0.00:00:01.0000000",
+                    "parameters": None
+                },
+                "parameters": None
+            }
+        }
+        return Response(codes.OK, content=json.dumps(catalog_item_map))
+
+    elif path == "/api/v2/data/streams/batch":
+        batch_stream_response = {
+            "sessionId": "00000000-0000-0000-0000-000000000001",
+            "channels": [
+                {
+                    "channelId": "00000000-0000-0000-0000-000000000002",
+                    "resourcePath": "/A/B/C"
+                }
+            ]
+        }
+        return Response(codes.OK, content=json.dumps(batch_stream_response))
+
+    elif "/channel/" in path:
+        return Response(codes.OK, content=b"\x00" * 17, headers={"Content-Length": "17"})
+
+    elif path.endswith("/status"):
+        status = {
+            "state": "faulted",
+            "faultedChannelId": "00000000-0000-0000-0000-000000000002",
+            "faultedChannelResourcePath": "/A/B/C",
+            "faultReason": "The data source could not read the resource."
+        }
+        return Response(codes.OK, content=json.dumps(status))
+
+    else:
+        raise Exception(f"Unsupported path: {path}")
+
+
+@pytest.mark.asyncio
+async def can_load_with_channel_fault_test():
+    http_client = AsyncClient(base_url="http://localhost", transport=MockTransport(_load_with_channel_fault_handler))
+
+    async with NexusAsyncClient(http_client) as client:
+        try:
+            await client.load(
+                begin=datetime(2020, 1, 1),
+                end=datetime(2020, 1, 2),
+                resource_paths=["/A/B/C"],
+                on_progress=None
+            )
+            assert False, "Expected NexusException"
+        except NexusException as ex:
+            assert ex.status_code == "N02"
+            assert "/A/B/C" in ex.message
+            assert "The data source could not read the resource." in ex.message

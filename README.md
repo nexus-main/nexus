@@ -6,6 +6,121 @@ Nexus is an extensible user interface for your time-series data lake with REST A
 
 Nexus allows streaming data directly into the UI or into Python, C# or Matlab clients. Additionally, Nexus supports exporting the data into a specific file format. Supported formats are CSV, HDF5, Matlab (v7.3) and Famos. Like for data sources, it is possible to create and register new custom data writers.
 
+# Deployment Notes
+
+## Reverse Proxies And Batch Streaming
+
+The v2 multi-resource data streaming API opens one HTTP stream per requested resource. Deployments must support HTTP/2 for these streaming endpoints so all resource channels can attach concurrently.
+
+HTTP/1.1-only proxies or clients can hit per-origin connection limits. If not all channel requests reach Nexus, the batch read cannot start and the request may hang or time out.
+
+Reverse proxies must not buffer streaming responses, otherwise backpressure and memory behavior are degraded.
+
+When Nexus runs in Docker behind a TLS-terminating reverse proxy, configure the Nexus container to expose a cleartext HTTP/2 endpoint for the proxy:
+
+```yaml
+environment:
+  NEXUS_KESTREL__ENDPOINTS__HTTP2__URL: http://+:5000
+  NEXUS_KESTREL__ENDPOINTS__HTTP2__PROTOCOLS: Http2
+ports:
+  - "5000:5000"
+```
+
+If `ASPNETCORE_URLS` is also set, Kestrel endpoint configuration wins and ASP.NET Core may log a warning that the address was overridden. Prefer setting only the `NEXUS_KESTREL__...` variables for this deployment mode.
+
+### nginx
+
+Use nginx `1.29.4+` or stable `1.30+`. Older nginx versions do not support HTTP/2 upstream proxying for normal HTTP proxy locations.
+
+```nginx
+server {
+    listen 80;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+
+    ssl_certificate /etc/letsencrypt/live/nexus.example.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/nexus.example.org/privkey.pem;
+
+    location /api/v2/data/streams/ {
+        proxy_pass http://nexus:5000;
+        proxy_http_version 2;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+
+    location / {
+        proxy_pass http://nexus:5000;
+        proxy_http_version 2;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+}
+```
+
+This creates the intended protocol path:
+
+```text
+Browser -- HTTPS + HTTP/2 --> nginx -- HTTP/2 cleartext --> Nexus
+```
+
+### Apache httpd
+
+Use Apache httpd `2.4.19+` with `mod_http2`, `mod_proxy`, `mod_proxy_http2`, `mod_ssl`, and `mod_headers` enabled. The Apache `mod_proxy_http2` module supports cleartext HTTP/2 upstreams via the `h2c://` scheme. Apache documents `mod_proxy_http2` as experimental; use the `event` MPM rather than `prefork` for HTTP/2-heavy workloads.
+
+```apache
+LoadModule http2_module modules/mod_http2.so
+LoadModule proxy_module modules/mod_proxy.so
+LoadModule proxy_http2_module modules/mod_proxy_http2.so
+LoadModule ssl_module modules/mod_ssl.so
+LoadModule headers_module modules/mod_headers.so
+
+<VirtualHost *:80>
+    ServerName nexus.example.org
+    Redirect permanent / https://nexus.example.org/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName nexus.example.org
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/nexus.example.org/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/nexus.example.org/privkey.pem
+
+    Protocols h2 http/1.1
+    ProxyPreserveHost On
+    ProxyTimeout 3600
+
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Host "nexus.example.org"
+
+    ProxyPass        "/" "h2c://nexus:5000/"
+    ProxyPassReverse "/" "http://nexus:5000/"
+</VirtualHost>
+```
+
+This creates the intended protocol path:
+
+```text
+Browser -- HTTPS + HTTP/2 --> Apache -- HTTP/2 cleartext --> Nexus
+```
+
+If the browser-facing proxy connection uses HTTP/2 but the proxy-to-Nexus connection falls back to HTTP/1.1, large v2 batches can still fail because the proxy has to create one upstream HTTP/1.1 request per resource channel.
+
 # Usage
 
 The main elements presented in Nexus are called `catalogs`. These catalogs are often equivalent to a measurement campaign. Within a catalog, there are `resources` (e.g. channels of a data acquisition device) which comprise a unique name, arbitrary properties (metadata) and one or more `representations`. A representation defines the sample period (e.g. `100 ms`) and optional parameters of the associated resource.

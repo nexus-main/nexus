@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 import json
 import time
 from array import array
@@ -9,9 +11,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 from typing import Callable
-from typing import (Any, AsyncIterable, Callable, Iterable, Optional, Type,
+from typing import (Any, AsyncIterable, Callable, Iterable, NoReturn, Optional, Type,
                     TypeVar, Union, cast)
 from zipfile import ZipFile
+from uuid import UUID
 
 from httpx import AsyncClient, Client, Request, Response
 
@@ -19,6 +22,8 @@ from ._encoder import JsonEncoder
 from ._shared import NexusException, _json_encoder_options
 from .V1 import V1, V1Async
 from .V1 import CatalogItem, ExportParameters, TaskStatus
+from .V2 import V2, V2Async
+from .V2 import BatchStreamRequest, BatchStreamSessionState
 
 
 T = TypeVar("T")
@@ -46,6 +51,7 @@ class NexusClient:
     ___http_client: Client
 
     _v1: V1
+    _v2: V2
 
 
     @classmethod
@@ -56,7 +62,7 @@ class NexusClient:
             Args:
                 base_url: The base URL to use.
         """
-        return NexusClient(Client(base_url=base_url, timeout=60.0))
+        return NexusClient(Client(base_url=base_url, timeout=60.0, http2=True))
 
     def __init__(self, http_client: Client):
         """
@@ -73,6 +79,7 @@ class NexusClient:
         self.___token = None
 
         self._v1 = V1(self._invoke)
+        self._v2 = V2(self._invoke)
 
 
     @property
@@ -84,6 +91,11 @@ class NexusClient:
     def v1(self) -> V1:
         """Gets the client for version V1."""
         return self._v1
+
+    @property
+    def v2(self) -> V2:
+        """Gets the client for version V2."""
+        return self._v2
 
 
 
@@ -130,7 +142,7 @@ class NexusClient:
         request = self._build_request_message(method, relative_url, content, content_type_value, accept_header_value)
 
         # send request
-        response = self.___http_client.send(request)
+        response = self.___http_client.send(request, stream=typeOfT is Response)
 
         # process response
         if not response.is_success:
@@ -201,19 +213,59 @@ class NexusClient:
             onProgress: A callback which accepts the current progress.
         """
 
-        catalog_item_map = self.v1.catalogs.search_catalog_items(list(resource_paths))
+        resource_path_list = list(resource_paths)
+        catalog_item_map = self.v1.catalogs.search_catalog_items(resource_path_list)
+        session = self.v2.data.register_batch_stream(BatchStreamRequest(begin, end, resource_path_list))
         result: dict[str, DataResponse] = {}
-        progress: float = 0
+        responses = [
+            (channel.resource_path, self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id))
+            for channel in session.channels
+        ]
 
-        for (resource_path, catalog_item) in catalog_item_map.items():
+        response_entries = responses
 
-            response = self.v1.data.get_stream(resource_path, begin, end)
-
+        total_length = 0
+        for (_, response) in response_entries:
             try:
-                double_data = self._read_as_double(response)
+                total_length += int(response.headers["Content-Length"])
+            except:
+                pass
 
-            finally:
+        consumed = [0]
+        _lock = Lock()
+
+        def report_progress(bytes_read):
+            with _lock:
+                consumed[0] += bytes_read
+                if total_length > 0 and on_progress is not None:
+                    on_progress(consumed[0] / total_length)
+
+        try:
+            def _read_channel(entry):
+                resource_path, response = entry
+                try:
+                    values = self._read_as_double(response, report_progress)
+                    return (resource_path, values, None)
+                except Exception as ex:
+                    return (resource_path, None, ex)
+
+            with ThreadPoolExecutor(max_workers=len(response_entries)) as executor:
+                results = list(executor.map(_read_channel, response_entries))
+
+        finally:
+            for (_, response) in response_entries:
                 response.close()
+
+        errors = [(rp, ex) for (rp, _, ex) in results if ex is not None]
+
+        if errors:
+            self._create_channel_exception(session.session_id, errors[0][0], errors[0][1])
+
+        values = [cast(array[float], val) for (_, val, _) in results]
+
+        for ((resource_path, _), double_data) in zip(response_entries, values):
+
+            catalog_item = catalog_item_map[resource_path]
 
             resource = catalog_item.resource
 
@@ -236,16 +288,21 @@ class NexusClient:
                 values=double_data
             )
 
-            progress = progress + 1.0 / len(catalog_item_map)
-
-            if on_progress is not None:
-                on_progress(progress)
+        if on_progress is not None:
+            on_progress(1)
                 
         return result
 
-    def _read_as_double(self, response: Response):
+    def _read_as_double(self, response: Response, report_progress: Optional[Callable[[int], None]] = None):
         
-        byteBuffer = response.read()
+        chunks = []
+        
+        for data in response.iter_bytes():
+            chunks.append(data)
+            if report_progress is not None:
+                report_progress(len(data))
+        
+        byteBuffer = b"".join(chunks)
 
         if len(byteBuffer) % 8 != 0:
             raise Exception("The data length is invalid.")
@@ -253,6 +310,22 @@ class NexusClient:
         doubleBuffer = array("d", byteBuffer)
 
         return doubleBuffer 
+
+    def _create_channel_exception(self, session_id: UUID, resource_path: str, error: Exception) -> NoReturn:
+        try:
+            status = self.v2.data.get_batch_stream_session_status(session_id)
+        except:
+            status = None
+
+        if status is not None and \
+            status.state == BatchStreamSessionState.FAULTED and \
+            status.fault_reason:
+
+            root_cause_path = status.faulted_channel_resource_path or resource_path
+            message = f"The batch stream session faulted. Root cause channel: {root_cause_path}. Reason: {status.fault_reason}"
+            raise NexusException("N02", message) from error
+
+        raise NexusException("N02", f"The batch stream session faulted. Channel: {resource_path}. Reason: {error}") from error
 
     def export(
         self,
@@ -385,6 +458,7 @@ class NexusAsyncClient:
     ___http_client: AsyncClient
 
     _v1: V1Async
+    _v2: V2Async
 
 
     @classmethod
@@ -395,7 +469,7 @@ class NexusAsyncClient:
             Args:
                 base_url: The base URL to use.
         """
-        return NexusAsyncClient(AsyncClient(base_url=base_url, timeout=60.0))
+        return NexusAsyncClient(AsyncClient(base_url=base_url, timeout=60.0, http2=True))
 
     def __init__(self, http_client: AsyncClient):
         """
@@ -412,6 +486,7 @@ class NexusAsyncClient:
         self.___token = None
 
         self._v1 = V1Async(self._invoke)
+        self._v2 = V2Async(self._invoke)
 
 
     @property
@@ -423,6 +498,11 @@ class NexusAsyncClient:
     def v1(self) -> V1Async:
         """Gets the client for version V1."""
         return self._v1
+
+    @property
+    def v2(self) -> V2Async:
+        """Gets the client for version V2."""
+        return self._v2
 
 
 
@@ -469,7 +549,7 @@ class NexusAsyncClient:
         request = self._build_request_message(method, relative_url, content, content_type_value, accept_header_value)
 
         # send request
-        response = await self.___http_client.send(request)
+        response = await self.___http_client.send(request, stream=typeOfT is Response)
 
         # process response
         if not response.is_success:
@@ -540,19 +620,59 @@ class NexusAsyncClient:
             onProgress: A callback which accepts the current progress.
         """
 
-        catalog_item_map = await self.v1.catalogs.search_catalog_items(list(resource_paths))
+        resource_path_list = list(resource_paths)
+        catalog_item_map = await self.v1.catalogs.search_catalog_items(resource_path_list)
+        session = await self.v2.data.register_batch_stream(BatchStreamRequest(begin, end, resource_path_list))
         result: dict[str, DataResponse] = {}
-        progress: float = 0
+        responses = await asyncio.gather(*[
+            self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id)
+            for channel in session.channels
+        ])
 
-        for (resource_path, catalog_item) in catalog_item_map.items():
+        response_entries = [
+            (channel.resource_path, response)
+            for (channel, response) in zip(session.channels, responses)
+        ]
 
-            response = await self.v1.data.get_stream(resource_path, begin, end)
-
+        total_length = 0
+        for (_, response) in response_entries:
             try:
-                double_data = await self._read_as_double(response)
+                total_length += int(response.headers["Content-Length"])
+            except:
+                pass
 
-            finally:
+        consumed = 0
+
+        def report_progress(bytes_read):
+            nonlocal consumed
+            consumed += bytes_read
+            if total_length > 0 and on_progress is not None:
+                on_progress(consumed / total_length)
+
+        try:
+            async def _read_channel(resource_path, response):
+                try:
+                    values = await self._read_as_double(response, report_progress)
+                    return (resource_path, values, None)
+                except Exception as ex:
+                    return (resource_path, None, ex)
+
+            results = await asyncio.gather(*[_read_channel(rp, resp) for (rp, resp) in response_entries])
+
+        finally:
+            for (_, response) in response_entries:
                 await response.aclose()
+
+        errors = [(rp, ex) for (rp, _, ex) in results if ex is not None]
+
+        if errors:
+            await self._create_channel_exception(session.session_id, errors[0][0], errors[0][1])
+
+        values = [cast(array[float], val) for (_, val, _) in results]
+
+        for ((resource_path, _), double_data) in zip(response_entries, values):
+
+            catalog_item = catalog_item_map[resource_path]
 
             resource = catalog_item.resource
 
@@ -575,16 +695,21 @@ class NexusAsyncClient:
                 values=double_data
             )
 
-            progress = progress + 1.0 / len(catalog_item_map)
-
-            if on_progress is not None:
-                on_progress(progress)
+        if on_progress is not None:
+            on_progress(1)
                 
         return result
 
-    async def _read_as_double(self, response: Response):
+    async def _read_as_double(self, response: Response, report_progress: Optional[Callable[[int], None]] = None):
         
-        byteBuffer = await response.aread()
+        chunks = []
+        
+        async for data in response.aiter_bytes():
+            chunks.append(data)
+            if report_progress is not None:
+                report_progress(len(data))
+        
+        byteBuffer = b"".join(chunks)
 
         if len(byteBuffer) % 8 != 0:
             raise Exception("The data length is invalid.")
@@ -592,6 +717,22 @@ class NexusAsyncClient:
         doubleBuffer = array("d", byteBuffer)
 
         return doubleBuffer 
+
+    async def _create_channel_exception(self, session_id: UUID, resource_path: str, error: Exception) -> NoReturn:
+        try:
+            status = await self.v2.data.get_batch_stream_session_status(session_id)
+        except:
+            status = None
+
+        if status is not None and \
+            status.state == BatchStreamSessionState.FAULTED and \
+            status.fault_reason:
+
+            root_cause_path = status.faulted_channel_resource_path or resource_path
+            message = f"The batch stream session faulted. Root cause channel: {root_cause_path}. Reason: {status.fault_reason}"
+            raise NexusException("N02", message) from error
+
+        raise NexusException("N02", f"The batch stream session faulted. Channel: {resource_path}. Reason: {error}") from error
 
     async def export(
         self,

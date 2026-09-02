@@ -7,6 +7,8 @@ using System.IO.Pipelines;
 using System.Security.Claims;
 using Nexus.Core;
 using Nexus.Core.V1;
+using Nexus.Core.V2;
+using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Utilities;
 
@@ -21,6 +23,10 @@ internal interface IDataService
        string resourcePath,
        DateTime begin,
        DateTime end,
+       CancellationToken cancellationToken);
+
+    Task<BatchStreamResponse> RegisterBatchStreamAsync(
+       BatchStreamRequest request,
        CancellationToken cancellationToken);
 
     Task ReadAsDoubleAsync(
@@ -42,6 +48,7 @@ internal class DataService(
     AppState appState,
     ClaimsPrincipal user,
     IDataControllerService dataControllerService,
+    IDataStreamSessionManager streamSessionManager,
     IDatabaseService databaseService,
     IMemoryTracker memoryTracker,
     ILogger<DataService> logger,
@@ -55,6 +62,7 @@ internal class DataService(
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly IDataControllerService _dataControllerService = dataControllerService;
+    private readonly IDataStreamSessionManager _streamSessionManager = streamSessionManager;
 
     public Progress<double> ReadProgress { get; } = new Progress<double>();
 
@@ -103,6 +111,92 @@ internal class DataService(
             cancellationToken);
 
         return stream;
+    }
+
+    public async Task<BatchStreamResponse> RegisterBatchStreamAsync(
+       BatchStreamRequest request,
+       CancellationToken cancellationToken)
+    {
+        var begin = request.Begin.ToUniversalTime();
+        var end = request.End.ToUniversalTime();
+
+        if (begin >= end)
+            throw new ValidationException("The begin datetime must be less than the end datetime.");
+
+        if (request.ResourcePaths is null || request.ResourcePaths.Length == 0)
+            throw new ValidationException("At least one resource path is required.");
+
+        var root = _appState.CatalogState.Root;
+        var catalogItemRequests = new List<(int Index, string ResourcePath, CatalogItemRequest Request)>(request.ResourcePaths.Length);
+
+        for (var index = 0; index < request.ResourcePaths.Length; index++)
+        {
+            var resourcePath = request.ResourcePaths[index];
+            var catalogItemRequest = await root.TryFindAsync(root, resourcePath, cancellationToken)
+                ?? throw new Exception($"Could not find resource path {resourcePath}.");
+
+            var catalogContainer = catalogItemRequest.Container;
+
+            if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, _user))
+                throw new Exception($"The current user is not permitted to access the catalog {catalogContainer.Id}.");
+
+            catalogItemRequests.Add((index, resourcePath, catalogItemRequest));
+        }
+
+        var samplePeriods = catalogItemRequests
+            .Select(catalogItemRequest => catalogItemRequest.Request.Item.Representation.SamplePeriod)
+            .Distinct()
+            .ToList();
+
+        if (samplePeriods.Count != 1)
+            throw new ValidationException("All representations must be of the same sample period.");
+
+        var samplePeriod = samplePeriods.First();
+        var elementCount = ExtensibilityUtilities.CalculateElementCountLong(begin, end, samplePeriod);
+        var contentLength = elementCount * NexusUtilities.SizeOf(NexusDataType.FLOAT64);
+        var dataChannels = new List<DataStreamChannel>(catalogItemRequests.Count);
+        var responseChannels = new BatchStreamChannel[catalogItemRequests.Count];
+        var readingGroups = new List<DataReadingGroup>();
+
+        foreach (var group in catalogItemRequests.GroupBy(current => current.Request.Container))
+        {
+            var controller = await _dataControllerService.GetDataSourceControllerAsync(group.Key.Pipeline, cancellationToken);
+            var catalogItemRequestPipeWriters = new List<CatalogItemRequestPipeWriter>();
+
+            foreach (var (index, resourcePath, catalogItemRequest) in group)
+            {
+                var pipe = new Pipe(new PipeOptions(
+                    pauseWriterThreshold: 4 * 1024 * 1024,
+                    resumeWriterThreshold: 2 * 1024 * 1024));
+
+
+                var channelId = Guid.NewGuid();
+
+                catalogItemRequestPipeWriters.Add(new CatalogItemRequestPipeWriter(catalogItemRequest, pipe.Writer));
+                dataChannels.Add(new DataStreamChannel(channelId, resourcePath, pipe.Reader, contentLength));
+                responseChannels[index] = new BatchStreamChannel(channelId, resourcePath);
+            }
+
+            readingGroups.Add(new DataReadingGroup(controller, catalogItemRequestPipeWriters.ToArray()));
+        }
+
+        var session = new DataStreamSession(
+            Guid.NewGuid(),
+            begin,
+            end,
+            samplePeriod,
+            readingGroups.ToArray(),
+            dataChannels.ToArray(),
+            ReadAsDoubleAsync,
+            _memoryTracker,
+            ReadProgress,
+            _loggerFactory.CreateLogger<DataSourceController>());
+
+        _streamSessionManager.Register(session);
+
+        return new BatchStreamResponse(
+            session.Id,
+            responseChannels);
     }
 
     public async Task ReadAsDoubleAsync(

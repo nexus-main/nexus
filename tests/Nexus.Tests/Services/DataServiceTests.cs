@@ -139,6 +139,7 @@ public class DataServiceTests
             default!,
             default!,
             dataControllerService,
+            Mock.Of<IDataStreamSessionManager>(),
             databaseService,
             memoryTracker,
             logger,

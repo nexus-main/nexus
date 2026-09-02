@@ -155,9 +155,9 @@ internal class Sample : IDataSource<object?>
     {
         var tasks = requests.Select(request =>
         {
-            var (_, catalogItem, data, status) = request;
+            var (_, catalogItem, data, status, _) = request;
 
-            return Task.Run(() =>
+            return Task.Run(async () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -205,6 +205,8 @@ internal class Sample : IDataSource<object?>
 
                 status.Span
                     .Fill(1);
+
+                await request.CompleteAsync(cancellationToken);
             });
         }).ToList();
 

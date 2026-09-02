@@ -76,7 +76,7 @@ class CatalogTimeRange:
     end: datetime
     """The date/time of the last data in the catalog."""
 
-@dataclass(frozen=True)
+@dataclass
 class ReadRequest:
     """
     A read request.
@@ -86,6 +86,7 @@ class ReadRequest:
         catalog_item: The CatalogItem to be read.
         data: The data buffer.
         status: The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN").
+        on_completed: A callback invoked by :meth:`complete` to flush the resource immediately. Pass ``None`` when not streaming per-resource.
     """
 
     original_resource_name: str
@@ -99,6 +100,25 @@ class ReadRequest:
 
     status: memoryview
     """The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN")."""
+
+    on_completed: Optional[Callable[[], Awaitable[None]]] = None
+    """A callback invoked by :meth:`complete` to flush the resource immediately."""
+
+    is_completed: bool = False
+    """Whether :meth:`complete` has been called."""
+
+    async def complete(self) -> None:
+        """
+        Called by the data source when data and status are ready.
+        The framework flushes the resource to its pipe immediately.
+        """
+        if self.is_completed:
+            return
+
+        self.is_completed = True
+
+        if self.on_completed is not None:
+            await self.on_completed()
 
 class ReadDataHandler(Protocol):
     """

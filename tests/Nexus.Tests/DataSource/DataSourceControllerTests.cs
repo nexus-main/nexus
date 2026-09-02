@@ -287,6 +287,154 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     }
 
     [Fact]
+    public async Task CanReadStreamPerResource()
+    {
+        // Arrange - verify that CompleteAsync flushes each resource to its pipe
+        // during ReadAsync (before the source returns), proving per-resource streaming.
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2020, 01, 01, 0, 0, 2, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+
+        var representation = new Representation(NexusDataType.FLOAT64, TimeSpan.FromSeconds(1), parameters: default, RepresentationKind.Original);
+
+        var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
+
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource1)
+            .AddResource(resource2)
+            .Build();
+
+        catalog = catalog.EnsureAndSanitizeMandatoryProperties(pipelinePosition: 0, dataSources: Array.Empty<IDataSource>());
+
+        resource1 = catalog.Resources![0];
+        resource2 = catalog.Resources![1];
+
+        var catalogItem1 = new CatalogItem(catalog, resource1, representation, Parameters: default);
+        var catalogItem2 = new CatalogItem(catalog, resource2, representation, Parameters: default);
+
+        var request1 = new CatalogItemRequest(catalogItem1, default, default!);
+        var request2 = new CatalogItemRequest(catalogItem2, default, default!);
+
+        var pipe1 = new Pipe();
+        var pipe2 = new Pipe();
+
+        var catalogItemRequestPipeWriters = new CatalogItemRequestPipeWriter[]
+        {
+            new(request1, pipe1.Writer),
+            new(request2, pipe2.Writer)
+        };
+
+        // gate: source completes A, then waits for test to confirm pipe1 data, then completes B
+        var completedA = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proceedToB = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var dataSource = Mock.Of<IDataSource<object?>>();
+
+        Mock.Get(dataSource)
+            .Setup(dataSource => dataSource.ReadAsync(
+               It.IsAny<DateTime>(),
+               It.IsAny<DateTime>(),
+               It.IsAny<ReadRequest[]>(),
+               It.IsAny<ReadDataHandler>(),
+               It.IsAny<IProgress<double>>(),
+               It.IsAny<CancellationToken>()))
+            .Returns(async (DateTime _, DateTime _, ReadRequest[] requests, ReadDataHandler _, IProgress<double> _, CancellationToken cancellationToken) =>
+            {
+                // resource A
+                var requestA = requests.Single(r => r.CatalogItem.Resource.Id == "A");
+                MemoryMarshal.Cast<byte, double>(requestA.Data.Span).Fill(11);
+                requestA.Status.Span.Fill(1);
+                await requestA.CompleteAsync(cancellationToken);
+                completedA.SetResult();
+
+                // wait for test to confirm pipe1 has data before completing B
+                await proceedToB.Task.WaitAsync(cancellationToken);
+
+                // resource B
+                var requestB = requests.Single(r => r.CatalogItem.Resource.Id == "B");
+                MemoryMarshal.Cast<byte, double>(requestB.Data.Span).Fill(22);
+                requestB.Status.Span.Fill(1);
+                await requestB.CompleteAsync(cancellationToken);
+            });
+
+        var registration = new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default);
+
+        using var controller = new DataSourceController(
+            [dataSource],
+            [registration],
+            default!,
+            default!,
+            default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+
+        var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>() { [catalog.Id] = catalog };
+        await controller.InitializeAsync(catalogCache, new LoggerFactory(), CancellationToken.None);
+
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minium, maximum, _) => new AllocationRegistration(memoryTracker, actualByteCount: maximum));
+
+        // Act
+        var reading = controller.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            catalogItemRequestPipeWriters,
+            default!,
+            new Progress<double>(),
+            CancellationToken.None);
+
+        // wait for source to complete resource A
+        await completedA.Task;
+
+        // Assert: pipe1 already has data *while ReadAsync is still running* (before B completes).
+        // This proves per-resource streaming via CompleteAsync.
+        Assert.False(proceedToB.Task.IsCompleted, "Source must still be running when pipe1 data arrives.");
+
+        var result1 = new double[2];
+        var buffer1 = result1.AsMemory().Cast<double, byte>();
+        var stream1 = pipe1.Reader.AsStream();
+
+        while (buffer1.Length > 0)
+        {
+            var read = await stream1.ReadAsync(buffer1);
+            if (read == 0)
+                throw new Exception("pipe1 stopped early");
+            buffer1 = buffer1[read..];
+        }
+
+        Assert.Equal(11, result1[0]);
+        Assert.Equal(11, result1[1]);
+
+        // let source proceed to complete B
+        proceedToB.SetResult();
+
+        var result2 = new double[2];
+        var buffer2 = result2.AsMemory().Cast<double, byte>();
+        var stream2 = pipe2.Reader.AsStream();
+
+        while (buffer2.Length > 0)
+        {
+            var read = await stream2.ReadAsync(buffer2);
+            if (read == 0)
+                throw new Exception("pipe2 stopped early");
+            buffer2 = buffer2[read..];
+        }
+
+        await reading;
+
+        Assert.Equal(22, result2[0]);
+        Assert.Equal(22, result2[1]);
+
+        pipe1.Reader.Complete();
+        pipe2.Reader.Complete();
+    }
+
+    [Fact]
     public async Task CanReadResampled()
     {
         // Arrange

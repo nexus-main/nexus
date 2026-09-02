@@ -36,12 +36,35 @@ public record CatalogTimeRange(
 /// <param name="CatalogItem">The <paramref name="CatalogItem"/> to be read.</param>
 /// <param name="Data">The data buffer.</param>
 /// <param name="Status">The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="double.NaN"/>.</param>
+/// <param name="OnCompleted">A callback invoked by <see cref="CompleteAsync"/> to flush the resource immediately. Pass <c>null</c> when not streaming per-resource.</param>
 public record ReadRequest(
     string OriginalResourceName,
     CatalogItem CatalogItem,
     Memory<byte> Data,
-    Memory<byte> Status
-);
+    Memory<byte> Status,
+    Func<CancellationToken, Task>? OnCompleted
+)
+{
+    /// <summary>
+    /// Whether <see cref="CompleteAsync"/> has been called.
+    /// </summary>
+    public bool IsCompleted { get; private set; }
+
+    /// <summary>
+    /// Called by the data source when <see cref="Data"/> and <see cref="Status"/> are fully populated.
+    /// The framework flushes the resource to its pipe immediately.
+    /// </summary>
+    public async Task CompleteAsync(CancellationToken cancellationToken)
+    {
+        if (IsCompleted)
+            return;
+
+        IsCompleted = true;
+
+        if (OnCompleted is not null)
+            await OnCompleted(cancellationToken);
+    }
+}
 
 /// <summary>
 /// Reads the requested data.
@@ -64,7 +87,10 @@ internal class ReadRequestManager : IDisposable
     private readonly IMemoryOwner<byte> _dataOwner;
     private readonly IMemoryOwner<byte> _statusOwner;
 
-    public ReadRequestManager(CatalogItem catalogItem, int elementCount)
+    public ReadRequestManager(
+        CatalogItem catalogItem,
+        int elementCount,
+        Func<CancellationToken, Task>? onCompleted)
     {
         var byteCount = elementCount * catalogItem.Representation.ElementSize;
         var originalResourceName = catalogItem.Resource.Properties!.GetStringValue(DataModelExtensions.OriginalNameKey)!;
@@ -85,7 +111,8 @@ internal class ReadRequestManager : IDisposable
             originalResourceName,
             catalogItem,
             dataMemory,
-            statusMemory
+            statusMemory,
+            onCompleted
         );
     }
 

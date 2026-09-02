@@ -1,0 +1,238 @@
+{
+  "x-generator": "NSwag v14.2.0.0 (NJsonSchema v11.1.0.0 (Newtonsoft.Json v13.0.0.0))",
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Nexus REST API",
+    "description": "Explore resources and get their data.",
+    "version": "v2"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000"
+    }
+  ],
+  "paths": {
+    "/api/v2/data/streams/batch": {
+      "post": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Registers a batch data stream session.",
+        "operationId": "Data_RegisterBatchStream",
+        "requestBody": {
+          "x-name": "request",
+          "description": "The batch stream request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchStreamRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "The registered batch stream session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStreamResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/data/streams/batch/{sessionId}/channel/{channelId}": {
+      "get": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Gets a single channel of a registered batch data stream session.",
+        "operationId": "Data_GetBatchStreamChannel",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "The session identifier.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "channelId",
+            "in": "path",
+            "required": true,
+            "description": "The channel identifier.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The channel data stream.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/data/streams/batch/{sessionId}/status": {
+      "get": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Gets the status of a batch data stream session.",
+        "operationId": "Data_GetBatchStreamSessionStatus",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "The session identifier.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStreamSessionStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BatchStreamResponse": {
+        "type": "object",
+        "description": "A registered batch data stream session.",
+        "additionalProperties": false,
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "The session identifier.",
+            "format": "guid"
+          },
+          "channels": {
+            "type": "array",
+            "description": "The channels to open and consume concurrently.",
+            "items": {
+              "$ref": "#/components/schemas/BatchStreamChannel"
+            }
+          }
+        }
+      },
+      "BatchStreamChannel": {
+        "type": "object",
+        "description": "A single channel of a registered batch data stream session.",
+        "additionalProperties": false,
+        "properties": {
+          "channelId": {
+            "type": "string",
+            "description": "The channel identifier.",
+            "format": "guid"
+          },
+          "resourcePath": {
+            "type": "string",
+            "description": "The resource path streamed by this channel."
+          }
+        }
+      },
+      "BatchStreamRequest": {
+        "type": "object",
+        "description": "A request to register a batch data stream session.",
+        "additionalProperties": false,
+        "properties": {
+          "begin": {
+            "type": "string",
+            "description": "The start date/time.",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "description": "The end date/time.",
+            "format": "date-time"
+          },
+          "resourcePaths": {
+            "type": "array",
+            "description": "The resource paths to stream.",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "BatchStreamSessionStatus": {
+        "type": "object",
+        "description": "The status of a batch data stream session.",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "description": "The session state.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BatchStreamSessionState"
+              }
+            ]
+          },
+          "faultedChannelId": {
+            "type": "string",
+            "description": "The channel identifier that caused the fault, or null when the fault is not channel-specific.",
+            "format": "guid",
+            "nullable": true
+          },
+          "faultedChannelResourcePath": {
+            "type": "string",
+            "description": "The resource path of the channel that caused the fault, or null when the fault is not channel-specific.",
+            "nullable": true
+          },
+          "faultReason": {
+            "type": "string",
+            "description": "A description of why the session failed, or null when the session has not faulted.",
+            "nullable": true
+          }
+        }
+      },
+      "BatchStreamSessionState": {
+        "type": "string",
+        "description": "The state of a batch data stream session.",
+        "x-enumNames": [
+          "Active",
+          "Completed",
+          "Faulted"
+        ],
+        "enum": [
+          "Active",
+          "Completed",
+          "Faulted"
+        ]
+      }
+    }
+  }
+}

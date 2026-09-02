@@ -415,13 +415,44 @@ internal class DataSourceController(
         CancellationToken cancellationToken)
     {
         var tuples = originalUnits
-            .Select(readUnit => (readUnit, new ReadRequestManager(readUnit.CatalogItemRequest.Item, targetElementCount)))
+            .Select(readUnit =>
+            {
+                var (catalogItemRequest, dataWriter) = readUnit;
+
+                ReadRequestManager manager = null!;
+                Func<CancellationToken, Task> onCompleted = async cancellationToken =>
+                {
+                    var (_, _, data, status, _) = manager.Request;
+
+                    var buffer = dataWriter
+                        .GetMemory(targetByteCount)[..targetByteCount];
+
+                    var targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
+
+                    BufferUtilities.ApplyRepresentationStatusByDataType(
+                        catalogItemRequest.Item.Representation.DataType,
+                        data,
+                        status,
+                        target: targetBuffer);
+
+                    _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+                    dataWriter.Advance(targetByteCount);
+                    await dataWriter.FlushAsync(cancellationToken);
+                };
+
+                manager = new ReadRequestManager(
+                    catalogItemRequest.Item,
+                    targetElementCount,
+                    onCompleted);
+
+                return (readUnit, manager);
+            })
             .ToArray();
 
         try
         {
             var readRequests = tuples
-                .Select(manager => manager.Item2.Request)
+                .Select(tuple => tuple.manager.Request)
                 .ToArray();
 
             try
@@ -458,12 +489,18 @@ internal class DataSourceController(
                 _logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
             }
 
+            /* Phase 2: flush any requests NOT completed via callback (fallback) */
             var readingTasks = new List<Task>(capacity: originalUnits.Length);
 
             foreach (var (readUnit, readRequestManager) in tuples)
             {
+                var readRequest = readRequestManager.Request;
+
+                if (readRequest.IsCompleted)
+                    continue;
+
                 var (catalogItemRequest, dataWriter) = readUnit;
-                var (_, _, data, status) = readRequestManager.Request;
+                var (_, _, data, status, _) = readRequest;
 
                 using var scope = _logger.BeginScope(new Dictionary<string, object>()
                 {
@@ -485,10 +522,9 @@ internal class DataSourceController(
                         status,
                         target: targetBuffer);
 
-                    /* update progress */
                     _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
                     dataWriter.Advance(targetByteCount);
-                    await dataWriter.FlushAsync();
+                    await dataWriter.FlushAsync(cancellationToken);
                 }, cancellationToken));
             }
 
@@ -527,7 +563,7 @@ internal class DataSourceController(
         /* read request */
         var readElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, baseSamplePeriod);
 
-        using var readRequestManager = new ReadRequestManager(baseItem, readElementCount);
+        using var readRequestManager = new ReadRequestManager(baseItem, readElementCount, onCompleted: null);
         var readRequest = readRequestManager.Request;
 
         /* go */
@@ -687,7 +723,7 @@ internal class DataSourceController(
         var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
 
         /* read request */
-        using var readRequestManager = new ReadRequestManager(baseItem, roundedElementCount);
+        using var readRequestManager = new ReadRequestManager(baseItem, roundedElementCount, onCompleted: null);
         var readRequest = readRequestManager.Request;
 
         /* go */

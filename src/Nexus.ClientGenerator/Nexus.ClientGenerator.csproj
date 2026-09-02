@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Apollo3zehn.OpenApiClientGenerator" />
+    <ProjectReference Include="../../../openapi-client-generator/src/Apollo3zehn.OpenApiClientGenerator/Apollo3zehn.OpenApiClientGenerator.csproj" />
   </ItemGroup>
 
 </Project>

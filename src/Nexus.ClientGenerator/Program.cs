@@ -23,6 +23,10 @@ public static class Program
             ? args[1]
             : "openapi.json";
 
+        var openApiV2FileName = Path.GetFileNameWithoutExtension(openApiFileName) == "openapi"
+            ? "openapi.v2.json"
+            : $"{Path.GetFileNameWithoutExtension(openApiFileName)}.v2{Path.GetExtension(openApiFileName)}";
+
         //
         var builder = WebApplication.CreateBuilder(args);
 
@@ -42,16 +46,22 @@ public static class Program
 
         _ = app.RunAsync();
 
-        // read open API document
+        // read open API documents
         var client = new HttpClient();
-        var response = await client.GetAsync("http://localhost:5000/openapi/v1.json");
+        var v1Response = await client.GetAsync("http://localhost:5000/openapi/v1.json");
+        var v2Response = await client.GetAsync("http://localhost:5000/openapi/v2.json");
 
-        response.EnsureSuccessStatusCode();
+        v1Response.EnsureSuccessStatusCode();
+        v2Response.EnsureSuccessStatusCode();
 
-        var openApiJsonString = await response.Content.ReadAsStringAsync();
+        var openApiV1JsonString = await v1Response.Content.ReadAsStringAsync();
+        var openApiV2JsonString = await v2Response.Content.ReadAsStringAsync();
 
-        var document = new OpenApiStringReader()
-            .Read(openApiJsonString, out var diagnostic);
+        var v1Document = new OpenApiStringReader()
+            .Read(openApiV1JsonString, out var v1Diagnostic);
+
+        var v2Document = new OpenApiStringReader()
+            .Read(openApiV2JsonString, out var v2Diagnostic);
 
         // generate clients
         var basePath = Assembly.GetExecutingAssembly().Location;
@@ -72,16 +82,19 @@ public static class Program
         var csharpGenerator = new CSharpGenerator(settings);
         var csharpOutputFolderPath = $"{solutionRoot}src/clients/dotnet";
 
-        csharpGenerator.Generate(csharpOutputFolderPath, document);
+        csharpGenerator.Generate(csharpOutputFolderPath, v1Document, v2Document);
 
         // generate Python client
         var pythonOutputFolderPath = $"{solutionRoot}src/clients/python/nexus_api";
         var pythonGenerator = new PythonGenerator(settings);
 
-        pythonGenerator.Generate(pythonOutputFolderPath, document);
+        pythonGenerator.Generate(pythonOutputFolderPath, v1Document, v2Document);
 
-        // save open API document
+        // save open API documents
         var openApiDocumentOutputPath = $"{solutionRoot}{openApiFileName}";
-        File.WriteAllText(openApiDocumentOutputPath, openApiJsonString);
+        var openApiV2DocumentOutputPath = $"{solutionRoot}{openApiV2FileName}";
+
+        File.WriteAllText(openApiDocumentOutputPath, openApiV1JsonString);
+        File.WriteAllText(openApiV2DocumentOutputPath, openApiV2JsonString);
     }
 }

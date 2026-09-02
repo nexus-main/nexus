@@ -2,8 +2,8 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Net;
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
-using System.Security.Claims;
 using System.Text.Json;
 using Nexus.Api;
 using Nexus.Api.V1;
@@ -13,6 +13,8 @@ namespace Nexus.UI.Core;
 public class NexusDemoClient : INexusClient
 {
     public IV1 V1 => throw new NotImplementedException();
+
+    public Api.V2.IV2 V2 => new V2();
 
     public void SignIn(string accessToken)
     {
@@ -28,6 +30,74 @@ public class NexusDemoClient : INexusClient
     {
         throw new NotImplementedException();
     }
+
+    public IReadOnlyDictionary<string, DataResponse> Load(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default)
+    {
+        return LoadAsync(begin, end, resourcePaths, onProgress).GetAwaiter().GetResult();
+    }
+
+    public async Task<IReadOnlyDictionary<string, DataResponse>> LoadAsync(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+    {
+        var resourcePathList = resourcePaths.ToList();
+        var session = await V2.Data.RegisterBatchStreamAsync(
+            new Api.V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken);
+
+        var result = new Dictionary<string, DataResponse>();
+
+        for (var i = 0; i < session.Channels.Count; i++)
+        {
+            var channel = session.Channels[i];
+            var response = await V2.Data.GetBatchStreamChannelAsync(session.SessionId, channel.ChannelId, cancellationToken);
+
+            try
+            {
+                var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                var length = (end - begin).Ticks / TimeSpan.FromSeconds(1).Ticks;
+                var data = new byte[length * 8];
+                var remaining = data.AsMemory();
+
+                while (!remaining.IsEmpty)
+                {
+                    var bytesRead = await stream.ReadAsync(remaining, cancellationToken);
+                    if (bytesRead == 0)
+                        break;
+                    remaining = remaining.Slice(bytesRead);
+                }
+
+                var doubleData = MemoryMarshal.Cast<byte, double>(data).ToArray();
+
+                onProgress?.Invoke((i + 1) / (double)session.Channels.Count);
+
+                result[channel.ResourcePath] = new DataResponse(
+                    CatalogItem: default!,
+                    Name: channel.ResourcePath.Split('/').LastOrDefault() ?? channel.ResourcePath,
+                    Unit: string.Empty,
+                    Description: null,
+                    SamplePeriod: TimeSpan.FromSeconds(1),
+                    Values: doubleData);
+            }
+            finally
+            {
+                response.Dispose();
+            }
+        }
+
+        return result;
+    }
+}
+
+public class V2 : Api.V2.IV2
+{
+    public Api.V2.IDataClient Data => new DataV2DemoClient();
 }
 
 public class V1 : IV1
@@ -305,6 +375,80 @@ public class DataDemoClient : IDataClient
         };
 
         return Task.FromResult(responseMessage);
+    }
+}
+
+public class DataV2DemoClient : Api.V2.IDataClient
+{
+    private static readonly ConcurrentDictionary<Guid, (string ResourcePath, DateTime Begin, DateTime End)> ChannelMap = new();
+
+    public Api.V2.BatchStreamResponse RegisterBatchStream(Api.V2.BatchStreamRequest request)
+    {
+        return RegisterBatchStreamAsync(request).GetAwaiter().GetResult();
+    }
+
+    public Task<Api.V2.BatchStreamResponse> RegisterBatchStreamAsync(Api.V2.BatchStreamRequest request, CancellationToken cancellationToken = default)
+    {
+        var channels = request.ResourcePaths
+            .Select(resourcePath =>
+            {
+                var channelId = Guid.NewGuid();
+                ChannelMap[channelId] = (resourcePath, request.Begin, request.End);
+                return new Api.V2.BatchStreamChannel(channelId, resourcePath);
+            })
+            .ToArray();
+
+        return Task.FromResult(new Api.V2.BatchStreamResponse(Guid.NewGuid(), channels));
+    }
+
+    public HttpResponseMessage GetBatchStreamChannel(Guid sessionId, Guid channelId)
+    {
+        return GetBatchStreamChannelAsync(sessionId, channelId).GetAwaiter().GetResult();
+    }
+
+    public Task<HttpResponseMessage> GetBatchStreamChannelAsync(Guid sessionId, Guid channelId, CancellationToken cancellationToken = default)
+    {
+        if (!ChannelMap.TryRemove(channelId, out var channel))
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var offset = channel.ResourcePath.Contains("temperature")
+            ? 7
+            : 12;
+
+        var factor = channel.ResourcePath.Contains("temperature")
+            ? 0.3
+            : 3;
+
+        var random = new Random();
+        var length = (channel.End - channel.Begin).Ticks / TimeSpan.FromSeconds(1).Ticks;
+        var data = new byte[length * 8];
+        var doubleData = MemoryMarshal.Cast<byte, double>(data);
+
+        for (int i = 0; i < length; i++)
+        {
+            doubleData[i] = offset + random.NextDouble() * factor;
+        }
+
+        var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(data)
+        };
+
+        return Task.FromResult(responseMessage);
+    }
+
+    public Api.V2.BatchStreamSessionStatus GetBatchStreamSessionStatus(Guid sessionId)
+    {
+        return GetBatchStreamSessionStatusAsync(sessionId).GetAwaiter().GetResult();
+    }
+
+    public Task<Api.V2.BatchStreamSessionStatus> GetBatchStreamSessionStatusAsync(Guid sessionId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new Api.V2.BatchStreamSessionStatus(
+            Api.V2.BatchStreamSessionState.Completed,
+            FaultedChannelId: null,
+            FaultedChannelResourcePath: null,
+            FaultReason: null));
     }
 }
 

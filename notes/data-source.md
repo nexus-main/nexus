@@ -38,3 +38,63 @@ A read operation may be triggered by either streaming or exporting of the data o
 With the collection of read requests passed to the `IDataSource`, the implementation may decide to load the data sequentially or in parallel and when everything is read, to return the results all at once.
 
 (1) A `IDataSource` instance is disposed automatically by Nexus when it implements the `IDisposable` interface.
+
+# Batch Streaming
+
+The public v2 data stream API preserves source batching for multiple resources. A client first registers a batch session with `POST /api/v2/data/streams/batch` and then opens one channel stream per returned channel at `GET /api/v2/data/streams/batch/{sessionId}/channel/{channelId}`.
+
+The existing single-resource v1 endpoint remains unchanged:
+
+```http
+GET /api/v1/data
+```
+
+Existing C#, Python, and Matlab clients rely on this endpoint, so it must not be overloaded with batch semantics.
+
+The v2 batch registration request is:
+
+```http
+POST /api/v2/data/streams/batch
+Content-Type: application/json
+Accept: application/json
+```
+
+```json
+{
+  "begin": "2026-01-01T00:00:00.0000000Z",
+  "end": "2026-01-01T01:00:00.0000000Z",
+  "resourcePaths": [
+    "/catalog/a/1_s",
+    "/catalog/b/1_s"
+  ]
+}
+```
+
+The response contains one channel per resource path:
+
+```json
+{
+  "sessionId": "00000000-0000-0000-0000-000000000000",
+  "channels": [
+    {
+      "channelId": "00000000-0000-0000-0000-000000000001",
+      "resourcePath": "/catalog/a/1_s"
+    }
+  ]
+}
+```
+
+Each channel is streamed independently:
+
+```http
+GET /api/v2/data/streams/batch/{sessionId}/channel/{channelId}
+Accept: application/octet-stream
+```
+
+Each channel response is the same raw double stream format used by the v1 endpoint and has an exact `Content-Length`.
+
+The server creates one `Pipe` per requested resource and groups pipe writers by `CatalogContainer`, matching the export topology. The existing static `DataSourceController.ReadAsync(...)` method is still responsible for validation, memory-aware chunking, cache behavior, processing, and dispatching batched `ReadRequest[]` values to sources.
+
+The source read starts only after all expected channel streams have attached. This prevents an unconsumed pipe from blocking the batch read before its HTTP response exists.
+
+Because each resource uses a separate HTTP channel, the v2 batch streaming endpoints require HTTP/2. HTTP/1.1-only clients or reverse proxies can queue channel requests behind per-origin connection limits; if not all channels attach, the server will not start the source read and the batch can hang until timeout. Proxies must also avoid buffering the channel responses.
