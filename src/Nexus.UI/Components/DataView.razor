@@ -99,34 +99,25 @@ else
         previousCts?.Cancel();
         _cts = cts;
 
-        if (ReferenceEquals(_cts, cts))
-            _showReloadButton = false;
+        _showReloadButton = false;
 
         if (AppState.Settings.IsSizeLimitExceeded)
         {
-            if (ReferenceEquals(_cts, cts))
-            {
-                _sizeLimitExceeded = true;
-                _isLoading = false;
-                _cts = null;
-                await InvokeAsync(StateHasChanged);
-            }
+            _sizeLimitExceeded = true;
+            _isLoading = false;
+            _cts = null;
+            await InvokeAsync(StateHasChanged);
 
             cts.Dispose();
             return;
         }
 
-        if (ReferenceEquals(_cts, cts))
-        {
-            _sizeLimitExceeded = false;
+        _sizeLimitExceeded = false;
+        _progress = 0;
+        _lineSeriesData = null;
+        _isLoading = true;
 
-            _progress = 0;
-            _lineSeriesData = null;
-            _isLoading = true;
-        }
-
-        if (ReferenceEquals(_cts, cts))
-            await InvokeAsync(StateHasChanged);
+        await InvokeAsync(StateHasChanged);
 
         var progressTask = Task.Run(async () =>
         {
