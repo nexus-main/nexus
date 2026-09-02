@@ -2,7 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Net;
-using System.Collections.Concurrent;
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Nexus.Api;
@@ -53,42 +53,50 @@ public class NexusDemoClient : INexusClient
     {
         var resourcePathList = resourcePaths.ToList();
         var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken);
-        var session = await V2.Data.RegisterBatchStreamAsync(
+        using var response = await V2.Data.GetStreamAsync(
             new Api.V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken);
-
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var values = resourcePathList.Select(resourcePath => new double[checked((int)(
+            (end - begin).Ticks / catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks))]).ToArray();
+        var offsets = new int[values.Length];
+        var header = new byte[8];
         var result = new Dictionary<string, DataResponse>();
 
-        for (var i = 0; i < session.Channels.Count; i++)
+        while (await stream.ReadAsync(header.AsMemory(0, 1), cancellationToken) != 0)
         {
-            var channel = session.Channels[i];
-            var response = await V2.Data.GetBatchStreamChannelAsync(session.SessionId, channel.ChannelId, cancellationToken);
+            await stream.ReadExactlyAsync(header.AsMemory(1), cancellationToken);
+            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(header);
+            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
 
-            try
-            {
-                var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                var length = (end - begin).Ticks / SamplePeriod.Ticks;
-                var data = new byte[length * 8];
-                await stream.ReadExactlyAsync(data, cancellationToken);
+            if (resourceIndex < 0 || resourceIndex >= values.Length ||
+                payloadLength <= 0 || payloadLength % sizeof(double) != 0 ||
+                offsets[resourceIndex] > values[resourceIndex].Length * sizeof(double) - payloadLength)
+                throw new InvalidDataException("The demo batch stream is invalid.");
 
-                var doubleData = MemoryMarshal.Cast<byte, double>(data).ToArray();
-                var catalogItem = catalogItemMap[channel.ResourcePath];
-                var resource = catalogItem.Resource;
-
-                onProgress?.Invoke((i + 1) / (double)session.Channels.Count);
-
-                result[channel.ResourcePath] = new DataResponse(
-                    CatalogItem: catalogItem,
-                    Name: resource.Id,
-                    Unit: GetStringProperty(resource, "unit"),
-                    Description: GetStringProperty(resource, "description"),
-                    SamplePeriod: catalogItem.Representation.SamplePeriod,
-                    Values: doubleData);
-            }
-            finally
-            {
-                response.Dispose();
-            }
+            var payload = new byte[payloadLength];
+            await stream.ReadExactlyAsync(payload, cancellationToken);
+            payload.CopyTo(MemoryMarshal.AsBytes(values[resourceIndex].AsSpan())[offsets[resourceIndex]..]);
+            offsets[resourceIndex] += payloadLength;
         }
+
+        if (!offsets.Select((offset, index) => offset == values[index].Length * sizeof(double)).All(value => value))
+            throw new InvalidDataException("The demo batch stream ended early.");
+
+        for (var i = 0; i < resourcePathList.Count; i++)
+        {
+            var resourcePath = resourcePathList[i];
+            var catalogItem = catalogItemMap[resourcePath];
+            var resource = catalogItem.Resource;
+            result[resourcePath] = new DataResponse(
+                catalogItem,
+                resource.Id,
+                GetStringProperty(resource, "unit"),
+                GetStringProperty(resource, "description"),
+                catalogItem.Representation.SamplePeriod,
+                values[i]);
+        }
+
+        onProgress?.Invoke(1);
 
         return result;
 
@@ -405,87 +413,39 @@ public class DataDemoClient : IDataClient
 public class DataV2DemoClient : Api.V2.IDataClient
 {
     private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
-    private readonly ConcurrentDictionary<Guid, (Guid SessionId, string ResourcePath, DateTime Begin, DateTime End)> _channelMap = new();
-
-    public Api.V2.BatchStreamResponse RegisterBatchStream(Api.V2.BatchStreamRequest request)
+    public HttpResponseMessage GetStream(Api.V2.BatchStreamRequest request)
     {
-        return RegisterBatchStreamAsync(request).GetAwaiter().GetResult();
+        return GetStreamAsync(request).GetAwaiter().GetResult();
     }
 
-    public Task<Api.V2.BatchStreamResponse> RegisterBatchStreamAsync(Api.V2.BatchStreamRequest request, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> GetStreamAsync(Api.V2.BatchStreamRequest request, CancellationToken cancellationToken = default)
     {
-        var sessionId = Guid.NewGuid();
-        var channels = request.ResourcePaths
-            .Select(resourcePath =>
-            {
-                var channelId = Guid.NewGuid();
-                _channelMap[channelId] = (sessionId, resourcePath, request.Begin, request.End);
-                return new Api.V2.BatchStreamChannel(channelId, resourcePath);
-            })
-            .ToArray();
+        using var stream = new MemoryStream();
+        var header = new byte[8];
 
-        _ = RemoveAfterTimeoutAsync(channels);
-        return Task.FromResult(new Api.V2.BatchStreamResponse(sessionId, channels));
-
-        async Task RemoveAfterTimeoutAsync(Api.V2.BatchStreamChannel[] sessionChannels)
+        for (var resourceIndex = 0; resourceIndex < request.ResourcePaths.Count; resourceIndex++)
         {
-            await Task.Delay(TimeSpan.FromMinutes(1));
+            var resourcePath = request.ResourcePaths[resourceIndex];
+            var length = checked((int)((request.End - request.Begin).Ticks / SamplePeriod.Ticks));
+            var data = new byte[length * sizeof(double)];
+            var doubleData = MemoryMarshal.Cast<byte, double>(data);
+            var offset = resourcePath.Contains("temperature") ? 7 : 12;
+            var factor = resourcePath.Contains("temperature") ? 0.3 : 3;
+            var random = new Random();
 
-            foreach (var channel in sessionChannels)
-                _channelMap.TryRemove(channel.ChannelId, out _);
-        }
-    }
+            for (var index = 0; index < length; index++)
+                doubleData[index] = offset + random.NextDouble() * factor;
 
-    public HttpResponseMessage GetBatchStreamChannel(Guid sessionId, Guid channelId)
-    {
-        return GetBatchStreamChannelAsync(sessionId, channelId).GetAwaiter().GetResult();
-    }
-
-    public Task<HttpResponseMessage> GetBatchStreamChannelAsync(Guid sessionId, Guid channelId, CancellationToken cancellationToken = default)
-    {
-        if (!_channelMap.TryGetValue(channelId, out var channel) || channel.SessionId != sessionId)
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        _channelMap.TryRemove(channelId, out _);
-
-        var offset = channel.ResourcePath.Contains("temperature")
-            ? 7
-            : 12;
-
-        var factor = channel.ResourcePath.Contains("temperature")
-            ? 0.3
-            : 3;
-
-        var random = new Random();
-        var length = (channel.End - channel.Begin).Ticks / SamplePeriod.Ticks;
-        var data = new byte[length * 8];
-        var doubleData = MemoryMarshal.Cast<byte, double>(data);
-
-        for (int i = 0; i < length; i++)
-        {
-            doubleData[i] = offset + random.NextDouble() * factor;
+            BinaryPrimitives.WriteInt32LittleEndian(header, resourceIndex);
+            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), data.Length);
+            stream.Write(header);
+            stream.Write(data);
         }
 
-        var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new ByteArrayContent(data)
-        };
-
-        return Task.FromResult(responseMessage);
-    }
-
-    public Api.V2.BatchStreamSessionStatus GetBatchStreamSessionStatus(Guid sessionId)
-    {
-        return GetBatchStreamSessionStatusAsync(sessionId).GetAwaiter().GetResult();
-    }
-
-    public Task<Api.V2.BatchStreamSessionStatus> GetBatchStreamSessionStatusAsync(Guid sessionId, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(new Api.V2.BatchStreamSessionStatus(
-            Api.V2.BatchStreamSessionState.Completed,
-            FaultedChannelId: null,
-            FaultedChannelResourcePath: null,
-            FaultReason: null));
+            Content = new ByteArrayContent(stream.ToArray())
+        });
     }
 }
 

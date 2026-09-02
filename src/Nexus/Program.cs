@@ -167,8 +167,6 @@ void AddServices(
 
     // Custom
     services.AddTransient<IDataService, DataService>();
-    services.AddSingleton<IDataStreamSessionManager, DataStreamSessionManager>();
-
     services.AddScoped<IDBService, DbService>();
     services.AddScoped(provider => provider.GetService<IHttpContextAccessor>()!.HttpContext!.User);
 

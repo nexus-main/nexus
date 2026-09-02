@@ -7,6 +7,7 @@ using Moq;
 using Nexus.Controllers.V2;
 using Nexus.Core.V2;
 using Nexus.Services;
+using System.ComponentModel.DataAnnotations;
 using Xunit;
 
 namespace API.v2;
@@ -14,125 +15,48 @@ namespace API.v2;
 public class DataControllerTests
 {
     [Fact]
-    public async Task RegisterBatchStreamRequiresHttp2()
+    public async Task StreamsOverHttp11()
     {
-        var dataService = Mock.Of<IDataService>();
-        var streamSessionManager = Mock.Of<IDataStreamSessionManager>();
-        var controller = CreateController(dataService, streamSessionManager, "HTTP/1.1");
-        var request = new BatchStreamRequest(default, default, []);
+        var expected = new MemoryStream([1, 2, 3]);
+        var service = Mock.Of<IDataService>();
+        var request = new BatchStreamRequest(default, default, ["/A/B"]);
 
-        var actual = await controller.RegisterBatchStreamAsync(request, CancellationToken.None);
-
-        var result = Assert.IsType<ObjectResult>(actual.Result);
-        Assert.Equal(StatusCodes.Status426UpgradeRequired, result.StatusCode);
-
-        Mock.Get(dataService).Verify(
-            current => current.RegisterBatchStreamAsync(It.IsAny<BatchStreamRequest>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
-    public async Task RegisterBatchStreamAllowsHttp2()
-    {
-        var expected = new BatchStreamResponse(Guid.NewGuid(), []);
-        var dataService = Mock.Of<IDataService>();
-
-        Mock.Get(dataService)
-            .Setup(current => current.RegisterBatchStreamAsync(It.IsAny<BatchStreamRequest>(), It.IsAny<CancellationToken>()))
+        Mock.Get(service)
+            .Setup(current => current.ReadBatchAsStreamAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var streamSessionManager = Mock.Of<IDataStreamSessionManager>();
-        var controller = CreateController(dataService, streamSessionManager, "HTTP/2");
+        var controller = CreateController(service);
+        var actual = await controller.GetStreamAsync(request, CancellationToken.None);
+        var result = Assert.IsType<FileStreamResult>(actual);
+
+        Assert.Same(expected, result.FileStream);
+        Assert.Equal("application/octet-stream", result.ContentType);
+    }
+
+    [Fact]
+    public async Task ReturnsUnprocessableEntityForInvalidRequest()
+    {
+        var service = Mock.Of<IDataService>();
         var request = new BatchStreamRequest(default, default, []);
 
-        var actual = await controller.RegisterBatchStreamAsync(request, CancellationToken.None);
+        Mock.Get(service)
+            .Setup(current => current.ReadBatchAsStreamAsync(request, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ValidationException("invalid"));
 
-        Assert.Equal(expected, actual.Value);
+        var actual = await CreateController(service).GetStreamAsync(request, CancellationToken.None);
+        var result = Assert.IsType<UnprocessableEntityObjectResult>(actual);
+
+        Assert.Equal("invalid", result.Value);
     }
 
-    [Fact]
-    public async Task GetBatchStreamChannelRequiresHttp2()
+    private static DataController CreateController(IDataService service)
     {
-        var dataService = Mock.Of<IDataService>();
-        var streamSessionManager = Mock.Of<IDataStreamSessionManager>();
-        var controller = CreateController(dataService, streamSessionManager, "HTTP/1.1");
+        var context = new DefaultHttpContext();
+        context.Request.Protocol = "HTTP/1.1";
 
-        var actual = await controller.GetBatchStreamChannelAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
-
-        var result = Assert.IsType<ObjectResult>(actual);
-        Assert.Equal(StatusCodes.Status426UpgradeRequired, result.StatusCode);
-
-        Mock.Get(streamSessionManager).Verify(
-            current => current.Attach(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<System.Security.Claims.ClaimsPrincipal>()),
-            Times.Never);
-    }
-
-    [Fact]
-    public void GetBatchStreamSessionStatusReturns404ForUnknownSession()
-    {
-        var dataService = Mock.Of<IDataService>();
-        var streamSessionManager = Mock.Of<IDataStreamSessionManager>();
-        var controller = CreateController(dataService, streamSessionManager, "HTTP/1.1");
-
-        var actual = controller.GetBatchStreamSessionStatus(Guid.NewGuid());
-
-        Assert.IsType<NotFoundResult>(actual.Result);
-    }
-
-    [Fact]
-    public void GetBatchStreamSessionStatusDoesNotRequireHttp2()
-    {
-        var expected = new BatchStreamSessionStatus(
-            BatchStreamSessionState.Faulted, Guid.NewGuid(), "/A/B", "boom");
-
-        var dataService = Mock.Of<IDataService>();
-        var streamSessionManager = Mock.Of<IDataStreamSessionManager>();
-
-        Mock.Get(streamSessionManager)
-            .Setup(current => current.GetStatus(It.IsAny<Guid>(), It.IsAny<System.Security.Claims.ClaimsPrincipal>()))
-            .Returns(expected);
-
-        var controller = CreateController(dataService, streamSessionManager, "HTTP/1.1");
-
-        var actual = controller.GetBatchStreamSessionStatus(Guid.NewGuid());
-
-        Assert.Equal(expected, actual.Value);
-    }
-
-    [Fact]
-    public void GetBatchStreamSessionStatusReturnsStatus()
-    {
-        var expected = new BatchStreamSessionStatus(
-            BatchStreamSessionState.Completed, null, null, null);
-
-        var dataService = Mock.Of<IDataService>();
-        var streamSessionManager = Mock.Of<IDataStreamSessionManager>();
-
-        Mock.Get(streamSessionManager)
-            .Setup(current => current.GetStatus(It.IsAny<Guid>(), It.IsAny<System.Security.Claims.ClaimsPrincipal>()))
-            .Returns(expected);
-
-        var controller = CreateController(dataService, streamSessionManager, "HTTP/2");
-
-        var actual = controller.GetBatchStreamSessionStatus(Guid.NewGuid());
-
-        Assert.Equal(expected, actual.Value);
-    }
-
-    private static DataController CreateController(
-        IDataService dataService,
-        IDataStreamSessionManager streamSessionManager,
-        string protocol)
-    {
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.Protocol = protocol;
-
-        return new DataController(dataService, streamSessionManager)
+        return new DataController(service)
         {
-            ControllerContext = new ControllerContext
-            {
-                HttpContext = httpContext
-            }
+            ControllerContext = new ControllerContext { HttpContext = context }
         };
     }
 }

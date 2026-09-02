@@ -2,16 +2,15 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.ComponentModel.DataAnnotations;
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Core.V2;
-using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Utilities;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Services;
 
@@ -26,7 +25,7 @@ internal interface IDataService
        DateTime end,
        CancellationToken cancellationToken);
 
-    Task<BatchStreamResponse> RegisterBatchStreamAsync(
+    Task<Stream> ReadBatchAsStreamAsync(
        BatchStreamRequest request,
        CancellationToken cancellationToken);
 
@@ -49,7 +48,6 @@ internal class DataService(
     AppState appState,
     ClaimsPrincipal user,
     IDataControllerService dataControllerService,
-    IDataStreamSessionManager streamSessionManager,
     IDatabaseService databaseService,
     IMemoryTracker memoryTracker,
     ILogger<DataService> logger,
@@ -63,7 +61,6 @@ internal class DataService(
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly IDataControllerService _dataControllerService = dataControllerService;
-    private readonly IDataStreamSessionManager _streamSessionManager = streamSessionManager;
 
     public Progress<double> ReadProgress { get; } = new Progress<double>();
 
@@ -114,7 +111,7 @@ internal class DataService(
         return stream;
     }
 
-    public async Task<BatchStreamResponse> RegisterBatchStreamAsync(
+    public async Task<Stream> ReadBatchAsStreamAsync(
        BatchStreamRequest request,
        CancellationToken cancellationToken)
     {
@@ -122,13 +119,6 @@ internal class DataService(
         var end = DateTime.SpecifyKind(request.End, DateTimeKind.Utc);
 
         ValidateResourcePaths(request.ResourcePaths);
-
-        var ownerSubject = _user.FindFirstValue(Claims.Subject);
-
-        if (string.IsNullOrWhiteSpace(ownerSubject))
-            throw new ValidationException("The current user has no subject claim.");
-
-        ownerSubject = ownerSubject.Trim().Normalize();
 
         var root = _appState.CatalogState.Root;
         var catalogItemRequests = new List<(int Index, string ResourcePath, CatalogItemRequest Request)>(request.ResourcePaths.Length);
@@ -158,12 +148,12 @@ internal class DataService(
         var samplePeriod = samplePeriods.First();
         DataSourceController.ValidateParameters(begin, end, samplePeriod);
 
-        var elementCount = ExtensibilityUtilities.CalculateElementCountLong(begin, end, samplePeriod);
-        var contentLength = checked(elementCount * NexusUtilities.SizeOf(NexusDataType.FLOAT64));
-        var registration = _streamSessionManager.Reserve(ownerSubject, request.ResourcePaths.Length);
-        var dataChannels = new List<DataStreamChannel>(catalogItemRequests.Count);
-        var responseChannels = new BatchStreamChannel[catalogItemRequests.Count];
+        var outputPipe = new Pipe(new PipeOptions(
+            pauseWriterThreshold: 1024 * 1024,
+            resumeWriterThreshold: 512 * 1024));
+        var dataReaders = new List<(int Index, PipeReader Reader)>();
         var readingGroups = new List<DataReadingGroup>();
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
@@ -174,17 +164,12 @@ internal class DataService(
 
                 try
                 {
-                    foreach (var (index, resourcePath, catalogItemRequest) in group)
+                    foreach (var (index, _, catalogItemRequest) in group)
                     {
-                        var pipe = new Pipe(new PipeOptions(
-                            pauseWriterThreshold: 4 * 1024 * 1024,
-                            resumeWriterThreshold: 2 * 1024 * 1024));
-
-                        var channelId = Guid.NewGuid();
+                        var pipe = new Pipe();
 
                         catalogItemRequestPipeWriters.Add(new CatalogItemRequestPipeWriter(catalogItemRequest, pipe.Writer));
-                        dataChannels.Add(new DataStreamChannel(channelId, resourcePath, pipe.Reader, contentLength));
-                        responseChannels[index] = new BatchStreamChannel(channelId, resourcePath);
+                        dataReaders.Add((index, pipe.Reader));
                     }
 
                     readingGroups.Add(new DataReadingGroup(controller, catalogItemRequestPipeWriters.ToArray()));
@@ -216,27 +201,29 @@ internal class DataService(
                 }
             }
 
-            var session = new DataStreamSession(
-                Guid.NewGuid(),
-                ownerSubject,
+            var reading = DataSourceController.ReadAsync(
                 begin,
                 end,
                 samplePeriod,
                 readingGroups.ToArray(),
-                dataChannels.ToArray(),
                 ReadAsDoubleAsync,
                 _memoryTracker,
                 ReadProgress,
                 _loggerFactory.CreateLogger<DataSourceController>(),
-                registration);
+                cts.Token,
+                DataSourceErrorHandling.Propagate);
+            var writeGate = new SemaphoreSlim(1, 1);
+            var pumping = dataReaders
+                .Select(current => PumpAsync(current.Index, current.Reader, outputPipe.Writer, writeGate, cts.Token))
+                .ToArray();
 
-            _streamSessionManager.Register(session);
-
-            return new BatchStreamResponse(session.Id, responseChannels);
+            _ = CompleteAsync(reading, pumping, readingGroups, dataReaders, outputPipe.Writer, writeGate, cts);
+            return outputPipe.Reader.AsStream();
         }
         catch
         {
-            registration.Dispose();
+            await cts.CancelAsync().ConfigureAwait(false);
+            cts.Dispose();
 
             foreach (var readingGroup in readingGroups)
             {
@@ -262,11 +249,11 @@ internal class DataService(
                 }
             }
 
-            foreach (var channel in dataChannels)
+            foreach (var (_, reader) in dataReaders)
             {
                 try
                 {
-                    await channel.Reader.CompleteAsync().ConfigureAwait(false);
+                    await reader.CompleteAsync().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -274,7 +261,124 @@ internal class DataService(
                 }
             }
 
+            await outputPipe.Writer.CompleteAsync().ConfigureAwait(false);
+            await outputPipe.Reader.CompleteAsync().ConfigureAwait(false);
+
             throw;
+        }
+
+        static async Task PumpAsync(
+            int resourceIndex,
+            PipeReader input,
+            PipeWriter output,
+            SemaphoreSlim writeGate,
+            CancellationToken cancellationToken)
+        {
+            const int maximumPayloadLength = 64 * 1024;
+
+            while (true)
+            {
+                var result = await input.ReadAsync(cancellationToken).ConfigureAwait(false);
+                var buffer = result.Buffer;
+
+                try
+                {
+                    foreach (var segment in buffer)
+                    {
+                        var remaining = segment;
+
+                        while (!remaining.IsEmpty)
+                        {
+                            var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
+                            await writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+                            try
+                            {
+                                var header = output.GetSpan(8);
+                                BinaryPrimitives.WriteInt32LittleEndian(header, resourceIndex);
+                                BinaryPrimitives.WriteInt32LittleEndian(header[4..], payload.Length);
+                                output.Advance(8);
+                                payload.CopyTo(output.GetMemory(payload.Length));
+                                output.Advance(payload.Length);
+
+                                var flushResult = await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+                                if (flushResult.IsCanceled)
+                                    throw new OperationCanceledException(cancellationToken);
+
+                                if (flushResult.IsCompleted)
+                                    throw new IOException("The batch output pipe completed before all data was written.");
+                            }
+                            finally
+                            {
+                                writeGate.Release();
+                            }
+
+                            remaining = remaining[payload.Length..];
+                        }
+                    }
+                }
+                finally
+                {
+                    input.AdvanceTo(buffer.End);
+                }
+
+                if (result.IsCompleted)
+                    return;
+            }
+        }
+
+        async Task CompleteAsync(
+            Task reading,
+            Task[] pumping,
+            List<DataReadingGroup> groups,
+            List<(int Index, PipeReader Reader)> readers,
+            PipeWriter output,
+            SemaphoreSlim writeGate,
+            CancellationTokenSource cts)
+        {
+            Exception? error = null;
+
+            try
+            {
+                await NexusUtilities.WhenAllFailFastAsync([reading, .. pumping], cts.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+                await cts.CancelAsync().ConfigureAwait(false);
+
+                foreach (var writer in groups.SelectMany(group => group.CatalogItemRequestPipeWriters))
+                {
+                    try
+                    {
+                        await writer.DataWriter.CompleteAsync(ex).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                try
+                {
+                    await Task.WhenAll(pumping).ConfigureAwait(false);
+                }
+                catch
+                {
+                }
+            }
+            finally
+            {
+                foreach (var group in groups)
+                    group.Controller.Dispose();
+
+                foreach (var (_, reader) in readers)
+                    await reader.CompleteAsync().ConfigureAwait(false);
+
+                await output.CompleteAsync(error).ConfigureAwait(false);
+                writeGate.Dispose();
+                cts.Dispose();
+            }
         }
     }
 
@@ -283,7 +387,6 @@ internal class DataService(
         if (resourcePaths is null || resourcePaths.Length == 0)
             throw new ValidationException("At least one resource path is required.");
 
-        // SETTINGS_MAX_CONCURRENT_STREAMS: https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2.
         if (resourcePaths.Length > 100)
             throw new ValidationException("A maximum of 100 resource paths is allowed.");
 

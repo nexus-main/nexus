@@ -94,35 +94,50 @@ else
 
     private async Task LoadDataAsync()
     {
-        _showReloadButton = false;
+        var cts = new CancellationTokenSource();
+        var previousCts = _cts;
+        previousCts?.Cancel();
+        _cts = cts;
+
+        if (ReferenceEquals(_cts, cts))
+            _showReloadButton = false;
 
         if (AppState.Settings.IsSizeLimitExceeded)
         {
-            _sizeLimitExceeded = true;
-            _isLoading = false;
-            StateHasChanged();
+            if (ReferenceEquals(_cts, cts))
+            {
+                _sizeLimitExceeded = true;
+                _isLoading = false;
+                _cts = null;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            cts.Dispose();
             return;
         }
 
-        _sizeLimitExceeded = false;
-
-        _progress = 0;
-        _lineSeriesData = null;
-        _isLoading = true;
-
-        _cts?.Cancel();
-        _cts = new CancellationTokenSource();
-
-        StateHasChanged();
-
-        _ = Task.Run(async () =>
+        if (ReferenceEquals(_cts, cts))
         {
-            while (_isLoading)
+            _sizeLimitExceeded = false;
+
+            _progress = 0;
+            _lineSeriesData = null;
+            _isLoading = true;
+        }
+
+        if (ReferenceEquals(_cts, cts))
+            await InvokeAsync(StateHasChanged);
+
+        var progressTask = Task.Run(async () =>
+        {
+            while (!cts.IsCancellationRequested && ReferenceEquals(_cts, cts) && _isLoading)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
-                StateHasChanged();
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cts.Token);
+
+                if (ReferenceEquals(_cts, cts))
+                    await InvokeAsync(StateHasChanged);
             }
-        });
+        }, cts.Token);
 
         try
         {
@@ -139,8 +154,8 @@ else
                 .ToList();
             var lineSeriesSet = new List<LineSeries>();
 
-            if (requests.Count > Constants.MAXIMUM_BATCH_STREAM_CHANNEL_COUNT)
-                throw new InvalidOperationException($"A maximum of {Constants.MAXIMUM_BATCH_STREAM_CHANNEL_COUNT} resources can be loaded at once.");
+            if (requests.Count > Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT)
+                throw new InvalidOperationException($"A maximum of {Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT} resources can be loaded at once.");
 
             if (requests.Count > 0)
             {
@@ -149,8 +164,12 @@ else
                     begin,
                     end,
                     resourcePaths,
-                    progress => _progress = progress,
-                    _cts!.Token);
+                    progress =>
+                    {
+                        if (ReferenceEquals(_cts, cts))
+                            _progress = progress;
+                    },
+                    cts.Token);
 
                 foreach (var request in requests)
                 {
@@ -168,22 +187,38 @@ else
                 }
             }
 
-            _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);   
+            if (ReferenceEquals(_cts, cts))
+                _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);   
         }
         catch (OperationCanceledException)
         {
-        //
         }
         catch (Exception ex)
         {
-            AppState.AddError(ex, Snackbar);
+            if (ReferenceEquals(_cts, cts))
+                AppState.AddError(ex, Snackbar);
         }
         finally
         {
-            _isLoading = false;
-        }
+            cts.Cancel();
 
-        StateHasChanged();
+            try
+            {
+                await progressTask;
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+            }
+
+            if (ReferenceEquals(_cts, cts))
+            {
+                _isLoading = false;
+                _cts = null;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            cts.Dispose();
+        }
     }
 
     public void Dispose()

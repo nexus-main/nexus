@@ -55,19 +55,3 @@ Then run the python script memory-analysis.py. Red circles show free space. With
 
 - Find out who is allocating these large byte arrays
 - Find out why there is an OOM when a simple GC helps to free the allocated memory
-
-# Batch Stream Backpressure
-
-The v2 batch data stream endpoint uses one `System.IO.Pipelines.Pipe` per requested resource/channel. Each HTTP channel copies directly from its backend `PipeReader` to the response body writer.
-
-The intended backpressure chain is:
-
-```text
-Data source/file read -> backend Pipe -> HTTP response flow control -> client reader
-```
-
-Reverse-proxy response buffering breaks this chain because the proxy, rather than the final client, becomes the immediate consumer and can accumulate streamed data in memory.
-
-The server must not drain one resource pipe completely before reading the others. `DataSourceController.ReadAsync(...)` writes a chunk to every resource pipe and awaits flushes. If a channel has not attached or is not consuming data, its pipe can fill and block the producer.
-
-A v2 batch session starts the source read after the first channel attaches. The one-minute attachment timeout applies until that first attachment, and execution is also bounded by the session's maximum duration. If the session times out or a channel aborts, the whole session is canceled and its resources are cleaned up.

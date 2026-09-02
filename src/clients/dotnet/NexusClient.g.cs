@@ -1,10 +1,10 @@
 #nullable enable
 
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
-using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
@@ -277,14 +277,6 @@ public class NexusClient : INexusClient, IDisposable
             Content = content
         };
 
-        if (relativeUrl.StartsWith("/api/v2/", StringComparison.Ordinal) ||
-            relativeUrl.Equals("/api/v2", StringComparison.Ordinal) ||
-            relativeUrl.StartsWith("/api/v2?", StringComparison.Ordinal))
-        {
-            requestMessage.Version = HttpVersion.Version20;
-            requestMessage.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
-        }
-
         if (contentTypeHeaderValue is not null && requestMessage.Content is not null)
             requestMessage.Content.Headers.ContentType = MediaTypeWithQualityHeaderValue.Parse(contentTypeHeaderValue);
 
@@ -324,34 +316,18 @@ public class NexusClient : INexusClient, IDisposable
             return new Dictionary<string, DataResponse>();
 
         var catalogItemMap = V1.Catalogs.SearchCatalogItems(resourcePathList);
-        var session = V2.Data.RegisterBatchStream(new V2.BatchStreamRequest(begin, end, resourcePathList));
+        using var response = V2.Data.GetStream(new V2.BatchStreamRequest(begin, end, resourcePathList));
         var totalLength = GetTotalLength(begin, end, resourcePathList, catalogItemMap);
         var consumedLength = 0L;
-        var tasks = session.Channels.Select(channel => Task.Run(() =>
-        {
-            try
-            {
-                using var response = V2.Data.GetBatchStreamChannel(session.SessionId, channel.ChannelId);
-                var values = ReadAsDoubleAsync(response, useAsync: false, ReportProgress).GetAwaiter().GetResult();
-                return (channel.ResourcePath, Values: values, Error: (Exception?)null);
-            }
-            catch (Exception ex)
-            {
-                return (channel.ResourcePath, Values: (double[]?)null, Error: ex);
-            }
-        })).ToArray();
-
-        Task.WaitAll(tasks);
-        var data = tasks.Select(task => task.Result).ToArray();
-        var error = data.FirstOrDefault(item => item.Error is not null);
-
-        if (error.Error is not null)
-            throw CreateChannelExceptionAsync(session.SessionId, error.ResourcePath, error.Error, CancellationToken.None).GetAwaiter().GetResult();
+        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap);
+        var data = ReadBatchAsync(response, expectedLengths, useAsync: false, ReportProgress).GetAwaiter().GetResult();
 
         onProgress?.Invoke(1);
-        return data.ToDictionary(
-            item => item.ResourcePath,
-            item => CreateDataResponse(item.ResourcePath, catalogItemMap[item.ResourcePath], item.Values!));
+        return resourcePathList
+            .Select((resourcePath, index) => (resourcePath, Values: data[index]))
+            .ToDictionary(
+                item => item.resourcePath,
+                item => CreateDataResponse(item.resourcePath, catalogItemMap[item.resourcePath], item.Values));
 
         void ReportProgress(long bytesRead)
         {
@@ -381,33 +357,18 @@ public class NexusClient : INexusClient, IDisposable
             return new Dictionary<string, DataResponse>();
 
         var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken).ConfigureAwait(false);
-        var session = await V2.Data.RegisterBatchStreamAsync(new V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken).ConfigureAwait(false);
+        using var response = await V2.Data.GetStreamAsync(new V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken).ConfigureAwait(false);
         var totalLength = GetTotalLength(begin, end, resourcePathList, catalogItemMap);
         var consumedLength = 0L;
-        var tasks = session.Channels.Select(async channel =>
-        {
-            try
-            {
-                using var response = await V2.Data.GetBatchStreamChannelAsync(session.SessionId, channel.ChannelId, cancellationToken).ConfigureAwait(false);
-                var values = await ReadAsDoubleAsync(response, useAsync: true, ReportProgress, cancellationToken).ConfigureAwait(false);
-                return (channel.ResourcePath, Values: values, Error: (Exception?)null);
-            }
-            catch (Exception ex)
-            {
-                return (channel.ResourcePath, Values: (double[]?)null, Error: ex);
-            }
-        }).ToArray();
-
-        var data = await Task.WhenAll(tasks).ConfigureAwait(false);
-        var error = data.FirstOrDefault(item => item.Error is not null);
-
-        if (error.Error is not null)
-            throw await CreateChannelExceptionAsync(session.SessionId, error.ResourcePath, error.Error, cancellationToken).ConfigureAwait(false);
+        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap);
+        var data = await ReadBatchAsync(response, expectedLengths, useAsync: true, ReportProgress, cancellationToken).ConfigureAwait(false);
 
         onProgress?.Invoke(1);
-        return data.ToDictionary(
-            item => item.ResourcePath,
-            item => CreateDataResponse(item.ResourcePath, catalogItemMap[item.ResourcePath], item.Values!));
+        return resourcePathList
+            .Select((resourcePath, index) => (resourcePath, Values: data[index]))
+            .ToDictionary(
+                item => item.resourcePath,
+                item => CreateDataResponse(item.resourcePath, catalogItemMap[item.resourcePath], item.Values));
 
         void ReportProgress(long bytesRead)
         {
@@ -426,6 +387,18 @@ public class NexusClient : INexusClient, IDisposable
             (end - begin).Ticks /
             catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks *
             sizeof(double)));
+    }
+
+    private static int[] GetExpectedLengths(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap)
+    {
+        return resourcePaths.Select(resourcePath => checked((int)(
+            (end - begin).Ticks /
+            catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks *
+            sizeof(double)))).ToArray();
     }
 
     private static DataResponse CreateDataResponse(string resourcePath, V1.CatalogItem catalogItem, double[] doubleData)
@@ -456,78 +429,83 @@ public class NexusClient : INexusClient, IDisposable
         );
     }
 
-    private async Task<Exception> CreateChannelExceptionAsync(
-        Guid sessionId, 
-        string resourcePath, 
-        Exception error, 
-        CancellationToken cancellationToken)
+    private static async Task<double[][]> ReadBatchAsync(
+        HttpResponseMessage responseMessage,
+        int[] expectedLengths,
+        bool useAsync,
+        Action<long>? reportProgress = default,
+        CancellationToken cancellationToken = default)
     {
-        // User cancel: if the token was canceled, propagate OCE as-is
-        if (error is OperationCanceledException && cancellationToken.IsCancellationRequested)
-            return error;
-
-        // Query status endpoint for root cause
-        V2.BatchStreamSessionStatus? status = default;
-
-        try
-        {
-            status = await V2.Data.GetBatchStreamSessionStatusAsync(sessionId, cancellationToken).ConfigureAwait(false);
-        }
-        catch
-        {
-            // Status query failed (e.g. 404 after grace period) — fall back to local exception
-        }
-
-        if (status is not null &&
-            status.State == Nexus.Api.V2.BatchStreamSessionState.Faulted &&
-            !string.IsNullOrWhiteSpace(status.FaultReason))
-        {
-            var rootCausePath = status.FaultedChannelResourcePath ?? resourcePath;
-            var message = $"The batch stream session faulted. Root cause channel: {rootCausePath}. Reason: {status.FaultReason}";
-            return new NexusException("N02", message, error);
-        }
-
-        // Default: wrap local error with channel context
-        return new NexusException("N02", $"The batch stream session faulted. Channel: {resourcePath}. Reason: {error.Message}", error);
-    }
-
-    private async Task<double[]> ReadAsDoubleAsync(HttpResponseMessage responseMessage, bool useAsync, Action<long>? reportProgress = default, CancellationToken cancellationToken = default)
-    {
-        var length = responseMessage.Content.Headers.ContentLength;
-
-        if (!length.HasValue)
-            throw new Exception("The data length is unknown.");
-
-        if (length.Value < 0 || length.Value > int.MaxValue || length.Value % 8 != 0)
-            throw new Exception("The data length is invalid.");
-
-        var elementCount = (int)length.Value / 8;
-        var doubleBuffer = new double[elementCount];
-        var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
-
+        const int maximumPayloadLength = 64 * 1024;
+        var values = expectedLengths.Select(length => new double[length / sizeof(double)]).ToArray();
+        var offsets = new int[expectedLengths.Length];
+        var header = new byte[8];
         Stream stream = useAsync
             ? await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false)
             : responseMessage.Content.ReadAsStream(cancellationToken);
 
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
+        while (true)
         {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken).ConfigureAwait(false);
+            if (await ReadAsync(header.AsMemory(0, 1)).ConfigureAwait(false) == 0)
+                break;
 
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
+            await ReadExactlyAsync(header.AsMemory(1)).ConfigureAwait(false);
 
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
-            reportProgress?.Invoke(bytesRead);
+            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(header);
+            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
+
+            if (resourceIndex < 0 || resourceIndex >= values.Length)
+                throw new Exception("The batch stream contains an invalid resource index.");
+
+            if (payloadLength <= 0 || payloadLength > maximumPayloadLength || payloadLength % sizeof(double) != 0)
+                throw new Exception("The batch stream contains an invalid payload length.");
+
+            if (offsets[resourceIndex] > expectedLengths[resourceIndex] - payloadLength)
+                throw new Exception("The batch stream contains more data than expected.");
+
+            var target = new CastMemoryManager<double, byte>(values[resourceIndex]).Memory
+                .Slice(offsets[resourceIndex], payloadLength);
+            await ReadExactlyAsync(target).ConfigureAwait(false);
+            offsets[resourceIndex] += payloadLength;
+            reportProgress?.Invoke(payloadLength);
         }
 
-        var trailingByte = new byte[1];
+        if (!offsets.SequenceEqual(expectedLengths))
+            throw new Exception("The batch stream ended before all data was received.");
 
-        if (await stream.ReadAsync(trailingByte, cancellationToken).ConfigureAwait(false) != 0)
-            throw new Exception("The stream is longer than the declared data length.");
+        if (!BitConverter.IsLittleEndian)
+        {
+            foreach (var resourceValues in values)
+            {
+                for (var index = 0; index < resourceValues.Length; index++)
+                {
+                    var bits = BitConverter.DoubleToInt64Bits(resourceValues[index]);
+                    resourceValues[index] = BitConverter.Int64BitsToDouble(BinaryPrimitives.ReverseEndianness(bits));
+                }
+            }
+        }
 
-        return doubleBuffer;
+        return values;
+
+        ValueTask<int> ReadAsync(Memory<byte> buffer)
+        {
+            return useAsync
+                ? stream.ReadAsync(buffer, cancellationToken)
+                : ValueTask.FromResult(stream.Read(buffer.Span));
+        }
+
+        async Task ReadExactlyAsync(Memory<byte> buffer)
+        {
+            while (!buffer.IsEmpty)
+            {
+                var bytesRead = await ReadAsync(buffer).ConfigureAwait(false);
+
+                if (bytesRead == 0)
+                    throw new Exception("The batch stream ended in the middle of a frame.");
+
+                buffer = buffer[bytesRead..];
+            }
+        }
     }
 
     /// <summary>
@@ -3397,45 +3375,17 @@ public class V2 : IV2
 public interface IDataClient
 {
     /// <summary>
-    /// Registers a batch data stream session.
+    /// Streams multiple resources in a framed binary response.
     /// </summary>
     /// <param name="request">The batch stream request.</param>
-    BatchStreamResponse RegisterBatchStream(BatchStreamRequest request);
+    HttpResponseMessage GetStream(BatchStreamRequest request);
 
     /// <summary>
-    /// Registers a batch data stream session.
+    /// Streams multiple resources in a framed binary response.
     /// </summary>
     /// <param name="request">The batch stream request.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<BatchStreamResponse> RegisterBatchStreamAsync(BatchStreamRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets a single channel of a registered batch data stream session.
-    /// </summary>
-    /// <param name="sessionId">The session identifier.</param>
-    /// <param name="channelId">The channel identifier.</param>
-    HttpResponseMessage GetBatchStreamChannel(Guid sessionId, Guid channelId);
-
-    /// <summary>
-    /// Gets a single channel of a registered batch data stream session.
-    /// </summary>
-    /// <param name="sessionId">The session identifier.</param>
-    /// <param name="channelId">The channel identifier.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> GetBatchStreamChannelAsync(Guid sessionId, Guid channelId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets the status of a batch data stream session.
-    /// </summary>
-    /// <param name="sessionId">The session identifier.</param>
-    BatchStreamSessionStatus GetBatchStreamSessionStatus(Guid sessionId);
-
-    /// <summary>
-    /// Gets the status of a batch data stream session.
-    /// </summary>
-    /// <param name="sessionId">The session identifier.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<BatchStreamSessionStatus> GetBatchStreamSessionStatusAsync(Guid sessionId, CancellationToken cancellationToken = default);
+    Task<HttpResponseMessage> GetStreamAsync(BatchStreamRequest request, CancellationToken cancellationToken = default);
 
 }
 
@@ -3450,69 +3400,23 @@ public class DataClient : IDataClient
     }
 
     /// <inheritdoc />
-    public BatchStreamResponse RegisterBatchStream(BatchStreamRequest request)
+    public HttpResponseMessage GetStream(BatchStreamRequest request)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v2/data/streams/batch");
+        __urlBuilder.Append("/api/v2/data");
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<BatchStreamResponse>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
-    public Task<BatchStreamResponse> RegisterBatchStreamAsync(BatchStreamRequest request, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> GetStreamAsync(BatchStreamRequest request, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v2/data/streams/batch");
+        __urlBuilder.Append("/api/v2/data");
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<BatchStreamResponse>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public HttpResponseMessage GetBatchStreamChannel(Guid sessionId, Guid channelId)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v2/data/streams/batch/{sessionId}/channel/{channelId}");
-        __urlBuilder.Replace("{sessionId}", Uri.EscapeDataString(Convert.ToString(sessionId, CultureInfo.InvariantCulture)!));
-        __urlBuilder.Replace("{channelId}", Uri.EscapeDataString(Convert.ToString(channelId, CultureInfo.InvariantCulture)!));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<HttpResponseMessage> GetBatchStreamChannelAsync(Guid sessionId, Guid channelId, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v2/data/streams/batch/{sessionId}/channel/{channelId}");
-        __urlBuilder.Replace("{sessionId}", Uri.EscapeDataString(Convert.ToString(sessionId, CultureInfo.InvariantCulture)!));
-        __urlBuilder.Replace("{channelId}", Uri.EscapeDataString(Convert.ToString(channelId, CultureInfo.InvariantCulture)!));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public BatchStreamSessionStatus GetBatchStreamSessionStatus(Guid sessionId)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v2/data/streams/batch/{sessionId}/status");
-        __urlBuilder.Replace("{sessionId}", Uri.EscapeDataString(Convert.ToString(sessionId, CultureInfo.InvariantCulture)!));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<BatchStreamSessionStatus>("GET", __url, "application/json", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<BatchStreamSessionStatus> GetBatchStreamSessionStatusAsync(Guid sessionId, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v2/data/streams/batch/{sessionId}/status");
-        __urlBuilder.Replace("{sessionId}", Uri.EscapeDataString(Convert.ToString(sessionId, CultureInfo.InvariantCulture)!));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<BatchStreamSessionStatus>("GET", __url, "application/json", default, default, cancellationToken);
+        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
     }
 
 }
@@ -3520,67 +3424,12 @@ public class DataClient : IDataClient
 
 
 /// <summary>
-/// A registered batch data stream session.
-/// </summary>
-/// <param name="SessionId">The session identifier.</param>
-/// <param name="Channels">The channels to open and consume concurrently.</param>
-public record BatchStreamResponse(Guid SessionId, IReadOnlyList<BatchStreamChannel> Channels);
-
-/// <summary>
-/// A single channel of a registered batch data stream session.
-/// </summary>
-/// <param name="ChannelId">The channel identifier.</param>
-/// <param name="ResourcePath">The resource path streamed by this channel.</param>
-public record BatchStreamChannel(Guid ChannelId, string ResourcePath);
-
-/// <summary>
-/// A request to register a batch data stream session.
+/// A request to stream multiple resources.
 /// </summary>
 /// <param name="Begin">The start date/time.</param>
 /// <param name="End">The end date/time.</param>
 /// <param name="ResourcePaths">The resource paths to stream.</param>
 public record BatchStreamRequest(DateTime Begin, DateTime End, IReadOnlyList<string> ResourcePaths);
-
-/// <summary>
-/// No description provided.
-/// </summary>
-/// <param name="Type">No description provided.</param>
-/// <param name="Title">No description provided.</param>
-/// <param name="Status">No description provided.</param>
-/// <param name="Detail">No description provided.</param>
-/// <param name="Instance">No description provided.</param>
-public record ProblemDetails(string? Type, string? Title, int? Status, string? Detail, string? Instance);
-
-/// <summary>
-/// The status of a batch data stream session.
-/// </summary>
-/// <param name="State">The session state.</param>
-/// <param name="FaultedChannelId">The channel identifier that caused the fault, or null when the fault is not channel-specific.</param>
-/// <param name="FaultedChannelResourcePath">The resource path of the channel that caused the fault, or null when the fault is not channel-specific.</param>
-/// <param name="FaultReason">A description of why the session failed, or null when the session has not faulted.</param>
-public record BatchStreamSessionStatus(BatchStreamSessionState State, Guid? FaultedChannelId, string? FaultedChannelResourcePath, string? FaultReason);
-
-/// <summary>
-/// The state of a batch data stream session.
-/// </summary>
-public enum BatchStreamSessionState
-{
-    /// <summary>
-    /// Active
-    /// </summary>
-    Active,
-
-    /// <summary>
-    /// Completed
-    /// </summary>
-    Completed,
-
-    /// <summary>
-    /// Faulted
-    /// </summary>
-    Faulted
-}
-
 
 
 

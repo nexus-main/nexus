@@ -41,22 +41,18 @@ The implementation may load requests sequentially or in parallel. It may call `C
 
 # Batch Streaming
 
-The public v2 data stream API preserves source batching for multiple resources. A client first registers a batch session with `POST /api/v2/data/streams/batch` and then opens one channel stream per returned channel at `GET /api/v2/data/streams/batch/{sessionId}/channel/{channelId}`.
-
-The existing single-resource v1 endpoint remains unchanged:
+The single-resource v1 endpoint remains unchanged:
 
 ```http
 GET /api/v1/data
 ```
 
-The v1 endpoint remains for legacy and low-level client compatibility; current C# and Python high-level load methods use v2.
-
-The v2 batch registration request is:
+Current C# and Python high-level load methods use one v2 request:
 
 ```http
-POST /api/v2/data/streams/batch
+POST /api/v2/data
 Content-Type: application/json
-Accept: application/json
+Accept: application/octet-stream
 ```
 
 ```json
@@ -70,31 +66,14 @@ Accept: application/json
 }
 ```
 
-The response contains one channel per resource path, with at most 100 resource paths per batch:
+The request accepts at most 100 unique resource paths with one common sample period. The response contains repeated binary frames:
 
-```json
-{
-  "sessionId": "00000000-0000-0000-0000-000000000000",
-  "channels": [
-    {
-      "channelId": "00000000-0000-0000-0000-000000000001",
-      "resourcePath": "/catalog/a/1_s"
-    }
-  ]
-}
-```
+| Field | Size | Encoding |
+|---|---:|---|
+| Resource index | 4 bytes | signed little-endian integer |
+| Payload length | 4 bytes | signed little-endian integer |
+| Payload | up to 64 KiB | little-endian `FLOAT64` values |
 
-Each channel is streamed independently:
+The resource index refers to the path's position in `resourcePaths`. End-of-stream marks successful completion; clients validate that every resource received the expected number of bytes.
 
-```http
-GET /api/v2/data/streams/batch/{sessionId}/channel/{channelId}
-Accept: application/octet-stream
-```
-
-Each channel response is the same raw double stream format used by the v1 endpoint and has an exact `Content-Length`.
-
-The server creates one `Pipe` per requested resource and groups pipe writers by `CatalogContainer`, matching the export topology. The existing static `DataSourceController.ReadAsync(...)` method is still responsible for validation, memory-aware chunking, cache behavior, processing, and dispatching batched `ReadRequest[]` values to sources.
-
-The source read starts when the first channel attaches. Clients should attach the remaining channels promptly because writes to an unattached channel can eventually block on pipe back-pressure.
-
-Because each resource uses a separate HTTP channel, Nexus rejects these endpoints over HTTP/1.1. The 100-channel cap follows the 100-stream initial value recommended for `SETTINGS_MAX_CONCURRENT_STREAMS` by [RFC 7540 section 6.5.2](https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2), but peers and intermediaries may negotiate lower limits. Proxies must also avoid buffering channel responses, which would weaken end-to-end back-pressure and increase memory use.
+The server creates one internal `Pipe` per resource and multiplexes them into one bounded output pipe. `ReadRequest.CompleteAsync()` allows a source to publish an individual resource before its complete batch returns. The endpoint works over HTTP/1.1, HTTP/2, and HTTP/3. Reverse proxies should disable response buffering to preserve back-pressure.

@@ -1,11 +1,12 @@
 import base64
 import json
+import struct
 from datetime import datetime
-from uuid import UUID
 
 import pytest
 from httpx import AsyncByteStream, AsyncClient, MockTransport, Request, Response, codes
 from nexus_api import NexusAsyncClient, NexusException
+from nexus_api.V2 import BatchStreamRequest
 
 nexus_configuration_header_key = "Nexus-Configuration"
 
@@ -72,77 +73,35 @@ async def can_add_configuration_test():
         # assert (already asserted in _handler)
 
 
-def _load_with_channel_fault_handler(request: Request):
-    path = request.url.path
+def _catalog_item_map(paths: list[str]):
+    return {path: {
+        "catalog": {"id": "my-catalog", "properties": None, "resources": None},
+        "resource": {"id": path.rsplit("/", 1)[-1], "properties": None, "representations": None},
+        "representation": {"dataType": "float64", "samplePeriod": "0.00:00:01.0000000", "parameters": None},
+        "parameters": None
+    } for path in paths}
 
-    if path == "/api/v1/catalogs/search-items":
-        catalog_item_map = {
-            "/A/B/C": {
-                "catalog": {
-                    "id": "my-catalog",
-                    "properties": None,
-                    "resources": None
-                },
-                "resource": {
-                    "id": "C",
-                    "properties": None,
-                    "representations": None
-                },
-                "representation": {
-                    "dataType": "float64",
-                    "samplePeriod": "0.00:00:01.0000000",
-                    "parameters": None
-                },
-                "parameters": None
-            }
-        }
-        return Response(codes.OK, content=json.dumps(catalog_item_map))
 
-    elif path == "/api/v2/data/streams/batch":
-        batch_stream_response = {
-            "sessionId": "00000000-0000-0000-0000-000000000001",
-            "channels": [
-                {
-                    "channelId": "00000000-0000-0000-0000-000000000002",
-                    "resourcePath": "/A/B/C"
-                }
-            ]
-        }
-        return Response(codes.OK, content=json.dumps(batch_stream_response))
-
-    elif "/channel/" in path:
-        return Response(codes.OK, content=b"\x00" * 17, headers={"Content-Length": "17"})
-
-    elif path.endswith("/status"):
-        status = {
-            "state": "faulted",
-            "faultedChannelId": "00000000-0000-0000-0000-000000000002",
-            "faultedChannelResourcePath": "/A/B/C",
-            "faultReason": "The data source could not read the resource."
-        }
-        return Response(codes.OK, content=json.dumps(status))
-
-    else:
-        raise Exception(f"Unsupported path: {path}")
+def _frame(index: int, *values: float):
+    payload = struct.pack(f"<{len(values)}d", *values)
+    return struct.pack("<ii", index, len(payload)) + payload
 
 
 @pytest.mark.anyio
-async def can_load_with_channel_fault_test():
-    http_client = AsyncClient(base_url="https://localhost", transport=MockTransport(_load_with_channel_fault_handler))
+async def can_load_framed_response_over_http_test():
+    paths = ["/A/B/C", "/A/B/D"]
+    content = _frame(1, 3, 4) + _frame(0, 1, 2)
 
-    async with NexusAsyncClient(http_client) as client:
-        try:
-            await client.load(
-                begin=datetime(2020, 1, 1),
-                end=datetime(2020, 1, 2),
-                resource_paths=["/A/B/C"],
-                on_progress=None
-            )
-            assert False, "Expected NexusException"
-        except NexusException as ex:
-            assert ex.status_code == "N02"
-            assert "/A/B/C" in ex.message
-            assert "The data source could not read the resource." in ex.message
+    def handler(request: Request):
+        if request.url.path == "/api/v1/catalogs/search-items":
+            return Response(codes.OK, content=json.dumps(_catalog_item_map(paths)))
+        return Response(codes.OK, content=content)
+
+    async with NexusAsyncClient(AsyncClient(base_url="http://localhost", transport=MockTransport(handler))) as client:
+        result = await client.load(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 2), paths, None)
+
+    assert list(result[paths[0]].values) == [1, 2]
+    assert list(result[paths[1]].values) == [3, 4]
 
 
 class _TrackingAsyncStream(AsyncByteStream):
@@ -158,8 +117,8 @@ class _TrackingAsyncStream(AsyncByteStream):
 
 
 @pytest.mark.anyio
-async def streamed_unsuccessful_channel_has_body_and_closes_test():
-    stream = _TrackingAsyncStream(b"channel failed")
+async def streamed_unsuccessful_response_has_body_and_closes_test():
+    stream = _TrackingAsyncStream(b"stream failed")
 
     def handler(_: Request):
         return Response(codes.INTERNAL_SERVER_ERROR, stream=stream)
@@ -167,27 +126,17 @@ async def streamed_unsuccessful_channel_has_body_and_closes_test():
     http_client = AsyncClient(base_url="http://localhost", transport=MockTransport(handler))
     client = NexusAsyncClient(http_client)
 
-    with pytest.raises(NexusException, match="channel failed"):
-        await client.v2.data.get_batch_stream_channel(UUID(int=1), UUID(int=2))
+    request = BatchStreamRequest(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 1), ["/A/B/C"])
+    with pytest.raises(NexusException, match="stream failed"):
+        await client.v2.data.get_stream(request)
 
     assert stream.closed
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(("content", "content_length", "succeeds"), [
-    (b"\x00" * 8, None, False),
-    (b"\x00" * 7, "7", False),
-    (b"\x00" * 8, "16", False),
-    (b"\x00" * 16, "8", False),
-    (b"\x00" * 8, "8", True),
-])
-async def exact_content_length_test(content: bytes, content_length: str | None, succeeds: bool):
-    headers = {} if content_length is None else {"Content-Length": content_length}
-    response = Response(codes.OK, headers=headers, stream=_TrackingAsyncStream(content))
+async def rejects_invalid_batch_frame_test():
+    response = Response(codes.OK, stream=_TrackingAsyncStream(_frame(1, 1)))
     client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
 
-    if succeeds:
-        assert len(await client._read_as_double(response)) == 1
-    else:
-        with pytest.raises(Exception):
-            await client._read_as_double(response)
+    with pytest.raises(Exception, match="resource index"):
+        await client._read_batch(response, [8])

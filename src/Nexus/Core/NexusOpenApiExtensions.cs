@@ -56,11 +56,11 @@ internal static class NexusOpenApiExtensions
                 config.DocumentName = description.GroupName;
                 config.PostProcess = document =>
                 {
-                    const string channelPath = "/api/v2/data/streams/batch/{sessionId}/channel/{channelId}";
+                    const string channelPath = "/api/v2/data";
 
                     if (document.Paths.TryGetValue(channelPath, out var path))
                     {
-                        var response = path[OpenApiOperationMethod.Get]!.Responses["200"];
+                        var response = path[OpenApiOperationMethod.Post]!.Responses["200"];
                         response.Content["application/octet-stream"] = new OpenApiMediaType
                         {
                             Schema = new JsonSchema { Type = JsonObjectType.String, Format = "binary" }

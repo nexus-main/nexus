@@ -152,7 +152,7 @@ public class SettingsViewModel : INotifyPropertyChanged
                 Begin.Ticks % SamplePeriod.Value.Ticks == 0 &&
                 End.Ticks % SamplePeriod.Value.Ticks == 0 &&
                 SelectedCatalogItems.Any() &&
-                SelectedCatalogItems.Sum(item => item.Kinds.Count) <= Constants.MAXIMUM_BATCH_STREAM_CHANNEL_COUNT &&
+                SelectedCatalogItems.Sum(item => item.Kinds.Count) <= Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT &&
                 SelectedCatalogItems.All(item => item.IsValid(SamplePeriod));
 
             if (!canVisualize && _appState.ViewState == ViewState.Data)

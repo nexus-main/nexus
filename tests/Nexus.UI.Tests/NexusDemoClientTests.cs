@@ -27,23 +27,17 @@ public class NexusDemoClientTests
     }
 
     [Fact]
-    public async Task BatchChannelRequiresMatchingSession()
+    public async Task CanLoadMultipleFramedResources()
     {
-        var client = new DataV2DemoClient();
-        var request = new Api.V2.BatchStreamRequest(
-            DateTime.UnixEpoch,
-            DateTime.UnixEpoch.AddMinutes(1),
-            ["/SAMPLE/LOCAL/temperature/1_min"]);
-        var session = await client.RegisterBatchStreamAsync(request);
+        var client = new NexusDemoClient();
+        var begin = DateTime.UnixEpoch;
+        var result = await client.LoadAsync(begin, begin.AddMinutes(2),
+        [
+            "/SAMPLE/LOCAL/temperature/1_min",
+            "/SAMPLE/LOCAL/wind_speed/1_min"
+        ]);
 
-        using var wrongSessionResponse = await client.GetBatchStreamChannelAsync(
-            Guid.NewGuid(),
-            session.Channels[0].ChannelId);
-        using var correctSessionResponse = await client.GetBatchStreamChannelAsync(
-            session.SessionId,
-            session.Channels[0].ChannelId);
-
-        Assert.Equal(System.Net.HttpStatusCode.NotFound, wrongSessionResponse.StatusCode);
-        Assert.Equal(System.Net.HttpStatusCode.OK, correctSessionResponse.StatusCode);
+        Assert.Equal(2, result.Count);
+        Assert.All(result.Values, response => Assert.Equal(2, response.Values.Length));
     }
 }

@@ -48,44 +48,16 @@ class DataClient:
     def __init__(self, invoke: HttpRequestHandler):
         self.___invoke = invoke
 
-    def register_batch_stream(self, request: BatchStreamRequest) -> BatchStreamResponse:
+    def get_stream(self, request: BatchStreamRequest) -> Response:
         """
-        Registers a batch data stream session.
+        Streams multiple resources in a framed binary response.
 
         Args:
         """
 
-        __url = "/api/v2/data/streams/batch"
+        __url = "/api/v2/data"
 
-        return self.___invoke(BatchStreamResponse, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
-
-    def get_batch_stream_channel(self, session_id: UUID, channel_id: UUID) -> Response:
-        """
-        Gets a single channel of a registered batch data stream session.
-
-        Args:
-            session_id: The session identifier.
-            channel_id: The channel identifier.
-        """
-
-        __url = "/api/v2/data/streams/batch/{sessionId}/channel/{channelId}"
-        __url = __url.replace("{sessionId}", quote(str(session_id), safe=""))
-        __url = __url.replace("{channelId}", quote(str(channel_id), safe=""))
-
-        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def get_batch_stream_session_status(self, session_id: UUID) -> BatchStreamSessionStatus:
-        """
-        Gets the status of a batch data stream session.
-
-        Args:
-            session_id: The session identifier.
-        """
-
-        __url = "/api/v2/data/streams/batch/{sessionId}/status"
-        __url = __url.replace("{sessionId}", quote(str(session_id), safe=""))
-
-        return self.___invoke(BatchStreamSessionStatus, "GET", __url, "application/json", None, None)
+        return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
 
 
 
@@ -121,85 +93,23 @@ class DataAsyncClient:
     def __init__(self, invoke: HttpRequestHandlerAsync):
         self.___invoke = invoke
 
-    def register_batch_stream(self, request: BatchStreamRequest) -> Awaitable[BatchStreamResponse]:
+    def get_stream(self, request: BatchStreamRequest) -> Awaitable[Response]:
         """
-        Registers a batch data stream session.
+        Streams multiple resources in a framed binary response.
 
         Args:
         """
 
-        __url = "/api/v2/data/streams/batch"
+        __url = "/api/v2/data"
 
-        return self.___invoke(BatchStreamResponse, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
 
-    def get_batch_stream_channel(self, session_id: UUID, channel_id: UUID) -> Awaitable[Response]:
-        """
-        Gets a single channel of a registered batch data stream session.
-
-        Args:
-            session_id: The session identifier.
-            channel_id: The channel identifier.
-        """
-
-        __url = "/api/v2/data/streams/batch/{sessionId}/channel/{channelId}"
-        __url = __url.replace("{sessionId}", quote(str(session_id), safe=""))
-        __url = __url.replace("{channelId}", quote(str(channel_id), safe=""))
-
-        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def get_batch_stream_session_status(self, session_id: UUID) -> Awaitable[BatchStreamSessionStatus]:
-        """
-        Gets the status of a batch data stream session.
-
-        Args:
-            session_id: The session identifier.
-        """
-
-        __url = "/api/v2/data/streams/batch/{sessionId}/status"
-        __url = __url.replace("{sessionId}", quote(str(session_id), safe=""))
-
-        return self.___invoke(BatchStreamSessionStatus, "GET", __url, "application/json", None, None)
-
-
-
-@dataclass(frozen=True)
-class BatchStreamResponse:
-    """
-    A registered batch data stream session.
-
-    Args:
-        session_id: The session identifier.
-        channels: The channels to open and consume concurrently.
-    """
-
-    session_id: UUID
-    """The session identifier."""
-
-    channels: list[BatchStreamChannel]
-    """The channels to open and consume concurrently."""
-
-
-@dataclass(frozen=True)
-class BatchStreamChannel:
-    """
-    A single channel of a registered batch data stream session.
-
-    Args:
-        channel_id: The channel identifier.
-        resource_path: The resource path streamed by this channel.
-    """
-
-    channel_id: UUID
-    """The channel identifier."""
-
-    resource_path: str
-    """The resource path streamed by this channel."""
 
 
 @dataclass(frozen=True)
 class BatchStreamRequest:
     """
-    A request to register a batch data stream session.
+    A request to stream multiple resources.
 
     Args:
         begin: The start date/time.
@@ -215,73 +125,6 @@ class BatchStreamRequest:
 
     resource_paths: list[str]
     """The resource paths to stream."""
-
-
-@dataclass(frozen=True)
-class ProblemDetails:
-    """
-    No description provided.
-
-    Args:
-        type: No description provided.
-        title: No description provided.
-        status: No description provided.
-        detail: No description provided.
-        instance: No description provided.
-    """
-
-    type: Optional[str]
-    """"""
-
-    title: Optional[str]
-    """"""
-
-    status: Optional[int]
-    """"""
-
-    detail: Optional[str]
-    """"""
-
-    instance: Optional[str]
-    """"""
-
-
-@dataclass(frozen=True)
-class BatchStreamSessionStatus:
-    """
-    The status of a batch data stream session.
-
-    Args:
-        state: The session state.
-        faulted_channel_id: The channel identifier that caused the fault, or null when the fault is not channel-specific.
-        faulted_channel_resource_path: The resource path of the channel that caused the fault, or null when the fault is not channel-specific.
-        fault_reason: A description of why the session failed, or null when the session has not faulted.
-    """
-
-    state: BatchStreamSessionState
-    """The session state."""
-
-    faulted_channel_id: Optional[UUID]
-    """The channel identifier that caused the fault, or null when the fault is not channel-specific."""
-
-    faulted_channel_resource_path: Optional[str]
-    """The resource path of the channel that caused the fault, or null when the fault is not channel-specific."""
-
-    fault_reason: Optional[str]
-    """A description of why the session failed, or null when the session has not faulted."""
-
-
-class BatchStreamSessionState(Enum):
-    """The state of a batch data stream session."""
-
-    ACTIVE = "ACTIVE"
-    """Active"""
-
-    COMPLETED = "COMPLETED"
-    """Completed"""
-
-    FAULTED = "FAULTED"
-    """Faulted"""
 
 
 

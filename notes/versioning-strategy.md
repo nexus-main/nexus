@@ -34,8 +34,7 @@ The v1 single-resource raw stream contract remains for compatibility. Current C#
 The v2 batch stream contract is:
 
 ```http
-POST /api/v2/data/streams/batch
-GET /api/v2/data/streams/batch/{sessionId}/channel/{channelId}
+POST /api/v2/data
 ```
 
 The hosted UI and current C# and Python high-level load methods use v2. Legacy or low-level clients may continue using v1.
