@@ -210,8 +210,7 @@ internal class DataService(
                 _memoryTracker,
                 ReadProgress,
                 _loggerFactory.CreateLogger<DataSourceController>(),
-                cts.Token,
-                DataSourceErrorHandling.Propagate);
+                cts.Token);
             var writeGate = new SemaphoreSlim(1, 1);
             var pumping = dataReaders
                 .Select(current => PumpAsync(current.Index, current.Reader, outputPipe.Writer, writeGate, cts.Token))

@@ -48,14 +48,7 @@ internal interface IDataSourceController : IDisposable
         CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
         ReadDataHandler readDataHandler,
         IProgress<double> progress,
-        CancellationToken cancellationToken,
-        DataSourceErrorHandling errorHandling = DataSourceErrorHandling.UseInvalidData);
-}
-
-internal enum DataSourceErrorHandling
-{
-    UseInvalidData,
-    Propagate
+        CancellationToken cancellationToken);
 }
 
 internal class DataSourceController(
@@ -299,8 +292,7 @@ internal class DataSourceController(
         CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
         ReadDataHandler readDataHandler,
         IProgress<double> progress,
-        CancellationToken cancellationToken,
-        DataSourceErrorHandling errorHandling = DataSourceErrorHandling.UseInvalidData)
+        CancellationToken cancellationToken)
     {
         /* This method reads data from the data source or from the cache and optionally
          * processes the data (aggregation, resampling).
@@ -358,7 +350,6 @@ internal class DataSourceController(
             targetElementCount,
             targetByteCount,
             originalProgress,
-            errorHandling,
             cancellationToken);
 
         readingTasks.Add(originalTask);
@@ -404,7 +395,6 @@ internal class DataSourceController(
                     readDataHandler,
                     targetByteCount,
                     processingProgress,
-                    errorHandling,
                     cancellationToken)
 
                 : ReadAggregatedAsync(
@@ -414,7 +404,6 @@ internal class DataSourceController(
                     readDataHandler,
                     targetByteCount,
                     processingProgress,
-                    errorHandling,
                     cancellationToken);
 
             readingTasks.Add(processingTask);
@@ -432,7 +421,6 @@ internal class DataSourceController(
         int targetElementCount,
         int targetByteCount,
         IProgress<double> progress,
-        DataSourceErrorHandling errorHandling,
         CancellationToken cancellationToken)
     {
         var tuples = originalUnits
@@ -524,9 +512,6 @@ internal class DataSourceController(
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
-
-                if (errorHandling == DataSourceErrorHandling.Propagate)
-                    throw;
             }
 
             /* Phase 2: flush any requests NOT completed via callback (fallback) */
@@ -558,7 +543,6 @@ internal class DataSourceController(
        ReadDataHandler readDataHandler,
        int targetByteCount,
        IProgress<double> progress,
-       DataSourceErrorHandling errorHandling,
        CancellationToken cancellationToken)
     {
         var item = readUnit.CatalogItemRequest.Item;
@@ -677,9 +661,6 @@ internal class DataSourceController(
         {
             _logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
 
-            if (errorHandling == DataSourceErrorHandling.Propagate)
-                throw;
-
             targetBuffer.Span.Fill(double.NaN);
         }
         finally
@@ -698,7 +679,6 @@ internal class DataSourceController(
        ReadDataHandler readDataHandler,
        int targetByteCount,
        IProgress<double> progress,
-       DataSourceErrorHandling errorHandling,
        CancellationToken cancellationToken)
     {
         var item = readUnit.CatalogItemRequest.Item;
@@ -785,9 +765,6 @@ internal class DataSourceController(
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
 
-            if (errorHandling == DataSourceErrorHandling.Propagate)
-                throw;
-
             targetBuffer.Span.Fill(double.NaN);
         }
 
@@ -854,9 +831,7 @@ internal class DataSourceController(
         IMemoryTracker memoryTracker,
         IProgress<double>? progress,
         ILogger<DataSourceController> logger,
-        CancellationToken cancellationToken,
-        DataSourceErrorHandling errorHandling = DataSourceErrorHandling.UseInvalidData,
-        Func<Exception, Task>? onError = null)
+        CancellationToken cancellationToken)
     {
         var catalogItemRequestPipeWriters = readingGroups.SelectMany(readingGroup => readingGroup.CatalogItemRequestPipeWriters);
 
@@ -991,8 +966,6 @@ internal class DataSourceController(
                 readDataHandler,
                 progress,
                 logger,
-                errorHandling,
-                onError,
                 cancellationToken);
         }
         finally
@@ -1010,8 +983,6 @@ internal class DataSourceController(
         ReadDataHandler readDataHandler,
         IProgress<double>? progress,
         ILogger logger,
-        DataSourceErrorHandling errorHandling,
-        Func<Exception, Task>? onError,
         CancellationToken cancellationToken
     )
     {
@@ -1068,8 +1039,7 @@ internal class DataSourceController(
                             catalogItemRequestPipeWriters,
                             readDataHandler,
                             dataSourceProgress,
-                            chunkCancellation.Token,
-                            errorHandling);
+                            chunkCancellation.Token);
                     }
                     catch (OutOfMemoryException)
                     {
@@ -1078,42 +1048,10 @@ internal class DataSourceController(
                     catch (Exception ex)
                     {
                         logger.LogError(ex, "Process period {Begin} to {End} failed", currentBegin, currentEnd);
-
-                        if (errorHandling == DataSourceErrorHandling.Propagate)
-                            throw;
                     }
                 }).ToList();
 
-                try
-                {
-                    await NexusUtilities.WhenAllFailFastAsync(readingTasks, chunkCancellation.Token).ConfigureAwait(false);
-                }
-                catch
-                {
-                    var exception = readingTasks
-                        .FirstOrDefault(task => task.IsFaulted)?.Exception?.InnerException;
-
-                    try
-                    {
-                        if (exception is not null && onError is not null)
-                            await onError(exception).ConfigureAwait(false);
-                    }
-                    finally
-                    {
-                        await chunkCancellation.CancelAsync().ConfigureAwait(false);
-
-                        try
-                        {
-                            await Task.WhenAll(readingTasks).ConfigureAwait(false);
-                        }
-                        catch
-                        {
-                            // Preserve the first failure selected by WhenAllFailFastAsync.
-                        }
-                    }
-
-                    throw;
-                }
+                await Task.WhenAll(readingTasks).ConfigureAwait(false);
 
                 /* continue in time */
                 consumedPeriod += currentPeriod;
