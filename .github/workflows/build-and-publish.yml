@@ -25,7 +25,6 @@ jobs:
       - name: Checkout OpenAPI client generator
         run: |
           git clone https://github.com/Apollo3zehn/openapi-client-generator ../openapi-client-generator
-          git -C ../openapi-client-generator checkout efb8f2264b0e5feb30a9806d9a0e59cd43922627
 
       - name: Fetch tags
         run: git fetch --tags --force
