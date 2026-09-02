@@ -29,7 +29,7 @@ internal class DataController(
     /// <returns>The framed data stream.</returns>
     [HttpPost]
     [Produces("application/octet-stream")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status422UnprocessableEntity)]

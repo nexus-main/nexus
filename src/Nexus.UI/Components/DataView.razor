@@ -94,10 +94,8 @@ else
 
     private async Task LoadDataAsync()
     {
-        var cts = new CancellationTokenSource();
         var previousCts = _cts;
         previousCts?.Cancel();
-        _cts = cts;
 
         _showReloadButton = false;
 
@@ -107,10 +105,11 @@ else
             _isLoading = false;
             _cts = null;
             await InvokeAsync(StateHasChanged);
-
-            cts.Dispose();
             return;
         }
+
+        var cts = new CancellationTokenSource();
+        _cts = cts;
 
         _sizeLimitExceeded = false;
         _progress = 0;
