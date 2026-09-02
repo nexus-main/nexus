@@ -77,7 +77,7 @@ internal class DataController(
         if (http2RequiredResult is not null)
             return http2RequiredResult;
 
-        var lease = _streamSessionManager.Attach(sessionId, channelId);
+        var lease = _streamSessionManager.Attach(sessionId, channelId, User);
 
         if (lease is null)
             return NotFound();
@@ -114,7 +114,7 @@ internal class DataController(
     [HttpGet("streams/batch/{sessionId:guid}/status")]
     public ActionResult<BatchStreamSessionStatus> GetBatchStreamSessionStatus(Guid sessionId)
     {
-        var status = _streamSessionManager.GetStatus(sessionId);
+        var status = _streamSessionManager.GetStatus(sessionId, User);
 
         if (status is null)
             return NotFound();

@@ -1,6 +1,7 @@
+import asyncio
 import enum
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import (Any, Awaitable, Callable, Generic, Optional, Protocol,
                     TypeVar)
@@ -107,18 +108,21 @@ class ReadRequest:
     is_completed: bool = False
     """Whether :meth:`complete` has been called."""
 
+    _completion_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
+
     async def complete(self) -> None:
         """
         Called by the data source when data and status are ready.
         The framework flushes the resource to its pipe immediately.
         """
-        if self.is_completed:
-            return
+        async with self._completion_lock:
+            if self.is_completed:
+                return
 
-        self.is_completed = True
+            if self.on_completed is not None:
+                await self.on_completed()
 
-        if self.on_completed is not None:
-            await self.on_completed()
+            self.is_completed = True
 
 class ReadDataHandler(Protocol):
     """

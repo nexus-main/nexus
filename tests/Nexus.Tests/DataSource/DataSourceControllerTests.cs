@@ -345,7 +345,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 var requestA = requests.Single(r => r.CatalogItem.Resource.Id == "A");
                 MemoryMarshal.Cast<byte, double>(requestA.Data.Span).Fill(11);
                 requestA.Status.Span.Fill(1);
-                await requestA.CompleteAsync(cancellationToken);
+                await requestA.CompleteAsync();
                 completedA.SetResult();
 
                 // wait for test to confirm pipe1 has data before completing B
@@ -355,7 +355,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 var requestB = requests.Single(r => r.CatalogItem.Resource.Id == "B");
                 MemoryMarshal.Cast<byte, double>(requestB.Data.Span).Fill(22);
                 requestB.Status.Span.Fill(1);
-                await requestB.CompleteAsync(cancellationToken);
+                await requestB.CompleteAsync();
             });
 
         var registration = new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default);

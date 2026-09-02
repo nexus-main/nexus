@@ -2,7 +2,10 @@ import base64
 import json
 from datetime import datetime
 
-from httpx import Client, MockTransport, Request, Response, codes
+from uuid import UUID
+
+import pytest
+from httpx import Client, MockTransport, Request, Response, SyncByteStream, codes
 from nexus_api import NexusClient, NexusException
 
 nexus_configuration_header_key = "Nexus-Configuration"
@@ -134,3 +137,49 @@ def can_load_with_channel_fault_test():
             assert ex.status_code == "N02"
             assert "/A/B/C" in ex.message
             assert "The data source could not read the resource." in ex.message
+
+
+class _TrackingStream(SyncByteStream):
+    def __init__(self, content: bytes):
+        self.content = content
+        self.closed = False
+
+    def __iter__(self):
+        yield self.content
+
+    def close(self):
+        self.closed = True
+
+
+def streamed_unsuccessful_channel_has_body_and_closes_test():
+    stream = _TrackingStream(b"channel failed")
+
+    def handler(_: Request):
+        return Response(codes.INTERNAL_SERVER_ERROR, stream=stream)
+
+    http_client = Client(base_url="http://localhost", transport=MockTransport(handler))
+    client = NexusClient(http_client)
+
+    with pytest.raises(NexusException, match="channel failed"):
+        client.v2.data.get_batch_stream_channel(UUID(int=1), UUID(int=2))
+
+    assert stream.closed
+
+
+@pytest.mark.parametrize(("content", "content_length", "succeeds"), [
+    (b"\x00" * 8, None, False),
+    (b"\x00" * 7, "7", False),
+    (b"\x00" * 8, "16", False),
+    (b"\x00" * 16, "8", False),
+    (b"\x00" * 8, "8", True),
+])
+def exact_content_length_test(content: bytes, content_length: str | None, succeeds: bool):
+    headers = {} if content_length is None else {"Content-Length": content_length}
+    response = Response(codes.OK, headers=headers, stream=_TrackingStream(content))
+    client = NexusClient(Client(base_url="http://localhost"))
+
+    if succeeds:
+        assert len(client._read_as_double(response)) == 1
+    else:
+        with pytest.raises(Exception):
+            client._read_as_double(response)

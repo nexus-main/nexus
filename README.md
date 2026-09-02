@@ -10,11 +10,11 @@ Nexus allows streaming data directly into the UI or into Python, C# or Matlab cl
 
 ## Reverse Proxies And Batch Streaming
 
-The v2 multi-resource data streaming API opens one HTTP stream per requested resource. Deployments must support HTTP/2 for these streaming endpoints so all resource channels can attach concurrently.
+The v2 multi-resource data streaming API opens one HTTP stream per requested resource and accepts at most 100 resources per batch. The cap follows the 100-stream initial value recommended for `SETTINGS_MAX_CONCURRENT_STREAMS` by [RFC 7540 section 6.5.2](https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2); peers and intermediaries may advertise lower limits. Deployments must support HTTP/2 for these streaming endpoints so all resource channels can attach concurrently.
 
 HTTP/1.1-only proxies or clients can hit per-origin connection limits. If not all channel requests reach Nexus, the batch read cannot start and the request may hang or time out.
 
-Reverse proxies must not buffer streaming responses, otherwise backpressure and memory behavior are degraded.
+Reverse proxies must not buffer streaming responses, otherwise pipe back-pressure no longer bounds end-to-end buffering or memory use.
 
 When Nexus runs in Docker behind a TLS-terminating reverse proxy, configure the Nexus container to expose a cleartext HTTP/2 endpoint for the proxy:
 

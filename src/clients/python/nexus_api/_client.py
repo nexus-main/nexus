@@ -146,15 +146,18 @@ class NexusClient:
 
         # process response
         if not response.is_success:
-            
-            message = response.text
-            status_code = f"N00.{response.status_code}"
+            try:
+                response.read()
+                message = response.text
+                status_code = f"N00.{response.status_code}"
 
-            if not message:
-                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
+                if not message:
+                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
 
-            else:
-                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+                else:
+                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+            finally:
+                response.close()
 
         try:
 
@@ -217,30 +220,29 @@ class NexusClient:
         catalog_item_map = self.v1.catalogs.search_catalog_items(resource_path_list)
         session = self.v2.data.register_batch_stream(BatchStreamRequest(begin, end, resource_path_list))
         result: dict[str, DataResponse] = {}
-        responses = [
-            (channel.resource_path, self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id))
-            for channel in session.channels
-        ]
-
-        response_entries = responses
-
-        total_length = 0
-        for (_, response) in response_entries:
-            try:
-                total_length += int(response.headers["Content-Length"])
-            except:
-                pass
-
-        consumed = [0]
-        _lock = Lock()
-
-        def report_progress(bytes_read):
-            with _lock:
-                consumed[0] += bytes_read
-                if total_length > 0 and on_progress is not None:
-                    on_progress(consumed[0] / total_length)
+        response_entries = []
 
         try:
+            for channel in session.channels:
+                response = self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id)
+                response_entries.append((channel.resource_path, response))
+
+            total_length = 0
+            for (_, response) in response_entries:
+                try:
+                    total_length += int(response.headers["Content-Length"])
+                except:
+                    pass
+
+            consumed = [0]
+            _lock = Lock()
+
+            def report_progress(bytes_read):
+                with _lock:
+                    consumed[0] += bytes_read
+                    if total_length > 0 and on_progress is not None:
+                        on_progress(consumed[0] / total_length)
+
             def _read_channel(entry):
                 resource_path, response = entry
                 try:
@@ -294,7 +296,19 @@ class NexusClient:
         return result
 
     def _read_as_double(self, response: Response, report_progress: Optional[Callable[[int], None]] = None):
-        
+        content_length_value = response.headers.get("Content-Length")
+
+        if content_length_value is None:
+            raise Exception("The data length is unknown.")
+
+        if not content_length_value.isascii() or not content_length_value.isdigit():
+            raise Exception("The data length is invalid.")
+
+        content_length = int(content_length_value)
+
+        if content_length < 0 or content_length % 8 != 0:
+            raise Exception("The data length is invalid.")
+
         chunks = []
         
         for data in response.iter_bytes():
@@ -304,8 +318,8 @@ class NexusClient:
         
         byteBuffer = b"".join(chunks)
 
-        if len(byteBuffer) % 8 != 0:
-            raise Exception("The data length is invalid.")
+        if len(byteBuffer) != content_length:
+            raise Exception("The data length does not match Content-Length.")
 
         doubleBuffer = array("d", byteBuffer)
 
@@ -553,15 +567,18 @@ class NexusAsyncClient:
 
         # process response
         if not response.is_success:
-            
-            message = response.text
-            status_code = f"N00.{response.status_code}"
+            try:
+                await response.aread()
+                message = response.text
+                status_code = f"N00.{response.status_code}"
 
-            if not message:
-                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
+                if not message:
+                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
 
-            else:
-                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+                else:
+                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+            finally:
+                await response.aclose()
 
         try:
 
@@ -624,32 +641,38 @@ class NexusAsyncClient:
         catalog_item_map = await self.v1.catalogs.search_catalog_items(resource_path_list)
         session = await self.v2.data.register_batch_stream(BatchStreamRequest(begin, end, resource_path_list))
         result: dict[str, DataResponse] = {}
-        responses = await asyncio.gather(*[
-            self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id)
-            for channel in session.channels
-        ])
-
-        response_entries = [
-            (channel.resource_path, response)
-            for (channel, response) in zip(session.channels, responses)
-        ]
-
-        total_length = 0
-        for (_, response) in response_entries:
-            try:
-                total_length += int(response.headers["Content-Length"])
-            except:
-                pass
-
-        consumed = 0
-
-        def report_progress(bytes_read):
-            nonlocal consumed
-            consumed += bytes_read
-            if total_length > 0 and on_progress is not None:
-                on_progress(consumed / total_length)
+        response_entries = []
 
         try:
+            async def _open_channel(channel):
+                try:
+                    response = await self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id)
+                    response_entries.append((channel.resource_path, response))
+                    return None
+                except BaseException as ex:
+                    return ex
+
+            acquisition_results = await asyncio.gather(*[_open_channel(channel) for channel in session.channels])
+            acquisition_error = next((error for error in acquisition_results if error is not None), None)
+
+            if acquisition_error is not None:
+                raise acquisition_error
+
+            total_length = 0
+            for (_, response) in response_entries:
+                try:
+                    total_length += int(response.headers["Content-Length"])
+                except:
+                    pass
+
+            consumed = 0
+
+            def report_progress(bytes_read):
+                nonlocal consumed
+                consumed += bytes_read
+                if total_length > 0 and on_progress is not None:
+                    on_progress(consumed / total_length)
+
             async def _read_channel(resource_path, response):
                 try:
                     values = await self._read_as_double(response, report_progress)
@@ -701,7 +724,19 @@ class NexusAsyncClient:
         return result
 
     async def _read_as_double(self, response: Response, report_progress: Optional[Callable[[int], None]] = None):
-        
+        content_length_value = response.headers.get("Content-Length")
+
+        if content_length_value is None:
+            raise Exception("The data length is unknown.")
+
+        if not content_length_value.isascii() or not content_length_value.isdigit():
+            raise Exception("The data length is invalid.")
+
+        content_length = int(content_length_value)
+
+        if content_length < 0 or content_length % 8 != 0:
+            raise Exception("The data length is invalid.")
+
         chunks = []
         
         async for data in response.aiter_bytes():
@@ -711,8 +746,8 @@ class NexusAsyncClient:
         
         byteBuffer = b"".join(chunks)
 
-        if len(byteBuffer) % 8 != 0:
-            raise Exception("The data length is invalid.")
+        if len(byteBuffer) != content_length:
+            raise Exception("The data length does not match Content-Length.")
 
         doubleBuffer = array("d", byteBuffer)
 

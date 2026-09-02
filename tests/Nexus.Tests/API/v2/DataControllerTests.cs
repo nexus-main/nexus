@@ -63,7 +63,7 @@ public class DataControllerTests
         Assert.Equal(StatusCodes.Status426UpgradeRequired, result.StatusCode);
 
         Mock.Get(streamSessionManager).Verify(
-            current => current.Attach(It.IsAny<Guid>(), It.IsAny<Guid>()),
+            current => current.Attach(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<System.Security.Claims.ClaimsPrincipal>()),
             Times.Never);
     }
 
@@ -89,7 +89,7 @@ public class DataControllerTests
         var streamSessionManager = Mock.Of<IDataStreamSessionManager>();
 
         Mock.Get(streamSessionManager)
-            .Setup(current => current.GetStatus(It.IsAny<Guid>()))
+            .Setup(current => current.GetStatus(It.IsAny<Guid>(), It.IsAny<System.Security.Claims.ClaimsPrincipal>()))
             .Returns(expected);
 
         var controller = CreateController(dataService, streamSessionManager, "HTTP/1.1");
@@ -109,7 +109,7 @@ public class DataControllerTests
         var streamSessionManager = Mock.Of<IDataStreamSessionManager>();
 
         Mock.Get(streamSessionManager)
-            .Setup(current => current.GetStatus(It.IsAny<Guid>()))
+            .Setup(current => current.GetStatus(It.IsAny<Guid>(), It.IsAny<System.Security.Claims.ClaimsPrincipal>()))
             .Returns(expected);
 
         var controller = CreateController(dataService, streamSessionManager, "HTTP/2");

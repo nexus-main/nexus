@@ -48,7 +48,14 @@ internal interface IDataSourceController : IDisposable
         CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
         ReadDataHandler readDataHandler,
         IProgress<double> progress,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        DataSourceErrorHandling errorHandling = DataSourceErrorHandling.UseInvalidData);
+}
+
+internal enum DataSourceErrorHandling
+{
+    UseInvalidData,
+    Propagate
 }
 
 internal class DataSourceController(
@@ -291,7 +298,8 @@ internal class DataSourceController(
         CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
         ReadDataHandler readDataHandler,
         IProgress<double> progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DataSourceErrorHandling errorHandling = DataSourceErrorHandling.UseInvalidData)
     {
         /* This method reads data from the data source or from the cache and optionally
          * processes the data (aggregation, resampling).
@@ -345,6 +353,7 @@ internal class DataSourceController(
             targetElementCount,
             targetByteCount,
             originalProgress,
+            errorHandling,
             cancellationToken);
 
         readingTasks.Add(originalTask);
@@ -386,6 +395,7 @@ internal class DataSourceController(
                     readDataHandler,
                     targetByteCount,
                     processingProgress,
+                    errorHandling,
                     cancellationToken)
 
                 : ReadAggregatedAsync(
@@ -395,13 +405,14 @@ internal class DataSourceController(
                     readDataHandler,
                     targetByteCount,
                     processingProgress,
+                    errorHandling,
                     cancellationToken);
 
             readingTasks.Add(processingTask);
         }
 
         /* wait for tasks to finish */
-        await NexusUtilities.WhenAllFailFastAsync(readingTasks, cancellationToken);
+        await Task.WhenAll(readingTasks).ConfigureAwait(false);
     }
 
     private async Task ReadOriginalAsync(
@@ -412,6 +423,7 @@ internal class DataSourceController(
         int targetElementCount,
         int targetByteCount,
         IProgress<double> progress,
+        DataSourceErrorHandling errorHandling,
         CancellationToken cancellationToken)
     {
         var tuples = originalUnits
@@ -422,7 +434,7 @@ internal class DataSourceController(
                 ReadRequestManager manager = null!;
                 Func<CancellationToken, Task> onCompleted = async cancellationToken =>
                 {
-                    var (_, _, data, status, _) = manager.Request;
+                    var (_, _, data, status) = manager.Request;
 
                     var buffer = dataWriter
                         .GetMemory(targetByteCount)[..targetByteCount];
@@ -443,7 +455,8 @@ internal class DataSourceController(
                 manager = new ReadRequestManager(
                     catalogItemRequest.Item,
                     targetElementCount,
-                    onCompleted);
+                    onCompleted,
+                    cancellationToken);
 
                 return (readUnit, manager);
             })
@@ -487,6 +500,9 @@ internal class DataSourceController(
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
+
+                if (errorHandling == DataSourceErrorHandling.Propagate)
+                    throw;
             }
 
             /* Phase 2: flush any requests NOT completed via callback (fallback) */
@@ -496,40 +512,11 @@ internal class DataSourceController(
             {
                 var readRequest = readRequestManager.Request;
 
-                if (readRequest.IsCompleted)
-                    continue;
-
-                var (catalogItemRequest, dataWriter) = readUnit;
-                var (_, _, data, status, _) = readRequest;
-
-                using var scope = _logger.BeginScope(new Dictionary<string, object>()
-                {
-                    ["ResourcePath"] = catalogItemRequest.Item.ToPath()
-                });
-
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var buffer = dataWriter
-                    .GetMemory(targetByteCount)[..targetByteCount];
-
-                var targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
-
-                readingTasks.Add(Task.Run(async () =>
-                {
-                    BufferUtilities.ApplyRepresentationStatusByDataType(
-                        catalogItemRequest.Item.Representation.DataType,
-                        data,
-                        status,
-                        target: targetBuffer);
-
-                    _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
-                    dataWriter.Advance(targetByteCount);
-                    await dataWriter.FlushAsync(cancellationToken);
-                }, cancellationToken));
+                readingTasks.Add(readRequest.CompleteAsync());
             }
 
             /* wait for tasks to finish */
-            await NexusUtilities.WhenAllFailFastAsync(readingTasks, cancellationToken);
+            await Task.WhenAll(readingTasks).ConfigureAwait(false);
         }
         finally
         {
@@ -547,6 +534,7 @@ internal class DataSourceController(
        ReadDataHandler readDataHandler,
        int targetByteCount,
        IProgress<double> progress,
+       DataSourceErrorHandling errorHandling,
        CancellationToken cancellationToken)
     {
         var item = readUnit.CatalogItemRequest.Item;
@@ -563,7 +551,7 @@ internal class DataSourceController(
         /* read request */
         var readElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, baseSamplePeriod);
 
-        using var readRequestManager = new ReadRequestManager(baseItem, readElementCount, onCompleted: null);
+        using var readRequestManager = new ReadRequestManager(baseItem, readElementCount, onCompleted: null, cancellationToken);
         var readRequest = readRequestManager.Request;
 
         /* go */
@@ -664,6 +652,10 @@ internal class DataSourceController(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
+
+            if (errorHandling == DataSourceErrorHandling.Propagate)
+                throw;
+
             targetBuffer.Span.Fill(double.NaN);
         }
         finally
@@ -682,6 +674,7 @@ internal class DataSourceController(
        ReadDataHandler readDataHandler,
        int targetByteCount,
        IProgress<double> progress,
+       DataSourceErrorHandling errorHandling,
        CancellationToken cancellationToken)
     {
         var item = readUnit.CatalogItemRequest.Item;
@@ -723,7 +716,7 @@ internal class DataSourceController(
         var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
 
         /* read request */
-        using var readRequestManager = new ReadRequestManager(baseItem, roundedElementCount, onCompleted: null);
+        using var readRequestManager = new ReadRequestManager(baseItem, roundedElementCount, onCompleted: null, cancellationToken);
         var readRequest = readRequestManager.Request;
 
         /* go */
@@ -767,6 +760,10 @@ internal class DataSourceController(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
+
+            if (errorHandling == DataSourceErrorHandling.Propagate)
+                throw;
+
             targetBuffer.Span.Fill(double.NaN);
         }
 
@@ -833,11 +830,9 @@ internal class DataSourceController(
         IMemoryTracker memoryTracker,
         IProgress<double>? progress,
         ILogger<DataSourceController> logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DataSourceErrorHandling errorHandling = DataSourceErrorHandling.UseInvalidData)
     {
-        /* validation */
-        ValidateParameters(begin, end, samplePeriod);
-
         var catalogItemRequestPipeWriters = readingGroups.SelectMany(readingGroup => readingGroup.CatalogItemRequestPipeWriters);
 
         if (!catalogItemRequestPipeWriters.Any())
@@ -967,6 +962,7 @@ internal class DataSourceController(
                 readDataHandler,
                 progress,
                 logger,
+                errorHandling,
                 cancellationToken);
         }
         finally
@@ -984,6 +980,7 @@ internal class DataSourceController(
         ReadDataHandler readDataHandler,
         IProgress<double>? progress,
         ILogger logger,
+        DataSourceErrorHandling errorHandling,
         CancellationToken cancellationToken
     )
     {
@@ -1040,7 +1037,8 @@ internal class DataSourceController(
                             catalogItemRequestPipeWriters,
                             readDataHandler,
                             dataSourceProgress,
-                            cancellationToken);
+                            cancellationToken,
+                            errorHandling);
                     }
                     catch (OutOfMemoryException)
                     {
@@ -1049,10 +1047,13 @@ internal class DataSourceController(
                     catch (Exception ex)
                     {
                         logger.LogError(ex, "Process period {Begin} to {End} failed", currentBegin, currentEnd);
+
+                        if (errorHandling == DataSourceErrorHandling.Propagate)
+                            throw;
                     }
                 }).ToList();
 
-                await NexusUtilities.WhenAllFailFastAsync(readingTasks, cancellationToken);
+                await Task.WhenAll(readingTasks).ConfigureAwait(false);
 
                 /* continue in time */
                 consumedPeriod += currentPeriod;
@@ -1074,7 +1075,7 @@ internal class DataSourceController(
         }, cancellationToken);
     }
 
-    private static void ValidateParameters(
+    internal static void ValidateParameters(
         DateTime begin,
         DateTime end,
         TimeSpan samplePeriod)

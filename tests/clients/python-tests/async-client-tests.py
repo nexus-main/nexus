@@ -1,14 +1,20 @@
 import base64
 import json
 from datetime import datetime
+from uuid import UUID
 
 import pytest
-from httpx import AsyncClient, MockTransport, Request, Response, codes
+from httpx import AsyncByteStream, AsyncClient, MockTransport, Request, Response, codes
 from nexus_api import NexusAsyncClient, NexusException
 
 nexus_configuration_header_key = "Nexus-Configuration"
 
 try_count: int = 0
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
 
 def _handler(request: Request):
     global try_count
@@ -40,7 +46,7 @@ def _handler(request: Request):
     else:
         raise Exception("Unsupported path.")
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def can_add_configuration_test():
 
     # arrange
@@ -120,7 +126,7 @@ def _load_with_channel_fault_handler(request: Request):
         raise Exception(f"Unsupported path: {path}")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def can_load_with_channel_fault_test():
     http_client = AsyncClient(base_url="http://localhost", transport=MockTransport(_load_with_channel_fault_handler))
 
@@ -137,3 +143,51 @@ async def can_load_with_channel_fault_test():
             assert ex.status_code == "N02"
             assert "/A/B/C" in ex.message
             assert "The data source could not read the resource." in ex.message
+
+
+class _TrackingAsyncStream(AsyncByteStream):
+    def __init__(self, content: bytes):
+        self.content = content
+        self.closed = False
+
+    async def __aiter__(self):
+        yield self.content
+
+    async def aclose(self):
+        self.closed = True
+
+
+@pytest.mark.anyio
+async def streamed_unsuccessful_channel_has_body_and_closes_test():
+    stream = _TrackingAsyncStream(b"channel failed")
+
+    def handler(_: Request):
+        return Response(codes.INTERNAL_SERVER_ERROR, stream=stream)
+
+    http_client = AsyncClient(base_url="http://localhost", transport=MockTransport(handler))
+    client = NexusAsyncClient(http_client)
+
+    with pytest.raises(NexusException, match="channel failed"):
+        await client.v2.data.get_batch_stream_channel(UUID(int=1), UUID(int=2))
+
+    assert stream.closed
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("content", "content_length", "succeeds"), [
+    (b"\x00" * 8, None, False),
+    (b"\x00" * 7, "7", False),
+    (b"\x00" * 8, "16", False),
+    (b"\x00" * 16, "8", False),
+    (b"\x00" * 8, "8", True),
+])
+async def exact_content_length_test(content: bytes, content_length: str | None, succeeds: bool):
+    headers = {} if content_length is None else {"Content-Length": content_length}
+    response = Response(codes.OK, headers=headers, stream=_TrackingAsyncStream(content))
+    client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
+
+    if succeeds:
+        assert len(await client._read_as_double(response)) == 1
+    else:
+        with pytest.raises(Exception):
+            await client._read_as_double(response)

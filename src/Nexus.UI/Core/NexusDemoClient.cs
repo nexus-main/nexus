@@ -12,6 +12,8 @@ namespace Nexus.UI.Core;
 
 public class NexusDemoClient : INexusClient
 {
+    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
+
     public IV1 V1 => throw new NotImplementedException();
 
     public Api.V2.IV2 V2 => new V2();
@@ -61,17 +63,9 @@ public class NexusDemoClient : INexusClient
             try
             {
                 var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                var length = (end - begin).Ticks / TimeSpan.FromSeconds(1).Ticks;
+                var length = (end - begin).Ticks / SamplePeriod.Ticks;
                 var data = new byte[length * 8];
-                var remaining = data.AsMemory();
-
-                while (!remaining.IsEmpty)
-                {
-                    var bytesRead = await stream.ReadAsync(remaining, cancellationToken);
-                    if (bytesRead == 0)
-                        break;
-                    remaining = remaining.Slice(bytesRead);
-                }
+                await stream.ReadExactlyAsync(data, cancellationToken);
 
                 var doubleData = MemoryMarshal.Cast<byte, double>(data).ToArray();
 
@@ -82,7 +76,7 @@ public class NexusDemoClient : INexusClient
                     Name: channel.ResourcePath.Split('/').LastOrDefault() ?? channel.ResourcePath,
                     Unit: string.Empty,
                     Description: null,
-                    SamplePeriod: TimeSpan.FromSeconds(1),
+                    SamplePeriod: SamplePeriod,
                     Values: doubleData);
             }
             finally
@@ -342,6 +336,8 @@ We hope you enjoy it!
 
 public class DataDemoClient : IDataClient
 {
+    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
+
     public HttpResponseMessage GetStream(string resourcePath, DateTime begin, DateTime end)
     {
         throw new NotImplementedException();
@@ -358,7 +354,7 @@ public class DataDemoClient : IDataClient
             : 3;
 
         var random = new Random();
-        var length = (end - begin).Ticks / TimeSpan.FromSeconds(1).Ticks;
+        var length = (end - begin).Ticks / SamplePeriod.Ticks;
         var data = new byte[length * 8];
         var doubleData = MemoryMarshal.Cast<byte, double>(data);
 
@@ -380,6 +376,7 @@ public class DataDemoClient : IDataClient
 
 public class DataV2DemoClient : Api.V2.IDataClient
 {
+    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
     private static readonly ConcurrentDictionary<Guid, (string ResourcePath, DateTime Begin, DateTime End)> ChannelMap = new();
 
     public Api.V2.BatchStreamResponse RegisterBatchStream(Api.V2.BatchStreamRequest request)
@@ -420,7 +417,7 @@ public class DataV2DemoClient : Api.V2.IDataClient
             : 3;
 
         var random = new Random();
-        var length = (channel.End - channel.Begin).Ticks / TimeSpan.FromSeconds(1).Ticks;
+        var length = (channel.End - channel.Begin).Ticks / SamplePeriod.Ticks;
         var data = new byte[length * 8];
         var doubleData = MemoryMarshal.Cast<byte, double>(data);
 

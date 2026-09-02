@@ -70,7 +70,7 @@ Accept: application/json
 }
 ```
 
-The response contains one channel per resource path:
+The response contains one channel per resource path, with at most 100 resource paths per batch:
 
 ```json
 {
@@ -97,4 +97,4 @@ The server creates one `Pipe` per requested resource and groups pipe writers by 
 
 The source read starts only after all expected channel streams have attached. This prevents an unconsumed pipe from blocking the batch read before its HTTP response exists.
 
-Because each resource uses a separate HTTP channel, the v2 batch streaming endpoints require HTTP/2. HTTP/1.1-only clients or reverse proxies can queue channel requests behind per-origin connection limits; if not all channels attach, the server will not start the source read and the batch can hang until timeout. Proxies must also avoid buffering the channel responses.
+Because each resource uses a separate HTTP channel, the v2 batch streaming endpoints require HTTP/2. The 100-channel cap follows the 100-stream initial value recommended for `SETTINGS_MAX_CONCURRENT_STREAMS` by [RFC 7540 section 6.5.2](https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2), but peers and intermediaries may negotiate lower limits. HTTP/1.1-only clients or reverse proxies can queue channel requests behind per-origin connection limits; if not all channels attach, the server will not start the source read and the batch can hang until timeout. Proxies must also avoid buffering the channel responses, which would weaken end-to-end back-pressure and increase memory use.

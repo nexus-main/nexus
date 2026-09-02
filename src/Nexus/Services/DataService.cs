@@ -11,6 +11,7 @@ using Nexus.Core.V2;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Utilities;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Services;
 
@@ -117,14 +118,17 @@ internal class DataService(
        BatchStreamRequest request,
        CancellationToken cancellationToken)
     {
-        var begin = request.Begin.ToUniversalTime();
-        var end = request.End.ToUniversalTime();
+        var begin = DateTime.SpecifyKind(request.Begin, DateTimeKind.Utc);
+        var end = DateTime.SpecifyKind(request.End, DateTimeKind.Utc);
 
-        if (begin >= end)
-            throw new ValidationException("The begin datetime must be less than the end datetime.");
+        ValidateResourcePaths(request.ResourcePaths);
 
-        if (request.ResourcePaths is null || request.ResourcePaths.Length == 0)
-            throw new ValidationException("At least one resource path is required.");
+        var ownerSubject = _user.FindFirstValue(Claims.Subject);
+
+        if (string.IsNullOrWhiteSpace(ownerSubject))
+            throw new ValidationException("The current user has no subject claim.");
+
+        ownerSubject = ownerSubject.Trim().Normalize();
 
         var root = _appState.CatalogState.Root;
         var catalogItemRequests = new List<(int Index, string ResourcePath, CatalogItemRequest Request)>(request.ResourcePaths.Length);
@@ -152,51 +156,97 @@ internal class DataService(
             throw new ValidationException("All representations must be of the same sample period.");
 
         var samplePeriod = samplePeriods.First();
+        DataSourceController.ValidateParameters(begin, end, samplePeriod);
+
         var elementCount = ExtensibilityUtilities.CalculateElementCountLong(begin, end, samplePeriod);
-        var contentLength = elementCount * NexusUtilities.SizeOf(NexusDataType.FLOAT64);
+        var contentLength = checked(elementCount * NexusUtilities.SizeOf(NexusDataType.FLOAT64));
         var dataChannels = new List<DataStreamChannel>(catalogItemRequests.Count);
         var responseChannels = new BatchStreamChannel[catalogItemRequests.Count];
         var readingGroups = new List<DataReadingGroup>();
 
-        foreach (var group in catalogItemRequests.GroupBy(current => current.Request.Container))
+        try
         {
-            var controller = await _dataControllerService.GetDataSourceControllerAsync(group.Key.Pipeline, cancellationToken);
-            var catalogItemRequestPipeWriters = new List<CatalogItemRequestPipeWriter>();
-
-            foreach (var (index, resourcePath, catalogItemRequest) in group)
+            foreach (var group in catalogItemRequests.GroupBy(current => current.Request.Container))
             {
-                var pipe = new Pipe(new PipeOptions(
-                    pauseWriterThreshold: 4 * 1024 * 1024,
-                    resumeWriterThreshold: 2 * 1024 * 1024));
+                var controller = await _dataControllerService.GetDataSourceControllerAsync(group.Key.Pipeline, cancellationToken);
+                var catalogItemRequestPipeWriters = new List<CatalogItemRequestPipeWriter>();
 
+                try
+                {
+                    foreach (var (index, resourcePath, catalogItemRequest) in group)
+                    {
+                        var pipe = new Pipe(new PipeOptions(
+                            pauseWriterThreshold: 4 * 1024 * 1024,
+                            resumeWriterThreshold: 2 * 1024 * 1024));
 
-                var channelId = Guid.NewGuid();
+                        var channelId = Guid.NewGuid();
 
-                catalogItemRequestPipeWriters.Add(new CatalogItemRequestPipeWriter(catalogItemRequest, pipe.Writer));
-                dataChannels.Add(new DataStreamChannel(channelId, resourcePath, pipe.Reader, contentLength));
-                responseChannels[index] = new BatchStreamChannel(channelId, resourcePath);
+                        catalogItemRequestPipeWriters.Add(new CatalogItemRequestPipeWriter(catalogItemRequest, pipe.Writer));
+                        dataChannels.Add(new DataStreamChannel(channelId, resourcePath, pipe.Reader, contentLength));
+                        responseChannels[index] = new BatchStreamChannel(channelId, resourcePath);
+                    }
+
+                    readingGroups.Add(new DataReadingGroup(controller, catalogItemRequestPipeWriters.ToArray()));
+                }
+                catch
+                {
+                    controller.Dispose();
+
+                    foreach (var writer in catalogItemRequestPipeWriters)
+                        await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+
+                    throw;
+                }
             }
 
-            readingGroups.Add(new DataReadingGroup(controller, catalogItemRequestPipeWriters.ToArray()));
+            var session = new DataStreamSession(
+                Guid.NewGuid(),
+                ownerSubject,
+                begin,
+                end,
+                samplePeriod,
+                readingGroups.ToArray(),
+                dataChannels.ToArray(),
+                ReadAsDoubleAsync,
+                _memoryTracker,
+                ReadProgress,
+                _loggerFactory.CreateLogger<DataSourceController>());
+
+            _streamSessionManager.Register(session);
+
+            return new BatchStreamResponse(session.Id, responseChannels);
         }
+        catch
+        {
+            foreach (var readingGroup in readingGroups)
+            {
+                readingGroup.Controller.Dispose();
 
-        var session = new DataStreamSession(
-            Guid.NewGuid(),
-            begin,
-            end,
-            samplePeriod,
-            readingGroups.ToArray(),
-            dataChannels.ToArray(),
-            ReadAsDoubleAsync,
-            _memoryTracker,
-            ReadProgress,
-            _loggerFactory.CreateLogger<DataSourceController>());
+                foreach (var writer in readingGroup.CatalogItemRequestPipeWriters)
+                    await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+            }
 
-        _streamSessionManager.Register(session);
+            foreach (var channel in dataChannels)
+                await channel.Reader.CompleteAsync().ConfigureAwait(false);
 
-        return new BatchStreamResponse(
-            session.Id,
-            responseChannels);
+            throw;
+        }
+    }
+
+    internal static void ValidateResourcePaths(string[]? resourcePaths)
+    {
+        if (resourcePaths is null || resourcePaths.Length == 0)
+            throw new ValidationException("At least one resource path is required.");
+
+        // SETTINGS_MAX_CONCURRENT_STREAMS: https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2.
+        if (resourcePaths.Length > 100)
+            throw new ValidationException("A maximum of 100 resource paths is allowed.");
+
+        if (resourcePaths.Any(string.IsNullOrWhiteSpace))
+            throw new ValidationException("Resource paths must not be blank.");
+
+        if (resourcePaths.Distinct(StringComparer.Ordinal).Count() != resourcePaths.Length)
+            throw new ValidationException("Resource paths must be unique.");
     }
 
     public async Task ReadAsDoubleAsync(
@@ -324,6 +374,12 @@ internal class DataService(
         IDataWriterController? dataWriterController,
         CancellationToken cancellationToken)
     {
+        var exportParameters = exportContext.ExportParameters;
+        DataSourceController.ValidateParameters(
+            exportParameters.Begin,
+            exportParameters.End,
+            exportContext.SamplePeriod);
+
         /* reading groups */
         var catalogItemRequestPipeReaders = new List<CatalogItemRequestPipeReader>();
         var readingGroups = new List<DataReadingGroup>();
@@ -349,7 +405,6 @@ internal class DataService(
         cancellationToken.Register(cts.Cancel);
 
         /* read */
-        var exportParameters = exportContext.ExportParameters;
         var logger = _loggerFactory.CreateLogger<DataSourceController>();
 
         var reading = DataSourceController.ReadAsync(

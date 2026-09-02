@@ -155,7 +155,7 @@ internal class Sample : IDataSource<object?>
     {
         var tasks = requests.Select(request =>
         {
-            var (_, catalogItem, data, status, _) = request;
+            var (_, catalogItem, data, status) = request;
 
             return Task.Run(async () =>
             {
@@ -206,23 +206,33 @@ internal class Sample : IDataSource<object?>
                 status.Span
                     .Fill(1);
 
-                await request.CompleteAsync(cancellationToken);
+                await request.CompleteAsync();
             });
         }).ToList();
 
-        var finishedTasks = 0;
-
-        while (tasks.Count != 0)
+        try
         {
-            var task = await Task.WhenAny(tasks);
-            cancellationToken.ThrowIfCancellationRequested();
+            var finishedTasks = 0;
 
-            if (task.Exception is not null && task.Exception.InnerException is not null)
-                throw task.Exception.InnerException;
-
-            finishedTasks++;
-            progress.Report(finishedTasks / (double)requests.Length);
-            tasks.Remove(task);
+            while (tasks.Count != 0)
+            {
+                var task = await Task.WhenAny(tasks);
+                await task;
+                finishedTasks++;
+                progress.Report(finishedTasks / (double)requests.Length);
+                tasks.Remove(task);
+            }
+        }
+        finally
+        {
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch
+            {
+                // Preserve the first failure after every worker has unwound.
+            }
         }
     }
 

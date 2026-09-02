@@ -9,6 +9,7 @@ using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Services;
 using System.IO.Compression;
+using System.ComponentModel.DataAnnotations;
 using Xunit;
 
 namespace Services;
@@ -16,6 +17,22 @@ namespace Services;
 public class DataServiceTests
 {
     delegate void GobbleReturns(string catalogId, string searchPattern, EnumerationOptions enumerationOptions, out Stream attachment);
+
+    [Fact]
+    public void AllowsOneHundredResourcePaths()
+    {
+        var paths = Enumerable.Range(0, 100).Select(index => $"/A/R{index}").ToArray();
+
+        DataService.ValidateResourcePaths(paths);
+    }
+
+    [Fact]
+    public void RejectsOneHundredAndOneResourcePaths()
+    {
+        var paths = Enumerable.Range(0, 101).Select(index => $"/A/R{index}").ToArray();
+
+        Assert.Throws<ValidationException>(() => DataService.ValidateResourcePaths(paths));
+    }
 
     [Fact]
     public async Task CanExportAsync()

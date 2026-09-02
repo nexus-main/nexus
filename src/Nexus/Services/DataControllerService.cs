@@ -69,9 +69,16 @@ internal class DataControllerService(
             pipeline,
             registration => new ConcurrentDictionary<string, ResourceCatalog>());
 
-        await controller.InitializeAsync(catalogCache, _loggerFactory, cancellationToken);
-
-        return controller;
+        try
+        {
+            await controller.InitializeAsync(catalogCache, _loggerFactory, cancellationToken);
+            return controller;
+        }
+        catch
+        {
+            controller.Dispose();
+            throw;
+        }
     }
 
     public async Task<IDataWriterController> GetDataWriterControllerAsync(Uri resourceLocator, ExportParameters exportParameters, CancellationToken cancellationToken)
@@ -88,9 +95,16 @@ internal class DataControllerService(
             requestConfiguration: requestConfiguration,
             logger1);
 
-        await controller.InitializeAsync(logger2, cancellationToken);
-
-        return controller;
+        try
+        {
+            await controller.InitializeAsync(logger2, cancellationToken);
+            return controller;
+        }
+        catch
+        {
+            controller.Dispose();
+            throw;
+        }
     }
 
     private IReadOnlyDictionary<string, JsonElement>? GetRequestConfiguration()

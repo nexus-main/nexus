@@ -2,9 +2,12 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Nexus.Core.V2;
+using Nexus.Core;
 using Nexus.Extensibility;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
+using System.Security.Claims;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Services;
 
@@ -12,36 +15,40 @@ internal interface IDataStreamSessionManager
 {
     void Register(DataStreamSession session);
 
-    DataStreamChannelLease? Attach(Guid sessionId, Guid channelId);
+    DataStreamChannelLease? Attach(Guid sessionId, Guid channelId, ClaimsPrincipal principal);
 
-    BatchStreamSessionStatus? GetStatus(Guid sessionId);
+    BatchStreamSessionStatus? GetStatus(Guid sessionId, ClaimsPrincipal principal);
 }
 
-internal sealed class DataStreamSessionManager : IDataStreamSessionManager
+internal sealed class DataStreamSessionManager(
+    TimeProvider? timeProvider = null,
+    TimeSpan? sessionTimeout = null,
+    TimeSpan? statusGracePeriod = null) : IDataStreamSessionManager
 {
-    private static readonly TimeSpan SessionTimeout = TimeSpan.FromMinutes(1);
-
     private readonly ConcurrentDictionary<Guid, DataStreamSession> _sessions = new();
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeSpan _sessionTimeout = sessionTimeout ?? TimeSpan.FromMinutes(1);
+    private readonly TimeSpan _statusGracePeriod = statusGracePeriod ?? TimeSpan.FromSeconds(30);
 
     public void Register(DataStreamSession session)
     {
         if (!_sessions.TryAdd(session.Id, session))
             throw new InvalidOperationException($"A data stream session with id {session.Id} already exists.");
 
-        session.StartLifetime(Remove, SessionTimeout);
+        session.StartLifetime(Remove, _timeProvider, _sessionTimeout, _statusGracePeriod);
     }
 
-    public DataStreamChannelLease? Attach(Guid sessionId, Guid channelId)
+    public DataStreamChannelLease? Attach(Guid sessionId, Guid channelId, ClaimsPrincipal principal)
     {
-        if (!_sessions.TryGetValue(sessionId, out var session))
+        if (!_sessions.TryGetValue(sessionId, out var session) || !session.IsOwner(principal))
             return default;
 
         return session.Attach(channelId);
     }
 
-    public BatchStreamSessionStatus? GetStatus(Guid sessionId)
+    public BatchStreamSessionStatus? GetStatus(Guid sessionId, ClaimsPrincipal principal)
     {
-        if (!_sessions.TryGetValue(sessionId, out var session))
+        if (!_sessions.TryGetValue(sessionId, out var session) || !session.IsOwner(principal))
             return default;
 
         return session.GetStatus();
@@ -55,6 +62,7 @@ internal sealed class DataStreamSessionManager : IDataStreamSessionManager
 
 internal sealed class DataStreamSession(
     Guid id,
+    string ownerSubject,
     DateTime begin,
     DateTime end,
     TimeSpan samplePeriod,
@@ -72,54 +80,74 @@ internal sealed class DataStreamSession(
     private Action<Guid>? _remove;
     private bool _isCanceled;
     private bool _isDisposed;
-    private bool _controllersDisposed;
     private Task? _readingTask;
+    private Task? _disposeTask;
     private Guid? _faultedChannelId;
     private string? _faultReason;
-
-    private static readonly TimeSpan StatusGracePeriod = TimeSpan.FromSeconds(30);
+    private TimeProvider _timeProvider = TimeProvider.System;
+    private TimeSpan _statusGracePeriod = TimeSpan.FromSeconds(30);
 
     public Guid Id { get; } = id;
 
     public DataStreamChannel[] Channels { get; } = channels;
 
-    public void StartLifetime(Action<Guid> remove, TimeSpan timeout)
+    public bool IsOwner(ClaimsPrincipal principal)
+    {
+        var subject = principal.FindFirstValue(Claims.Subject);
+        return !string.IsNullOrWhiteSpace(subject) &&
+            string.Equals(ownerSubject, subject.Trim().Normalize(), StringComparison.Ordinal);
+    }
+
+    public void StartLifetime(
+        Action<Guid> remove,
+        TimeProvider timeProvider,
+        TimeSpan timeout,
+        TimeSpan statusGracePeriod)
     {
         _remove = remove;
+        _timeProvider = timeProvider;
+        _statusGracePeriod = statusGracePeriod;
 
-        _ = Task.Run(async () =>
+        _ = ExpireAsync();
+
+        async Task ExpireAsync()
         {
-            try
+            await Task.Delay(timeout, timeProvider).ConfigureAwait(false);
+
+            var shouldExpire = false;
+
+            lock (_gate)
             {
-                await Task.Delay(timeout, _cts.Token).ConfigureAwait(false);
-
-                var shouldCancel = false;
-
-                lock (_gate)
+                if (_readingTask is null && !_isDisposed)
                 {
-                    shouldCancel = _readingTask is null;
+                    _isCanceled = true;
+                    _faultedChannelId = null;
+                    _faultReason ??= "The session timed out before all channels attached.";
+                    shouldExpire = true;
+                }
+            }
+
+            if (shouldExpire)
+            {
+                try
+                {
+                    await CancelCoreAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Canceling timed-out batch data streaming failed");
                 }
 
-                if (shouldCancel)
+                try
                 {
-                    lock (_gate)
-                    {
-                        if (_faultReason is null)
-                        {
-                            _faultedChannelId = null;
-                            _faultReason = "The session timed out before all channels attached.";
-                        }
-                    }
-
-                    await CancelAsync().ConfigureAwait(false);
                     await DisposeAsync().ConfigureAwait(false);
                 }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Disposing timed-out batch data streaming failed");
+                }
             }
-            catch (OperationCanceledException)
-            {
-                // The session started or completed before the attach timeout expired.
-            }
-        });
+        }
     }
 
     public DataStreamChannelLease? Attach(Guid channelId)
@@ -164,7 +192,7 @@ internal sealed class DataStreamSession(
             if (faulted && !_isCanceled)
                 shouldCancel = true;
 
-            shouldDispose = _completedChannelIds.Count == Channels.Length;
+            shouldDispose = faulted || _completedChannelIds.Count == Channels.Length;
         }
 
         if (shouldCancel)
@@ -190,13 +218,47 @@ internal sealed class DataStreamSession(
         if (!cancel)
             return;
 
-        await _cts.CancelAsync().ConfigureAwait(false);
+        await CancelCoreAsync().ConfigureAwait(false);
+    }
+
+    private async Task CancelCoreAsync()
+    {
+        List<Exception>? exceptions = null;
+
+        try
+        {
+            await _cts.CancelAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            (exceptions ??= []).Add(ex);
+        }
 
         foreach (var channel in Channels)
-            channel.Reader.CancelPendingRead();
+        {
+            try
+            {
+                channel.Reader.CancelPendingRead();
+            }
+            catch (Exception ex)
+            {
+                (exceptions ??= []).Add(ex);
+            }
+        }
 
         foreach (var writer in readingGroups.SelectMany(group => group.CatalogItemRequestPipeWriters))
-            writer.DataWriter.CancelPendingFlush();
+        {
+            try
+            {
+                writer.DataWriter.CancelPendingFlush();
+            }
+            catch (Exception ex)
+            {
+                (exceptions ??= []).Add(ex);
+            }
+        }
+
+        ThrowIfAny(exceptions);
     }
 
     public BatchStreamSessionStatus GetStatus()
@@ -219,6 +281,9 @@ internal sealed class DataStreamSession(
 
     private async Task ReadAsync()
     {
+        var completedSuccessfully = false;
+        Exception? sourceException = null;
+
         try
         {
             await DataSourceController.ReadAsync(
@@ -230,7 +295,10 @@ internal sealed class DataStreamSession(
                 memoryTracker,
                 progress,
                 logger,
-                _cts.Token).ConfigureAwait(false);
+                _cts.Token,
+                DataSourceErrorHandling.Propagate).ConfigureAwait(false);
+
+            completedSuccessfully = true;
         }
         catch (OperationCanceledException) when (_cts.IsCancellationRequested)
         {
@@ -238,6 +306,7 @@ internal sealed class DataStreamSession(
         }
         catch (Exception ex)
         {
+            sourceException = ex;
             logger.LogError(ex, "Batch data streaming failed");
 
             lock (_gate)
@@ -249,66 +318,151 @@ internal sealed class DataStreamSession(
                 }
             }
 
-            await CancelAsync().ConfigureAwait(false);
         }
         finally
         {
-            DisposeControllers();
+            if (!completedSuccessfully)
+            {
+                foreach (var writer in readingGroups.SelectMany(group => group.CatalogItemRequestPipeWriters))
+                {
+                    try
+                    {
+                        await writer.DataWriter.CompleteAsync(sourceException).ConfigureAwait(false);
+                    }
+                    catch (Exception completionException)
+                    {
+                        logger.LogError(completionException, "Completing a batch data pipe failed");
+                    }
+                }
+            }
         }
     }
 
-    private async Task DisposeAsync()
+    private Task DisposeAsync()
     {
-        var dispose = false;
+        TaskCompletionSource? completion = null;
 
         lock (_gate)
         {
-            if (!_isDisposed)
-            {
-                _isDisposed = true;
-                dispose = true;
-            }
+            if (_disposeTask is not null)
+                return _disposeTask;
+
+            _isDisposed = true;
+            completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _disposeTask = completion.Task;
         }
 
-        if (!dispose)
-            return;
-
-        var remove = _remove;
-        DisposeControllers();
-
-        foreach (var channel in Channels)
-            await channel.Reader.CompleteAsync().ConfigureAwait(false);
-
-        var readingTask = _readingTask;
-
-        if (readingTask is null || readingTask.IsCompleted)
-            _cts.Dispose();
-
-        else
-            _ = readingTask.ContinueWith(_ => _cts.Dispose(), TaskScheduler.Default);
-
-        if (remove is not null)
-            _ = Task.Delay(StatusGracePeriod).ContinueWith(_ => remove(Id), TaskScheduler.Default);
+        _ = DisposeCoreAsync(completion);
+        return completion.Task;
     }
 
-    private void DisposeControllers()
+    private async Task DisposeCoreAsync(TaskCompletionSource completion)
     {
-        var dispose = false;
+        List<Exception>? exceptions = null;
 
-        lock (_gate)
+        try
         {
-            if (!_controllersDisposed)
+            var readingTask = _readingTask;
+
+            if (readingTask is not null)
             {
-                _controllersDisposed = true;
-                dispose = true;
+                try
+                {
+                    await readingTask.ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    (exceptions ??= []).Add(ex);
+                }
             }
+
+            foreach (var controller in readingGroups.Select(group => group.Controller))
+            {
+                try
+                {
+                    controller.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    (exceptions ??= []).Add(ex);
+                }
+            }
+
+            if (readingTask is null)
+            {
+                foreach (var writer in readingGroups.SelectMany(group => group.CatalogItemRequestPipeWriters))
+                {
+                    try
+                    {
+                        await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        (exceptions ??= []).Add(ex);
+                    }
+                }
+            }
+
+            foreach (var channel in Channels)
+            {
+                try
+                {
+                    await channel.Reader.CompleteAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    (exceptions ??= []).Add(ex);
+                }
+            }
+
+            try
+            {
+                _cts.Dispose();
+            }
+            catch (Exception ex)
+            {
+                (exceptions ??= []).Add(ex);
+            }
+
+            var remove = _remove;
+            if (remove is not null)
+                _ = RemoveAfterGracePeriodAsync(remove);
+
+            if (exceptions is null)
+                completion.SetResult();
+            else if (exceptions.Count == 1)
+                completion.SetException(exceptions[0]);
+            else
+                completion.SetException(new AggregateException(exceptions));
+        }
+        catch (Exception ex)
+        {
+            completion.TrySetException(ex);
         }
 
-        if (!dispose)
+        async Task RemoveAfterGracePeriodAsync(Action<Guid> removeSession)
+        {
+            try
+            {
+                await Task.Delay(_statusGracePeriod, _timeProvider).ConfigureAwait(false);
+                removeSession(Id);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Removing batch data streaming session failed");
+            }
+        }
+    }
+
+    private static void ThrowIfAny(List<Exception>? exceptions)
+    {
+        if (exceptions is null)
             return;
 
-        foreach (var controller in readingGroups.Select(group => group.Controller))
-            controller.Dispose();
+        if (exceptions.Count == 1)
+            throw exceptions[0];
+
+        throw new AggregateException(exceptions);
     }
 }
 

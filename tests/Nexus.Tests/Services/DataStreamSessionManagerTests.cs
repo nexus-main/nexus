@@ -9,12 +9,16 @@ using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Services;
 using System.IO.Pipelines;
+using System.Security.Claims;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 using Xunit;
 
 namespace Services;
 
 public class DataStreamSessionManagerTests
 {
+    private static readonly ClaimsPrincipal Owner = CreatePrincipal("owner");
+
     [Fact]
     public async Task StartsReadingOnlyAfterAllChannelsAttach()
     {
@@ -39,7 +43,8 @@ public class DataStreamSessionManagerTests
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<CancellationToken>(),
+                It.IsAny<DataSourceErrorHandling>()))
             .Callback(() =>
             {
                 Interlocked.Increment(ref callCount);
@@ -55,6 +60,7 @@ public class DataStreamSessionManagerTests
 
         var session = new DataStreamSession(
             Guid.NewGuid(),
+            "owner",
             begin,
             end,
             samplePeriod,
@@ -77,16 +83,14 @@ public class DataStreamSessionManagerTests
         var manager = new DataStreamSessionManager();
         manager.Register(session);
 
-        var firstLease = manager.Attach(session.Id, session.Channels[0].Id);
+        var firstLease = manager.Attach(session.Id, session.Channels[0].Id, Owner);
 
         Assert.NotNull(firstLease);
-        Assert.Null(manager.Attach(session.Id, session.Channels[0].Id));
-
-        await Task.Delay(100);
+        Assert.Null(manager.Attach(session.Id, session.Channels[0].Id, Owner));
 
         Assert.Equal(0, Volatile.Read(ref callCount));
 
-        var secondLease = manager.Attach(session.Id, session.Channels[1].Id);
+        var secondLease = manager.Attach(session.Id, session.Channels[1].Id, Owner);
 
         Assert.NotNull(secondLease);
 
@@ -104,14 +108,14 @@ public class DataStreamSessionManagerTests
     {
         var (manager, session) = CreateSession();
 
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id));
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id, Owner));
 
         var faultException = new Exception("Test fault");
         await session.CompleteChannelAsync(session.Channels[0].Id, faulted: true, faultException);
         await session.CompleteChannelAsync(session.Channels[1].Id, faulted: false);
 
-        var status = manager.GetStatus(session.Id);
+        var status = manager.GetStatus(session.Id, Owner);
 
         Assert.NotNull(status);
         Assert.Equal(BatchStreamSessionState.Faulted, status!.State);
@@ -130,16 +134,18 @@ public class DataStreamSessionManagerTests
             .Throws(new InvalidOperationException("Out of memory"));
 
         var (manager, session) = CreateSession(memoryTracker);
+        var reads = session.Channels.Select(channel => channel.Reader.ReadAsync().AsTask()).ToArray();
 
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id));
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id, Owner));
 
-        await Task.Delay(500);
+        foreach (var read in reads)
+            await Assert.ThrowsAsync<InvalidOperationException>(() => read);
+
+        var status = manager.GetStatus(session.Id, Owner);
 
         await session.CompleteChannelAsync(session.Channels[0].Id, faulted: false);
         await session.CompleteChannelAsync(session.Channels[1].Id, faulted: false);
-
-        var status = manager.GetStatus(session.Id);
 
         Assert.NotNull(status);
         Assert.Equal(BatchStreamSessionState.Faulted, status!.State);
@@ -148,17 +154,126 @@ public class DataStreamSessionManagerTests
     }
 
     [Fact]
+    public async Task PartialAttachTimeoutCancelsDisposesAndRemovesSession()
+    {
+        var timeProvider = new ControlledTimeProvider();
+        var controllerDisposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var controller = CreateController();
+
+        Mock.Get(controller)
+            .Setup(current => current.Dispose())
+            .Callback(() => controllerDisposed.SetResult());
+
+        var manager = new DataStreamSessionManager(
+            timeProvider,
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(1));
+        var session = CreateSession(controller: controller, manager: manager).Session;
+        var pendingRead = session.Channels[0].Reader.ReadAsync().AsTask();
+
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+
+        timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        var readResult = await pendingRead.WaitAsync(TimeSpan.FromSeconds(5));
+        await controllerDisposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(readResult.IsCanceled);
+        Assert.Null(manager.Attach(session.Id, session.Channels[1].Id, Owner));
+
+        var status = manager.GetStatus(session.Id, Owner);
+
+        Assert.NotNull(status);
+        Assert.Equal(BatchStreamSessionState.Faulted, status!.State);
+        Assert.Contains("timed out", status.FaultReason);
+
+        await WaitUntilAsync(() => timeProvider.TimerCount == 2);
+        timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        await WaitUntilAsync(() => manager.GetStatus(session.Id, Owner) is null);
+    }
+
+    [Fact]
+    public async Task TimeoutSelectionPreventsFinalAttach()
+    {
+        var timeProvider = new ControlledTimeProvider();
+        var controllerDisposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var controller = CreateController();
+
+        Mock.Get(controller)
+            .Setup(current => current.Dispose())
+            .Callback(() => controllerDisposed.SetResult());
+
+        var manager = new DataStreamSessionManager(
+            timeProvider,
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(1));
+        var session = CreateSession(controller: controller, manager: manager).Session;
+
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+
+        timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        await controllerDisposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(manager.Attach(session.Id, session.Channels[1].Id, Owner));
+    }
+
+    [Fact]
+    public async Task ControllerIsDisposedOnlyAfterBlockedReadUnwinds()
+    {
+        var readStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finishRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var controllerDisposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var controller = CreateController();
+
+        Mock.Get(controller)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<DataSourceErrorHandling>()))
+            .Callback(() => readStarted.SetResult())
+            .Returns(finishRead.Task);
+
+        Mock.Get(controller)
+            .Setup(current => current.Dispose())
+            .Callback(() => controllerDisposed.SetResult());
+
+        var (manager, session) = CreateSession(controller: controller);
+
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id, Owner));
+        await readStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var completing = session.CompleteChannelAsync(
+            session.Channels[0].Id,
+            faulted: true,
+            new InvalidOperationException("Channel failed"));
+
+        Assert.False(controllerDisposed.Task.IsCompleted);
+
+        finishRead.SetResult();
+
+        await completing.WaitAsync(TimeSpan.FromSeconds(5));
+        await controllerDisposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public async Task ReturnsCompletedOnSuccess()
     {
         var (manager, session) = CreateSession();
 
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id));
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id, Owner));
 
         await session.CompleteChannelAsync(session.Channels[0].Id, faulted: false);
         await session.CompleteChannelAsync(session.Channels[1].Id, faulted: false);
 
-        var status = manager.GetStatus(session.Id);
+        var status = manager.GetStatus(session.Id, Owner);
 
         Assert.NotNull(status);
         Assert.Equal(BatchStreamSessionState.Completed, status!.State);
@@ -171,13 +286,13 @@ public class DataStreamSessionManagerTests
     {
         var (manager, session) = CreateSession();
 
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id));
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[1].Id, Owner));
 
         await session.CompleteChannelAsync(session.Channels[0].Id, faulted: false);
         await session.CompleteChannelAsync(session.Channels[1].Id, faulted: false);
 
-        var status = manager.GetStatus(session.Id);
+        var status = manager.GetStatus(session.Id, Owner);
 
         Assert.NotNull(status);
     }
@@ -187,13 +302,26 @@ public class DataStreamSessionManagerTests
     {
         var manager = new DataStreamSessionManager();
 
-        var status = manager.GetStatus(Guid.NewGuid());
+        var status = manager.GetStatus(Guid.NewGuid(), Owner);
 
         Assert.Null(status);
     }
 
+    [Fact]
+    public void ForeignPrincipalCannotAccessSession()
+    {
+        var (manager, session) = CreateSession();
+        var foreign = CreatePrincipal("foreign");
+
+        Assert.Null(manager.Attach(session.Id, session.Channels[0].Id, foreign));
+        Assert.Null(manager.GetStatus(session.Id, foreign));
+        Assert.NotNull(manager.GetStatus(session.Id, Owner));
+    }
+
     private static (DataStreamSessionManager Manager, DataStreamSession Session) CreateSession(
-        IMemoryTracker? memoryTracker = default)
+        IMemoryTracker? memoryTracker = default,
+        IDataSourceController? controller = default,
+        DataStreamSessionManager? manager = default)
     {
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = begin.AddSeconds(1);
@@ -204,18 +332,7 @@ public class DataStreamSessionManagerTests
         var request2 = new CatalogItemRequest(new CatalogItem(catalog, new Resource("Y"), representation, default), default, default!);
         var pipe1 = new Pipe();
         var pipe2 = new Pipe();
-        var controller = Mock.Of<IDataSourceController>();
-
-        Mock.Get(controller)
-            .Setup(current => current.ReadAsync(
-                It.IsAny<DateTime>(),
-                It.IsAny<DateTime>(),
-                It.IsAny<TimeSpan>(),
-                It.IsAny<CatalogItemRequestPipeWriter[]>(),
-                It.IsAny<ReadDataHandler>(),
-                It.IsAny<IProgress<double>>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        controller ??= CreateController();
 
         var useDefaultMemoryTracker = memoryTracker is null;
         memoryTracker ??= Mock.Of<IMemoryTracker>();
@@ -229,6 +346,7 @@ public class DataStreamSessionManagerTests
 
         var session = new DataStreamSession(
             Guid.NewGuid(),
+            "owner",
             begin,
             end,
             samplePeriod,
@@ -248,9 +366,130 @@ public class DataStreamSessionManagerTests
             default,
             NullLogger<DataSourceController>.Instance);
 
-        var manager = new DataStreamSessionManager();
+        manager ??= new DataStreamSessionManager();
         manager.Register(session);
 
         return (manager, session);
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(string subject)
+    {
+        return new ClaimsPrincipal(new ClaimsIdentity([new Claim(Claims.Subject, subject)]));
+    }
+
+    private static IDataSourceController CreateController()
+    {
+        var controller = Mock.Of<IDataSourceController>();
+
+        Mock.Get(controller)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<DataSourceErrorHandling>()))
+            .Returns(Task.CompletedTask);
+
+        return controller;
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        while (!condition())
+            await Task.Delay(1, cts.Token);
+    }
+
+    private sealed class ControlledTimeProvider : TimeProvider
+    {
+        private readonly object _gate = new();
+        private readonly List<ControlledTimer> _timers = [];
+        private DateTimeOffset _utcNow = DateTimeOffset.UnixEpoch;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public int TimerCount
+        {
+            get
+            {
+                lock (_gate)
+                    return _timers.Count;
+            }
+        }
+
+        public override ITimer CreateTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            var timer = new ControlledTimer(this, callback, state, _utcNow + dueTime, period);
+
+            lock (_gate)
+                _timers.Add(timer);
+
+            return timer;
+        }
+
+        public void Advance(TimeSpan duration)
+        {
+            ControlledTimer[] timers;
+
+            lock (_gate)
+            {
+                _utcNow += duration;
+                timers = _timers.Where(timer => timer.IsDue(_utcNow)).ToArray();
+            }
+
+            foreach (var timer in timers)
+                timer.Fire(_utcNow);
+        }
+
+        private sealed class ControlledTimer(
+            ControlledTimeProvider provider,
+            TimerCallback callback,
+            object? state,
+            DateTimeOffset dueAt,
+            TimeSpan period) : ITimer
+        {
+            private bool _disposed;
+
+            public bool IsDue(DateTimeOffset now) => !_disposed && dueAt <= now;
+
+            public bool Change(TimeSpan dueTime, TimeSpan newPeriod)
+            {
+                dueAt = provider._utcNow + dueTime;
+                period = newPeriod;
+                return !_disposed;
+            }
+
+            public void Fire(DateTimeOffset now)
+            {
+                if (_disposed)
+                    return;
+
+                if (period == Timeout.InfiniteTimeSpan)
+                    _disposed = true;
+                else
+                    dueAt = now + period;
+
+                callback(state);
+            }
+
+            public void Dispose()
+            {
+                _disposed = true;
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 }

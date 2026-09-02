@@ -4,14 +4,14 @@ This note describes the end-to-end data path from an HTTP request to the data so
 
 # Overview
 
-Nexus streams time-series data to clients through `System.IO.Pipelines` — a zero-copy, back-pressure-aware memory model. A `Pipe` has a `PipeWriter` (producer side) and a `PipeReader` (consumer side). The producer calls `GetMemory`, writes into the returned `Memory<byte>`, calls `Advance`, then `FlushAsync`. The consumer reads via `ReadAsync` or `AsStream()`.
+Nexus streams time-series data to clients through `System.IO.Pipelines`, which limits intermediate copying and provides threshold-based back-pressure. It is not a strictly zero-copy path: Nexus converts source data into pipe buffers, and the HTTP stack or a reverse proxy may copy or buffer it again. A `Pipe` has a `PipeWriter` (producer side) and a `PipeReader` (consumer side). The producer calls `GetMemory`, writes into the returned `Memory<byte>`, calls `Advance`, then `FlushAsync`. The consumer reads via `ReadAsync` or `AsStream()`.
 
 There are two HTTP entry points:
 
 | Endpoint | Protocol | Resources | Pipe topology |
 |---|---|---|---|
 | `GET /api/v1/data` | any | 1 | one `Pipe`, wrapped in `DataSourceDoubleStream` |
-| `POST /api/v2/data/streams/batch` + `GET .../channel/{id}` | HTTP/2 | N | one `Pipe` per resource, held by `DataStreamSession` |
+| `POST /api/v2/data/streams/batch` + `GET .../channel/{id}` | HTTP/2 | 1–100 | one `Pipe` per resource, held by `DataStreamSession` |
 
 Both paths ultimately invoke the same static `DataSourceController.ReadAsync` method, which chunks the time range, dispatches `ReadRequest[]` arrays to `IDataSource.ReadAsync`, and flushes results into the pipe writers.
 
@@ -53,9 +53,9 @@ HTTP GET /api/v2/data/streams/batch/{sessionId}/channel/{channelId}  (one per ch
     -> finally: session.CompleteChannelAsync(channelId, faulted, ...)
 ```
 
-Each channel is a separate HTTP/2 stream on the same connection. The server waits until **all** channels have attached before starting the source read — otherwise an unconsumed pipe could block the batch read behind back-pressure before its HTTP response exists. If not all channels attach within the session timeout (1 minute), the session is canceled.
+Each channel is a separate HTTP/2 stream on the same connection, and a batch is capped at 100 channels. This conservative cap reflects the 100-stream initial value recommended for `SETTINGS_MAX_CONCURRENT_STREAMS` by [RFC 7540 section 6.5.2](https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2); the negotiated peer or an intermediary can still impose a lower limit. The server waits until **all** channels have attached before starting the source read — otherwise an unconsumed pipe could block the batch read behind back-pressure before its HTTP response exists. If not all channels attach within the session timeout (1 minute), the session is canceled.
 
-The pipe is configured with a 4 MB pause threshold and 2 MB resume threshold (`PipeOptions`), giving natural back-pressure between the source and the HTTP consumers.
+The pipe is configured with a 4 MB pause threshold and 2 MB resume threshold (`PipeOptions`). Crossing the pause threshold makes flushes wait for consumers to drain buffered data, bounding Nexus's per-pipe buffering under normal operation. This does not bound buffering performed by sources, clients, or reverse proxies.
 
 When a channel faults (exception or cancellation), `CompleteChannelAsync` records the fault and cancels the entire session. This is the "cancel-everything" design: a single channel failure cancels all pipes and the source read. There is no partial-drain mode.
 
@@ -124,7 +124,7 @@ API levels:
 - **Many resources, sequential read**: a source that reads one file at a time can stream each resource to the client as it completes, rather than waiting for all files to be read. The client sees data flowing for the first resource while the source is still reading the second.
 - **Heterogeneous latency**: if some resources are fast (local cache) and others slow (network fetch), `CompleteAsync` lets the fast ones flow immediately.
 - **Remote sources with batch reads**: the frame protocol multiplexes per-resource completion over a single TCP connection, avoiding per-resource round-trips while still enabling per-resource streaming.
-- **Back-pressure**: the pipe's pause/resume thresholds (4 MB / 2 MB in v2 batch, default in v1) automatically slow down a fast source when the HTTP consumer is slow. The source's `FlushAsync` call blocks until the pipe drains.
+- **Back-pressure**: the pipe's pause/resume thresholds (4 MB / 2 MB in v2 batch, default in v1) slow a fast source when the HTTP consumer is slow. `FlushAsync` completes asynchronously after sufficient data drains once the pause threshold is crossed; this protection does not extend to buffering outside the pipe.
 
 # Suboptimal Edge Cases
 
