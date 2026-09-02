@@ -8,7 +8,7 @@ Nexus allows streaming data directly into the UI or into Python, C# or Matlab cl
 
 # Batch Streaming
 
-The v2 API streams up to 100 resources through one framed response from `POST /api/v2/data`. Reverse proxies should disable response buffering to preserve end-to-end back-pressure.
+The v2 API streams up to 100 resources through one framed response from `POST /api/v2/data`. Reverse proxies should disable response buffering for these streaming responses to preserve end-to-end back-pressure. Buffering makes the proxy read and store the response independently of the downstream client, so Nexus can continue producing data even when the client is slow or disconnected. With buffering disabled, slow clients naturally slow the server-side stream and cancellation propagates promptly.
 
 # Usage
 
