@@ -4,7 +4,6 @@ import asyncio
 import base64
 import json
 import struct
-import sys
 import time
 from array import array
 from dataclasses import dataclass
@@ -334,9 +333,6 @@ class NexusClient:
         for buffer in buffers:
             resource_values = array("d")
             resource_values.frombytes(buffer)
-
-            if sys.byteorder != "little":
-                resource_values.byteswap()
 
             values.append(resource_values)
 
@@ -756,9 +752,6 @@ class NexusAsyncClient:
         for buffer in buffers:
             resource_values = array("d")
             resource_values.frombytes(buffer)
-
-            if sys.byteorder != "little":
-                resource_values.byteswap()
 
             values.append(resource_values)
 

@@ -473,18 +473,6 @@ public class NexusClient : INexusClient, IDisposable
         if (!offsets.SequenceEqual(expectedLengths))
             throw new Exception("The batch stream ended before all data was received.");
 
-        if (!BitConverter.IsLittleEndian)
-        {
-            foreach (var resourceValues in values)
-            {
-                for (var index = 0; index < resourceValues.Length; index++)
-                {
-                    var bits = BitConverter.DoubleToInt64Bits(resourceValues[index]);
-                    resourceValues[index] = BitConverter.Int64BitsToDouble(BinaryPrimitives.ReverseEndianness(bits));
-                }
-            }
-        }
-
         return values;
 
         ValueTask<int> ReadAsync(Memory<byte> buffer)
@@ -1612,26 +1600,26 @@ public interface IJobsClient
     /// <summary>
     /// Cancels the specified job.
     /// </summary>
-    /// <param name="jobId">No description provided.</param>
+    /// <param name="jobId"></param>
     HttpResponseMessage CancelJob(Guid jobId);
 
     /// <summary>
     /// Cancels the specified job.
     /// </summary>
-    /// <param name="jobId">No description provided.</param>
+    /// <param name="jobId"></param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<HttpResponseMessage> CancelJobAsync(Guid jobId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the status of the specified job.
     /// </summary>
-    /// <param name="jobId">No description provided.</param>
+    /// <param name="jobId"></param>
     JobStatus GetJobStatus(Guid jobId);
 
     /// <summary>
     /// Gets the status of the specified job.
     /// </summary>
-    /// <param name="jobId">No description provided.</param>
+    /// <param name="jobId"></param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<JobStatus> GetJobStatusAsync(Guid jobId, CancellationToken cancellationToken = default);
 
@@ -3203,7 +3191,7 @@ public record Job(Guid Id, string Type, string Owner, JsonElement? Parameters);
 public record JobStatus(DateTime Start, TaskStatus Status, double Progress, string? ExceptionMessage, JsonElement? Result);
 
 /// <summary>
-/// No description provided.
+///
 /// </summary>
 public enum TaskStatus
 {

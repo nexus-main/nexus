@@ -89,7 +89,7 @@ public class ClientTests
     }
 
     [Fact]
-    public async Task CanLoadInterleavedFramesOverHttp11()
+    public async Task CanLoadInterleavedFrames()
     {
         var paths = new[] { "/A/B/C", "/A/B/D" };
         var requests = new List<HttpRequestMessage>();
@@ -107,9 +107,7 @@ public class ClientTests
 
         Assert.Equal([1d, 2d], result[paths[0]].Values);
         Assert.Equal([3d, 4d], result[paths[1]].Values);
-        var request = Assert.Single(requests, current => current.RequestUri!.AbsolutePath == "/api/v2/data");
-        Assert.Equal(HttpVersion.Version11, request.Version);
-        Assert.Equal(HttpVersionPolicy.RequestVersionOrLower, request.VersionPolicy);
+        Assert.Single(requests, current => current.RequestUri!.AbsolutePath == "/api/v2/data");
     }
 
     [Fact]

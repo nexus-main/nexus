@@ -15,7 +15,7 @@ namespace API.v2;
 public class DataControllerTests
 {
     [Fact]
-    public async Task StreamsOverHttp11()
+    public async Task StreamsData()
     {
         var expected = new MemoryStream([1, 2, 3]);
         var service = Mock.Of<IDataService>();
@@ -51,12 +51,9 @@ public class DataControllerTests
 
     private static DataController CreateController(IDataService service)
     {
-        var context = new DefaultHttpContext();
-        context.Request.Protocol = "HTTP/1.1";
-
         return new DataController(service)
         {
-            ControllerContext = new ControllerContext { HttpContext = context }
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
     }
 }

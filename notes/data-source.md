@@ -76,4 +76,4 @@ The request accepts at most 100 unique resource paths with one common sample per
 
 The resource index refers to the path's position in `resourcePaths`. End-of-stream marks successful completion; clients validate that every resource received the expected number of bytes.
 
-The server creates one internal `Pipe` per resource and multiplexes them into one bounded output pipe. `ReadRequest.CompleteAsync()` allows a source to publish an individual resource before its complete batch returns. The endpoint works over HTTP/1.1, HTTP/2, and HTTP/3. Reverse proxies should disable response buffering to preserve back-pressure.
+The server creates one internal `Pipe` per resource and multiplexes them into one bounded output pipe. `ReadRequest.CompleteAsync()` allows a source to publish an individual resource before its complete batch returns. Reverse proxies should disable response buffering to preserve back-pressure.
