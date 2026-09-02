@@ -55,12 +55,20 @@ MaxWidth="MaxWidth.Medium">
                 <div class="text-cyan-700 border-b my-3 text-lg">Charts</div>
 
                 <MudNumericField T="int"
-                                 Label="Chart GPU buffer budget (MiB)"
+                                 Label="Chart GPU cache budget (MiB)"
                                  Variant="Variant.Outlined"
                                  Min="16"
-                                 HelperText="Maximum GPU buffer memory owned by each chart, including resident series, synthetic detail, overviews, and rendering work buffers."
+                                 HelperText="How much GPU memory the chart may use. Higher values allow more data to stay cached for smoother panning."
                                  @bind-Value:get="ChartGpuCacheBudgetMiB"
                                  @bind-Value:set="SetChartGpuCacheBudget" />
+
+                <MudNumericField T="int"
+                                 Label="Data view memory limit (MiB)"
+                                 Variant="Variant.Outlined"
+                                 Min="128"
+                                 HelperText="Maximum data size to load into the visualizer. Larger datasets can still be exported but not visualized. Keep in mind your available system RAM."
+                                 @bind-Value:get="DataViewMemoryLimitMiB"
+                                 @bind-Value:set="SetDataViewMemoryLimit" />
 
                 <div class="text-cyan-700 border-b my-3 text-lg">Hide catalogs</div>
 
@@ -410,6 +418,13 @@ MaxWidth="MaxWidth.Medium">
     private void SetChartGpuCacheBudget(int value)
     {
         AppState.UISettings = AppState.UISettings with { ChartGpuCacheBudgetMiB = Math.Max(16, value) };
+    }
+
+    private int DataViewMemoryLimitMiB => AppState.UISettings.EffectiveDataViewMemoryLimitMiB;
+
+    private void SetDataViewMemoryLimit(int value)
+    {
+        AppState.UISettings = AppState.UISettings with { DataViewMemoryLimitMiB = Math.Max(128, value) };
     }
 
     private bool IsAdmin(ClaimsPrincipal user)

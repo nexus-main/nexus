@@ -10,7 +10,8 @@
 {
     <div class="h-2/3 flex flex-col justify-center items-center mx-auto text-gray-300">
         <span class="font-bold text-2xl">¯\_(ツ)_/¯</span>
-        <span class="mt-5 text-3xl ">Size limit (20 MB) exeeded</span>
+        <span class="mt-5 text-3xl ">Size limit (@(AppState.UISettings.EffectiveDataViewMemoryLimitMiB) MiB) exceeded</span>
+        <span class="mt-3 text-lg text-gray-400">Increase the data view memory limit in the settings.</span>
     </div>
 }
 else
@@ -69,12 +70,16 @@ else
                 StateHasChanged();
             }
 
-            else if (e.PropertyName == nameof(AppState.Settings.CanVisualize))
+            else if (e.PropertyName == nameof(AppState.Settings.CanVisualize) ||
+                     e.PropertyName == nameof(AppState.Settings.IsSizeLimitExceeded) ||
+                     e.PropertyName == nameof(AppState.UISettings))
             {
-                var byteCount = AppState.Settings.GetTotalByteCount();
-
-                _sizeLimitExceeded = byteCount > 20 * 1000 * 1000;
+                var wasExceeded = _sizeLimitExceeded;
+                _sizeLimitExceeded = AppState.Settings.IsSizeLimitExceeded;
                 _showReloadButton = !_sizeLimitExceeded && AppState.Settings.CanVisualize;
+
+                if (wasExceeded && !_sizeLimitExceeded && _lineSeriesData is null)
+                    _ = LoadDataAsync();
 
                 StateHasChanged();
             }
@@ -95,6 +100,16 @@ else
 
         var receivedBytes = 0L;
         var byteCount = AppState.Settings.GetTotalByteCount();
+
+        if (AppState.Settings.IsSizeLimitExceeded)
+        {
+            _sizeLimitExceeded = true;
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _sizeLimitExceeded = false;
 
         _progress = 0;
         _lineSeriesData = null;

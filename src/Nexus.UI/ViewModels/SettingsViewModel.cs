@@ -30,7 +30,15 @@ public class SettingsViewModel : INotifyPropertyChanged
         _jsInterop = jsInterop;
         _client = client;
 
+        _appState.PropertyChanged += OnAppStatePropertyChanged;
+
         InitializeTask = new Lazy<Task>(InitializeAsync);
+    }
+
+    private void OnAppStatePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.UISettings))
+            SizeLimitExceededChanged();
     }
 
     private string DefaultFileType { get; set; } = default!;
@@ -161,7 +169,17 @@ public class SettingsViewModel : INotifyPropertyChanged
     public void CanVisualizeChanged()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanVisualize)));
+        SizeLimitExceededChanged();
     }
+
+    public void SizeLimitExceededChanged()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSizeLimitExceeded)));
+    }
+
+    public long SizeLimit => (long)_appState.UISettings.EffectiveDataViewMemoryLimitMiB * 1024 * 1024;
+
+    public bool IsSizeLimitExceeded => GetTotalByteCount() > SizeLimit;
 
     public long GetTotalByteCount()
     {
