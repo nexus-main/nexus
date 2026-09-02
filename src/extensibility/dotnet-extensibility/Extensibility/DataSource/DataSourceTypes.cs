@@ -3,6 +3,7 @@
 
 using Nexus.DataModel;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace Nexus.Extensibility;
@@ -43,39 +44,56 @@ public record ReadRequest(
     Memory<byte> Status
 )
 {
-    private readonly SemaphoreSlim _completionGate = new(1, 1);
-
-    internal Func<CancellationToken, Task>? OnCompleted { get; init; }
-
-    internal CancellationToken CompletionCancellationToken { get; init; }
+    private static readonly ConditionalWeakTable<ReadRequest, CompletionState> CompletionStates = new();
 
     /// <summary>
     /// Whether <see cref="CompleteAsync"/> has been called.
     /// </summary>
-    public bool IsCompleted { get; private set; }
+    public bool IsCompleted => CompletionStates.TryGetValue(this, out var state) &&
+        state.Task?.Status == TaskStatus.RanToCompletion;
 
     /// <summary>
     /// Called by the data source when <see cref="Data"/> and <see cref="Status"/> are fully populated.
     /// The framework flushes the resource to its pipe immediately.
     /// </summary>
-    public async Task CompleteAsync()
+    public Task CompleteAsync()
     {
-        await _completionGate.WaitAsync(CompletionCancellationToken).ConfigureAwait(false);
+        var state = CompletionStates.GetOrCreateValue(this);
 
-        try
+        lock (state.Gate)
         {
-            if (IsCompleted)
-                return;
-
-            if (OnCompleted is not null)
-                await OnCompleted(CompletionCancellationToken).ConfigureAwait(false);
-
-            IsCompleted = true;
+            return state.Task ??= CompleteCoreAsync(state);
         }
-        finally
+
+        static async Task CompleteCoreAsync(CompletionState state)
         {
-            _completionGate.Release();
+            if (state.OnCompleted is not null)
+                await state.OnCompleted(state.CancellationToken).ConfigureAwait(false);
         }
+    }
+
+    internal void ConfigureCompletion(
+        Func<CancellationToken, Task>? onCompleted,
+        CancellationToken cancellationToken)
+    {
+        var state = CompletionStates.GetOrCreateValue(this);
+
+        lock (state.Gate)
+        {
+            if (state.Task is not null)
+                throw new InvalidOperationException("Completion has already started.");
+
+            state.OnCompleted = onCompleted;
+            state.CancellationToken = cancellationToken;
+        }
+    }
+
+    private sealed class CompletionState
+    {
+        public object Gate { get; } = new();
+        public Func<CancellationToken, Task>? OnCompleted { get; set; }
+        public CancellationToken CancellationToken { get; set; }
+        public Task? Task { get; set; }
     }
 }
 
@@ -125,11 +143,9 @@ internal class ReadRequestManager : IDisposable
             originalResourceName,
             catalogItem,
             dataMemory,
-            statusMemory)
-        {
-            OnCompleted = onCompleted,
-            CompletionCancellationToken = cancellationToken
-        };
+            statusMemory);
+
+        Request.ConfigureCompletion(onCompleted, cancellationToken);
     }
 
     public ReadRequest Request { get; }

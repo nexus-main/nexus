@@ -160,6 +160,7 @@ internal class DataService(
 
         var elementCount = ExtensibilityUtilities.CalculateElementCountLong(begin, end, samplePeriod);
         var contentLength = checked(elementCount * NexusUtilities.SizeOf(NexusDataType.FLOAT64));
+        var registration = _streamSessionManager.Reserve(ownerSubject, request.ResourcePaths.Length);
         var dataChannels = new List<DataStreamChannel>(catalogItemRequests.Count);
         var responseChannels = new BatchStreamChannel[catalogItemRequests.Count];
         var readingGroups = new List<DataReadingGroup>();
@@ -190,10 +191,26 @@ internal class DataService(
                 }
                 catch
                 {
-                    controller.Dispose();
+                    try
+                    {
+                        controller.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Disposing a failed batch data controller failed");
+                    }
 
                     foreach (var writer in catalogItemRequestPipeWriters)
-                        await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+                    {
+                        try
+                        {
+                            await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Completing a failed batch data writer failed");
+                        }
+                    }
 
                     throw;
                 }
@@ -210,7 +227,8 @@ internal class DataService(
                 ReadAsDoubleAsync,
                 _memoryTracker,
                 ReadProgress,
-                _loggerFactory.CreateLogger<DataSourceController>());
+                _loggerFactory.CreateLogger<DataSourceController>(),
+                registration);
 
             _streamSessionManager.Register(session);
 
@@ -218,16 +236,43 @@ internal class DataService(
         }
         catch
         {
+            registration.Dispose();
+
             foreach (var readingGroup in readingGroups)
             {
-                readingGroup.Controller.Dispose();
+                try
+                {
+                    readingGroup.Controller.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Disposing a failed batch data controller failed");
+                }
 
                 foreach (var writer in readingGroup.CatalogItemRequestPipeWriters)
-                    await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+                {
+                    try
+                    {
+                        await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Completing a failed batch data writer failed");
+                    }
+                }
             }
 
             foreach (var channel in dataChannels)
-                await channel.Reader.CompleteAsync().ConfigureAwait(false);
+            {
+                try
+                {
+                    await channel.Reader.CompleteAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Completing a failed batch data reader failed");
+                }
+            }
 
             throw;
         }

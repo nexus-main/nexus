@@ -128,7 +128,7 @@ def _load_with_channel_fault_handler(request: Request):
 
 @pytest.mark.anyio
 async def can_load_with_channel_fault_test():
-    http_client = AsyncClient(base_url="http://localhost", transport=MockTransport(_load_with_channel_fault_handler))
+    http_client = AsyncClient(base_url="https://localhost", transport=MockTransport(_load_with_channel_fault_handler))
 
     async with NexusAsyncClient(http_client) as client:
         try:

@@ -53,7 +53,7 @@ HTTP GET /api/v2/data/streams/batch/{sessionId}/channel/{channelId}  (one per ch
     -> finally: session.CompleteChannelAsync(channelId, faulted, ...)
 ```
 
-Each channel is a separate HTTP/2 stream on the same connection, and a batch is capped at 100 channels. This conservative cap reflects the 100-stream initial value recommended for `SETTINGS_MAX_CONCURRENT_STREAMS` by [RFC 7540 section 6.5.2](https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2); the negotiated peer or an intermediary can still impose a lower limit. The server waits until **all** channels have attached before starting the source read — otherwise an unconsumed pipe could block the batch read behind back-pressure before its HTTP response exists. If not all channels attach within the session timeout (1 minute), the session is canceled.
+Each channel is a separate HTTP request, normally multiplexed over HTTP/2, and a batch is capped at 100 channels. This conservative cap reflects the 100-stream initial value recommended for `SETTINGS_MAX_CONCURRENT_STREAMS` by [RFC 7540 section 6.5.2](https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2); the negotiated peer or an intermediary can still impose a lower limit. The source read starts after the first channel attaches. The one-minute attachment timeout is canceled by that first attachment; clients should open the remaining channels promptly to prevent their pipes from blocking the producer.
 
 The pipe is configured with a 4 MB pause threshold and 2 MB resume threshold (`PipeOptions`). Crossing the pause threshold makes flushes wait for consumers to drain buffered data, bounding Nexus's per-pipe buffering under normal operation. This does not bound buffering performed by sources, clients, or reverse proxies.
 
@@ -68,21 +68,23 @@ record ReadRequest(
     string OriginalResourceName,
     CatalogItem CatalogItem,
     Memory<byte> Data,
-    Memory<byte> Status,
-    Func<CancellationToken, Task>? OnCompleted);
+    Memory<byte> Status)
+{
+    Task CompleteAsync();
+}
 ```
 
-`DataSourceController.ReadOriginalAsync` (`src/Nexus/Extensibility/DataSource/DataSourceController.cs:407`) creates one `ReadRequestManager` per read unit. Each manager's `OnCompleted` callback is wired to:
+`DataSourceController.ReadOriginalAsync` creates one `ReadRequestManager` per read unit and configures its completion callback to:
 
 1. `GetMemory(targetByteCount)` on the pipe writer.
 2. `ApplyRepresentationStatusByDataType` — converts the source-native data type to `FLOAT64` and applies status flags.
 3. `Advance` + `FlushAsync` — push the converted data into the pipe.
 
-The source implementation calls `await request.CompleteAsync(cancellationToken)` when it has finished writing that resource's `Data` and `Status` buffers. This triggers the callback, which flushes exactly that resource's data into its pipe — **before** `ReadAsync` returns. This enables per-resource streaming for sources that read resources sequentially or with varying latency.
+The source implementation calls `await request.CompleteAsync()` when it has finished writing that resource's `Data` and `Status` buffers. This triggers the callback, which flushes exactly that resource's data into its pipe before `ReadAsync` returns. This enables per-resource streaming for sources that read resources sequentially or with varying latency.
 
 # Phase-2 Fallback
 
-Sources that do not call `CompleteAsync` are still supported. After `IDataSource.ReadAsync` returns, `ReadOriginalAsync` iterates all requests and flushes any with `IsCompleted == false` (lines 492–529). This is the "phase-2 fallback" — it preserves backward compatibility with sources written before `CompleteAsync` existed.
+Sources that do not call `CompleteAsync` are still supported. After `IDataSource.ReadAsync` returns, `ReadOriginalAsync` calls `CompleteAsync()` for every request. Completion is idempotent, so already-completed requests reuse their original completion task.
 
 The `IsCompleted` flag also prevents double-flushing: if a source called `CompleteAsync` for some resources but not others, only the uncompleted ones are flushed in phase 2.
 
@@ -90,40 +92,15 @@ The `IsCompleted` flag also prevents double-flushing: if a source called `Comple
 
 `ReadAggregatedAsync` and `ReadResampledAsync` pass `onCompleted: null` to their `ReadRequest` constructions. These paths read base data, aggregate or resample it, and flush the *result* into the pipe — not the raw source data. The `OnCompleted` callback is only meaningful for the original-data path where the source owns the buffers.
 
-# Remote Data Sources: TCP Frame Protocol
+# Remote Data Sources
 
-When the data source is a remote extension (running in a separate process connected via TCP), the pipe-to-source bridge is extended across the network:
-
-```
-DataSourceController (server-side)
-  -> Remote.ReadAsync (Nexus.Sources.Remote)
-    -> RemoteCommunicator sends "read" JSON-RPC over control connection
-    -> Agent (Remoting.cs / _remoting.py) calls IDataSource.ReadAsync
-    -> Source calls request.CompleteAsync()
-      -> Agent writes a Data frame (0x01) over the data connection:
-         [type:1B][index:4B BE][data bytes][status bytes]
-    -> After ReadAsync returns, agent flushes unstreamed requests
-    -> Agent writes an End frame (0x03):
-         [type:1B][count:4B BE][had_error:1B][msgLen:4B BE][msg UTF-8]
-  -> RemoteCommunicator reads frames, invokes OnCompleted callbacks
-  -> OnCompleted flushes into the pipe (same as local path)
-```
-
-The "data" TCP connection is full-duplex: `readData` flows server→agent (JSON-RPC), and stream frames flow agent→server. Only 2 connections total (control + data).
-
-Cycle detection prevents infinite recursion: a per-`Remote` `Dictionary<string, int>` tracks in-flight resource paths. If a remote source tries to read a resource that is already being read, it throws `RemoteException`.
-
-The agent tracks which request indices have been streamed via `CompleteAsync` (a `HashSet<int>` / Python `set`). After `ReadAsync` returns, any unstreamed indices are flushed, then the End frame is sent — always, whether success or failure.
-
-API levels:
-- **Level 1** (`readSingle`): the agent reads one resource at a time per request. Fallback for older agents.
-- **Level 2** (streaming batch): the agent reads all resources in one `ReadAsync` call and streams each via `CompleteAsync` as frames. This is the current default.
+Remote-source transport and streaming behavior are implemented outside this repository. Consult the corresponding remoting project and version; this repository does not establish its TCP framing, connection count, cycle detection, or API-level behavior.
 
 # Efficient Use Cases
 
 - **Many resources, sequential read**: a source that reads one file at a time can stream each resource to the client as it completes, rather than waiting for all files to be read. The client sees data flowing for the first resource while the source is still reading the second.
 - **Heterogeneous latency**: if some resources are fast (local cache) and others slow (network fetch), `CompleteAsync` lets the fast ones flow immediately.
-- **Remote sources with batch reads**: the frame protocol multiplexes per-resource completion over a single TCP connection, avoiding per-resource round-trips while still enabling per-resource streaming.
+- **Remote sources**: streaming characteristics depend on the external remoting implementation.
 - **Back-pressure**: the pipe's pause/resume thresholds (4 MB / 2 MB in v2 batch, default in v1) slow a fast source when the HTTP consumer is slow. `FlushAsync` completes asynchronously after sufficient data drains once the pause threshold is crossed; this protection does not extend to buffering outside the pipe.
 
 # Suboptimal Edge Cases
@@ -132,6 +109,6 @@ API levels:
 - **Aggregated/resampled data**: these paths do not use `OnCompleted` at all. The base data is read, processed, and the result is flushed by the controller. There is no per-resource streaming for aggregated or resampled outputs.
 - **Very short time ranges**: if the entire read fits in one chunk, there is only one `ReadAsync` call. The streaming benefit is limited to within that single call — if the source returns quickly, all data arrives at once anyway.
 - **Single-resource v1 requests**: the v1 endpoint always creates exactly one pipe and one `ReadRequest`. `CompleteAsync` still works, but there is no multiplexing benefit — it is equivalent to the old flush-after-return behavior.
-- **HTTP/1.1 clients hitting v2 batch**: the v2 endpoints require HTTP/2. HTTP/1.1 clients or misconfigured reverse proxies that queue channel requests behind per-origin connection limits will cause the session to hang until timeout (1 minute), because not all channels can attach simultaneously.
+- **HTTP/1.1 clients hitting v2 batch**: Nexus rejects v2 batch requests received over HTTP/1.1 with status 426. Clients and reverse-proxy upstreams must use HTTP/2.
 - **Reverse proxy buffering**: if a proxy buffers the channel responses (e.g., Nginx `proxy_buffering on`), back-pressure is defeated — the source writes at full speed into the proxy's buffer, then the proxy trickles to the client. The `Content-Length` header and `application/octet-stream` content type should discourage buffering, but proxies must be configured correctly.
 - **Channel fault cancels everything**: there is no partial success. If one channel's HTTP connection drops, the entire session (all resources, all pipes) is canceled. This is intentional — it avoids complex drain semantics — but means a single flaky client connection can disrupt a large batch read.

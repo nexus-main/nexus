@@ -42,6 +42,46 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -88,6 +128,26 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -122,6 +182,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -133,11 +203,16 @@
         "type": "object",
         "description": "A registered batch data stream session.",
         "additionalProperties": false,
+        "required": [
+          "sessionId",
+          "channels"
+        ],
         "properties": {
           "sessionId": {
             "type": "string",
             "description": "The session identifier.",
-            "format": "guid"
+            "format": "guid",
+            "minLength": 1
           },
           "channels": {
             "type": "array",
@@ -152,15 +227,21 @@
         "type": "object",
         "description": "A single channel of a registered batch data stream session.",
         "additionalProperties": false,
+        "required": [
+          "channelId",
+          "resourcePath"
+        ],
         "properties": {
           "channelId": {
             "type": "string",
             "description": "The channel identifier.",
-            "format": "guid"
+            "format": "guid",
+            "minLength": 1
           },
           "resourcePath": {
             "type": "string",
-            "description": "The resource path streamed by this channel."
+            "description": "The resource path streamed by this channel.",
+            "minLength": 1
           }
         }
       },
@@ -168,16 +249,23 @@
         "type": "object",
         "description": "A request to register a batch data stream session.",
         "additionalProperties": false,
+        "required": [
+          "begin",
+          "end",
+          "resourcePaths"
+        ],
         "properties": {
           "begin": {
             "type": "string",
             "description": "The start date/time.",
-            "format": "date-time"
+            "format": "date-time",
+            "minLength": 1
           },
           "end": {
             "type": "string",
             "description": "The end date/time.",
-            "format": "date-time"
+            "format": "date-time",
+            "minLength": 1
           },
           "resourcePaths": {
             "type": "array",
@@ -188,10 +276,42 @@
           }
         }
       },
+      "ProblemDetails": {
+        "type": "object",
+        "additionalProperties": {
+          "nullable": true
+        },
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "BatchStreamSessionStatus": {
         "type": "object",
         "description": "The status of a batch data stream session.",
         "additionalProperties": false,
+        "required": [
+          "state"
+        ],
         "properties": {
           "state": {
             "description": "The session state.",

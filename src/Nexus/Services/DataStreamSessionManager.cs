@@ -13,6 +13,8 @@ namespace Nexus.Services;
 
 internal interface IDataStreamSessionManager
 {
+    DataStreamSessionRegistration Reserve(string ownerSubject, int channelCount);
+
     void Register(DataStreamSession session);
 
     DataStreamChannelLease? Attach(Guid sessionId, Guid channelId, ClaimsPrincipal principal);
@@ -23,19 +25,59 @@ internal interface IDataStreamSessionManager
 internal sealed class DataStreamSessionManager(
     TimeProvider? timeProvider = null,
     TimeSpan? sessionTimeout = null,
-    TimeSpan? statusGracePeriod = null) : IDataStreamSessionManager
+    TimeSpan? statusGracePeriod = null,
+    TimeSpan? maximumSessionDuration = null,
+    int maximumSessionCount = 32,
+    int maximumSessionCountPerOwner = 4,
+    int maximumChannelCount = 400) : IDataStreamSessionManager
 {
+    private readonly object _gate = new();
     private readonly ConcurrentDictionary<Guid, DataStreamSession> _sessions = new();
+    private readonly Dictionary<string, int> _sessionCountByOwner = [];
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private readonly TimeSpan _sessionTimeout = sessionTimeout ?? TimeSpan.FromMinutes(1);
     private readonly TimeSpan _statusGracePeriod = statusGracePeriod ?? TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _maximumSessionDuration = maximumSessionDuration ?? TimeSpan.FromHours(1);
+    private readonly int _maximumSessionCount = maximumSessionCount;
+    private readonly int _maximumSessionCountPerOwner = maximumSessionCountPerOwner;
+    private readonly int _maximumChannelCount = maximumChannelCount;
+    private int _reservedSessionCount;
+    private int _reservedChannelCount;
+
+    public DataStreamSessionRegistration Reserve(string ownerSubject, int channelCount)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerSubject);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channelCount);
+
+        lock (_gate)
+        {
+            _sessionCountByOwner.TryGetValue(ownerSubject, out var ownerSessionCount);
+
+            if (_reservedSessionCount >= _maximumSessionCount ||
+                ownerSessionCount >= _maximumSessionCountPerOwner ||
+                _reservedChannelCount > _maximumChannelCount - channelCount)
+                throw new InvalidOperationException("The data streaming capacity is currently exhausted.");
+
+            _reservedSessionCount++;
+            _reservedChannelCount += channelCount;
+            _sessionCountByOwner[ownerSubject] = ownerSessionCount + 1;
+        }
+
+        return new DataStreamSessionRegistration(
+            ownerSubject,
+            channelCount,
+            () => Release(ownerSubject, channelCount));
+    }
 
     public void Register(DataStreamSession session)
     {
         if (!_sessions.TryAdd(session.Id, session))
+        {
+            session.Registration.Dispose();
             throw new InvalidOperationException($"A data stream session with id {session.Id} already exists.");
+        }
 
-        session.StartLifetime(Remove, _timeProvider, _sessionTimeout, _statusGracePeriod);
+        session.StartLifetime(Remove, _timeProvider, _sessionTimeout, _statusGracePeriod, _maximumSessionDuration);
     }
 
     public DataStreamChannelLease? Attach(Guid sessionId, Guid channelId, ClaimsPrincipal principal)
@@ -58,6 +100,22 @@ internal sealed class DataStreamSessionManager(
     {
         _sessions.TryRemove(sessionId, out _);
     }
+
+    private void Release(string ownerSubject, int channelCount)
+    {
+        lock (_gate)
+        {
+            _reservedSessionCount--;
+            _reservedChannelCount -= channelCount;
+
+            var ownerSessionCount = _sessionCountByOwner[ownerSubject] - 1;
+
+            if (ownerSessionCount == 0)
+                _sessionCountByOwner.Remove(ownerSubject);
+            else
+                _sessionCountByOwner[ownerSubject] = ownerSessionCount;
+        }
+    }
 }
 
 internal sealed class DataStreamSession(
@@ -71,10 +129,13 @@ internal sealed class DataStreamSession(
     ReadDataHandler readDataHandler,
     IMemoryTracker memoryTracker,
     IProgress<double>? progress,
-    ILogger<DataSourceController> logger)
+    ILogger<DataSourceController> logger,
+    DataStreamSessionRegistration? registration = null)
 {
     private readonly object _gate = new();
     private readonly CancellationTokenSource _cts = new();
+    private readonly CancellationTokenSource _attachmentTimeoutCts = new();
+    private readonly CancellationTokenSource _executionTimeoutCts = new();
     private readonly HashSet<Guid> _attachedChannelIds = [];
     private readonly HashSet<Guid> _completedChannelIds = [];
     private Action<Guid>? _remove;
@@ -91,6 +152,8 @@ internal sealed class DataStreamSession(
 
     public DataStreamChannel[] Channels { get; } = channels;
 
+    public DataStreamSessionRegistration Registration { get; } = registration ?? DataStreamSessionRegistration.Empty;
+
     public bool IsOwner(ClaimsPrincipal principal)
     {
         var subject = principal.FindFirstValue(Claims.Subject);
@@ -102,33 +165,48 @@ internal sealed class DataStreamSession(
         Action<Guid> remove,
         TimeProvider timeProvider,
         TimeSpan timeout,
-        TimeSpan statusGracePeriod)
+        TimeSpan statusGracePeriod,
+        TimeSpan maximumSessionDuration)
     {
         _remove = remove;
         _timeProvider = timeProvider;
         _statusGracePeriod = statusGracePeriod;
 
-        _ = ExpireAsync();
+        _ = ExpireAsync(
+            timeout,
+            "The session timed out before a channel attached.",
+            _attachmentTimeoutCts.Token);
 
-        async Task ExpireAsync()
+        async Task ExpireAsync(TimeSpan delay, string reason, CancellationToken cancellationToken)
         {
-            await Task.Delay(timeout, timeProvider).ConfigureAwait(false);
+            try
+            {
+                await Task.Delay(delay, timeProvider, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
 
             var shouldExpire = false;
 
             lock (_gate)
             {
-                if (_readingTask is null && !_isDisposed)
+                if (!_isDisposed)
                 {
                     _isCanceled = true;
                     _faultedChannelId = null;
-                    _faultReason ??= "The session timed out before all channels attached.";
+                    _faultReason ??= reason;
                     shouldExpire = true;
                 }
             }
 
             if (shouldExpire)
             {
+                ScheduleRemoval();
+
+                await RecordSourceErrorAsync(new TimeoutException(reason)).ConfigureAwait(false);
+
                 try
                 {
                     await CancelCoreAsync().ConfigureAwait(false);
@@ -148,7 +226,19 @@ internal sealed class DataStreamSession(
                 }
             }
         }
+
+        void StartMaximumLifetime()
+        {
+            _ = ExpireAsync(
+                maximumSessionDuration,
+                "The session exceeded its maximum duration.",
+                _executionTimeoutCts.Token);
+        }
+
+        _startMaximumLifetime = StartMaximumLifetime;
     }
+
+    private Action? _startMaximumLifetime;
 
     public DataStreamChannelLease? Attach(Guid channelId)
     {
@@ -165,10 +255,14 @@ internal sealed class DataStreamSession(
             if (channel is null || !_attachedChannelIds.Add(channelId))
                 return default;
 
-            startReading = _attachedChannelIds.Count == Channels.Length && _readingTask is null;
+            startReading = _readingTask is null;
 
             if (startReading)
+            {
+                _attachmentTimeoutCts.Cancel();
                 _readingTask = ReadAsync();
+                _startMaximumLifetime?.Invoke();
+            }
         }
 
         return new DataStreamChannelLease(this, channel);
@@ -251,6 +345,9 @@ internal sealed class DataStreamSession(
             try
             {
                 writer.DataWriter.CancelPendingFlush();
+                await writer.DataWriter
+                    .CompleteAsync(new OperationCanceledException("The batch data streaming session was canceled."))
+                    .ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -296,7 +393,8 @@ internal sealed class DataStreamSession(
                 progress,
                 logger,
                 _cts.Token,
-                DataSourceErrorHandling.Propagate).ConfigureAwait(false);
+                DataSourceErrorHandling.Propagate,
+                RecordSourceErrorAsync).ConfigureAwait(false);
 
             completedSuccessfully = true;
         }
@@ -338,6 +436,30 @@ internal sealed class DataStreamSession(
         }
     }
 
+    private async Task RecordSourceErrorAsync(Exception exception)
+    {
+        lock (_gate)
+        {
+            if (_faultReason is null)
+            {
+                _faultedChannelId = null;
+                _faultReason = $"The data source read failed: {exception.Message}";
+            }
+        }
+
+        foreach (var writer in readingGroups.SelectMany(group => group.CatalogItemRequestPipeWriters))
+        {
+            try
+            {
+                await writer.DataWriter.CompleteAsync(exception).ConfigureAwait(false);
+            }
+            catch (Exception completionException)
+            {
+                logger.LogError(completionException, "Completing a failed batch data pipe failed");
+            }
+        }
+    }
+
     private Task DisposeAsync()
     {
         TaskCompletionSource? completion = null;
@@ -348,6 +470,8 @@ internal sealed class DataStreamSession(
                 return _disposeTask;
 
             _isDisposed = true;
+            _attachmentTimeoutCts.Cancel();
+            _executionTimeoutCts.Cancel();
             completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _disposeTask = completion.Task;
         }
@@ -418,15 +542,16 @@ internal sealed class DataStreamSession(
             try
             {
                 _cts.Dispose();
+                _attachmentTimeoutCts.Dispose();
+                _executionTimeoutCts.Dispose();
             }
             catch (Exception ex)
             {
                 (exceptions ??= []).Add(ex);
             }
 
-            var remove = _remove;
-            if (remove is not null)
-                _ = RemoveAfterGracePeriodAsync(remove);
+            Registration.Dispose();
+            ScheduleRemoval();
 
             if (exceptions is null)
                 completion.SetResult();
@@ -439,6 +564,21 @@ internal sealed class DataStreamSession(
         {
             completion.TrySetException(ex);
         }
+
+    }
+
+    private void ScheduleRemoval()
+    {
+        Action<Guid>? remove;
+
+        lock (_gate)
+        {
+            remove = _remove;
+            _remove = null;
+        }
+
+        if (remove is not null)
+            _ = RemoveAfterGracePeriodAsync(remove);
 
         async Task RemoveAfterGracePeriodAsync(Action<Guid> removeSession)
         {
@@ -463,6 +603,25 @@ internal sealed class DataStreamSession(
             throw exceptions[0];
 
         throw new AggregateException(exceptions);
+    }
+}
+
+internal sealed class DataStreamSessionRegistration(
+    string ownerSubject,
+    int channelCount,
+    Action? release) : IDisposable
+{
+    private Action? _release = release;
+
+    public static DataStreamSessionRegistration Empty { get; } = new(string.Empty, 0, null);
+
+    public string OwnerSubject { get; } = ownerSubject;
+
+    public int ChannelCount { get; } = channelCount;
+
+    public void Dispose()
+    {
+        Interlocked.Exchange(ref _release, null)?.Invoke();
     }
 }
 

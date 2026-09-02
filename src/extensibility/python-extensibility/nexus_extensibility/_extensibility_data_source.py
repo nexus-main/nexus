@@ -77,7 +77,7 @@ class CatalogTimeRange:
     end: datetime
     """The date/time of the last data in the catalog."""
 
-@dataclass
+@dataclass(frozen=True)
 class ReadRequest:
     """
     A read request.
@@ -87,7 +87,6 @@ class ReadRequest:
         catalog_item: The CatalogItem to be read.
         data: The data buffer.
         status: The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN").
-        on_completed: A callback invoked by :meth:`complete` to flush the resource immediately. Pass ``None`` when not streaming per-resource.
     """
 
     original_resource_name: str
@@ -102,13 +101,15 @@ class ReadRequest:
     status: memoryview
     """The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN")."""
 
-    on_completed: Optional[Callable[[], Awaitable[None]]] = None
-    """A callback invoked by :meth:`complete` to flush the resource immediately."""
+    _on_completed: Optional[Callable[[], Awaitable[None]]] = field(default=None, init=False, compare=False, repr=False)
+    _completion_task: Optional[asyncio.Task[None]] = field(default=None, init=False, compare=False, repr=False)
+    _completion_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, compare=False, repr=False)
 
-    is_completed: bool = False
+    @property
+    def is_completed(self) -> bool:
+        task = self._completion_task
+        return task is not None and task.done() and task.exception() is None
     """Whether :meth:`complete` has been called."""
-
-    _completion_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     async def complete(self) -> None:
         """
@@ -116,13 +117,23 @@ class ReadRequest:
         The framework flushes the resource to its pipe immediately.
         """
         async with self._completion_lock:
-            if self.is_completed:
-                return
+            task = self._completion_task
 
-            if self.on_completed is not None:
-                await self.on_completed()
+            if task is None:
+                async def complete_core() -> None:
+                    if self._on_completed is not None:
+                        await self._on_completed()
 
-            self.is_completed = True
+                task = asyncio.create_task(complete_core())
+                object.__setattr__(self, "_completion_task", task)
+
+        await task
+
+    def _configure_completion(self, on_completed: Optional[Callable[[], Awaitable[None]]]) -> None:
+        if self._completion_task is not None:
+            raise RuntimeError("Completion has already started.")
+
+        object.__setattr__(self, "_on_completed", on_completed)
 
 class ReadDataHandler(Protocol):
     """

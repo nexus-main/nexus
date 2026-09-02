@@ -29,7 +29,7 @@ The v1 data stream endpoint remains unchanged:
 GET /api/v1/data
 ```
 
-Existing shipped C#, Python, and Matlab clients depend on the v1 single-resource raw stream contract. Batch streaming is therefore introduced as a v2 REST API contract instead of changing or overloading v1.
+The v1 single-resource raw stream contract remains for compatibility. Current C# and Python high-level load methods use the v2 batch contract.
 
 The v2 batch stream contract is:
 
@@ -38,4 +38,4 @@ POST /api/v2/data/streams/batch
 GET /api/v2/data/streams/batch/{sessionId}/channel/{channelId}
 ```
 
-The hosted UI is versioned with the server and uses the v2 batch contract directly. External clients may continue using v1 until they opt into v2-capable client versions.
+The hosted UI and current C# and Python high-level load methods use v2. Legacy or low-level clients may continue using v1.

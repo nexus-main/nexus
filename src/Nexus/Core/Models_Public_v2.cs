@@ -1,6 +1,8 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Nexus.Core.V2;
 
 /// <summary>
@@ -10,9 +12,9 @@ namespace Nexus.Core.V2;
 /// <param name="End">The end date/time.</param>
 /// <param name="ResourcePaths">The resource paths to stream.</param>
 public record BatchStreamRequest(
-    DateTime Begin,
-    DateTime End,
-    string[] ResourcePaths
+    [property: Required] DateTime Begin,
+    [property: Required] DateTime End,
+    [property: Required] string[] ResourcePaths
 );
 
 /// <summary>
@@ -21,8 +23,8 @@ public record BatchStreamRequest(
 /// <param name="SessionId">The session identifier.</param>
 /// <param name="Channels">The channels to open and consume concurrently.</param>
 public record BatchStreamResponse(
-    Guid SessionId,
-    BatchStreamChannel[] Channels
+    [property: Required] Guid SessionId,
+    [property: Required] BatchStreamChannel[] Channels
 );
 
 /// <summary>
@@ -31,8 +33,8 @@ public record BatchStreamResponse(
 /// <param name="ChannelId">The channel identifier.</param>
 /// <param name="ResourcePath">The resource path streamed by this channel.</param>
 public record BatchStreamChannel(
-    Guid ChannelId,
-    string ResourcePath
+    [property: Required] Guid ChannelId,
+    [property: Required] string ResourcePath
 );
 
 /// <summary>
@@ -64,7 +66,7 @@ public enum BatchStreamSessionState
 /// <param name="FaultedChannelResourcePath">The resource path of the channel that caused the fault, or null when the fault is not channel-specific.</param>
 /// <param name="FaultReason">A description of why the session failed, or null when the session has not faulted.</param>
 public record BatchStreamSessionStatus(
-    BatchStreamSessionState State,
+    [property: Required] BatchStreamSessionState State,
     Guid? FaultedChannelId,
     string? FaultedChannelResourcePath,
     string? FaultReason

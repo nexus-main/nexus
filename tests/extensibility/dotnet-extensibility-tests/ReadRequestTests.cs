@@ -40,7 +40,7 @@ public class ReadRequestTests
     }
 
     [Fact]
-    public async Task FailedCompletionCanBeRetried()
+    public async Task FailedCompletionIsNotRetried()
     {
         var callCount = 0;
         var request = CreateRequest(_ =>
@@ -52,20 +52,16 @@ public class ReadRequestTests
         });
 
         await Assert.ThrowsAsync<InvalidOperationException>(request.CompleteAsync);
+        await Assert.ThrowsAsync<InvalidOperationException>(request.CompleteAsync);
         Assert.False(request.IsCompleted);
-
-        await request.CompleteAsync();
-
-        Assert.True(request.IsCompleted);
-        Assert.Equal(2, callCount);
+        Assert.Equal(1, callCount);
     }
 
     private static ReadRequest CreateRequest(Func<CancellationToken, Task>? onCompleted = null)
     {
         var item = new CatalogItem(new ResourceCatalog("/A"), new Resource("B"), new Representation(NexusDataType.FLOAT64, TimeSpan.FromSeconds(1)), null);
-        return new ReadRequest("B", item, Memory<byte>.Empty, Memory<byte>.Empty)
-        {
-            OnCompleted = onCompleted
-        };
+        var request = new ReadRequest("B", item, Memory<byte>.Empty, Memory<byte>.Empty);
+        request.ConfigureCompletion(onCompleted, CancellationToken.None);
+        return request;
     }
 }

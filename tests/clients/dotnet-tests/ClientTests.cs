@@ -123,7 +123,7 @@ public class ClientTests
         Assert.All(v2Requests, request =>
         {
             Assert.Equal(HttpVersion.Version20, request.Version);
-            Assert.Equal(HttpVersionPolicy.RequestVersionOrHigher, request.Policy);
+            Assert.Equal(HttpVersionPolicy.RequestVersionExact, request.Policy);
         });
     }
 

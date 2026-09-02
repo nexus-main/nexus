@@ -3,7 +3,9 @@
 
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Nexus.Core;
+using NJsonSchema;
 using NJsonSchema.Generation;
+using NSwag;
 using NSwag.AspNetCore;
 using System.Text.Json.Serialization;
 
@@ -52,6 +54,19 @@ internal static class NexusOpenApiExtensions
 
                 config.ApiGroupNames = [description.GroupName];
                 config.DocumentName = description.GroupName;
+                config.PostProcess = document =>
+                {
+                    const string channelPath = "/api/v2/data/streams/batch/{sessionId}/channel/{channelId}";
+
+                    if (document.Paths.TryGetValue(channelPath, out var path))
+                    {
+                        var response = path[OpenApiOperationMethod.Get]!.Responses["200"];
+                        response.Content["application/octet-stream"] = new OpenApiMediaType
+                        {
+                            Schema = new JsonSchema { Type = JsonObjectType.String, Format = "binary" }
+                        };
+                    }
+                };
             });
         }
 

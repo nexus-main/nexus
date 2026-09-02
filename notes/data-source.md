@@ -35,7 +35,7 @@ When, for instance, a user later asks for the data availability of a catalog, th
 
 A read operation may be triggered by either streaming or exporting of the data of one or multiple catalog items. Grouped by the corresponding `IDataSource`, all read requests first arrive in a static method called `ReadAsync`, which is located in the `DataSourceController` type. From there the method distributes the read requests to the actual `DataSourceController` instances which forward it to the wrapped IDataSource instance. To keep the memory consumption low, the controller may decide to reduce the time period per request and repeat the reading step until all data has been loaded.
 
-With the collection of read requests passed to the `IDataSource`, the implementation may decide to load the data sequentially or in parallel and when everything is read, to return the results all at once.
+The implementation may load requests sequentially or in parallel. It may call `CompleteAsync()` as each request is populated to stream that resource before `ReadAsync` returns; otherwise Nexus flushes it after `ReadAsync` returns.
 
 (1) A `IDataSource` instance is disposed automatically by Nexus when it implements the `IDisposable` interface.
 
@@ -49,7 +49,7 @@ The existing single-resource v1 endpoint remains unchanged:
 GET /api/v1/data
 ```
 
-Existing C#, Python, and Matlab clients rely on this endpoint, so it must not be overloaded with batch semantics.
+The v1 endpoint remains for legacy and low-level client compatibility; current C# and Python high-level load methods use v2.
 
 The v2 batch registration request is:
 
@@ -95,6 +95,6 @@ Each channel response is the same raw double stream format used by the v1 endpoi
 
 The server creates one `Pipe` per requested resource and groups pipe writers by `CatalogContainer`, matching the export topology. The existing static `DataSourceController.ReadAsync(...)` method is still responsible for validation, memory-aware chunking, cache behavior, processing, and dispatching batched `ReadRequest[]` values to sources.
 
-The source read starts only after all expected channel streams have attached. This prevents an unconsumed pipe from blocking the batch read before its HTTP response exists.
+The source read starts when the first channel attaches. Clients should attach the remaining channels promptly because writes to an unattached channel can eventually block on pipe back-pressure.
 
-Because each resource uses a separate HTTP channel, the v2 batch streaming endpoints require HTTP/2. The 100-channel cap follows the 100-stream initial value recommended for `SETTINGS_MAX_CONCURRENT_STREAMS` by [RFC 7540 section 6.5.2](https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2), but peers and intermediaries may negotiate lower limits. HTTP/1.1-only clients or reverse proxies can queue channel requests behind per-origin connection limits; if not all channels attach, the server will not start the source read and the batch can hang until timeout. Proxies must also avoid buffering the channel responses, which would weaken end-to-end back-pressure and increase memory use.
+Because each resource uses a separate HTTP channel, Nexus rejects these endpoints over HTTP/1.1. The 100-channel cap follows the 100-stream initial value recommended for `SETTINGS_MAX_CONCURRENT_STREAMS` by [RFC 7540 section 6.5.2](https://www.rfc-editor.org/rfc/rfc7540#section-6.5.2), but peers and intermediaries may negotiate lower limits. Proxies must also avoid buffering channel responses, which would weaken end-to-end back-pressure and increase memory use.

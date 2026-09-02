@@ -20,7 +20,26 @@ public class DataStreamSessionManagerTests
     private static readonly ClaimsPrincipal Owner = CreatePrincipal("owner");
 
     [Fact]
-    public async Task StartsReadingOnlyAfterAllChannelsAttach()
+    public void EnforcesAndReleasesAdmissionLimits()
+    {
+        var manager = new DataStreamSessionManager(
+            maximumSessionCount: 2,
+            maximumSessionCountPerOwner: 1,
+            maximumChannelCount: 3);
+        using var first = manager.Reserve("owner", 2);
+
+        Assert.Throws<InvalidOperationException>(() => manager.Reserve("owner", 1));
+
+        using var second = manager.Reserve("other", 1);
+
+        Assert.Throws<InvalidOperationException>(() => manager.Reserve("third", 1));
+
+        first.Dispose();
+        using var replacement = manager.Reserve("owner", 2);
+    }
+
+    [Fact]
+    public async Task StartsReadingAfterFirstChannelAttaches()
     {
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = begin.AddSeconds(1);
@@ -88,15 +107,12 @@ public class DataStreamSessionManagerTests
         Assert.NotNull(firstLease);
         Assert.Null(manager.Attach(session.Id, session.Channels[0].Id, Owner));
 
-        Assert.Equal(0, Volatile.Read(ref callCount));
+        await readStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(1, Volatile.Read(ref callCount));
 
         var secondLease = manager.Attach(session.Id, session.Channels[1].Id, Owner);
 
         Assert.NotNull(secondLease);
-
-        var completedTask = await Task.WhenAny(readStarted.Task, Task.Delay(5000));
-
-        Assert.Same(readStarted.Task, completedTask);
         Assert.Equal(1, Volatile.Read(ref callCount));
 
         await session.CompleteChannelAsync(session.Channels[0].Id, faulted: false);
@@ -154,7 +170,56 @@ public class DataStreamSessionManagerTests
     }
 
     [Fact]
-    public async Task PartialAttachTimeoutCancelsDisposesAndRemovesSession()
+    public async Task PublishesSourceFailureBeforeBlockedSiblingUnwinds()
+    {
+        var failure = new InvalidOperationException("Source failed");
+        var blockedReadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finishBlockedRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failedController = CreateController();
+        var blockedController = CreateController();
+
+        Mock.Get(failedController)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<DataSourceErrorHandling>()))
+            .ThrowsAsync(failure);
+
+        Mock.Get(blockedController)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<DataSourceErrorHandling>()))
+            .Callback(() => blockedReadStarted.SetResult())
+            .Returns(finishBlockedRead.Task);
+
+        var (manager, session) = CreateSession(controllers: [failedController, blockedController]);
+        var pendingRead = session.Channels[0].Reader.ReadAsync().AsTask();
+
+        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+        await blockedReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => pendingRead.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        var status = manager.GetStatus(session.Id, Owner);
+        Assert.NotNull(status);
+        Assert.Contains(failure.Message, status!.FaultReason);
+
+        finishBlockedRead.SetResult();
+        await session.CompleteChannelAsync(session.Channels[0].Id, faulted: false);
+    }
+
+    [Fact]
+    public async Task NoAttachTimeoutCancelsDisposesAndRemovesSession()
     {
         var timeProvider = new ControlledTimeProvider();
         var controllerDisposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -171,14 +236,11 @@ public class DataStreamSessionManagerTests
         var session = CreateSession(controller: controller, manager: manager).Session;
         var pendingRead = session.Channels[0].Reader.ReadAsync().AsTask();
 
-        Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
-
         timeProvider.Advance(TimeSpan.FromMinutes(1));
 
-        var readResult = await pendingRead.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAnyAsync<Exception>(() => pendingRead.WaitAsync(TimeSpan.FromSeconds(5)));
         await controllerDisposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.True(readResult.IsCanceled);
         Assert.Null(manager.Attach(session.Id, session.Channels[1].Id, Owner));
 
         var status = manager.GetStatus(session.Id, Owner);
@@ -194,11 +256,26 @@ public class DataStreamSessionManagerTests
     }
 
     [Fact]
-    public async Task TimeoutSelectionPreventsFinalAttach()
+    public async Task MaximumDurationFaultsChannelsBeforeBlockedReadUnwinds()
     {
         var timeProvider = new ControlledTimeProvider();
+        var readStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finishRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var controllerDisposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var controller = CreateController();
+
+        Mock.Get(controller)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<DataSourceErrorHandling>()))
+            .Callback(() => readStarted.SetResult())
+            .Returns(finishRead.Task);
 
         Mock.Get(controller)
             .Setup(current => current.Dispose())
@@ -207,15 +284,27 @@ public class DataStreamSessionManagerTests
         var manager = new DataStreamSessionManager(
             timeProvider,
             TimeSpan.FromMinutes(1),
-            TimeSpan.FromMinutes(1));
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(2));
         var session = CreateSession(controller: controller, manager: manager).Session;
+        var pendingRead = session.Channels[0].Reader.ReadAsync().AsTask();
 
         Assert.NotNull(manager.Attach(session.Id, session.Channels[0].Id, Owner));
+        await readStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        timeProvider.Advance(TimeSpan.FromMinutes(1));
+        timeProvider.Advance(TimeSpan.FromMinutes(2));
 
-        await controllerDisposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAnyAsync<Exception>(() => pendingRead.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.Null(manager.Attach(session.Id, session.Channels[1].Id, Owner));
+
+        var status = manager.GetStatus(session.Id, Owner);
+        Assert.NotNull(status);
+        Assert.Equal(BatchStreamSessionState.Faulted, status!.State);
+        Assert.Contains("maximum duration", status.FaultReason);
+        Assert.False(controllerDisposed.Task.IsCompleted);
+
+        finishRead.SetResult();
+        await controllerDisposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -321,7 +410,8 @@ public class DataStreamSessionManagerTests
     private static (DataStreamSessionManager Manager, DataStreamSession Session) CreateSession(
         IMemoryTracker? memoryTracker = default,
         IDataSourceController? controller = default,
-        DataStreamSessionManager? manager = default)
+        DataStreamSessionManager? manager = default,
+        IDataSourceController[]? controllers = default)
     {
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = begin.AddSeconds(1);
@@ -332,7 +422,7 @@ public class DataStreamSessionManagerTests
         var request2 = new CatalogItemRequest(new CatalogItem(catalog, new Resource("Y"), representation, default), default, default!);
         var pipe1 = new Pipe();
         var pipe2 = new Pipe();
-        controller ??= CreateController();
+        controllers ??= [controller ?? CreateController()];
 
         var useDefaultMemoryTracker = memoryTracker is null;
         memoryTracker ??= Mock.Of<IMemoryTracker>();
@@ -350,13 +440,17 @@ public class DataStreamSessionManagerTests
             begin,
             end,
             samplePeriod,
-            [
-                new DataReadingGroup(controller,
+            controllers.Length == 1
+                ? [new DataReadingGroup(controllers[0],
+                    [
+                        new CatalogItemRequestPipeWriter(request1, pipe1.Writer),
+                        new CatalogItemRequestPipeWriter(request2, pipe2.Writer)
+                    ])]
+                :
                 [
-                    new CatalogItemRequestPipeWriter(request1, pipe1.Writer),
-                    new CatalogItemRequestPipeWriter(request2, pipe2.Writer)
-                ])
-            ],
+                    new DataReadingGroup(controllers[0], [new CatalogItemRequestPipeWriter(request1, pipe1.Writer)]),
+                    new DataReadingGroup(controllers[1], [new CatalogItemRequestPipeWriter(request2, pipe2.Writer)])
+                ],
             [
                 new DataStreamChannel(Guid.NewGuid(), request1.Item.ToPath(), pipe1.Reader, sizeof(double)),
                 new DataStreamChannel(Guid.NewGuid(), request2.Item.ToPath(), pipe2.Reader, sizeof(double))

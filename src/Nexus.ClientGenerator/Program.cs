@@ -25,9 +25,11 @@ public static class Program
             ? args[1]
             : "openapi.json";
 
-        var openApiV2FileName = Path.GetFileNameWithoutExtension(openApiFileName) == "openapi"
+        var openApiDirectoryName = Path.GetDirectoryName(openApiFileName);
+        var openApiV2BaseFileName = Path.GetFileNameWithoutExtension(openApiFileName) == "openapi"
             ? "openapi.v2.json"
             : $"{Path.GetFileNameWithoutExtension(openApiFileName)}.v2{Path.GetExtension(openApiFileName)}";
+        var openApiV2FileName = Path.Combine(openApiDirectoryName ?? string.Empty, openApiV2BaseFileName);
 
         //
         var builder = WebApplication.CreateBuilder([]);

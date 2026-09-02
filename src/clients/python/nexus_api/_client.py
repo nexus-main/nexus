@@ -217,55 +217,48 @@ class NexusClient:
         """
 
         resource_path_list = list(resource_paths)
+
+        if not resource_path_list:
+            return {}
+
+        if self.___http_client.base_url.scheme != "https":
+            raise NexusException("N02", "Batch loading requires an HTTPS URL so HTTP/2 can be negotiated.")
+
         catalog_item_map = self.v1.catalogs.search_catalog_items(resource_path_list)
         session = self.v2.data.register_batch_stream(BatchStreamRequest(begin, end, resource_path_list))
-        result: dict[str, DataResponse] = {}
-        response_entries = []
+        total_length = sum(
+            int((end - begin) / catalog_item_map[path].representation.sample_period) * 8
+            for path in resource_path_list)
+        consumed = [0]
+        progress_lock = Lock()
 
-        try:
-            for channel in session.channels:
-                response = self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id)
-                response_entries.append((channel.resource_path, response))
+        def _read_channel(channel):
+            response = self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id)
 
-            total_length = 0
-            for (_, response) in response_entries:
-                try:
-                    total_length += int(response.headers["Content-Length"])
-                except:
-                    pass
+            try:
+                def report_progress(bytes_read):
+                    with progress_lock:
+                        consumed[0] += bytes_read
+                        if total_length > 0 and on_progress is not None:
+                            on_progress(min(1, consumed[0] / total_length))
 
-            consumed = [0]
-            _lock = Lock()
-
-            def report_progress(bytes_read):
-                with _lock:
-                    consumed[0] += bytes_read
-                    if total_length > 0 and on_progress is not None:
-                        on_progress(consumed[0] / total_length)
-
-            def _read_channel(entry):
-                resource_path, response = entry
-                try:
-                    values = self._read_as_double(response, report_progress)
-                    return (resource_path, values, None)
-                except Exception as ex:
-                    return (resource_path, None, ex)
-
-            with ThreadPoolExecutor(max_workers=len(response_entries)) as executor:
-                results = list(executor.map(_read_channel, response_entries))
-
-        finally:
-            for (_, response) in response_entries:
+                return (channel.resource_path, self._read_as_double(response, report_progress), None)
+            except Exception as ex:
+                return (channel.resource_path, None, ex)
+            finally:
                 response.close()
+
+        with ThreadPoolExecutor(max_workers=len(session.channels)) as executor:
+            results = list(executor.map(_read_channel, session.channels))
 
         errors = [(rp, ex) for (rp, _, ex) in results if ex is not None]
 
         if errors:
             self._create_channel_exception(session.session_id, errors[0][0], errors[0][1])
 
-        values = [cast(array[float], val) for (_, val, _) in results]
+        result: dict[str, DataResponse] = {}
 
-        for ((resource_path, _), double_data) in zip(response_entries, values):
+        for (resource_path, value, _) in results:
 
             catalog_item = catalog_item_map[resource_path]
 
@@ -287,7 +280,7 @@ class NexusClient:
                 unit=unit,
                 description=description,
                 sample_period=sample_period,
-                values=double_data
+                values=cast(array[float], value)
             )
 
         if on_progress is not None:
@@ -309,19 +302,26 @@ class NexusClient:
         if content_length < 0 or content_length % 8 != 0:
             raise Exception("The data length is invalid.")
 
-        chunks = []
-        
+        buffer = bytearray(content_length)
+        offset = 0
+
         for data in response.iter_bytes():
-            chunks.append(data)
+            end_offset = offset + len(data)
+
+            if end_offset > content_length:
+                raise Exception("The stream is longer than the declared data length.")
+
+            buffer[offset:end_offset] = data
+            offset = end_offset
+
             if report_progress is not None:
                 report_progress(len(data))
-        
-        byteBuffer = b"".join(chunks)
 
-        if len(byteBuffer) != content_length:
-            raise Exception("The data length does not match Content-Length.")
+        if offset != content_length:
+            raise Exception("The stream ended early.")
 
-        doubleBuffer = array("d", byteBuffer)
+        doubleBuffer = array("d")
+        doubleBuffer.frombytes(buffer)
 
         return doubleBuffer 
 
@@ -638,62 +638,47 @@ class NexusAsyncClient:
         """
 
         resource_path_list = list(resource_paths)
+
+        if not resource_path_list:
+            return {}
+
+        if self.___http_client.base_url.scheme != "https":
+            raise NexusException("N02", "Batch loading requires an HTTPS URL so HTTP/2 can be negotiated.")
+
         catalog_item_map = await self.v1.catalogs.search_catalog_items(resource_path_list)
         session = await self.v2.data.register_batch_stream(BatchStreamRequest(begin, end, resource_path_list))
-        result: dict[str, DataResponse] = {}
-        response_entries = []
+        total_length = sum(
+            int((end - begin) / catalog_item_map[path].representation.sample_period) * 8
+            for path in resource_path_list)
+        consumed = 0
 
-        try:
-            async def _open_channel(channel):
-                try:
-                    response = await self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id)
-                    response_entries.append((channel.resource_path, response))
-                    return None
-                except BaseException as ex:
-                    return ex
+        async def _read_channel(channel):
+            nonlocal consumed
+            response = await self.v2.data.get_batch_stream_channel(session.session_id, channel.channel_id)
 
-            acquisition_results = await asyncio.gather(*[_open_channel(channel) for channel in session.channels])
-            acquisition_error = next((error for error in acquisition_results if error is not None), None)
+            try:
+                def report_progress(bytes_read):
+                    nonlocal consumed
+                    consumed += bytes_read
+                    if total_length > 0 and on_progress is not None:
+                        on_progress(min(1, consumed / total_length))
 
-            if acquisition_error is not None:
-                raise acquisition_error
-
-            total_length = 0
-            for (_, response) in response_entries:
-                try:
-                    total_length += int(response.headers["Content-Length"])
-                except:
-                    pass
-
-            consumed = 0
-
-            def report_progress(bytes_read):
-                nonlocal consumed
-                consumed += bytes_read
-                if total_length > 0 and on_progress is not None:
-                    on_progress(consumed / total_length)
-
-            async def _read_channel(resource_path, response):
-                try:
-                    values = await self._read_as_double(response, report_progress)
-                    return (resource_path, values, None)
-                except Exception as ex:
-                    return (resource_path, None, ex)
-
-            results = await asyncio.gather(*[_read_channel(rp, resp) for (rp, resp) in response_entries])
-
-        finally:
-            for (_, response) in response_entries:
+                return (channel.resource_path, await self._read_as_double(response, report_progress), None)
+            except Exception as ex:
+                return (channel.resource_path, None, ex)
+            finally:
                 await response.aclose()
+
+        results = await asyncio.gather(*[_read_channel(channel) for channel in session.channels])
 
         errors = [(rp, ex) for (rp, _, ex) in results if ex is not None]
 
         if errors:
             await self._create_channel_exception(session.session_id, errors[0][0], errors[0][1])
 
-        values = [cast(array[float], val) for (_, val, _) in results]
+        result: dict[str, DataResponse] = {}
 
-        for ((resource_path, _), double_data) in zip(response_entries, values):
+        for (resource_path, value, _) in results:
 
             catalog_item = catalog_item_map[resource_path]
 
@@ -715,7 +700,7 @@ class NexusAsyncClient:
                 unit=unit,
                 description=description,
                 sample_period=sample_period,
-                values=double_data
+                values=cast(array[float], value)
             )
 
         if on_progress is not None:
@@ -737,19 +722,26 @@ class NexusAsyncClient:
         if content_length < 0 or content_length % 8 != 0:
             raise Exception("The data length is invalid.")
 
-        chunks = []
-        
+        buffer = bytearray(content_length)
+        offset = 0
+
         async for data in response.aiter_bytes():
-            chunks.append(data)
+            end_offset = offset + len(data)
+
+            if end_offset > content_length:
+                raise Exception("The stream is longer than the declared data length.")
+
+            buffer[offset:end_offset] = data
+            offset = end_offset
+
             if report_progress is not None:
                 report_progress(len(data))
-        
-        byteBuffer = b"".join(chunks)
 
-        if len(byteBuffer) != content_length:
-            raise Exception("The data length does not match Content-Length.")
+        if offset != content_length:
+            raise Exception("The stream ended early.")
 
-        doubleBuffer = array("d", byteBuffer)
+        doubleBuffer = array("d")
+        doubleBuffer.frombytes(buffer)
 
         return doubleBuffer 
 

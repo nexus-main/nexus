@@ -218,6 +218,35 @@ class BatchStreamRequest:
 
 
 @dataclass(frozen=True)
+class ProblemDetails:
+    """
+    No description provided.
+
+    Args:
+        type: No description provided.
+        title: No description provided.
+        status: No description provided.
+        detail: No description provided.
+        instance: No description provided.
+    """
+
+    type: Optional[str]
+    """"""
+
+    title: Optional[str]
+    """"""
+
+    status: Optional[int]
+    """"""
+
+    detail: Optional[str]
+    """"""
+
+    instance: Optional[str]
+    """"""
+
+
+@dataclass(frozen=True)
 class BatchStreamSessionStatus:
     """
     The status of a batch data stream session.

@@ -68,6 +68,6 @@ Data source/file read -> backend Pipe -> HTTP response flow control -> client re
 
 Reverse-proxy response buffering breaks this chain because the proxy, rather than the final client, becomes the immediate consumer and can accumulate streamed data in memory.
 
-The server must not drain one resource pipe completely before reading the others. `DataSourceController.ReadAsync(...)` writes a chunk to every resource pipe and awaits flushes. If any channel is not consumed, its pipe can fill up and block the producer, which is the correct backpressure behavior only after the corresponding HTTP channel has attached.
+The server must not drain one resource pipe completely before reading the others. `DataSourceController.ReadAsync(...)` writes a chunk to every resource pipe and awaits flushes. If a channel has not attached or is not consuming data, its pipe can fill and block the producer.
 
-For this reason, a v2 batch session starts the source read only after all expected channel requests have attached. If the session times out or a channel aborts, the whole session is canceled and all pipe/controller resources are cleaned up.
+A v2 batch session starts the source read after the first channel attaches. The one-minute attachment timeout applies until that first attachment, and execution is also bounded by the session's maximum duration. If the session times out or a channel aborts, the whole session is canceled and its resources are cleaned up.

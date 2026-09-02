@@ -13,10 +13,12 @@ namespace Nexus.UI.Core;
 public class NexusDemoClient : INexusClient
 {
     private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
+    private readonly V1 _v1 = new();
+    private readonly V2 _v2 = new();
 
-    public IV1 V1 => throw new NotImplementedException();
+    public IV1 V1 => _v1;
 
-    public Api.V2.IV2 V2 => new V2();
+    public Api.V2.IV2 V2 => _v2;
 
     public void SignIn(string accessToken)
     {
@@ -50,6 +52,7 @@ public class NexusDemoClient : INexusClient
         CancellationToken cancellationToken = default)
     {
         var resourcePathList = resourcePaths.ToList();
+        var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken);
         var session = await V2.Data.RegisterBatchStreamAsync(
             new Api.V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken);
 
@@ -68,15 +71,17 @@ public class NexusDemoClient : INexusClient
                 await stream.ReadExactlyAsync(data, cancellationToken);
 
                 var doubleData = MemoryMarshal.Cast<byte, double>(data).ToArray();
+                var catalogItem = catalogItemMap[channel.ResourcePath];
+                var resource = catalogItem.Resource;
 
                 onProgress?.Invoke((i + 1) / (double)session.Channels.Count);
 
                 result[channel.ResourcePath] = new DataResponse(
-                    CatalogItem: default!,
-                    Name: channel.ResourcePath.Split('/').LastOrDefault() ?? channel.ResourcePath,
-                    Unit: string.Empty,
-                    Description: null,
-                    SamplePeriod: SamplePeriod,
+                    CatalogItem: catalogItem,
+                    Name: resource.Id,
+                    Unit: GetStringProperty(resource, "unit"),
+                    Description: GetStringProperty(resource, "description"),
+                    SamplePeriod: catalogItem.Representation.SamplePeriod,
                     Values: doubleData);
             }
             finally
@@ -86,19 +91,32 @@ public class NexusDemoClient : INexusClient
         }
 
         return result;
+
+        static string? GetStringProperty(Resource resource, string name)
+        {
+            return resource.Properties is not null &&
+                resource.Properties.TryGetValue(name, out var value) &&
+                value.ValueKind == JsonValueKind.String
+                    ? value.GetString()
+                    : null;
+        }
     }
 }
 
 public class V2 : Api.V2.IV2
 {
-    public Api.V2.IDataClient Data => new DataV2DemoClient();
+    private readonly DataV2DemoClient _data = new();
+
+    public Api.V2.IDataClient Data => _data;
 }
 
 public class V1 : IV1
 {
+    private readonly CatalogsDemoClient _catalogs = new();
+
     public IArtifactsClient Artifacts => throw new NotImplementedException();
 
-    public ICatalogsClient Catalogs => new CatalogsDemoClient();
+    public ICatalogsClient Catalogs => _catalogs;
 
     public IDataClient Data => new DataDemoClient();
 
@@ -129,7 +147,7 @@ public class CatalogsDemoClient : ICatalogsClient
 
     public ResourceCatalog Get(string catalogId)
     {
-        throw new NotImplementedException();
+        return GetAsync(catalogId).GetAwaiter().GetResult();
     }
 
     public Task<ResourceCatalog> GetAsync(string catalogId, CancellationToken cancellationToken = default)
@@ -305,12 +323,22 @@ We hope you enjoy it!
 
     public IReadOnlyDictionary<string, CatalogItem> SearchCatalogItems(IReadOnlyList<string> resourcePaths)
     {
-        throw new NotImplementedException();
+        var catalog = Get("/SAMPLE/LOCAL");
+
+        return resourcePaths.ToDictionary(
+            resourcePath => resourcePath,
+            resourcePath =>
+            {
+                var parts = resourcePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var resource = catalog.Resources!.Single(current => current.Id == parts[^2]);
+                var representation = resource.Representations!.Single(current => current.SamplePeriod == TimeSpan.FromMinutes(1));
+                return new CatalogItem(catalog, resource, representation, Parameters: null);
+            });
     }
 
     public Task<IReadOnlyDictionary<string, CatalogItem>> SearchCatalogItemsAsync(IReadOnlyList<string> resourcePaths, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        return Task.FromResult(SearchCatalogItems(resourcePaths));
     }
 
     public HttpResponseMessage SetMetadata(string catalogId, CatalogMetadata metadata)
@@ -377,7 +405,7 @@ public class DataDemoClient : IDataClient
 public class DataV2DemoClient : Api.V2.IDataClient
 {
     private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
-    private static readonly ConcurrentDictionary<Guid, (string ResourcePath, DateTime Begin, DateTime End)> ChannelMap = new();
+    private readonly ConcurrentDictionary<Guid, (Guid SessionId, string ResourcePath, DateTime Begin, DateTime End)> _channelMap = new();
 
     public Api.V2.BatchStreamResponse RegisterBatchStream(Api.V2.BatchStreamRequest request)
     {
@@ -386,16 +414,26 @@ public class DataV2DemoClient : Api.V2.IDataClient
 
     public Task<Api.V2.BatchStreamResponse> RegisterBatchStreamAsync(Api.V2.BatchStreamRequest request, CancellationToken cancellationToken = default)
     {
+        var sessionId = Guid.NewGuid();
         var channels = request.ResourcePaths
             .Select(resourcePath =>
             {
                 var channelId = Guid.NewGuid();
-                ChannelMap[channelId] = (resourcePath, request.Begin, request.End);
+                _channelMap[channelId] = (sessionId, resourcePath, request.Begin, request.End);
                 return new Api.V2.BatchStreamChannel(channelId, resourcePath);
             })
             .ToArray();
 
-        return Task.FromResult(new Api.V2.BatchStreamResponse(Guid.NewGuid(), channels));
+        _ = RemoveAfterTimeoutAsync(channels);
+        return Task.FromResult(new Api.V2.BatchStreamResponse(sessionId, channels));
+
+        async Task RemoveAfterTimeoutAsync(Api.V2.BatchStreamChannel[] sessionChannels)
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1));
+
+            foreach (var channel in sessionChannels)
+                _channelMap.TryRemove(channel.ChannelId, out _);
+        }
     }
 
     public HttpResponseMessage GetBatchStreamChannel(Guid sessionId, Guid channelId)
@@ -405,8 +443,10 @@ public class DataV2DemoClient : Api.V2.IDataClient
 
     public Task<HttpResponseMessage> GetBatchStreamChannelAsync(Guid sessionId, Guid channelId, CancellationToken cancellationToken = default)
     {
-        if (!ChannelMap.TryRemove(channelId, out var channel))
+        if (!_channelMap.TryGetValue(channelId, out var channel) || channel.SessionId != sessionId)
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        _channelMap.TryRemove(channelId, out _);
 
         var offset = channel.ResourcePath.Contains("temperature")
             ? 7

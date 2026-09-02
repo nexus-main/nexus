@@ -32,6 +32,11 @@ internal class DataController(
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The registered batch stream session.</returns>
     [HttpPost("streams/batch")]
+    [ProducesResponseType(typeof(BatchStreamResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status426UpgradeRequired)]
     public async Task<ActionResult<BatchStreamResponse>> RegisterBatchStreamAsync(
         [FromBody] BatchStreamRequest request,
         CancellationToken cancellationToken)
@@ -67,6 +72,10 @@ internal class DataController(
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The channel data stream.</returns>
     [HttpGet("streams/batch/{sessionId:guid}/channel/{channelId:guid}")]
+    [Produces("application/octet-stream")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status426UpgradeRequired)]
     public async Task<ActionResult> GetBatchStreamChannelAsync(
         Guid sessionId,
         Guid channelId,
@@ -112,6 +121,8 @@ internal class DataController(
     /// <param name="sessionId">The session identifier.</param>
     /// <returns>The session status.</returns>
     [HttpGet("streams/batch/{sessionId:guid}/status")]
+    [ProducesResponseType(typeof(BatchStreamSessionStatus), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<BatchStreamSessionStatus> GetBatchStreamSessionStatus(Guid sessionId)
     {
         var status = _streamSessionManager.GetStatus(sessionId, User);
