@@ -886,13 +886,171 @@ internal class DataSourceController(
         var totalPeriod = end - begin;
         logger.LogTrace("The total period is {TotalPeriod}", totalPeriod);
 
-        /* bytes per row */
+        await ReadCoreAsync(
+            begin,
+            totalPeriod,
+            samplePeriod,
+            readingGroups,
+            readDataHandler,
+            memoryTracker,
+            progress,
+            logger,
+            cancellationToken);
+    }
 
+    private static async Task ReadCoreAsync(
+        DateTime begin,
+        TimeSpan totalPeriod,
+        TimeSpan samplePeriod,
+        DataReadingGroup[] readingGroups,
+        ReadDataHandler readDataHandler,
+        IMemoryTracker memoryTracker,
+        IProgress<double>? progress,
+        ILogger logger,
+        CancellationToken cancellationToken
+    )
+    {
+        var currentReadingGroupProgress = new ConcurrentDictionary<DataReadingGroup, double>();
+        var progressGate = new object();
+
+        using var readCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var readingTasks = readingGroups
+            .Select(readingGroup => ReadGroupAsync(readingGroup, readCancellation))
+            .ToArray();
+
+        try
+        {
+            await Task.WhenAll(readingTasks).ConfigureAwait(false);
+        }
+        catch
+        {
+            await readCancellation.CancelAsync().ConfigureAwait(false);
+            throw;
+        }
+
+        async Task ReadGroupAsync(DataReadingGroup readingGroup, CancellationTokenSource cancellationTokenSource)
+        {
+            var cancellationToken = cancellationTokenSource.Token;
+            var (controller, catalogItemRequestPipeWriters) = readingGroup;
+            var (bytesPerRow, largestSamplePeriod) = CalculateReadMetrics(catalogItemRequestPipeWriters, samplePeriod);
+
+            logger.LogTrace("A single row for reading group has a size of {BytesPerRow} bytes", bytesPerRow);
+
+            var consumedPeriod = TimeSpan.Zero;
+            var remainingPeriod = totalPeriod;
+
+            try
+            {
+                while (consumedPeriod < totalPeriod)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var remainingRowCount = remainingPeriod.Ticks / samplePeriod.Ticks;
+                    var remainingByteCount = remainingRowCount * bytesPerRow;
+
+                    using var allocationRegistration = await memoryTracker.RegisterAllocationAsync(
+                        minimumByteCount: bytesPerRow,
+                        maximumByteCount: remainingByteCount,
+                        cancellationToken).ConfigureAwait(false);
+
+                    var chunkSize = allocationRegistration.ActualByteCount;
+                    logger.LogTrace("The reading group chunk size is {ChunkSize} bytes", chunkSize);
+
+                    var rowCount = Math.Min(
+                        chunkSize / bytesPerRow,
+                        MaximumPipeWriteByteCount / sizeof(double));
+                    logger.LogTrace("{RowCount} rows can be processed per reading group chunk", rowCount);
+
+                    var maxPeriodPerRequest = TimeSpan
+                        .FromTicks(samplePeriod.Ticks * rowCount)
+                        .RoundDown(largestSamplePeriod);
+
+                    if (maxPeriodPerRequest == TimeSpan.Zero)
+                        throw new ValidationException("Unable to load the requested data because the available chunk size is too low.");
+
+                    logger.LogTrace("The maximum period per reading group request is {MaxPeriodPerRequest}", maxPeriodPerRequest);
+
+                    var currentPeriod = TimeSpan.FromTicks(Math.Min(remainingPeriod.Ticks, maxPeriodPerRequest.Ticks));
+                    var consumedPeriodAtChunkStart = consumedPeriod;
+                    var currentBegin = begin + consumedPeriod;
+                    var currentEnd = currentBegin + currentPeriod;
+
+                    logger.LogTrace("Process period {CurrentBegin} to {CurrentEnd}", currentBegin, currentEnd);
+
+                    var dataSourceProgress = new Progress<double>();
+
+                    dataSourceProgress.ProgressChanged += (sender, progressValue) =>
+                    {
+                        if (progressValue <= 1)
+                        {
+                            lock (progressGate)
+                            {
+                                var baseProgress = consumedPeriodAtChunkStart.Ticks / (double)totalPeriod.Ticks;
+                                var relativeProgressFactor = currentPeriod.Ticks / (double)totalPeriod.Ticks;
+                                var readingGroupProgress = baseProgress + progressValue * relativeProgressFactor;
+                                currentReadingGroupProgress.AddOrUpdate(readingGroup, readingGroupProgress, (_, _) => readingGroupProgress);
+
+                                var totalProgress = currentReadingGroupProgress.Sum(entry => entry.Value) / readingGroups.Length;
+                                progress?.Report(Math.Min(1, totalProgress));
+                            }
+                        }
+                    };
+
+                    await controller.ReadAsync(
+                        currentBegin,
+                        currentEnd,
+                        samplePeriod,
+                        catalogItemRequestPipeWriters,
+                        readDataHandler,
+                        dataSourceProgress,
+                        cancellationToken).ConfigureAwait(false);
+
+                    consumedPeriod += currentPeriod;
+                    remainingPeriod -= currentPeriod;
+
+                    lock (progressGate)
+                    {
+                        var readingGroupProgress = consumedPeriod.Ticks / (double)totalPeriod.Ticks;
+                        currentReadingGroupProgress.AddOrUpdate(readingGroup, readingGroupProgress, (_, _) => readingGroupProgress);
+
+                        var totalProgress = currentReadingGroupProgress.Sum(entry => entry.Value) / readingGroups.Length;
+                        progress?.Report(Math.Min(1, totalProgress));
+                    }
+                }
+
+                foreach (var catalogItemRequestPipeWriter in catalogItemRequestPipeWriters)
+                    await catalogItemRequestPipeWriter.DataWriter.CompleteAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await cancellationTokenSource.CancelAsync().ConfigureAwait(false);
+                logger.LogError(ex, "Reading group failed");
+
+                foreach (var catalogItemRequestPipeWriter in catalogItemRequestPipeWriters)
+                {
+                    try
+                    {
+                        await catalogItemRequestPipeWriter.DataWriter.CompleteAsync(ex).ConfigureAwait(false);
+                    }
+                    catch (Exception completeException)
+                    {
+                        logger.LogError(completeException, "Completing data pipe writer failed");
+                    }
+                }
+
+                throw;
+            }
+        }
+    }
+
+    private static (long BytesPerRow, TimeSpan LargestSamplePeriod) CalculateReadMetrics(
+        CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
+        TimeSpan samplePeriod)
+    {
         // If the user requests /xxx/10_min_mean#base=10_ms, then the algorithm below will assume a period
-        // of 10 minutes and a sample period of 10 ms, which leads to an estimated row size of 8 * 60000 = 480000 bytes.
+        // of 10 minutes and a sample period of 10 ms, which leads to an estimated row size of 8 * 60000 bytes.
         // The algorithm works this way because it cannot know if the data are already cached. It also does not know
         // if the data source will request more data which further increases the memory consumption.
-
         var bytesPerRow = 0L;
         var largestSamplePeriod = samplePeriod;
 
@@ -927,150 +1085,7 @@ internal class DataSourceController(
             bytesPerRow += sizeof(double);
         }
 
-        logger.LogTrace("A single row has a size of {BytesPerRow} bytes", bytesPerRow);
-
-        /* total memory consumption */
-        var totalRowCount = totalPeriod.Ticks / samplePeriod.Ticks;
-        var totalByteCount = totalRowCount * bytesPerRow;
-
-        /* actual memory consumption / chunk size */
-        var allocationRegistration = await memoryTracker.RegisterAllocationAsync(
-            minimumByteCount: bytesPerRow, maximumByteCount: totalByteCount, cancellationToken);
-
-        /* go */
-        var chunkSize = allocationRegistration.ActualByteCount;
-        logger.LogTrace("The chunk size is {ChunkSize} bytes", chunkSize);
-
-        var rowCount = Math.Min(
-            chunkSize / bytesPerRow,
-            MaximumPipeWriteByteCount / sizeof(double));
-        logger.LogTrace("{RowCount} rows can be processed per chunk", rowCount);
-
-        var maxPeriodPerRequest = TimeSpan
-            .FromTicks(samplePeriod.Ticks * rowCount)
-            .RoundDown(largestSamplePeriod);
-
-        if (maxPeriodPerRequest == TimeSpan.Zero)
-            throw new ValidationException("Unable to load the requested data because the available chunk size is too low.");
-
-        logger.LogTrace("The maximum period per request is {MaxPeriodPerRequest}", maxPeriodPerRequest);
-
-        try
-        {
-            await ReadCoreAsync(
-                begin,
-                totalPeriod,
-                maxPeriodPerRequest,
-                samplePeriod,
-                readingGroups,
-                readDataHandler,
-                progress,
-                logger,
-                cancellationToken);
-        }
-        finally
-        {
-            allocationRegistration.Dispose();
-        }
-    }
-
-    private static Task ReadCoreAsync(
-        DateTime begin,
-        TimeSpan totalPeriod,
-        TimeSpan maxPeriodPerRequest,
-        TimeSpan samplePeriod,
-        DataReadingGroup[] readingGroups,
-        ReadDataHandler readDataHandler,
-        IProgress<double>? progress,
-        ILogger logger,
-        CancellationToken cancellationToken
-    )
-    {
-        /* periods */
-        var consumedPeriod = TimeSpan.Zero;
-        var remainingPeriod = totalPeriod;
-        /* progress */
-        var currentDataSourceProgress = new ConcurrentDictionary<IDataSourceController, double>();
-
-        return Task.Run(async () =>
-        {
-            while (consumedPeriod < totalPeriod)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                currentDataSourceProgress.Clear();
-                var currentPeriod = TimeSpan.FromTicks(Math.Min(remainingPeriod.Ticks, maxPeriodPerRequest.Ticks));
-                var consumedPeriodAtChunkStart = consumedPeriod;
-
-                var currentBegin = begin + consumedPeriod;
-                var currentEnd = currentBegin + currentPeriod;
-
-                logger.LogTrace("Process period {CurrentBegin} to {CurrentEnd}", currentBegin, currentEnd);
-
-                using var chunkCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                var readingTasks = readingGroups.Select(async readingGroup =>
-                {
-                    var (controller, catalogItemRequestPipeWriters) = readingGroup;
-
-                    try
-                    {
-                        /* no need to remove handler because of short lifetime of IDataSource */
-                        var dataSourceProgress = new Progress<double>();
-
-                        dataSourceProgress.ProgressChanged += (sender, progressValue) =>
-                        {
-                            if (progressValue <= 1)
-                            {
-                                // https://stackoverflow.com/a/62768272 (currentDataSourceProgress)
-                                currentDataSourceProgress.AddOrUpdate(controller, progressValue, (_, _) => progressValue);
-
-                                var baseProgress = consumedPeriodAtChunkStart.Ticks / (double)totalPeriod.Ticks;
-                                var relativeProgressFactor = currentPeriod.Ticks / (double)totalPeriod.Ticks;
-                                var relativeProgress = currentDataSourceProgress.Sum(entry => entry.Value) * relativeProgressFactor;
-
-                                progress?.Report(baseProgress + relativeProgress);
-                            }
-                        };
-
-                        await controller.ReadAsync(
-                            currentBegin,
-                            currentEnd,
-                            samplePeriod,
-                            catalogItemRequestPipeWriters,
-                            readDataHandler,
-                            dataSourceProgress,
-                            chunkCancellation.Token);
-                    }
-                    catch (OutOfMemoryException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Process period {Begin} to {End} failed", currentBegin, currentEnd);
-                    }
-                }).ToList();
-
-                await Task.WhenAll(readingTasks).ConfigureAwait(false);
-
-                /* continue in time */
-                consumedPeriod += currentPeriod;
-                remainingPeriod -= currentPeriod;
-
-                progress?.Report(consumedPeriod.Ticks / (double)totalPeriod.Ticks);
-            }
-
-            /* complete */
-            foreach (var readingGroup in readingGroups)
-            {
-                foreach (var catalogItemRequestPipeWriter in readingGroup.CatalogItemRequestPipeWriters)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    await catalogItemRequestPipeWriter.DataWriter.CompleteAsync();
-                }
-            }
-        }, cancellationToken);
+        return (bytesPerRow, largestSamplePeriod);
     }
 
     internal static void ValidateParameters(
