@@ -216,7 +216,7 @@ internal class DataService(
                 .Select(current => PumpAsync(current.Index, current.Reader, outputPipe.Writer, writeGate, cts.Token))
                 .ToArray();
 
-            _ = CompleteAsync(reading, pumping, readingGroups, dataReaders, outputPipe.Writer, writeGate, cts);
+            _ = CompleteAndLogAsync(reading, pumping, readingGroups, dataReaders, outputPipe.Writer, writeGate, cts);
             return outputPipe.Reader.AsStream();
         }
         catch
@@ -327,6 +327,25 @@ internal class DataService(
             }
         }
 
+        async Task CompleteAndLogAsync(
+            Task reading,
+            Task[] pumping,
+            List<DataReadingGroup> groups,
+            List<(int Index, PipeReader Reader)> readers,
+            PipeWriter output,
+            SemaphoreSlim writeGate,
+            CancellationTokenSource cts)
+        {
+            try
+            {
+                await CompleteAsync(reading, pumping, groups, readers, output, writeGate, cts).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Batch stream completion failed");
+            }
+        }
+
         async Task CompleteAsync(
             Task reading,
             Task[] pumping,
@@ -368,16 +387,69 @@ internal class DataService(
             }
             finally
             {
-                foreach (var group in groups)
-                    group.Controller.Dispose();
-
-                foreach (var (_, reader) in readers)
-                    await reader.CompleteAsync().ConfigureAwait(false);
-
-                await output.CompleteAsync(error).ConfigureAwait(false);
-                writeGate.Dispose();
-                cts.Dispose();
+                await CleanupBatchStreamAsync(groups, readers, output, writeGate, cts, error, _logger).ConfigureAwait(false);
             }
+        }
+    }
+
+    internal static async Task CleanupBatchStreamAsync(
+        IReadOnlyList<DataReadingGroup> groups,
+        IReadOnlyList<(int Index, PipeReader Reader)> readers,
+        PipeWriter output,
+        SemaphoreSlim writeGate,
+        CancellationTokenSource cts,
+        Exception? error,
+        ILogger logger)
+    {
+        foreach (var group in groups)
+        {
+            try
+            {
+                group.Controller.Dispose();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Disposing batch data controller failed");
+            }
+        }
+
+        foreach (var (_, reader) in readers)
+        {
+            try
+            {
+                await reader.CompleteAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Completing batch data reader failed");
+            }
+        }
+
+        try
+        {
+            await output.CompleteAsync(error).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Completing batch output pipe failed");
+        }
+
+        try
+        {
+            writeGate.Dispose();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Disposing batch stream write gate failed");
+        }
+
+        try
+        {
+            cts.Dispose();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Disposing batch stream cancellation source failed");
         }
     }
 
