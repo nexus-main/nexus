@@ -12,7 +12,7 @@ namespace Nexus.Core.V2;
 /// <param name="End">The end date/time.</param>
 /// <param name="ResourcePaths">The resource paths to stream.</param>
 public record BatchStreamRequest(
-    [property: Required] DateTime Begin,
-    [property: Required] DateTime End,
-    [property: Required] string[] ResourcePaths
+    [Required] DateTime Begin,
+    [Required] DateTime End,
+    [Required] string[] ResourcePaths
 );
