@@ -87,6 +87,10 @@ def _frame(index: int, *values: float):
     return struct.pack("<ii", index, len(payload)) + payload
 
 
+def _header(index: int, payload_length: int):
+    return struct.pack("<ii", index, payload_length)
+
+
 @pytest.mark.anyio
 async def can_load_framed_response_over_http_test():
     paths = ["/A/B/C", "/A/B/D"]
@@ -140,3 +144,30 @@ async def rejects_invalid_batch_frame_test():
 
     with pytest.raises(Exception, match="resource index"):
         await client._read_batch(response, [8])
+
+
+@pytest.mark.anyio
+async def rejects_truncated_batch_frame_header_test():
+    response = Response(codes.OK, stream=_TrackingAsyncStream(b"\x00"))
+    client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
+
+    with pytest.raises(Exception, match="middle of a frame"):
+        await client._read_batch(response, [8])
+
+
+@pytest.mark.anyio
+async def rejects_truncated_batch_frame_payload_test():
+    response = Response(codes.OK, stream=_TrackingAsyncStream(_header(0, 8) + b"\x00\x00"))
+    client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
+
+    with pytest.raises(Exception, match="middle of a frame"):
+        await client._read_batch(response, [8])
+
+
+@pytest.mark.anyio
+async def rejects_incomplete_batch_stream_test():
+    response = Response(codes.OK, stream=_TrackingAsyncStream(_frame(0, 1)))
+    client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
+
+    with pytest.raises(Exception, match="before all data was received"):
+        await client._read_batch(response, [16])

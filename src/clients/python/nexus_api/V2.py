@@ -18,14 +18,14 @@ T = TypeVar("T")
 
 class V2:
     """A client for version V2."""
-    
+
     _data: DataClient
 
 
     def __init__(self, invoke: HttpRequestHandler):
         """
         Initializes a new instance of V2
-        
+
             Args:
                 client: The client to use.
         """
@@ -44,7 +44,7 @@ class DataClient:
     """Provides methods to interact with data."""
 
     ___invoke: HttpRequestHandler
-    
+
     def __init__(self, invoke: HttpRequestHandler):
         self.___invoke = invoke
 
@@ -63,14 +63,14 @@ class DataClient:
 
 class V2Async:
     """A client for version V2."""
-    
+
     _data: DataAsyncClient
 
 
     def __init__(self, invoke: HttpRequestHandlerAsync):
         """
         Initializes a new instance of V2Async
-        
+
             Args:
                 client: The client to use.
         """
@@ -89,7 +89,7 @@ class DataAsyncClient:
     """Provides methods to interact with data."""
 
     ___invoke: HttpRequestHandlerAsync
-    
+
     def __init__(self, invoke: HttpRequestHandlerAsync):
         self.___invoke = invoke
 
@@ -125,6 +125,3 @@ class BatchStreamRequest:
 
     resource_paths: list[str]
     """The resource paths to stream."""
-
-
-

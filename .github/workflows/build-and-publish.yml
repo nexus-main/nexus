@@ -22,10 +22,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Checkout OpenAPI client generator
-        run: |
-          git clone https://github.com/Apollo3zehn/openapi-client-generator ../openapi-client-generator
-
       - name: Fetch tags
         run: git fetch --tags --force
 

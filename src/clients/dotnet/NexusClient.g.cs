@@ -992,7 +992,7 @@ public interface IArtifactsClient
 public class ArtifactsClient : IArtifactsClient
 {
     private NexusClient ___client;
-    
+
     internal ArtifactsClient(NexusClient client)
     {
         ___client = client;
@@ -1531,7 +1531,7 @@ public interface IDataClient
 public class DataClient : IDataClient
 {
     private NexusClient ___client;
-    
+
     internal DataClient(NexusClient client)
     {
         ___client = client;
@@ -3381,7 +3381,7 @@ public interface IDataClient
 public class DataClient : IDataClient
 {
     private NexusClient ___client;
-    
+
     internal DataClient(NexusClient client)
     {
         ___client = client;

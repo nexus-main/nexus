@@ -824,6 +824,145 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     }
 
     [Fact]
+    public async Task PropagatesSourceFailureBeforeAnyOriginalOutput()
+    {
+        var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var end = begin + samplePeriod;
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var resource = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(0, []);
+
+        resource = catalog.Resources![0];
+
+        var request = new CatalogItemRequest(new CatalogItem(catalog, resource, representation, default), default, default!);
+        var pipe = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var expectedException = new InvalidOperationException("source failed");
+        var dataSource = Mock.Of<IDataSource<object?>>();
+
+        Mock.Get(dataSource)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<ReadRequest[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(expectedException);
+
+        var controller = await CreateSingleSourceControllerAsync(dataSource, catalog);
+        var memoryTracker = CreateMemoryTracker(actualByteCount: 17);
+
+        var actualException = await Assert.ThrowsAsync<InvalidOperationException>(() => DataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            [new DataReadingGroup(controller, [new CatalogItemRequestPipeWriter(request, pipe.Writer)])],
+            default!,
+            memoryTracker,
+            new Progress<double>(),
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None));
+
+        Assert.Same(expectedException, actualException);
+
+        await pipe.Reader.CompleteAsync();
+    }
+
+    [Fact]
+    public async Task PropagatesSourceFailureAfterPartialOriginalOutput()
+    {
+        var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var end = begin + samplePeriod * 2;
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var resource = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(0, []);
+
+        resource = catalog.Resources![0];
+
+        var request = new CatalogItemRequest(new CatalogItem(catalog, resource, representation, default), default, default!);
+        var pipe = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var expectedException = new InvalidOperationException("source failed");
+        var dataSource = Mock.Of<IDataSource<object?>>();
+        var callCount = 0;
+
+        Mock.Get(dataSource)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<ReadRequest[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, requests, _, _, _) =>
+                {
+                    callCount++;
+
+                    if (callCount == 2)
+                        throw expectedException;
+
+                    MemoryMarshal.Cast<byte, double>(requests[0].Data.Span)[0] = 42;
+                    requests[0].Status.Span[0] = 1;
+                    await requests[0].CompleteAsync();
+                });
+
+        var controller = await CreateSingleSourceControllerAsync(dataSource, catalog);
+        var memoryTracker = CreateMemoryTracker(actualByteCount: 17);
+
+        var actualException = await Assert.ThrowsAsync<InvalidOperationException>(() => DataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            [new DataReadingGroup(controller, [new CatalogItemRequestPipeWriter(request, pipe.Writer)])],
+            default!,
+            memoryTracker,
+            new Progress<double>(),
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None));
+
+        Assert.Same(expectedException, actualException);
+        Assert.True(callCount > 1);
+
+        await pipe.Reader.CompleteAsync();
+    }
+
+    private static async Task<DataSourceController> CreateSingleSourceControllerAsync(IDataSource<object?> dataSource, ResourceCatalog catalog)
+    {
+        var controller = new DataSourceController(
+            [dataSource],
+            [new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default)],
+            default!,
+            default!,
+            default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog> { [catalog.Id] = catalog }, new LoggerFactory(), CancellationToken.None);
+
+        return controller;
+    }
+
+    private static IMemoryTracker CreateMemoryTracker(long actualByteCount)
+    {
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>(
+                (_, _, _) => new AllocationRegistration(memoryTracker, actualByteCount));
+
+        return memoryTracker;
+    }
+
+    [Fact]
     public async Task CanReadResampled()
     {
         // Arrange

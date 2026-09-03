@@ -126,6 +126,36 @@ public class ClientTests
             [path]));
     }
 
+    [Fact]
+    public async Task RejectsTruncatedBatchFrameHeader()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync([0]));
+
+        Assert.Contains("middle of a frame", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsTruncatedBatchFramePayload()
+    {
+        var content = Header(resourceIndex: 0, payloadLength: sizeof(double))
+            .Concat(new byte[] { 0, 0 })
+            .ToArray();
+
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(content));
+
+        Assert.Contains("middle of a frame", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsIncompleteBatchStream()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(
+            Frame(0, 1),
+            end: DateTime.UnixEpoch.AddSeconds(2)));
+
+        Assert.Contains("before all data was received", exception.Message);
+    }
+
     private static HttpClient CreateHttpClient(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> handler)
     {
         var messageHandlerMock = new Mock<HttpMessageHandler>();
@@ -175,6 +205,26 @@ public class ClientTests
     private static HttpResponseMessage BinaryResponse(byte[] value)
     {
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(value) };
+    }
+
+    private static Task<IReadOnlyDictionary<string, DataResponse>> LoadBatchAsync(byte[] content, DateTime? end = default)
+    {
+        var path = "/A/B/C";
+        var catalogItems = CreateCatalogItemMap(path);
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : BinaryResponse(content)));
+
+        return client.LoadAsync(DateTime.UnixEpoch, end ?? DateTime.UnixEpoch.AddSeconds(1), [path]);
+    }
+
+    private static byte[] Header(int resourceIndex, int payloadLength)
+    {
+        var result = new byte[8];
+        BinaryPrimitives.WriteInt32LittleEndian(result, resourceIndex);
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(4), payloadLength);
+        return result;
     }
 
     private static byte[] Frame(int resourceIndex, params double[] values)

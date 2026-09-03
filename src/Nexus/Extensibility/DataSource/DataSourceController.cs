@@ -513,6 +513,7 @@ internal class DataSourceController(
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
+                throw;
             }
 
             /* Phase 2: flush any requests NOT completed via callback (fallback) */

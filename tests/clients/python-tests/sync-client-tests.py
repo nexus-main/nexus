@@ -81,6 +81,10 @@ def _frame(index: int, *values: float):
     return struct.pack("<ii", index, len(payload)) + payload
 
 
+def _header(index: int, payload_length: int):
+    return struct.pack("<ii", index, payload_length)
+
+
 def can_load_framed_response_over_http_test():
     paths = ["/A/B/C", "/A/B/D"]
     content = _frame(1, 3, 4) + _frame(0, 1, 2)
@@ -131,3 +135,27 @@ def rejects_invalid_batch_frame_test():
 
     with pytest.raises(Exception, match="resource index"):
         client._read_batch(response, [8])
+
+
+def rejects_truncated_batch_frame_header_test():
+    response = Response(codes.OK, stream=_TrackingStream(b"\x00"))
+    client = NexusClient(Client(base_url="http://localhost"))
+
+    with pytest.raises(Exception, match="middle of a frame"):
+        client._read_batch(response, [8])
+
+
+def rejects_truncated_batch_frame_payload_test():
+    response = Response(codes.OK, stream=_TrackingStream(_header(0, 8) + b"\x00\x00"))
+    client = NexusClient(Client(base_url="http://localhost"))
+
+    with pytest.raises(Exception, match="middle of a frame"):
+        client._read_batch(response, [8])
+
+
+def rejects_incomplete_batch_stream_test():
+    response = Response(codes.OK, stream=_TrackingStream(_frame(0, 1)))
+    client = NexusClient(Client(base_url="http://localhost"))
+
+    with pytest.raises(Exception, match="before all data was received"):
+        client._read_batch(response, [16])
