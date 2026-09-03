@@ -3,7 +3,6 @@
 
 using Nexus.DataModel;
 using System.Buffers;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace Nexus.Extensibility;
@@ -31,26 +30,63 @@ public record CatalogTimeRange(
 );
 
 /// <summary>
-/// A read request.
+/// A runtime read request created by Nexus or a compatible host.
 /// </summary>
-/// <param name="OriginalResourceName">The original resource name.</param>
-/// <param name="CatalogItem">The <paramref name="CatalogItem"/> to be read.</param>
-/// <param name="Data">The data buffer.</param>
-/// <param name="Status">The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="double.NaN"/>.</param>
-public record ReadRequest(
-    string OriginalResourceName,
-    CatalogItem CatalogItem,
-    Memory<byte> Data,
-    Memory<byte> Status
-)
+/// <remarks>
+/// This type carries runtime buffers and completion callbacks and is not a serialization contract.
+/// Use a separate DTO at process or wire boundaries.
+/// </remarks>
+public sealed class ReadRequest
 {
-    private static readonly ConditionalWeakTable<ReadRequest, CompletionState> CompletionStates = new();
+    private readonly object _gate = new();
+    private readonly Func<CancellationToken, Task> _onCompleted;
+    private readonly CancellationToken _cancellationToken;
+    private Task? _completionTask;
 
     /// <summary>
-    /// Whether <see cref="CompleteAsync"/> has been called.
+    /// Initializes a new runtime read request.
     /// </summary>
-    public bool IsCompleted => CompletionStates.TryGetValue(this, out var state) &&
-        state.Task?.Status == TaskStatus.RanToCompletion;
+    /// <param name="originalResourceName">The original resource name.</param>
+    /// <param name="catalogItem">The catalog item to be read.</param>
+    /// <param name="data">The data buffer.</param>
+    /// <param name="status">The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="double.NaN"/>.</param>
+    /// <param name="onCompleted">The host callback to run once when the request is completed.</param>
+    /// <param name="cancellationToken">The host-owned cancellation token for completion.</param>
+    public ReadRequest(
+        string originalResourceName,
+        CatalogItem catalogItem,
+        Memory<byte> data,
+        Memory<byte> status,
+        Func<CancellationToken, Task> onCompleted,
+        CancellationToken cancellationToken)
+    {
+        OriginalResourceName = originalResourceName;
+        CatalogItem = catalogItem;
+        Data = data;
+        Status = status;
+        _onCompleted = onCompleted;
+        _cancellationToken = cancellationToken;
+    }
+
+    /// <summary>
+    /// The original resource name.
+    /// </summary>
+    public string OriginalResourceName { get; }
+
+    /// <summary>
+    /// The catalog item to be read.
+    /// </summary>
+    public CatalogItem CatalogItem { get; }
+
+    /// <summary>
+    /// The data buffer.
+    /// </summary>
+    public Memory<byte> Data { get; }
+
+    /// <summary>
+    /// The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="double.NaN"/>.
+    /// </summary>
+    public Memory<byte> Status { get; }
 
     /// <summary>
     /// Called by the data source when <see cref="Data"/> and <see cref="Status"/> are fully populated.
@@ -58,42 +94,18 @@ public record ReadRequest(
     /// </summary>
     public Task CompleteAsync()
     {
-        var state = CompletionStates.GetOrCreateValue(this);
-
-        lock (state.Gate)
+        lock (_gate)
         {
-            return state.Task ??= CompleteCoreAsync(state);
-        }
+            if (_completionTask is null)
+                _completionTask = CompleteCoreAsync();
 
-        static async Task CompleteCoreAsync(CompletionState state)
-        {
-            if (state.OnCompleted is not null)
-                await state.OnCompleted(state.CancellationToken).ConfigureAwait(false);
+            return _completionTask;
         }
     }
 
-    internal void ConfigureCompletion(
-        Func<CancellationToken, Task>? onCompleted,
-        CancellationToken cancellationToken)
+    private async Task CompleteCoreAsync()
     {
-        var state = CompletionStates.GetOrCreateValue(this);
-
-        lock (state.Gate)
-        {
-            if (state.Task is not null)
-                throw new InvalidOperationException("Completion has already started.");
-
-            state.OnCompleted = onCompleted;
-            state.CancellationToken = cancellationToken;
-        }
-    }
-
-    private sealed class CompletionState
-    {
-        public object Gate { get; } = new();
-        public Func<CancellationToken, Task>? OnCompleted { get; set; }
-        public CancellationToken CancellationToken { get; set; }
-        public Task? Task { get; set; }
+        await _onCompleted(_cancellationToken).ConfigureAwait(false);
     }
 }
 
@@ -143,9 +155,9 @@ internal class ReadRequestManager : IDisposable
             originalResourceName,
             catalogItem,
             dataMemory,
-            statusMemory);
-
-        Request.ConfigureCompletion(onCompleted, cancellationToken);
+            statusMemory,
+            onCompleted ?? (_ => Task.CompletedTask),
+            cancellationToken);
     }
 
     public ReadRequest Request { get; }

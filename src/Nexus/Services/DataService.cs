@@ -430,7 +430,7 @@ internal class DataService(
 
                 try
                 {
-                    await Task.WhenAll([.. pumping, outputWriting]).ConfigureAwait(false);
+                    await Task.WhenAll([reading, .. pumping, outputWriting]).ConfigureAwait(false);
                 }
                 catch
                 {

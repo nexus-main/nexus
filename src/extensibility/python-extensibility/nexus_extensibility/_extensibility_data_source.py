@@ -101,15 +101,9 @@ class ReadRequest:
     status: memoryview
     """The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN")."""
 
-    _on_completed: Optional[Callable[[], Awaitable[None]]] = field(default=None, init=False, compare=False, repr=False)
+    _on_completed: Callable[[], Awaitable[None]] = field(compare=False, repr=False)
     _completion_task: Optional[asyncio.Task[None]] = field(default=None, init=False, compare=False, repr=False)
     _completion_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, compare=False, repr=False)
-
-    @property
-    def is_completed(self) -> bool:
-        task = self._completion_task
-        return task is not None and task.done() and task.exception() is None
-    """Whether :meth:`complete` has been called."""
 
     async def complete(self) -> None:
         """
@@ -121,19 +115,12 @@ class ReadRequest:
 
             if task is None:
                 async def complete_core() -> None:
-                    if self._on_completed is not None:
-                        await self._on_completed()
+                    await self._on_completed()
 
                 task = asyncio.create_task(complete_core())
                 object.__setattr__(self, "_completion_task", task)
 
         await task
-
-    def _configure_completion(self, on_completed: Optional[Callable[[], Awaitable[None]]]) -> None:
-        if self._completion_task is not None:
-            raise RuntimeError("Completion has already started.")
-
-        object.__setattr__(self, "_on_completed", on_completed)
 
 class ReadDataHandler(Protocol):
     """

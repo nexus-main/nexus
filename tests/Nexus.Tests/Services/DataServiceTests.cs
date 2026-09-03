@@ -9,6 +9,7 @@ using Nexus.Core.V2;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Services;
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
@@ -333,5 +334,142 @@ public class DataServiceTests
             It.Is<It.IsAnyType>((value, _) => value.ToString()!.Contains("Disposing batch data controller failed")),
             It.IsAny<InvalidOperationException>(),
             It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task StreamsMultipleResourcesAsFramedBatchOutput()
+    {
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = begin + TimeSpan.FromSeconds(1);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var registration = new DataSourceRegistration(Type: "A", new Uri("a", UriKind.Relative), default, default);
+        var pipeline = new DataSourcePipeline([registration]);
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var resource1 = new ResourceBuilder("T1").AddRepresentation(representation).Build();
+        var resource2 = new ResourceBuilder("T2").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/A/B/C")
+            .AddResource(resource1)
+            .AddResource(resource2)
+            .Build();
+
+        catalog = catalog.EnsureAndSanitizeMandatoryProperties(0, []);
+
+        var lookupController = Mock.Of<IDataSourceController>();
+
+        Mock.Get(lookupController)
+            .Setup(current => current.GetCatalogAsync(catalog.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(catalog);
+
+        Mock.Get(lookupController)
+            .Setup(current => current.GetTimeRangeAsync(catalog.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CatalogTimeRange(begin, end));
+
+        var streamingController = Mock.Of<IDataSourceController>();
+
+        Mock.Get(streamingController)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                samplePeriod,
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, _, writers, _, progress, cancellationToken) =>
+                {
+                    await writers[1].DataWriter.WriteAsync(BitConverter.GetBytes(2d), cancellationToken);
+                    await writers[0].DataWriter.WriteAsync(BitConverter.GetBytes(1d), cancellationToken);
+                    progress.Report(1);
+                });
+
+        var dataControllerService = Mock.Of<IDataControllerService>();
+        var getControllerCallCount = 0;
+
+        Mock.Get(dataControllerService)
+            .Setup(current => current.GetDataSourceControllerAsync(pipeline, It.IsAny<CancellationToken>()))
+            .Returns(() => Task.FromResult(++getControllerCallCount == 1
+                ? lookupController
+                : streamingController));
+
+        var catalogManager = Mock.Of<ICatalogManager>();
+
+        Mock.Get(catalogManager)
+            .Setup(current => current.GetCatalogContainersAsync(
+                It.IsAny<CatalogContainer>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<CatalogContainer, CancellationToken>((container, _) => Task.FromResult(container.Id switch
+            {
+                "/" => new[]
+                {
+                    new CatalogContainer(
+                        new CatalogRegistration(catalog.Id, string.Empty),
+                        default,
+                        default,
+                        pipeline,
+                        default!,
+                        default!,
+                        catalogManager,
+                        default!,
+                        dataControllerService)
+                },
+                _ => throw new Exception("Unsupported catalog container.")
+            }));
+
+        var appState = new AppState
+        {
+            CatalogState = new CatalogState(
+                CatalogContainer.CreateRoot(catalogManager, default!),
+                new CatalogCache())
+        };
+
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>(
+                (_, maximum, _) => new AllocationRegistration(memoryTracker, maximum));
+
+        var loggerFactory = Mock.Of<ILoggerFactory>();
+
+        Mock.Get(loggerFactory)
+            .Setup(current => current.CreateLogger(It.IsAny<string>()))
+            .Returns(Mock.Of<ILogger<DataSourceController>>());
+
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Role, nameof(NexusRoles.Administrator))],
+            authenticationType: "test"));
+
+        var dataService = new DataService(
+            appState,
+            user,
+            dataControllerService,
+            default!,
+            memoryTracker,
+            Mock.Of<ILogger<DataService>>(),
+            loggerFactory);
+
+        var stream = await dataService.ReadBatchAsStreamAsync(
+            new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"]),
+            CancellationToken.None);
+
+        var sink = new MemoryStream();
+        await stream.CopyToAsync(sink).WaitAsync(TimeSpan.FromSeconds(5));
+
+        var frames = new Dictionary<int, double>();
+        var bytes = sink.ToArray();
+
+        for (var offset = 0; offset < bytes.Length; offset += 16)
+        {
+            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
+            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 4));
+
+            Assert.Equal(sizeof(double), payloadLength);
+            frames.Add(resourceIndex, BitConverter.ToDouble(bytes, offset + 8));
+        }
+
+        Assert.Equal(2, frames.Count);
+        Assert.Equal(1d, frames[0]);
+        Assert.Equal(2d, frames[1]);
     }
 }

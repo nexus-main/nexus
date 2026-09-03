@@ -155,13 +155,17 @@ internal class Sample : IDataSource<object?>
     {
         var tasks = requests.Select(request =>
         {
-            var (_, catalogItem, data, status) = request;
+            var catalogItem = request.CatalogItem;
+            var data = request.Data;
+            var status = request.Status;
 
             return Task.Run(async () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var (catalog, resource, representation, _) = catalogItem;
+                var catalog = catalogItem.Catalog;
+                var resource = catalogItem.Resource;
+                var representation = catalogItem.Representation;
 
                 // check credentials
                 if (catalog.Id == RemoteCatalogId)

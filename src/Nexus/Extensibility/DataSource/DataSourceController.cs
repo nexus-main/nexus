@@ -429,9 +429,10 @@ internal class DataSourceController(
                 var (catalogItemRequest, dataWriter) = readUnit;
 
                 ReadRequestManager manager = null!;
-                Func<CancellationToken, Task> onCompleted = async cancellationToken =>
+                var onCompleted = async (CancellationToken cancellationToken) =>
                 {
-                    var (_, _, data, status) = manager.Request;
+                    var data = manager.Request.Data;
+                    var status = manager.Request.Status;
                     var sourceElementSize = catalogItemRequest.Item.Representation.ElementSize;
                     var elementOffset = 0;
 
@@ -602,16 +603,17 @@ internal class DataSourceController(
                 var offset = interval.Begin - begin;
                 var length = interval.End - interval.Begin;
 
-                var slicedReadRequest = readRequest with
-                {
-                    Data = readRequest.Data.Slice(
+                var slicedReadRequest = new ReadRequest(
+                    readRequest.OriginalResourceName,
+                    readRequest.CatalogItem,
+                    readRequest.Data.Slice(
                         start: NexusUtilities.Scale(offset, sourceSamplePeriod) * elementSize,
                         length: NexusUtilities.Scale(length, sourceSamplePeriod) * elementSize),
-
-                    Status = readRequest.Status.Slice(
+                    readRequest.Status.Slice(
                         start: NexusUtilities.Scale(offset, sourceSamplePeriod),
                         length: NexusUtilities.Scale(length, sourceSamplePeriod)),
-                };
+                    _ => Task.CompletedTask,
+                    cancellationToken);
 
                 /* read */
                 foreach (var dataSource in _dataSources)

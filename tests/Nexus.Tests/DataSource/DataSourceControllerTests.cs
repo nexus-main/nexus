@@ -202,7 +202,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             NullLogger<DataSourceController>.Instance,
             CancellationToken.None);
 
-        await Task.WhenAll(writing1, writing2, writing3);
+        await Task.WhenAll(reading, writing1, writing2, writing3);
 
         // /SAMPLE/LOCAL/V1/1_s
         Assert.Equal(6.5, result1[0], precision: 1);
