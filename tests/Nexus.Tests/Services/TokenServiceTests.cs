@@ -197,10 +197,16 @@ public class TokenServiceTests
         var actualTokenMap = await tokenService.GetAllAsync(string.Empty);
 
         // Assert
-        var expected = JsonSerializerHelper.SerializeIndented(expectedTokenMap);
-        var actual = JsonSerializerHelper.SerializeIndented(actualTokenMap);
+        Assert.Equal(expectedTokenMap.Count, actualTokenMap.Count);
 
-        Assert.Equal(expected, actual);
+        foreach (var (secret, expectedToken) in expectedTokenMap)
+        {
+            Assert.True(actualTokenMap.TryGetValue(secret, out var actualToken));
+            Assert.Equal(expectedToken.Id, actualToken.Id);
+            Assert.Equal(expectedToken.Description, actualToken.Description);
+            Assert.Equal(expectedToken.Expires, actualToken.Expires);
+            Assert.Equal(expectedToken.Claims, actualToken.Claims);
+        }
     }
 
     private static ITokenService GetTokenService(string filePath, Dictionary<string, InternalPersonalAccessToken> tokenMap)

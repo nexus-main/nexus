@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
+import struct
 import time
 from array import array
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
-from typing import Callable
 from typing import (Any, AsyncIterable, Callable, Iterable, Optional, Type,
                     TypeVar, Union, cast)
 from zipfile import ZipFile
+from uuid import UUID
 
 from httpx import AsyncClient, Client, Request, Response
 
@@ -19,6 +19,8 @@ from ._encoder import JsonEncoder
 from ._shared import NexusException, _json_encoder_options
 from .V1 import V1, V1Async
 from .V1 import CatalogItem, ExportParameters, TaskStatus
+from .V2 import V2, V2Async
+from .V2 import BatchStreamRequest
 
 
 T = TypeVar("T")
@@ -46,6 +48,7 @@ class NexusClient:
     ___http_client: Client
 
     _v1: V1
+    _v2: V2
 
 
     @classmethod
@@ -73,6 +76,7 @@ class NexusClient:
         self.___token = None
 
         self._v1 = V1(self._invoke)
+        self._v2 = V2(self._invoke)
 
 
     @property
@@ -84,6 +88,11 @@ class NexusClient:
     def v1(self) -> V1:
         """Gets the client for version V1."""
         return self._v1
+
+    @property
+    def v2(self) -> V2:
+        """Gets the client for version V2."""
+        return self._v2
 
 
 
@@ -130,19 +139,22 @@ class NexusClient:
         request = self._build_request_message(method, relative_url, content, content_type_value, accept_header_value)
 
         # send request
-        response = self.___http_client.send(request)
+        response = self.___http_client.send(request, stream=typeOfT is Response)
 
         # process response
         if not response.is_success:
-            
-            message = response.text
-            status_code = f"N00.{response.status_code}"
+            try:
+                response.read()
+                message = response.text
+                status_code = f"N00.{response.status_code}"
 
-            if not message:
-                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
+                if not message:
+                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
 
-            else:
-                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+                else:
+                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+            finally:
+                response.close()
 
         try:
 
@@ -201,19 +213,35 @@ class NexusClient:
             onProgress: A callback which accepts the current progress.
         """
 
-        catalog_item_map = self.v1.catalogs.search_catalog_items(list(resource_paths))
+        resource_path_list = list(resource_paths)
+
+        if not resource_path_list:
+            return {}
+
+        catalog_item_map = self.v1.catalogs.search_catalog_items(resource_path_list)
+        response = self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list))
+        expected_lengths = [
+            ((end - begin) // catalog_item_map[path].representation.sample_period) * 8
+            for path in resource_path_list]
+        total_length = sum(expected_lengths)
+        consumed = 0
+
+        def report_progress(bytes_read: int) -> None:
+            nonlocal consumed
+            consumed += bytes_read
+            if total_length > 0 and on_progress is not None:
+                on_progress(min(1, consumed / total_length))
+
+        try:
+            values = self._read_batch(response, expected_lengths, report_progress)
+        finally:
+            response.close()
+
         result: dict[str, DataResponse] = {}
-        progress: float = 0
 
-        for (resource_path, catalog_item) in catalog_item_map.items():
+        for resource_path, value in zip(resource_path_list, values):
 
-            response = self.v1.data.get_stream(resource_path, begin, end)
-
-            try:
-                double_data = self._read_as_double(response)
-
-            finally:
-                response.close()
+            catalog_item = catalog_item_map[resource_path]
 
             resource = catalog_item.resource
 
@@ -233,26 +261,77 @@ class NexusClient:
                 unit=unit,
                 description=description,
                 sample_period=sample_period,
-                values=double_data
+                values=value
             )
 
-            progress = progress + 1.0 / len(catalog_item_map)
-
-            if on_progress is not None:
-                on_progress(progress)
+        if on_progress is not None:
+            on_progress(1)
                 
         return result
 
-    def _read_as_double(self, response: Response):
-        
-        byteBuffer = response.read()
+    def _read_batch(
+        self,
+        response: Response,
+        expected_lengths: list[int],
+        report_progress: Optional[Callable[[int], None]] = None) -> list[array[float]]:
+        buffers = [bytearray(length) for length in expected_lengths]
+        offsets = [0] * len(expected_lengths)
+        pending = bytearray()
+        resource_index: Optional[int] = None
+        payload_length = 0
 
-        if len(byteBuffer) % 8 != 0:
-            raise Exception("The data length is invalid.")
+        for data in response.iter_bytes():
+            pending.extend(data)
 
-        doubleBuffer = array("d", byteBuffer)
+            while True:
+                if resource_index is None:
+                    if len(pending) < 8:
+                        break
 
-        return doubleBuffer 
+                    current_index, payload_length = struct.unpack_from("<ii", pending)
+                    del pending[:8]
+
+                    if current_index < 0 or current_index >= len(buffers):
+                        raise Exception("The batch stream contains an invalid resource index.")
+
+                    if payload_length < 0:
+                        raise Exception("The batch stream contains an invalid payload length.")
+
+                    if offsets[current_index] > expected_lengths[current_index] - payload_length:
+                        raise Exception("The batch stream contains more data than expected.")
+
+                    resource_index = current_index
+
+                if len(pending) < payload_length:
+                    break
+
+                current_index = cast(int, resource_index)
+                offset = offsets[current_index]
+                buffers[current_index][offset:offset + payload_length] = pending[:payload_length]
+                del pending[:payload_length]
+                offsets[current_index] += payload_length
+
+                if report_progress is not None:
+                    report_progress(payload_length)
+
+                resource_index = None
+                payload_length = 0
+
+        if pending or resource_index is not None:
+            raise Exception("The batch stream ended in the middle of a frame.")
+
+        if offsets != expected_lengths:
+            raise Exception("The batch stream ended before all data was received.")
+
+        values = []
+
+        for buffer in buffers:
+            resource_values = array("d")
+            resource_values.frombytes(buffer)
+
+            values.append(resource_values)
+
+        return values
 
     def export(
         self,
@@ -385,6 +464,7 @@ class NexusAsyncClient:
     ___http_client: AsyncClient
 
     _v1: V1Async
+    _v2: V2Async
 
 
     @classmethod
@@ -412,6 +492,7 @@ class NexusAsyncClient:
         self.___token = None
 
         self._v1 = V1Async(self._invoke)
+        self._v2 = V2Async(self._invoke)
 
 
     @property
@@ -423,6 +504,11 @@ class NexusAsyncClient:
     def v1(self) -> V1Async:
         """Gets the client for version V1."""
         return self._v1
+
+    @property
+    def v2(self) -> V2Async:
+        """Gets the client for version V2."""
+        return self._v2
 
 
 
@@ -469,19 +555,22 @@ class NexusAsyncClient:
         request = self._build_request_message(method, relative_url, content, content_type_value, accept_header_value)
 
         # send request
-        response = await self.___http_client.send(request)
+        response = await self.___http_client.send(request, stream=typeOfT is Response)
 
         # process response
         if not response.is_success:
-            
-            message = response.text
-            status_code = f"N00.{response.status_code}"
+            try:
+                await response.aread()
+                message = response.text
+                status_code = f"N00.{response.status_code}"
 
-            if not message:
-                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
+                if not message:
+                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}.")
 
-            else:
-                raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+                else:
+                    raise NexusException(status_code, f"The HTTP request failed with status code {response.status_code}. The response message is: {message}")
+            finally:
+                await response.aclose()
 
         try:
 
@@ -540,19 +629,35 @@ class NexusAsyncClient:
             onProgress: A callback which accepts the current progress.
         """
 
-        catalog_item_map = await self.v1.catalogs.search_catalog_items(list(resource_paths))
+        resource_path_list = list(resource_paths)
+
+        if not resource_path_list:
+            return {}
+
+        catalog_item_map = await self.v1.catalogs.search_catalog_items(resource_path_list)
+        response = await self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list))
+        expected_lengths = [
+            ((end - begin) // catalog_item_map[path].representation.sample_period) * 8
+            for path in resource_path_list]
+        total_length = sum(expected_lengths)
+        consumed = 0
+
+        def report_progress(bytes_read: int) -> None:
+            nonlocal consumed
+            consumed += bytes_read
+            if total_length > 0 and on_progress is not None:
+                on_progress(min(1, consumed / total_length))
+
+        try:
+            values = await self._read_batch(response, expected_lengths, report_progress)
+        finally:
+            await response.aclose()
+
         result: dict[str, DataResponse] = {}
-        progress: float = 0
 
-        for (resource_path, catalog_item) in catalog_item_map.items():
+        for resource_path, value in zip(resource_path_list, values):
 
-            response = await self.v1.data.get_stream(resource_path, begin, end)
-
-            try:
-                double_data = await self._read_as_double(response)
-
-            finally:
-                await response.aclose()
+            catalog_item = catalog_item_map[resource_path]
 
             resource = catalog_item.resource
 
@@ -572,26 +677,77 @@ class NexusAsyncClient:
                 unit=unit,
                 description=description,
                 sample_period=sample_period,
-                values=double_data
+                values=value
             )
 
-            progress = progress + 1.0 / len(catalog_item_map)
-
-            if on_progress is not None:
-                on_progress(progress)
+        if on_progress is not None:
+            on_progress(1)
                 
         return result
 
-    async def _read_as_double(self, response: Response):
-        
-        byteBuffer = await response.aread()
+    async def _read_batch(
+        self,
+        response: Response,
+        expected_lengths: list[int],
+        report_progress: Optional[Callable[[int], None]] = None) -> list[array[float]]:
+        buffers = [bytearray(length) for length in expected_lengths]
+        offsets = [0] * len(expected_lengths)
+        pending = bytearray()
+        resource_index: Optional[int] = None
+        payload_length = 0
 
-        if len(byteBuffer) % 8 != 0:
-            raise Exception("The data length is invalid.")
+        async for data in response.aiter_bytes():
+            pending.extend(data)
 
-        doubleBuffer = array("d", byteBuffer)
+            while True:
+                if resource_index is None:
+                    if len(pending) < 8:
+                        break
 
-        return doubleBuffer 
+                    current_index, payload_length = struct.unpack_from("<ii", pending)
+                    del pending[:8]
+
+                    if current_index < 0 or current_index >= len(buffers):
+                        raise Exception("The batch stream contains an invalid resource index.")
+
+                    if payload_length < 0:
+                        raise Exception("The batch stream contains an invalid payload length.")
+
+                    if offsets[current_index] > expected_lengths[current_index] - payload_length:
+                        raise Exception("The batch stream contains more data than expected.")
+
+                    resource_index = current_index
+
+                if len(pending) < payload_length:
+                    break
+
+                current_index = cast(int, resource_index)
+                offset = offsets[current_index]
+                buffers[current_index][offset:offset + payload_length] = pending[:payload_length]
+                del pending[:payload_length]
+                offsets[current_index] += payload_length
+
+                if report_progress is not None:
+                    report_progress(payload_length)
+
+                resource_index = None
+                payload_length = 0
+
+        if pending or resource_index is not None:
+            raise Exception("The batch stream ended in the middle of a frame.")
+
+        if offsets != expected_lengths:
+            raise Exception("The batch stream ended before all data was received.")
+
+        values = []
+
+        for buffer in buffers:
+            resource_values = array("d")
+            resource_values.frombytes(buffer)
+
+            values.append(resource_values)
+
+        return values
 
     async def export(
         self,

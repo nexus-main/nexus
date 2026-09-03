@@ -1,12 +1,16 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using System.Buffers;
 using System.ComponentModel.DataAnnotations;
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
+using System.Threading.Channels;
 using Nexus.Core;
 using Nexus.Core.V1;
+using Nexus.Core.V2;
 using Nexus.Extensibility;
 using Nexus.Utilities;
 
@@ -21,6 +25,10 @@ internal interface IDataService
        string resourcePath,
        DateTime begin,
        DateTime end,
+       CancellationToken cancellationToken);
+
+    Task<Stream> ReadBatchAsStreamAsync(
+       BatchStreamRequest request,
        CancellationToken cancellationToken);
 
     Task ReadAsDoubleAsync(
@@ -103,6 +111,404 @@ internal class DataService(
             cancellationToken);
 
         return stream;
+    }
+
+    public async Task<Stream> ReadBatchAsStreamAsync(
+       BatchStreamRequest request,
+       CancellationToken cancellationToken)
+    {
+        var begin = DateTime.SpecifyKind(request.Begin, DateTimeKind.Utc);
+        var end = DateTime.SpecifyKind(request.End, DateTimeKind.Utc);
+
+        ValidateResourcePaths(request.ResourcePaths);
+
+        var root = _appState.CatalogState.Root;
+        var catalogItemRequests = new List<(int Index, string ResourcePath, CatalogItemRequest Request)>(request.ResourcePaths.Length);
+
+        for (var index = 0; index < request.ResourcePaths.Length; index++)
+        {
+            var resourcePath = request.ResourcePaths[index];
+            var catalogItemRequest = await root.TryFindAsync(root, resourcePath, cancellationToken)
+                ?? throw new Exception($"Could not find resource path {resourcePath}.");
+
+            var catalogContainer = catalogItemRequest.Container;
+
+            if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, _user))
+                throw new Exception($"The current user is not permitted to access the catalog {catalogContainer.Id}.");
+
+            catalogItemRequests.Add((index, resourcePath, catalogItemRequest));
+        }
+
+        var samplePeriods = catalogItemRequests
+            .Select(catalogItemRequest => catalogItemRequest.Request.Item.Representation.SamplePeriod)
+            .Distinct()
+            .ToList();
+
+        if (samplePeriods.Count != 1)
+            throw new ValidationException("All representations must be of the same sample period.");
+
+        var samplePeriod = samplePeriods.First();
+        DataSourceController.ValidateParameters(begin, end, samplePeriod);
+
+        var outputPipe = new Pipe(new PipeOptions(
+            pauseWriterThreshold: 1024 * 1024,
+            resumeWriterThreshold: 512 * 1024));
+        var dataReaders = new List<(int Index, PipeReader Reader)>();
+        var readingGroups = new List<DataReadingGroup>();
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        try
+        {
+            foreach (var group in catalogItemRequests.GroupBy(current => current.Request.Container))
+            {
+                var controller = await _dataControllerService.GetDataSourceControllerAsync(group.Key.Pipeline, cancellationToken);
+                var catalogItemRequestPipeWriters = new List<CatalogItemRequestPipeWriter>();
+
+                try
+                {
+                    foreach (var (index, _, catalogItemRequest) in group)
+                    {
+                        var pipe = new Pipe();
+
+                        catalogItemRequestPipeWriters.Add(new CatalogItemRequestPipeWriter(catalogItemRequest, pipe.Writer));
+                        dataReaders.Add((index, pipe.Reader));
+                    }
+
+                    readingGroups.Add(new DataReadingGroup(controller, catalogItemRequestPipeWriters.ToArray()));
+                }
+                catch
+                {
+                    try
+                    {
+                        controller.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Disposing a failed batch data controller failed");
+                    }
+
+                    foreach (var writer in catalogItemRequestPipeWriters)
+                    {
+                        try
+                        {
+                            await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Completing a failed batch data writer failed");
+                        }
+                    }
+
+                    throw;
+                }
+            }
+
+            var reading = DataSourceController.ReadAsync(
+                begin,
+                end,
+                samplePeriod,
+                readingGroups.ToArray(),
+                ReadAsDoubleAsync,
+                _memoryTracker,
+                ReadProgress,
+                _loggerFactory.CreateLogger<DataSourceController>(),
+                cts.Token);
+
+            var frames = Channel.CreateBounded<BatchStreamFrame>(new BoundedChannelOptions(capacity: dataReaders.Count)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
+
+            var pumping = dataReaders
+                .Select(current => PumpAsync(current.Index, current.Reader, frames.Writer, cts.Token))
+                .ToArray();
+
+            var outputWriting = WriteBatchFramesAsync(frames.Reader, outputPipe.Writer, cts.Token);
+
+            _ = CompleteAndLogAsync(reading, pumping, outputWriting, frames.Writer, readingGroups, dataReaders, outputPipe.Writer, cts);
+            return outputPipe.Reader.AsStream();
+        }
+        catch
+        {
+            await cts.CancelAsync().ConfigureAwait(false);
+            cts.Dispose();
+
+            foreach (var readingGroup in readingGroups)
+            {
+                try
+                {
+                    readingGroup.Controller.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Disposing a failed batch data controller failed");
+                }
+
+                foreach (var writer in readingGroup.CatalogItemRequestPipeWriters)
+                {
+                    try
+                    {
+                        await writer.DataWriter.CompleteAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Completing a failed batch data writer failed");
+                    }
+                }
+            }
+
+            foreach (var (_, reader) in dataReaders)
+            {
+                try
+                {
+                    await reader.CompleteAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Completing a failed batch data reader failed");
+                }
+            }
+
+            await outputPipe.Writer.CompleteAsync().ConfigureAwait(false);
+            await outputPipe.Reader.CompleteAsync().ConfigureAwait(false);
+
+            throw;
+        }
+
+        static async Task PumpAsync(
+            int resourceIndex,
+            PipeReader input,
+            ChannelWriter<BatchStreamFrame> output,
+            CancellationToken cancellationToken)
+        {
+            const int maximumPayloadLength = 64 * 1024;
+
+            while (true)
+            {
+                var result = await input.ReadAsync(cancellationToken).ConfigureAwait(false);
+                var buffer = result.Buffer;
+
+                try
+                {
+                    foreach (var segment in buffer)
+                    {
+                        var remaining = segment;
+
+                        while (!remaining.IsEmpty)
+                        {
+                            var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
+                            var payloadBuffer = ArrayPool<byte>.Shared.Rent(payload.Length);
+                            payload.CopyTo(payloadBuffer);
+
+                            try
+                            {
+                                await output.WriteAsync(new BatchStreamFrame(resourceIndex, payloadBuffer, payload.Length), cancellationToken).ConfigureAwait(false);
+                            }
+                            catch
+                            {
+                                ArrayPool<byte>.Shared.Return(payloadBuffer);
+                                throw;
+                            }
+
+                            remaining = remaining[payload.Length..];
+                        }
+                    }
+                }
+                finally
+                {
+                    input.AdvanceTo(buffer.End);
+                }
+
+                if (result.IsCompleted)
+                    return;
+            }
+        }
+
+        static async Task WriteBatchFramesAsync(
+            ChannelReader<BatchStreamFrame> frames,
+            PipeWriter output,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await foreach (var frame in frames.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    try
+                    {
+                        var header = output.GetSpan(8);
+                        BinaryPrimitives.WriteInt32LittleEndian(header, frame.ResourceIndex);
+                        BinaryPrimitives.WriteInt32LittleEndian(header[4..], frame.PayloadLength);
+                        output.Advance(8);
+                        frame.Payload.AsMemory(0, frame.PayloadLength).CopyTo(output.GetMemory(frame.PayloadLength));
+                        output.Advance(frame.PayloadLength);
+
+                        var flushResult = await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+                        if (flushResult.IsCanceled)
+                            throw new OperationCanceledException(cancellationToken);
+
+                        if (flushResult.IsCompleted)
+                            throw new IOException("The batch output pipe completed before all data was written.");
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(frame.Payload);
+                    }
+                }
+            }
+            finally
+            {
+                while (frames.TryRead(out var frame))
+                {
+                    ArrayPool<byte>.Shared.Return(frame.Payload);
+                }
+            }
+        }
+
+        async Task CompleteAndLogAsync(
+            Task reading,
+            Task[] pumping,
+            Task outputWriting,
+            ChannelWriter<BatchStreamFrame> frameWriter,
+            List<DataReadingGroup> groups,
+            List<(int Index, PipeReader Reader)> readers,
+            PipeWriter output,
+            CancellationTokenSource cts)
+        {
+            try
+            {
+                await CompleteAsync(reading, pumping, outputWriting, frameWriter, groups, readers, output, cts).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Batch stream completion failed");
+            }
+        }
+
+        async Task CompleteAsync(
+            Task reading,
+            Task[] pumping,
+            Task outputWriting,
+            ChannelWriter<BatchStreamFrame> frameWriter,
+            List<DataReadingGroup> groups,
+            List<(int Index, PipeReader Reader)> readers,
+            PipeWriter output,
+            CancellationTokenSource cts)
+        {
+            Exception? error = null;
+
+            try
+            {
+                var producing = NexusUtilities.WhenAllFailFastAsync([reading, .. pumping], cts.Token);
+                var firstCompleted = await Task.WhenAny(producing, outputWriting).ConfigureAwait(false);
+
+                if (firstCompleted == outputWriting)
+                    await outputWriting.ConfigureAwait(false);
+
+                await producing.ConfigureAwait(false);
+                frameWriter.TryComplete();
+                await outputWriting.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+                await cts.CancelAsync().ConfigureAwait(false);
+                frameWriter.TryComplete(ex);
+
+                foreach (var writer in groups.SelectMany(group => group.CatalogItemRequestPipeWriters))
+                {
+                    try
+                    {
+                        await writer.DataWriter.CompleteAsync(ex).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                try
+                {
+                    await Task.WhenAll([reading, .. pumping, outputWriting]).ConfigureAwait(false);
+                }
+                catch
+                {
+                }
+            }
+            finally
+            {
+                await CleanupBatchStreamAsync(groups, readers, output, cts, error, _logger).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private readonly record struct BatchStreamFrame(int ResourceIndex, byte[] Payload, int PayloadLength);
+
+    internal static async Task CleanupBatchStreamAsync(
+        IReadOnlyList<DataReadingGroup> groups,
+        IReadOnlyList<(int Index, PipeReader Reader)> readers,
+        PipeWriter output,
+        CancellationTokenSource cts,
+        Exception? error,
+        ILogger logger)
+    {
+        foreach (var group in groups)
+        {
+            try
+            {
+                group.Controller.Dispose();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Disposing batch data controller failed");
+            }
+        }
+
+        foreach (var (_, reader) in readers)
+        {
+            try
+            {
+                await reader.CompleteAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Completing batch data reader failed");
+            }
+        }
+
+        try
+        {
+            await output.CompleteAsync(error).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Completing batch output pipe failed");
+        }
+
+        try
+        {
+            cts.Dispose();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Disposing batch stream cancellation source failed");
+        }
+    }
+
+    internal static void ValidateResourcePaths(string[]? resourcePaths)
+    {
+        if (resourcePaths is null || resourcePaths.Length == 0)
+            throw new ValidationException("At least one resource path is required.");
+
+        if (resourcePaths.Length > 100)
+            throw new ValidationException("A maximum of 100 resource paths is allowed.");
+
+        if (resourcePaths.Any(string.IsNullOrWhiteSpace))
+            throw new ValidationException("Resource paths must not be blank.");
+
+        if (resourcePaths.Distinct(StringComparer.Ordinal).Count() != resourcePaths.Length)
+            throw new ValidationException("Resource paths must be unique.");
     }
 
     public async Task ReadAsDoubleAsync(
@@ -230,6 +636,12 @@ internal class DataService(
         IDataWriterController? dataWriterController,
         CancellationToken cancellationToken)
     {
+        var exportParameters = exportContext.ExportParameters;
+        DataSourceController.ValidateParameters(
+            exportParameters.Begin,
+            exportParameters.End,
+            exportContext.SamplePeriod);
+
         /* reading groups */
         var catalogItemRequestPipeReaders = new List<CatalogItemRequestPipeReader>();
         var readingGroups = new List<DataReadingGroup>();
@@ -255,7 +667,6 @@ internal class DataService(
         cancellationToken.Register(cts.Cancel);
 
         /* read */
-        var exportParameters = exportContext.ExportParameters;
         var logger = _loggerFactory.CreateLogger<DataSourceController>();
 
         var reading = DataSourceController.ReadAsync(

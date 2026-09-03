@@ -1,6 +1,7 @@
 #nullable enable
 
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
@@ -23,6 +24,11 @@ public interface INexusClient
     /// </summary>
     Nexus.Api.V1.IV1 V1 { get; }
 
+    /// <summary>
+    /// Gets the V2 client.
+    /// </summary>
+    Nexus.Api.V2.IV2 V2 { get; }
+
 
 
     /// <summary>
@@ -42,6 +48,34 @@ public interface INexusClient
     /// Clears configuration data for all subsequent API requests.
     /// </summary>
     void ClearConfiguration();
+
+    /// <summary>
+    /// This high-level methods simplifies loading multiple resources at once.
+    /// </summary>
+    /// <param name="begin">Start date/time.</param>
+    /// <param name="end">End date/time.</param>
+    /// <param name="resourcePaths">The resource paths.</param>
+    /// <param name="onProgress">A callback which accepts the current progress.</param>
+    IReadOnlyDictionary<string, DataResponse> Load(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default);
+
+    /// <summary>
+    /// This high-level methods simplifies loading multiple resources at once.
+    /// </summary>
+    /// <param name="begin">Start date/time.</param>
+    /// <param name="end">End date/time.</param>
+    /// <param name="resourcePaths">The resource paths.</param>
+    /// <param name="onProgress">A callback which accepts the current progress.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    Task<IReadOnlyDictionary<string, DataResponse>> LoadAsync(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default);
 }
 
 /// <inheritdoc />
@@ -74,6 +108,7 @@ public class NexusClient : INexusClient, IDisposable
         __httpClient = httpClient;
 
         V1 = new Nexus.Api.V1.V1(this);
+        V2 = new Nexus.Api.V2.V2(this);
 
     }
 
@@ -84,6 +119,9 @@ public class NexusClient : INexusClient, IDisposable
 
     /// <inheritdoc />
     public Nexus.Api.V1.IV1 V1 { get; }
+
+    /// <inheritdoc />
+    public Nexus.Api.V2.IV2 V2 { get; }
 
 
 
@@ -125,14 +163,17 @@ public class NexusClient : INexusClient, IDisposable
         // process response
         if (!response.IsSuccessStatusCode)
         {
-            var message = new StreamReader(response.Content.ReadAsStream()).ReadToEnd();
-            var statusCode = $"00.{(int)response.StatusCode}";
+            using (response)
+            {
+                var message = new StreamReader(response.Content.ReadAsStream()).ReadToEnd();
+                var statusCode = $"00.{(int)response.StatusCode}";
 
-            if (string.IsNullOrWhiteSpace(message))
-                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
+                if (string.IsNullOrWhiteSpace(message))
+                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
 
-            else
-                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
+                else
+                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
+            }
         }
 
         try
@@ -179,14 +220,17 @@ public class NexusClient : INexusClient, IDisposable
         // process response
         if (!response.IsSuccessStatusCode)
         {
-            var message = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            var statusCode = $"00.{(int)response.StatusCode}";
+            using (response)
+            {
+                var message = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var statusCode = $"00.{(int)response.StatusCode}";
 
-            if (string.IsNullOrWhiteSpace(message))
-                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
+                if (string.IsNullOrWhiteSpace(message))
+                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
 
-            else
-                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
+                else
+                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
+            }
         }
 
         try
@@ -266,50 +310,30 @@ public class NexusClient : INexusClient, IDisposable
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default)
     {
-        var catalogItemMap = V1.Catalogs.SearchCatalogItems(resourcePaths.ToList());
-        var result = new Dictionary<string, DataResponse>();
-        var progress = 0.0;
+        var resourcePathList = resourcePaths.ToList();
 
-        foreach (var (resourcePath, catalogItem) in catalogItemMap)
+        if (resourcePathList.Count == 0)
+            return new Dictionary<string, DataResponse>();
+
+        var catalogItemMap = V1.Catalogs.SearchCatalogItems(resourcePathList);
+        using var response = V2.Data.GetStream(new V2.BatchStreamRequest(begin, end, resourcePathList));
+        var totalLength = GetTotalLength(begin, end, resourcePathList, catalogItemMap);
+        var consumedLength = 0L;
+        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap);
+        var data = ReadBatchAsync(response, expectedLengths, useAsync: false, ReportProgress).GetAwaiter().GetResult();
+
+        onProgress?.Invoke(1);
+        return resourcePathList
+            .Select((resourcePath, index) => (resourcePath, Values: data[index]))
+            .ToDictionary(
+                item => item.resourcePath,
+                item => CreateDataResponse(item.resourcePath, catalogItemMap[item.resourcePath], item.Values));
+
+        void ReportProgress(long bytesRead)
         {
-            using var responseMessage = V1.Data.GetStream(resourcePath, begin, end);
-
-            var doubleData = ReadAsDoubleAsync(responseMessage, useAsync: false)
-                .GetAwaiter()
-                .GetResult();
-
-            var resource = catalogItem.Resource;
-
-            string? unit = default;
-
-            if (resource.Properties is not null &&
-                resource.Properties.TryGetValue("unit", out var unitElement) &&
-                unitElement.ValueKind == JsonValueKind.String)
-                unit = unitElement.GetString();
-
-            string? description = default;
-
-            if (resource.Properties is not null &&
-                resource.Properties.TryGetValue("description", out var descriptionElement) &&
-                descriptionElement.ValueKind == JsonValueKind.String)
-                description = descriptionElement.GetString();
-
-            var samplePeriod = catalogItem.Representation.SamplePeriod;
-
-            result[resourcePath] = new DataResponse(
-                CatalogItem: catalogItem,
-                Name: resource.Id,
-                Unit: unit,
-                Description: description,
-                SamplePeriod: samplePeriod,
-                Values: doubleData
-            );
-
-            progress += 1.0 / catalogItemMap.Count;
-            onProgress?.Invoke(progress);
+            if (totalLength > 0)
+                onProgress?.Invoke(Math.Min(1, Interlocked.Add(ref consumedLength, bytesRead) / (double)totalLength));
         }
-
-        return result;
     }
 
     /// <summary>
@@ -327,122 +351,149 @@ public class NexusClient : INexusClient, IDisposable
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
     {
-        var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePaths.ToList()).ConfigureAwait(false);
-        var result = new Dictionary<string, DataResponse>();
-        var progress = 0.0;
+        var resourcePathList = resourcePaths.ToList();
 
-        foreach (var (resourcePath, catalogItem) in catalogItemMap)
+        if (resourcePathList.Count == 0)
+            return new Dictionary<string, DataResponse>();
+
+        var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken).ConfigureAwait(false);
+        using var response = await V2.Data.GetStreamAsync(new V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken).ConfigureAwait(false);
+        var totalLength = GetTotalLength(begin, end, resourcePathList, catalogItemMap);
+        var consumedLength = 0L;
+        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap);
+        var data = await ReadBatchAsync(response, expectedLengths, useAsync: true, ReportProgress, cancellationToken).ConfigureAwait(false);
+
+        onProgress?.Invoke(1);
+        return resourcePathList
+            .Select((resourcePath, index) => (resourcePath, Values: data[index]))
+            .ToDictionary(
+                item => item.resourcePath,
+                item => CreateDataResponse(item.resourcePath, catalogItemMap[item.resourcePath], item.Values));
+
+        void ReportProgress(long bytesRead)
         {
-            using var responseMessage = await V1.Data.GetStreamAsync(resourcePath, begin, end, cancellationToken).ConfigureAwait(false);
-            var doubleData = await ReadAsDoubleAsync(responseMessage, useAsync: true, cancellationToken).ConfigureAwait(false);
-            var resource = catalogItem.Resource;
-
-            string? unit = default;
-
-            if (resource.Properties is not null &&
-                resource.Properties.TryGetValue("unit", out var unitElement) &&
-                unitElement.ValueKind == JsonValueKind.String)
-                unit = unitElement.GetString();
-
-            string? description = default;
-
-            if (resource.Properties is not null &&
-                resource.Properties.TryGetValue("description", out var descriptionElement) &&
-                descriptionElement.ValueKind == JsonValueKind.String)
-                description = descriptionElement.GetString();
-
-            var samplePeriod = catalogItem.Representation.SamplePeriod;
-
-            result[resourcePath] = new DataResponse(
-                CatalogItem: catalogItem,
-                Name: resource.Id,
-                Unit: unit,
-                Description: description,
-                SamplePeriod: samplePeriod,
-                Values: doubleData
-            );
-
-            progress += 1.0 / catalogItemMap.Count;
-            onProgress?.Invoke(progress);
+            if (totalLength > 0)
+                onProgress?.Invoke(Math.Min(1, Interlocked.Add(ref consumedLength, bytesRead) / (double)totalLength));
         }
-
-        return result;
     }
 
-    private async Task<double[]> ReadAsDoubleAsync(HttpResponseMessage responseMessage, bool useAsync, CancellationToken cancellationToken = default)
+    private static long GetTotalLength(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap)
     {
-        int? length = default;
+        return resourcePaths.Sum(resourcePath => checked(
+            (end - begin).Ticks /
+            catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks *
+            sizeof(double)));
+    }
 
-        if (responseMessage.Content.Headers.TryGetValues("Content-Length", out var values) && 
-            values.Any() && 
-            int.TryParse(values.First(), out var contentLength))
-        {
-            length = contentLength;
-        }
+    private static int[] GetExpectedLengths(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap)
+    {
+        return resourcePaths.Select(resourcePath => checked((int)(
+            (end - begin).Ticks /
+            catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks *
+            sizeof(double)))).ToArray();
+    }
 
-        if (!length.HasValue)
-            throw new Exception("The data length is unknown.");
+    private static DataResponse CreateDataResponse(string resourcePath, V1.CatalogItem catalogItem, double[] doubleData)
+    {
+        var resource = catalogItem.Resource;
 
-        if (length.Value % 8 != 0)
-            throw new Exception("The data length is invalid.");
+        string? unit = default;
 
-        var elementCount = length.Value / 8;
-        var doubleBuffer = new double[elementCount];
-        var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
+        if (resource.Properties is not null &&
+            resource.Properties.TryGetValue("unit", out var unitElement) &&
+            unitElement.ValueKind == JsonValueKind.String)
+            unit = unitElement.GetString();
 
+        string? description = default;
+
+        if (resource.Properties is not null &&
+            resource.Properties.TryGetValue("description", out var descriptionElement) &&
+            descriptionElement.ValueKind == JsonValueKind.String)
+            description = descriptionElement.GetString();
+
+        return new DataResponse(
+            CatalogItem: catalogItem,
+            Name: resource.Id,
+            Unit: unit,
+            Description: description,
+            SamplePeriod: catalogItem.Representation.SamplePeriod,
+            Values: doubleData
+        );
+    }
+
+    private static async Task<double[][]> ReadBatchAsync(
+        HttpResponseMessage responseMessage,
+        int[] expectedLengths,
+        bool useAsync,
+        Action<long>? reportProgress = default,
+        CancellationToken cancellationToken = default)
+    {
+        var values = expectedLengths.Select(length => new double[length / sizeof(double)]).ToArray();
+        var offsets = new int[expectedLengths.Length];
+        var header = new byte[8];
         Stream stream = useAsync
             ? await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false)
             : responseMessage.Content.ReadAsStream(cancellationToken);
 
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
+        while (true)
         {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken).ConfigureAwait(false);
+            if (await ReadAsync(header.AsMemory(0, 1)).ConfigureAwait(false) == 0)
+                break;
 
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
+            await ReadExactlyAsync(header.AsMemory(1)).ConfigureAwait(false);
 
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
+            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(header);
+            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
+
+            if (resourceIndex < 0 || resourceIndex >= values.Length)
+                throw new Exception("The batch stream contains an invalid resource index.");
+
+            if (payloadLength < 0)
+                throw new Exception("The batch stream contains an invalid payload length.");
+
+            if (offsets[resourceIndex] > expectedLengths[resourceIndex] - payloadLength)
+                throw new Exception("The batch stream contains more data than expected.");
+
+            using var manager = new DoubleToByteMemoryManager(values[resourceIndex]);
+            var target = manager.Memory.Slice(offsets[resourceIndex], payloadLength);
+            await ReadExactlyAsync(target).ConfigureAwait(false);
+
+            offsets[resourceIndex] += payloadLength;
+            reportProgress?.Invoke(payloadLength);
         }
 
-        return doubleBuffer;
-    }
+        if (!offsets.SequenceEqual(expectedLengths))
+            throw new Exception("The batch stream ended before all data was received.");
 
-    private async Task<double[]> ReadAsDoubleAsync(HttpResponseMessage responseMessage, CancellationToken cancellationToken = default)
-    {
-        int? length = default;
+        return values;
 
-        if (responseMessage.Content.Headers.TryGetValues("Content-Length", out var values) && 
-            values.Any() && 
-            int.TryParse(values.First(), out var contentLength))
+        ValueTask<int> ReadAsync(Memory<byte> buffer)
         {
-            length = contentLength;
+            return useAsync
+                ? stream.ReadAsync(buffer, cancellationToken)
+                : ValueTask.FromResult(stream.Read(buffer.Span));
         }
 
-        if (!length.HasValue)
-            throw new Exception("The data length is unknown.");
-
-        if (length.Value % 8 != 0)
-            throw new Exception("The data length is invalid.");
-
-        var elementCount = length.Value / 8;
-        var doubleBuffer = new double[elementCount];
-        var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
-        var stream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
+        async Task ReadExactlyAsync(Memory<byte> buffer)
         {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken).ConfigureAwait(false);
+            while (!buffer.IsEmpty)
+            {
+                var bytesRead = await ReadAsync(buffer).ConfigureAwait(false);
 
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
+                if (bytesRead == 0)
+                    throw new Exception("The batch stream ended in the middle of a frame.");
 
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
+                buffer = buffer[bytesRead..];
+            }
         }
-
-        return doubleBuffer;
     }
 
     /// <summary>
@@ -720,24 +771,33 @@ public class NexusClient : INexusClient, IDisposable
     }
 }
 
-internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
-     where TFrom : struct
-     where TTo : struct
+internal sealed class DoubleToByteMemoryManager : MemoryManager<byte>
 {
-    private readonly Memory<TFrom> _from;
+    private readonly double[] _values;
 
-    public CastMemoryManager(Memory<TFrom> from) => _from = from;
+    public DoubleToByteMemoryManager(double[] values) => _values = values;
 
-    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.Span);
+    public override Span<byte> GetSpan() => MemoryMarshal.AsBytes(_values.AsSpan());
 
     protected override void Dispose(bool disposing)
     {
         //
     }
 
-    public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+    public override unsafe MemoryHandle Pin(int elementIndex = 0)
+    {
+        if ((uint)elementIndex > (uint)(_values.Length * sizeof(double)))
+            throw new ArgumentOutOfRangeException(nameof(elementIndex));
 
-    public override void Unpin() => throw new NotSupportedException();
+        var handle = GCHandle.Alloc(_values, GCHandleType.Pinned);
+        var pointer = (byte*)handle.AddrOfPinnedObject() + elementIndex;
+
+        return new MemoryHandle(pointer, handle);
+    }
+
+    public override void Unpin()
+    {
+    }
 }
 
 /// <summary>
@@ -3140,7 +3200,7 @@ public record Job(Guid Id, string Type, string Owner, JsonElement? Parameters);
 public record JobStatus(DateTime Start, TaskStatus Status, double Progress, string? ExceptionMessage, JsonElement? Result);
 
 /// <summary>
-/// 
+///
 /// </summary>
 public enum TaskStatus
 {
@@ -3267,6 +3327,106 @@ public record PersonalAccessToken(string Description, DateTime Expires, IReadOnl
 /// <param name="Type">The claim type.</param>
 /// <param name="Value">The claim value.</param>
 public record TokenClaim(string Type, string Value);
+
+
+
+}
+namespace Nexus.Api.V2
+{
+
+/// <summary>
+/// A client for version V2.
+/// </summary>
+public interface IV2
+{
+    /// <summary>
+    /// Gets the <see cref="IDataClient"/>.
+    /// </summary>
+    IDataClient Data { get; }
+
+
+}
+
+/// <inheritdoc />
+public class V2 : IV2
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="V2"/>.
+    /// </summary>
+    /// <param name="client">The client to use.</param>
+    public V2(NexusClient client)
+    {
+        Data = new DataClient(client);
+
+    }
+
+    /// <inheritdoc />
+    public IDataClient Data { get; }
+
+
+}
+
+/// <summary>
+/// Provides methods to interact with data.
+/// </summary>
+public interface IDataClient
+{
+    /// <summary>
+    /// Streams multiple resources in a framed binary response.
+    /// </summary>
+    /// <param name="request">The batch stream request.</param>
+    HttpResponseMessage GetStream(BatchStreamRequest request);
+
+    /// <summary>
+    /// Streams multiple resources in a framed binary response.
+    /// </summary>
+    /// <param name="request">The batch stream request.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> GetStreamAsync(BatchStreamRequest request, CancellationToken cancellationToken = default);
+
+}
+
+/// <inheritdoc />
+public class DataClient : IDataClient
+{
+    private NexusClient ___client;
+    
+    internal DataClient(NexusClient client)
+    {
+        ___client = client;
+    }
+
+    /// <inheritdoc />
+    public HttpResponseMessage GetStream(BatchStreamRequest request)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/data");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> GetStreamAsync(BatchStreamRequest request, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/data");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+}
+
+
+
+/// <summary>
+/// A request to stream multiple resources.
+/// </summary>
+/// <param name="Begin">The start date/time.</param>
+/// <param name="End">The end date/time.</param>
+/// <param name="ResourcePaths">The resource paths to stream.</param>
+public record BatchStreamRequest(DateTime Begin, DateTime End, IReadOnlyList<string> ResourcePaths);
 
 
 

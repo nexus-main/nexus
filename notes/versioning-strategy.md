@@ -19,4 +19,22 @@ The REST API version is part of the URL, i.e. `/api/v{version}`. The API documen
 |---------------------|---------|
 | Application         | 1.0.0   |
 | Extension interface | 1       |
-| REST API            | 1       |
+| REST API            | 2       |
+
+#### Data Stream Versioning
+
+The v1 data stream endpoint remains unchanged:
+
+```http
+GET /api/v1/data
+```
+
+The v1 single-resource raw stream contract remains for compatibility. Current C# and Python high-level load methods use the v2 batch contract.
+
+The v2 batch stream contract is:
+
+```http
+POST /api/v2/data
+```
+
+The hosted UI and current C# and Python high-level load methods use v2. Legacy or low-level clients may continue using v1.

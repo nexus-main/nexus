@@ -155,13 +155,17 @@ internal class Sample : IDataSource<object?>
     {
         var tasks = requests.Select(request =>
         {
-            var (_, catalogItem, data, status) = request;
+            var catalogItem = request.CatalogItem;
+            var data = request.Data;
+            var status = request.Status;
 
-            return Task.Run(() =>
+            return Task.Run(async () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var (catalog, resource, representation, _) = catalogItem;
+                var catalog = catalogItem.Catalog;
+                var resource = catalogItem.Resource;
+                var representation = catalogItem.Representation;
 
                 // check credentials
                 if (catalog.Id == RemoteCatalogId)
@@ -205,22 +209,34 @@ internal class Sample : IDataSource<object?>
 
                 status.Span
                     .Fill(1);
+
+                await request.CompleteAsync();
             });
         }).ToList();
 
-        var finishedTasks = 0;
-
-        while (tasks.Count != 0)
+        try
         {
-            var task = await Task.WhenAny(tasks);
-            cancellationToken.ThrowIfCancellationRequested();
+            var finishedTasks = 0;
 
-            if (task.Exception is not null && task.Exception.InnerException is not null)
-                throw task.Exception.InnerException;
-
-            finishedTasks++;
-            progress.Report(finishedTasks / (double)requests.Length);
-            tasks.Remove(task);
+            while (tasks.Count != 0)
+            {
+                var task = await Task.WhenAny(tasks);
+                await task;
+                finishedTasks++;
+                progress.Report(finishedTasks / (double)requests.Length);
+                tasks.Remove(task);
+            }
+        }
+        finally
+        {
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch
+            {
+                // Preserve the first failure after every worker has unwound.
+            }
         }
     }
 

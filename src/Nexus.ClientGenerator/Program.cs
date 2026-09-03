@@ -1,7 +1,6 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Reflection;
 using Apollo3zehn.OpenApiClientGenerator;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
@@ -15,16 +14,25 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
+        if (args.Length > 2)
+            throw new ArgumentException("Expected at most a solution root and an OpenAPI file name.");
+
         var solutionRoot = args.Length >= 1
             ? args[0]
             : "../../../../../";
 
-        var openApiFileName = args.Length == 2
+        var openApiFileName = args.Length >= 2
             ? args[1]
             : "openapi.json";
 
+        var openApiDirectoryName = Path.GetDirectoryName(openApiFileName);
+        var openApiV2BaseFileName = Path.GetFileNameWithoutExtension(openApiFileName) == "openapi"
+            ? "openapi.v2.json"
+            : $"{Path.GetFileNameWithoutExtension(openApiFileName)}.v2{Path.GetExtension(openApiFileName)}";
+        var openApiV2FileName = Path.Combine(openApiDirectoryName ?? string.Empty, openApiV2BaseFileName);
+
         //
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder([]);
 
         builder.Services
             .AddMvcCore().AddApplicationPart(typeof(ArtifactsController).Assembly);
@@ -40,48 +48,63 @@ public static class Program
 
         app.UseNexusOpenApi(provider, addExplorer: false);
 
-        _ = app.RunAsync();
+        await app.StartAsync();
 
-        // read open API document
-        var client = new HttpClient();
-        var response = await client.GetAsync("http://localhost:5000/openapi/v1.json");
+        try
+        {
+            // read open API documents
+            using var client = new HttpClient();
+            using var v1Response = await client.GetAsync("http://localhost:5000/openapi/v1.json");
+            using var v2Response = await client.GetAsync("http://localhost:5000/openapi/v2.json");
 
-        response.EnsureSuccessStatusCode();
+            v1Response.EnsureSuccessStatusCode();
+            v2Response.EnsureSuccessStatusCode();
 
-        var openApiJsonString = await response.Content.ReadAsStringAsync();
+            var openApiV1JsonString = await v1Response.Content.ReadAsStringAsync();
+            var openApiV2JsonString = await v2Response.Content.ReadAsStringAsync();
 
-        var document = new OpenApiStringReader()
-            .Read(openApiJsonString, out var diagnostic);
+            var v1Document = new OpenApiStringReader()
+                .Read(openApiV1JsonString, out _);
 
-        // generate clients
-        var basePath = Assembly.GetExecutingAssembly().Location;
+            var v2Document = new OpenApiStringReader()
+                .Read(openApiV2JsonString, out _);
 
-        var settings = new GeneratorSettings(
-            Namespace: "Nexus.Api",
-            ClientName: "Nexus",
-            ExceptionType: "NexusException",
-            ExceptionCodePrefix: "N",
-            GetOperationName: (path, type, operation) => operation.OperationId.Split(['_'], 2)[1],
-            Special_ConfigurationHeaderKey: "Nexus-Configuration",
-            Special_WebAssemblySupport: true,
-            Special_AccessTokenSupport: true,
-            Special_NexusFeatures: true
-        );
+            // generate clients
+            var settings = new GeneratorSettings(
+                Namespace: "Nexus.Api",
+                ClientName: "Nexus",
+                ExceptionType: "NexusException",
+                ExceptionCodePrefix: "N",
+                GetOperationName: (path, type, operation) => operation.OperationId.Split(['_'], 2)[1],
+                Special_ConfigurationHeaderKey: "Nexus-Configuration",
+                Special_WebAssemblySupport: true,
+                Special_AccessTokenSupport: true,
+                Special_NexusFeatures: true
+            );
 
-        // generate C# client
-        var csharpGenerator = new CSharpGenerator(settings);
-        var csharpOutputFolderPath = $"{solutionRoot}src/clients/dotnet";
+            // generate C# client
+            var csharpGenerator = new CSharpGenerator(settings);
+            var csharpOutputFolderPath = Path.Combine(solutionRoot, "src", "clients", "dotnet");
 
-        csharpGenerator.Generate(csharpOutputFolderPath, document);
+            csharpGenerator.Generate(csharpOutputFolderPath, v1Document, v2Document);
 
-        // generate Python client
-        var pythonOutputFolderPath = $"{solutionRoot}src/clients/python/nexus_api";
-        var pythonGenerator = new PythonGenerator(settings);
+            // generate Python client
+            var pythonOutputFolderPath = Path.Combine(solutionRoot, "src", "clients", "python", "nexus_api");
+            var pythonGenerator = new PythonGenerator(settings);
 
-        pythonGenerator.Generate(pythonOutputFolderPath, document);
+            pythonGenerator.Generate(pythonOutputFolderPath, v1Document, v2Document);
 
-        // save open API document
-        var openApiDocumentOutputPath = $"{solutionRoot}{openApiFileName}";
-        File.WriteAllText(openApiDocumentOutputPath, openApiJsonString);
+            // save open API documents
+            var openApiDocumentOutputPath = Path.Combine(solutionRoot, openApiFileName);
+            var openApiV2DocumentOutputPath = Path.Combine(solutionRoot, openApiV2FileName);
+
+            await File.WriteAllTextAsync(openApiDocumentOutputPath, openApiV1JsonString);
+            await File.WriteAllTextAsync(openApiV2DocumentOutputPath, openApiV2JsonString);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
     }
 }

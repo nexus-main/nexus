@@ -35,6 +35,45 @@ When, for instance, a user later asks for the data availability of a catalog, th
 
 A read operation may be triggered by either streaming or exporting of the data of one or multiple catalog items. Grouped by the corresponding `IDataSource`, all read requests first arrive in a static method called `ReadAsync`, which is located in the `DataSourceController` type. From there the method distributes the read requests to the actual `DataSourceController` instances which forward it to the wrapped IDataSource instance. To keep the memory consumption low, the controller may decide to reduce the time period per request and repeat the reading step until all data has been loaded.
 
-With the collection of read requests passed to the `IDataSource`, the implementation may decide to load the data sequentially or in parallel and when everything is read, to return the results all at once.
+The implementation may load requests sequentially or in parallel. It may call `CompleteAsync()` as each request is populated to stream that resource before `ReadAsync` returns; otherwise Nexus flushes it after `ReadAsync` returns. Completion is idempotent: concurrent calls share one completion callback, and a failed completion is cached and rethrown to later callers.
 
 (1) A `IDataSource` instance is disposed automatically by Nexus when it implements the `IDisposable` interface.
+
+# Batch Streaming
+
+The single-resource v1 endpoint remains unchanged:
+
+```http
+GET /api/v1/data
+```
+
+Current C# and Python high-level load methods use one v2 request:
+
+```http
+POST /api/v2/data
+Content-Type: application/json
+Accept: application/octet-stream
+```
+
+```json
+{
+  "begin": "2026-01-01T00:00:00.0000000Z",
+  "end": "2026-01-01T01:00:00.0000000Z",
+  "resourcePaths": [
+    "/catalog/a/1_s",
+    "/catalog/b/1_s"
+  ]
+}
+```
+
+The request accepts at most 100 unique resource paths with one common sample period. The response contains repeated binary frames:
+
+| Field | Size | Encoding |
+|---|---:|---|
+| Resource index | 4 bytes | signed little-endian integer |
+| Payload length | 4 bytes | signed little-endian integer |
+| Payload | up to 64 KiB | little-endian `FLOAT64` values |
+
+The resource index refers to the path's position in `resourcePaths`. End-of-stream marks successful completion; clients validate that every resource received the expected number of bytes.
+
+The server creates one internal `Pipe` per resource and multiplexes them into one bounded output pipe. `ReadRequest.CompleteAsync()` allows a source to publish an individual resource before its complete batch returns. Reverse proxies should disable response buffering to preserve back-pressure.

@@ -30,18 +30,84 @@ public record CatalogTimeRange(
 );
 
 /// <summary>
-/// A read request.
+/// A runtime read request created by Nexus or a compatible host.
 /// </summary>
-/// <param name="OriginalResourceName">The original resource name.</param>
-/// <param name="CatalogItem">The <paramref name="CatalogItem"/> to be read.</param>
-/// <param name="Data">The data buffer.</param>
-/// <param name="Status">The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="double.NaN"/>.</param>
-public record ReadRequest(
-    string OriginalResourceName,
-    CatalogItem CatalogItem,
-    Memory<byte> Data,
-    Memory<byte> Status
-);
+/// <remarks>
+/// This type carries runtime buffers and completion callbacks and is not a serialization contract.
+/// Use a separate DTO at process or wire boundaries.
+/// </remarks>
+public sealed class ReadRequest
+{
+    private readonly object _gate = new();
+    private readonly Func<CancellationToken, Task> _onCompleted;
+    private readonly CancellationToken _cancellationToken;
+    private Task? _completionTask;
+
+    /// <summary>
+    /// Initializes a new runtime read request.
+    /// </summary>
+    /// <param name="originalResourceName">The original resource name.</param>
+    /// <param name="catalogItem">The catalog item to be read.</param>
+    /// <param name="data">The data buffer.</param>
+    /// <param name="status">The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="double.NaN"/>.</param>
+    /// <param name="onCompleted">The host callback to run once when the request is completed.</param>
+    /// <param name="cancellationToken">The host-owned cancellation token for completion.</param>
+    public ReadRequest(
+        string originalResourceName,
+        CatalogItem catalogItem,
+        Memory<byte> data,
+        Memory<byte> status,
+        Func<CancellationToken, Task> onCompleted,
+        CancellationToken cancellationToken)
+    {
+        OriginalResourceName = originalResourceName;
+        CatalogItem = catalogItem;
+        Data = data;
+        Status = status;
+        _onCompleted = onCompleted;
+        _cancellationToken = cancellationToken;
+    }
+
+    /// <summary>
+    /// The original resource name.
+    /// </summary>
+    public string OriginalResourceName { get; }
+
+    /// <summary>
+    /// The catalog item to be read.
+    /// </summary>
+    public CatalogItem CatalogItem { get; }
+
+    /// <summary>
+    /// The data buffer.
+    /// </summary>
+    public Memory<byte> Data { get; }
+
+    /// <summary>
+    /// The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="double.NaN"/>.
+    /// </summary>
+    public Memory<byte> Status { get; }
+
+    /// <summary>
+    /// Called by the data source when <see cref="Data"/> and <see cref="Status"/> are fully populated.
+    /// The framework flushes the resource to its pipe immediately.
+    /// </summary>
+    public Task CompleteAsync()
+    {
+        lock (_gate)
+        {
+            if (_completionTask is null)
+                _completionTask = CompleteCoreAsync();
+
+            return _completionTask;
+        }
+    }
+
+    private async Task CompleteCoreAsync()
+    {
+        await _onCompleted(_cancellationToken).ConfigureAwait(false);
+    }
+}
 
 /// <summary>
 /// Reads the requested data.
@@ -64,7 +130,11 @@ internal class ReadRequestManager : IDisposable
     private readonly IMemoryOwner<byte> _dataOwner;
     private readonly IMemoryOwner<byte> _statusOwner;
 
-    public ReadRequestManager(CatalogItem catalogItem, int elementCount)
+    public ReadRequestManager(
+        CatalogItem catalogItem,
+        int elementCount,
+        Func<CancellationToken, Task>? onCompleted,
+        CancellationToken cancellationToken)
     {
         var byteCount = elementCount * catalogItem.Representation.ElementSize;
         var originalResourceName = catalogItem.Resource.Properties!.GetStringValue(DataModelExtensions.OriginalNameKey)!;
@@ -85,8 +155,9 @@ internal class ReadRequestManager : IDisposable
             originalResourceName,
             catalogItem,
             dataMemory,
-            statusMemory
-        );
+            statusMemory,
+            onCompleted ?? (_ => Task.CompletedTask),
+            cancellationToken);
     }
 
     public ReadRequest Request { get; }

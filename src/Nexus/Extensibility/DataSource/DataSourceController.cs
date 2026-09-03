@@ -61,6 +61,7 @@ internal class DataSourceController(
     ILogger<DataSourceController> logger
 ) : IDataSourceController
 {
+    private const int MaximumPipeWriteByteCount = 4 * 1024 * 1024;
 
     internal readonly IReadOnlyDictionary<string, JsonElement>? _requestConfiguration = requestConfiguration;
 
@@ -312,7 +313,7 @@ internal class DataSourceController(
         var targetElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, samplePeriod);
         var targetByteCount = sizeof(double) * targetElementCount;
 
-        // TODO: access to totalProgress (see below) is not thread safe
+        var progressGate = new object();
         var totalProgress = 0.0;
 
         /* 'Original' branch
@@ -331,10 +332,14 @@ internal class DataSourceController(
 
         originalProgress.ProgressChanged += (sender, originalProgressValue) =>
         {
-            var actualProgress = originalProgressValue - originalProgressValue_old;
-            originalProgressValue_old = originalProgressValue;
-            totalProgress += actualProgress * originalProgressFactor;
-            progress.Report(totalProgress);
+            lock (progressGate)
+            {
+                var monotonicProgressValue = Math.Max(originalProgressValue_old, originalProgressValue);
+                var actualProgress = monotonicProgressValue - originalProgressValue_old;
+                originalProgressValue_old = monotonicProgressValue;
+                totalProgress += actualProgress * originalProgressFactor;
+                progress.Report(Math.Min(1, totalProgress));
+            }
         };
 
         var originalTask = ReadOriginalAsync(
@@ -369,10 +374,14 @@ internal class DataSourceController(
 
             processingProgress.ProgressChanged += (sender, progressValue) =>
             {
-                var actualProgress = progressValue - processingProgressValue_old;
-                processingProgressValue_old = progressValue;
-                totalProgress += actualProgress * processingProgressFactor;
-                progress.Report(totalProgress);
+                lock (progressGate)
+                {
+                    var monotonicProgressValue = Math.Max(processingProgressValue_old, progressValue);
+                    var actualProgress = monotonicProgressValue - processingProgressValue_old;
+                    processingProgressValue_old = monotonicProgressValue;
+                    totalProgress += actualProgress * processingProgressFactor;
+                    progress.Report(Math.Min(1, totalProgress));
+                }
             };
 
             var kind = processingReadUnit.CatalogItemRequest.Item.Representation.Kind;
@@ -401,7 +410,7 @@ internal class DataSourceController(
         }
 
         /* wait for tasks to finish */
-        await NexusUtilities.WhenAllFailFastAsync(readingTasks, cancellationToken);
+        await Task.WhenAll(readingTasks).ConfigureAwait(false);
     }
 
     private async Task ReadOriginalAsync(
@@ -415,13 +424,61 @@ internal class DataSourceController(
         CancellationToken cancellationToken)
     {
         var tuples = originalUnits
-            .Select(readUnit => (readUnit, new ReadRequestManager(readUnit.CatalogItemRequest.Item, targetElementCount)))
+            .Select(readUnit =>
+            {
+                var (catalogItemRequest, dataWriter) = readUnit;
+
+                ReadRequestManager manager = null!;
+                var onCompleted = async (CancellationToken cancellationToken) =>
+                {
+                    var data = manager.Request.Data;
+                    var status = manager.Request.Status;
+                    var sourceElementSize = catalogItemRequest.Item.Representation.ElementSize;
+                    var elementOffset = 0;
+
+                    while (elementOffset < targetElementCount)
+                    {
+                        var elementCount = Math.Min(
+                            targetElementCount - elementOffset,
+                            MaximumPipeWriteByteCount / sizeof(double));
+                        var byteCount = elementCount * sizeof(double);
+                        var buffer = dataWriter.GetMemory(byteCount)[..byteCount];
+                        var targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
+
+                        BufferUtilities.ApplyRepresentationStatusByDataType(
+                            catalogItemRequest.Item.Representation.DataType,
+                            data.Slice(elementOffset * sourceElementSize, elementCount * sourceElementSize),
+                            status.Slice(elementOffset, elementCount),
+                            target: targetBuffer);
+
+                        _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", byteCount);
+                        dataWriter.Advance(byteCount);
+                        var flushResult = await dataWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+                        if (flushResult.IsCanceled)
+                            throw new OperationCanceledException(cancellationToken);
+
+                        if (flushResult.IsCompleted && elementOffset + elementCount < targetElementCount)
+                            throw new IOException("The data pipe completed before all data was written.");
+
+                        elementOffset += elementCount;
+                    }
+                };
+
+                manager = new ReadRequestManager(
+                    catalogItemRequest.Item,
+                    targetElementCount,
+                    onCompleted,
+                    cancellationToken);
+
+                return (readUnit, manager);
+            })
             .ToArray();
 
         try
         {
             var readRequests = tuples
-                .Select(manager => manager.Item2.Request)
+                .Select(tuple => tuple.manager.Request)
                 .ToArray();
 
             try
@@ -456,44 +513,21 @@ internal class DataSourceController(
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Read original data period {Begin} to {End} failed", begin, end);
+                throw;
             }
 
+            /* Phase 2: flush any requests NOT completed via callback (fallback) */
             var readingTasks = new List<Task>(capacity: originalUnits.Length);
 
             foreach (var (readUnit, readRequestManager) in tuples)
             {
-                var (catalogItemRequest, dataWriter) = readUnit;
-                var (_, _, data, status) = readRequestManager.Request;
+                var readRequest = readRequestManager.Request;
 
-                using var scope = _logger.BeginScope(new Dictionary<string, object>()
-                {
-                    ["ResourcePath"] = catalogItemRequest.Item.ToPath()
-                });
-
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var buffer = dataWriter
-                    .GetMemory(targetByteCount)[..targetByteCount];
-
-                var targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
-
-                readingTasks.Add(Task.Run(async () =>
-                {
-                    BufferUtilities.ApplyRepresentationStatusByDataType(
-                        catalogItemRequest.Item.Representation.DataType,
-                        data,
-                        status,
-                        target: targetBuffer);
-
-                    /* update progress */
-                    _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
-                    dataWriter.Advance(targetByteCount);
-                    await dataWriter.FlushAsync();
-                }, cancellationToken));
+                readingTasks.Add(readRequest.CompleteAsync());
             }
 
             /* wait for tasks to finish */
-            await NexusUtilities.WhenAllFailFastAsync(readingTasks, cancellationToken);
+            await Task.WhenAll(readingTasks).ConfigureAwait(false);
         }
         finally
         {
@@ -527,7 +561,7 @@ internal class DataSourceController(
         /* read request */
         var readElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, baseSamplePeriod);
 
-        using var readRequestManager = new ReadRequestManager(baseItem, readElementCount);
+        using var readRequestManager = new ReadRequestManager(baseItem, readElementCount, onCompleted: null, cancellationToken);
         var readRequest = readRequestManager.Request;
 
         /* go */
@@ -570,16 +604,17 @@ internal class DataSourceController(
                 var offset = interval.Begin - begin;
                 var length = interval.End - interval.Begin;
 
-                var slicedReadRequest = readRequest with
-                {
-                    Data = readRequest.Data.Slice(
+                var slicedReadRequest = new ReadRequest(
+                    readRequest.OriginalResourceName,
+                    readRequest.CatalogItem,
+                    readRequest.Data.Slice(
                         start: NexusUtilities.Scale(offset, sourceSamplePeriod) * elementSize,
                         length: NexusUtilities.Scale(length, sourceSamplePeriod) * elementSize),
-
-                    Status = readRequest.Status.Slice(
+                    readRequest.Status.Slice(
                         start: NexusUtilities.Scale(offset, sourceSamplePeriod),
                         length: NexusUtilities.Scale(length, sourceSamplePeriod)),
-                };
+                    _ => Task.CompletedTask,
+                    cancellationToken);
 
                 /* read */
                 foreach (var dataSource in _dataSources)
@@ -628,6 +663,7 @@ internal class DataSourceController(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
+
             targetBuffer.Span.Fill(double.NaN);
         }
         finally
@@ -687,7 +723,7 @@ internal class DataSourceController(
         var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
 
         /* read request */
-        using var readRequestManager = new ReadRequestManager(baseItem, roundedElementCount);
+        using var readRequestManager = new ReadRequestManager(baseItem, roundedElementCount, onCompleted: null, cancellationToken);
         var readRequest = readRequestManager.Request;
 
         /* go */
@@ -731,6 +767,7 @@ internal class DataSourceController(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
+
             targetBuffer.Span.Fill(double.NaN);
         }
 
@@ -799,9 +836,6 @@ internal class DataSourceController(
         ILogger<DataSourceController> logger,
         CancellationToken cancellationToken)
     {
-        /* validation */
-        ValidateParameters(begin, end, samplePeriod);
-
         var catalogItemRequestPipeWriters = readingGroups.SelectMany(readingGroup => readingGroup.CatalogItemRequestPipeWriters);
 
         if (!catalogItemRequestPipeWriters.Any())
@@ -855,13 +889,171 @@ internal class DataSourceController(
         var totalPeriod = end - begin;
         logger.LogTrace("The total period is {TotalPeriod}", totalPeriod);
 
-        /* bytes per row */
+        await ReadCoreAsync(
+            begin,
+            totalPeriod,
+            samplePeriod,
+            readingGroups,
+            readDataHandler,
+            memoryTracker,
+            progress,
+            logger,
+            cancellationToken);
+    }
 
+    private static async Task ReadCoreAsync(
+        DateTime begin,
+        TimeSpan totalPeriod,
+        TimeSpan samplePeriod,
+        DataReadingGroup[] readingGroups,
+        ReadDataHandler readDataHandler,
+        IMemoryTracker memoryTracker,
+        IProgress<double>? progress,
+        ILogger logger,
+        CancellationToken cancellationToken
+    )
+    {
+        var currentReadingGroupProgress = new ConcurrentDictionary<DataReadingGroup, double>();
+        var progressGate = new object();
+
+        using var readCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var readingTasks = readingGroups
+            .Select(readingGroup => ReadGroupAsync(readingGroup, readCancellation))
+            .ToArray();
+
+        try
+        {
+            await Task.WhenAll(readingTasks).ConfigureAwait(false);
+        }
+        catch
+        {
+            await readCancellation.CancelAsync().ConfigureAwait(false);
+            throw;
+        }
+
+        async Task ReadGroupAsync(DataReadingGroup readingGroup, CancellationTokenSource cancellationTokenSource)
+        {
+            var cancellationToken = cancellationTokenSource.Token;
+            var (controller, catalogItemRequestPipeWriters) = readingGroup;
+            var (bytesPerRow, largestSamplePeriod) = CalculateReadMetrics(catalogItemRequestPipeWriters, samplePeriod);
+
+            logger.LogTrace("A single row for reading group has a size of {BytesPerRow} bytes", bytesPerRow);
+
+            var consumedPeriod = TimeSpan.Zero;
+            var remainingPeriod = totalPeriod;
+
+            try
+            {
+                while (consumedPeriod < totalPeriod)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var remainingRowCount = remainingPeriod.Ticks / samplePeriod.Ticks;
+                    var remainingByteCount = remainingRowCount * bytesPerRow;
+
+                    using var allocationRegistration = await memoryTracker.RegisterAllocationAsync(
+                        minimumByteCount: bytesPerRow,
+                        maximumByteCount: remainingByteCount,
+                        cancellationToken).ConfigureAwait(false);
+
+                    var chunkSize = allocationRegistration.ActualByteCount;
+                    logger.LogTrace("The reading group chunk size is {ChunkSize} bytes", chunkSize);
+
+                    var rowCount = Math.Min(
+                        chunkSize / bytesPerRow,
+                        MaximumPipeWriteByteCount / sizeof(double));
+                    logger.LogTrace("{RowCount} rows can be processed per reading group chunk", rowCount);
+
+                    var maxPeriodPerRequest = TimeSpan
+                        .FromTicks(samplePeriod.Ticks * rowCount)
+                        .RoundDown(largestSamplePeriod);
+
+                    if (maxPeriodPerRequest == TimeSpan.Zero)
+                        throw new ValidationException("Unable to load the requested data because the available chunk size is too low.");
+
+                    logger.LogTrace("The maximum period per reading group request is {MaxPeriodPerRequest}", maxPeriodPerRequest);
+
+                    var currentPeriod = TimeSpan.FromTicks(Math.Min(remainingPeriod.Ticks, maxPeriodPerRequest.Ticks));
+                    var consumedPeriodAtChunkStart = consumedPeriod;
+                    var currentBegin = begin + consumedPeriod;
+                    var currentEnd = currentBegin + currentPeriod;
+
+                    logger.LogTrace("Process period {CurrentBegin} to {CurrentEnd}", currentBegin, currentEnd);
+
+                    var dataSourceProgress = new Progress<double>();
+
+                    dataSourceProgress.ProgressChanged += (sender, progressValue) =>
+                    {
+                        if (progressValue <= 1)
+                        {
+                            lock (progressGate)
+                            {
+                                var baseProgress = consumedPeriodAtChunkStart.Ticks / (double)totalPeriod.Ticks;
+                                var relativeProgressFactor = currentPeriod.Ticks / (double)totalPeriod.Ticks;
+                                var readingGroupProgress = baseProgress + progressValue * relativeProgressFactor;
+                                currentReadingGroupProgress.AddOrUpdate(readingGroup, readingGroupProgress, (_, _) => readingGroupProgress);
+
+                                var totalProgress = currentReadingGroupProgress.Sum(entry => entry.Value) / readingGroups.Length;
+                                progress?.Report(Math.Min(1, totalProgress));
+                            }
+                        }
+                    };
+
+                    await controller.ReadAsync(
+                        currentBegin,
+                        currentEnd,
+                        samplePeriod,
+                        catalogItemRequestPipeWriters,
+                        readDataHandler,
+                        dataSourceProgress,
+                        cancellationToken).ConfigureAwait(false);
+
+                    consumedPeriod += currentPeriod;
+                    remainingPeriod -= currentPeriod;
+
+                    lock (progressGate)
+                    {
+                        var readingGroupProgress = consumedPeriod.Ticks / (double)totalPeriod.Ticks;
+                        currentReadingGroupProgress.AddOrUpdate(readingGroup, readingGroupProgress, (_, _) => readingGroupProgress);
+
+                        var totalProgress = currentReadingGroupProgress.Sum(entry => entry.Value) / readingGroups.Length;
+                        progress?.Report(Math.Min(1, totalProgress));
+                    }
+                }
+
+                foreach (var catalogItemRequestPipeWriter in catalogItemRequestPipeWriters)
+                    await catalogItemRequestPipeWriter.DataWriter.CompleteAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await cancellationTokenSource.CancelAsync().ConfigureAwait(false);
+                logger.LogError(ex, "Reading group failed");
+
+                foreach (var catalogItemRequestPipeWriter in catalogItemRequestPipeWriters)
+                {
+                    try
+                    {
+                        await catalogItemRequestPipeWriter.DataWriter.CompleteAsync(ex).ConfigureAwait(false);
+                    }
+                    catch (Exception completeException)
+                    {
+                        logger.LogError(completeException, "Completing data pipe writer failed");
+                    }
+                }
+
+                throw;
+            }
+        }
+    }
+
+    private static (long BytesPerRow, TimeSpan LargestSamplePeriod) CalculateReadMetrics(
+        CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
+        TimeSpan samplePeriod)
+    {
         // If the user requests /xxx/10_min_mean#base=10_ms, then the algorithm below will assume a period
-        // of 10 minutes and a sample period of 10 ms, which leads to an estimated row size of 8 * 60000 = 480000 bytes.
+        // of 10 minutes and a sample period of 10 ms, which leads to an estimated row size of 8 * 60000 bytes.
         // The algorithm works this way because it cannot know if the data are already cached. It also does not know
         // if the data source will request more data which further increases the memory consumption.
-
         var bytesPerRow = 0L;
         var largestSamplePeriod = samplePeriod;
 
@@ -891,154 +1083,15 @@ internal class DataSourceController(
                 }
             }
 
-            bytesPerRow += Math.Max(1, elementCount) * elementSize;
+            var sourceElementCount = Math.Max(1, elementCount);
+            bytesPerRow += sourceElementCount * (elementSize + sizeof(byte));
+            bytesPerRow += sizeof(double);
         }
 
-        logger.LogTrace("A single row has a size of {BytesPerRow} bytes", bytesPerRow);
-
-        /* total memory consumption */
-        var totalRowCount = totalPeriod.Ticks / samplePeriod.Ticks;
-        var totalByteCount = totalRowCount * bytesPerRow;
-
-        /* actual memory consumption / chunk size */
-        var allocationRegistration = await memoryTracker.RegisterAllocationAsync(
-            minimumByteCount: bytesPerRow, maximumByteCount: totalByteCount, cancellationToken);
-
-        /* go */
-        var chunkSize = allocationRegistration.ActualByteCount;
-        logger.LogTrace("The chunk size is {ChunkSize} bytes", chunkSize);
-
-        var rowCount = chunkSize / bytesPerRow;
-        logger.LogTrace("{RowCount} rows can be processed per chunk", rowCount);
-
-        var maxPeriodPerRequest = TimeSpan
-            .FromTicks(samplePeriod.Ticks * rowCount)
-            .RoundDown(largestSamplePeriod);
-
-        if (maxPeriodPerRequest == TimeSpan.Zero)
-            throw new ValidationException("Unable to load the requested data because the available chunk size is too low.");
-
-        logger.LogTrace("The maximum period per request is {MaxPeriodPerRequest}", maxPeriodPerRequest);
-
-        try
-        {
-            await ReadCoreAsync(
-                begin,
-                totalPeriod,
-                maxPeriodPerRequest,
-                samplePeriod,
-                readingGroups,
-                readDataHandler,
-                progress,
-                logger,
-                cancellationToken);
-        }
-        finally
-        {
-            allocationRegistration.Dispose();
-        }
+        return (bytesPerRow, largestSamplePeriod);
     }
 
-    private static Task ReadCoreAsync(
-        DateTime begin,
-        TimeSpan totalPeriod,
-        TimeSpan maxPeriodPerRequest,
-        TimeSpan samplePeriod,
-        DataReadingGroup[] readingGroups,
-        ReadDataHandler readDataHandler,
-        IProgress<double>? progress,
-        ILogger logger,
-        CancellationToken cancellationToken
-    )
-    {
-        /* periods */
-        var consumedPeriod = TimeSpan.Zero;
-        var remainingPeriod = totalPeriod;
-        var currentPeriod = default(TimeSpan);
-
-        /* progress */
-        var currentDataSourceProgress = new ConcurrentDictionary<IDataSourceController, double>();
-
-        return Task.Run(async () =>
-        {
-            while (consumedPeriod < totalPeriod)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                currentDataSourceProgress.Clear();
-                currentPeriod = TimeSpan.FromTicks(Math.Min(remainingPeriod.Ticks, maxPeriodPerRequest.Ticks));
-
-                var currentBegin = begin + consumedPeriod;
-                var currentEnd = currentBegin + currentPeriod;
-
-                logger.LogTrace("Process period {CurrentBegin} to {CurrentEnd}", currentBegin, currentEnd);
-
-                var readingTasks = readingGroups.Select(async readingGroup =>
-                {
-                    var (controller, catalogItemRequestPipeWriters) = readingGroup;
-
-                    try
-                    {
-                        /* no need to remove handler because of short lifetime of IDataSource */
-                        var dataSourceProgress = new Progress<double>();
-
-                        dataSourceProgress.ProgressChanged += (sender, progressValue) =>
-                        {
-                            if (progressValue <= 1)
-                            {
-                                // https://stackoverflow.com/a/62768272 (currentDataSourceProgress)
-                                currentDataSourceProgress.AddOrUpdate(controller, progressValue, (_, _) => progressValue);
-
-                                var baseProgress = consumedPeriod.Ticks / (double)totalPeriod.Ticks;
-                                var relativeProgressFactor = currentPeriod.Ticks / (double)totalPeriod.Ticks;
-                                var relativeProgress = currentDataSourceProgress.Sum(entry => entry.Value) * relativeProgressFactor;
-
-                                progress?.Report(baseProgress + relativeProgress);
-                            }
-                        };
-
-                        await controller.ReadAsync(
-                            currentBegin,
-                            currentEnd,
-                            samplePeriod,
-                            catalogItemRequestPipeWriters,
-                            readDataHandler,
-                            dataSourceProgress,
-                            cancellationToken);
-                    }
-                    catch (OutOfMemoryException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Process period {Begin} to {End} failed", currentBegin, currentEnd);
-                    }
-                }).ToList();
-
-                await NexusUtilities.WhenAllFailFastAsync(readingTasks, cancellationToken);
-
-                /* continue in time */
-                consumedPeriod += currentPeriod;
-                remainingPeriod -= currentPeriod;
-
-                progress?.Report(consumedPeriod.Ticks / (double)totalPeriod.Ticks);
-            }
-
-            /* complete */
-            foreach (var readingGroup in readingGroups)
-            {
-                foreach (var catalogItemRequestPipeWriter in readingGroup.CatalogItemRequestPipeWriters)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    await catalogItemRequestPipeWriter.DataWriter.CompleteAsync();
-                }
-            }
-        }, cancellationToken);
-    }
-
-    private static void ValidateParameters(
+    internal static void ValidateParameters(
         DateTime begin,
         DateTime end,
         TimeSpan samplePeriod)

@@ -2,8 +2,8 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Net;
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
-using System.Security.Claims;
 using System.Text.Json;
 using Nexus.Api;
 using Nexus.Api.V1;
@@ -12,7 +12,13 @@ namespace Nexus.UI.Core;
 
 public class NexusDemoClient : INexusClient
 {
-    public IV1 V1 => throw new NotImplementedException();
+    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
+    private readonly V1 _v1 = new();
+    private readonly V2 _v2 = new();
+
+    public IV1 V1 => _v1;
+
+    public Api.V2.IV2 V2 => _v2;
 
     public void SignIn(string accessToken)
     {
@@ -28,13 +34,97 @@ public class NexusDemoClient : INexusClient
     {
         throw new NotImplementedException();
     }
+
+    public IReadOnlyDictionary<string, DataResponse> Load(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default)
+    {
+        return LoadAsync(begin, end, resourcePaths, onProgress).GetAwaiter().GetResult();
+    }
+
+    public async Task<IReadOnlyDictionary<string, DataResponse>> LoadAsync(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+    {
+        var resourcePathList = resourcePaths.ToList();
+        var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken);
+        using var response = await V2.Data.GetStreamAsync(
+            new Api.V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken);
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var values = resourcePathList.Select(resourcePath => new double[checked((int)(
+            (end - begin).Ticks / catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks))]).ToArray();
+        var offsets = new int[values.Length];
+        var header = new byte[8];
+        var result = new Dictionary<string, DataResponse>();
+
+        while (await stream.ReadAsync(header.AsMemory(0, 1), cancellationToken) != 0)
+        {
+            await stream.ReadExactlyAsync(header.AsMemory(1), cancellationToken);
+            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(header);
+            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
+
+            if (resourceIndex < 0 || resourceIndex >= values.Length ||
+                payloadLength <= 0 || payloadLength % sizeof(double) != 0 ||
+                offsets[resourceIndex] > values[resourceIndex].Length * sizeof(double) - payloadLength)
+                throw new InvalidDataException("The demo batch stream is invalid.");
+
+            var payload = new byte[payloadLength];
+            await stream.ReadExactlyAsync(payload, cancellationToken);
+            payload.CopyTo(MemoryMarshal.AsBytes(values[resourceIndex].AsSpan())[offsets[resourceIndex]..]);
+            offsets[resourceIndex] += payloadLength;
+        }
+
+        if (!offsets.Select((offset, index) => offset == values[index].Length * sizeof(double)).All(value => value))
+            throw new InvalidDataException("The demo batch stream ended early.");
+
+        for (var i = 0; i < resourcePathList.Count; i++)
+        {
+            var resourcePath = resourcePathList[i];
+            var catalogItem = catalogItemMap[resourcePath];
+            var resource = catalogItem.Resource;
+            result[resourcePath] = new DataResponse(
+                catalogItem,
+                resource.Id,
+                GetStringProperty(resource, "unit"),
+                GetStringProperty(resource, "description"),
+                catalogItem.Representation.SamplePeriod,
+                values[i]);
+        }
+
+        onProgress?.Invoke(1);
+
+        return result;
+
+        static string? GetStringProperty(Resource resource, string name)
+        {
+            return resource.Properties is not null &&
+                resource.Properties.TryGetValue(name, out var value) &&
+                value.ValueKind == JsonValueKind.String
+                    ? value.GetString()
+                    : null;
+        }
+    }
+}
+
+public class V2 : Api.V2.IV2
+{
+    private readonly DataV2DemoClient _data = new();
+
+    public Api.V2.IDataClient Data => _data;
 }
 
 public class V1 : IV1
 {
+    private readonly CatalogsDemoClient _catalogs = new();
+
     public IArtifactsClient Artifacts => throw new NotImplementedException();
 
-    public ICatalogsClient Catalogs => new CatalogsDemoClient();
+    public ICatalogsClient Catalogs => _catalogs;
 
     public IDataClient Data => new DataDemoClient();
 
@@ -65,7 +155,7 @@ public class CatalogsDemoClient : ICatalogsClient
 
     public ResourceCatalog Get(string catalogId)
     {
-        throw new NotImplementedException();
+        return GetAsync(catalogId).GetAwaiter().GetResult();
     }
 
     public Task<ResourceCatalog> GetAsync(string catalogId, CancellationToken cancellationToken = default)
@@ -241,12 +331,22 @@ We hope you enjoy it!
 
     public IReadOnlyDictionary<string, CatalogItem> SearchCatalogItems(IReadOnlyList<string> resourcePaths)
     {
-        throw new NotImplementedException();
+        var catalog = Get("/SAMPLE/LOCAL");
+
+        return resourcePaths.ToDictionary(
+            resourcePath => resourcePath,
+            resourcePath =>
+            {
+                var parts = resourcePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var resource = catalog.Resources!.Single(current => current.Id == parts[^2]);
+                var representation = resource.Representations!.Single(current => current.SamplePeriod == TimeSpan.FromMinutes(1));
+                return new CatalogItem(catalog, resource, representation, Parameters: null);
+            });
     }
 
     public Task<IReadOnlyDictionary<string, CatalogItem>> SearchCatalogItemsAsync(IReadOnlyList<string> resourcePaths, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        return Task.FromResult(SearchCatalogItems(resourcePaths));
     }
 
     public HttpResponseMessage SetMetadata(string catalogId, CatalogMetadata metadata)
@@ -272,6 +372,8 @@ We hope you enjoy it!
 
 public class DataDemoClient : IDataClient
 {
+    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
+
     public HttpResponseMessage GetStream(string resourcePath, DateTime begin, DateTime end)
     {
         throw new NotImplementedException();
@@ -288,7 +390,7 @@ public class DataDemoClient : IDataClient
             : 3;
 
         var random = new Random();
-        var length = (end - begin).Ticks / TimeSpan.FromSeconds(1).Ticks;
+        var length = (end - begin).Ticks / SamplePeriod.Ticks;
         var data = new byte[length * 8];
         var doubleData = MemoryMarshal.Cast<byte, double>(data);
 
@@ -305,6 +407,45 @@ public class DataDemoClient : IDataClient
         };
 
         return Task.FromResult(responseMessage);
+    }
+}
+
+public class DataV2DemoClient : Api.V2.IDataClient
+{
+    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
+    public HttpResponseMessage GetStream(Api.V2.BatchStreamRequest request)
+    {
+        return GetStreamAsync(request).GetAwaiter().GetResult();
+    }
+
+    public Task<HttpResponseMessage> GetStreamAsync(Api.V2.BatchStreamRequest request, CancellationToken cancellationToken = default)
+    {
+        using var stream = new MemoryStream();
+        var header = new byte[8];
+
+        for (var resourceIndex = 0; resourceIndex < request.ResourcePaths.Count; resourceIndex++)
+        {
+            var resourcePath = request.ResourcePaths[resourceIndex];
+            var length = checked((int)((request.End - request.Begin).Ticks / SamplePeriod.Ticks));
+            var data = new byte[length * sizeof(double)];
+            var doubleData = MemoryMarshal.Cast<byte, double>(data);
+            var offset = resourcePath.Contains("temperature") ? 7 : 12;
+            var factor = resourcePath.Contains("temperature") ? 0.3 : 3;
+            var random = new Random();
+
+            for (var index = 0; index < length; index++)
+                doubleData[index] = offset + random.NextDouble() * factor;
+
+            BinaryPrimitives.WriteInt32LittleEndian(header, resourceIndex);
+            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), data.Length);
+            stream.Write(header);
+            stream.Write(data);
+        }
+
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(stream.ToArray())
+        });
     }
 }
 

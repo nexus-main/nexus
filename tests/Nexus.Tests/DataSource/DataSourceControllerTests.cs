@@ -202,7 +202,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             NullLogger<DataSourceController>.Instance,
             CancellationToken.None);
 
-        await Task.WhenAll(writing1, writing2, writing3);
+        await Task.WhenAll(reading, writing1, writing2, writing3);
 
         // /SAMPLE/LOCAL/V1/1_s
         Assert.Equal(6.5, result1[0], precision: 1);
@@ -284,6 +284,682 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         Assert.Equal(7.9, result[01 * 60 * 60 + 2], precision: 1);
         Assert.Equal(8.1, result[02 * 60 * 60 + 3], precision: 1);
         Assert.Equal(7.5, result[10 * 60 * 60 + 4], precision: 1);
+    }
+
+    [Fact]
+    public async Task CanReadStreamPerResource()
+    {
+        // Arrange - verify that CompleteAsync flushes each resource to its pipe
+        // during ReadAsync (before the source returns), proving per-resource streaming.
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2020, 01, 01, 0, 0, 2, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+
+        var representation = new Representation(NexusDataType.FLOAT64, TimeSpan.FromSeconds(1), parameters: default, RepresentationKind.Original);
+
+        var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
+
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource1)
+            .AddResource(resource2)
+            .Build();
+
+        catalog = catalog.EnsureAndSanitizeMandatoryProperties(pipelinePosition: 0, dataSources: Array.Empty<IDataSource>());
+
+        resource1 = catalog.Resources![0];
+        resource2 = catalog.Resources![1];
+
+        var catalogItem1 = new CatalogItem(catalog, resource1, representation, Parameters: default);
+        var catalogItem2 = new CatalogItem(catalog, resource2, representation, Parameters: default);
+
+        var request1 = new CatalogItemRequest(catalogItem1, default, default!);
+        var request2 = new CatalogItemRequest(catalogItem2, default, default!);
+
+        var pipe1 = new Pipe();
+        var pipe2 = new Pipe();
+
+        var catalogItemRequestPipeWriters = new CatalogItemRequestPipeWriter[]
+        {
+            new(request1, pipe1.Writer),
+            new(request2, pipe2.Writer)
+        };
+
+        // gate: source completes A, then waits for test to confirm pipe1 data, then completes B
+        var completedA = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proceedToB = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var dataSource = Mock.Of<IDataSource<object?>>();
+
+        Mock.Get(dataSource)
+            .Setup(dataSource => dataSource.ReadAsync(
+               It.IsAny<DateTime>(),
+               It.IsAny<DateTime>(),
+               It.IsAny<ReadRequest[]>(),
+               It.IsAny<ReadDataHandler>(),
+               It.IsAny<IProgress<double>>(),
+               It.IsAny<CancellationToken>()))
+            .Returns(async (DateTime _, DateTime _, ReadRequest[] requests, ReadDataHandler _, IProgress<double> _, CancellationToken cancellationToken) =>
+            {
+                // resource A
+                var requestA = requests.Single(r => r.CatalogItem.Resource.Id == "A");
+                MemoryMarshal.Cast<byte, double>(requestA.Data.Span).Fill(11);
+                requestA.Status.Span.Fill(1);
+                await requestA.CompleteAsync();
+                completedA.SetResult();
+
+                // wait for test to confirm pipe1 has data before completing B
+                await proceedToB.Task.WaitAsync(cancellationToken);
+
+                // resource B
+                var requestB = requests.Single(r => r.CatalogItem.Resource.Id == "B");
+                MemoryMarshal.Cast<byte, double>(requestB.Data.Span).Fill(22);
+                requestB.Status.Span.Fill(1);
+                await requestB.CompleteAsync();
+            });
+
+        var registration = new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default);
+
+        using var controller = new DataSourceController(
+            [dataSource],
+            [registration],
+            default!,
+            default!,
+            default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+
+        var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>() { [catalog.Id] = catalog };
+        await controller.InitializeAsync(catalogCache, new LoggerFactory(), CancellationToken.None);
+
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minium, maximum, _) => new AllocationRegistration(memoryTracker, actualByteCount: maximum));
+
+        // Act
+        var reading = controller.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            catalogItemRequestPipeWriters,
+            default!,
+            new Progress<double>(),
+            CancellationToken.None);
+
+        // wait for source to complete resource A
+        await completedA.Task;
+
+        // Assert: pipe1 already has data *while ReadAsync is still running* (before B completes).
+        // This proves per-resource streaming via CompleteAsync.
+        Assert.False(proceedToB.Task.IsCompleted, "Source must still be running when pipe1 data arrives.");
+
+        var result1 = new double[2];
+        var buffer1 = result1.AsMemory().Cast<double, byte>();
+        var stream1 = pipe1.Reader.AsStream();
+
+        while (buffer1.Length > 0)
+        {
+            var read = await stream1.ReadAsync(buffer1);
+            if (read == 0)
+                throw new Exception("pipe1 stopped early");
+            buffer1 = buffer1[read..];
+        }
+
+        Assert.Equal(11, result1[0]);
+        Assert.Equal(11, result1[1]);
+
+        // let source proceed to complete B
+        proceedToB.SetResult();
+
+        var result2 = new double[2];
+        var buffer2 = result2.AsMemory().Cast<double, byte>();
+        var stream2 = pipe2.Reader.AsStream();
+
+        while (buffer2.Length > 0)
+        {
+            var read = await stream2.ReadAsync(buffer2);
+            if (read == 0)
+                throw new Exception("pipe2 stopped early");
+            buffer2 = buffer2[read..];
+        }
+
+        await reading;
+
+        Assert.Equal(22, result2[0]);
+        Assert.Equal(22, result2[1]);
+
+        pipe1.Reader.Complete();
+        pipe2.Reader.Complete();
+    }
+
+    [Fact]
+    public async Task LimitsIndividualPipeWritesToFourMiB()
+    {
+        const int elementCount = 600_000;
+        const int maximumWriteLength = 4 * 1024 * 1024;
+        var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromTicks(1);
+        var end = begin + samplePeriod * elementCount;
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var resource = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/C1").AddResource(resource).Build()
+            .EnsureAndSanitizeMandatoryProperties(0, []);
+        resource = catalog.Resources![0];
+        var request = new CatalogItemRequest(new CatalogItem(catalog, resource, representation, default), default, default!);
+        var pipe = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var dataSource = Mock.Of<IDataSource<object?>>();
+
+        Mock.Get(dataSource)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<ReadRequest[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                (_, _, requests, _, _, _) => requests[0].Status.Span.Fill(1))
+            .Returns(Task.CompletedTask);
+
+        using var controller = new DataSourceController(
+            [dataSource],
+            [new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default)],
+            default!,
+            default!,
+            default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog> { [catalog.Id] = catalog }, new LoggerFactory(), CancellationToken.None);
+
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+        Mock.Get(memoryTracker)
+            .Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((_, maximum, _) => new AllocationRegistration(memoryTracker, maximum));
+
+        await controller.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            [new CatalogItemRequestPipeWriter(request, pipe.Writer)],
+            default!,
+            new Progress<double>(),
+            CancellationToken.None);
+
+        var buffer = (await pipe.Reader.ReadAsync()).Buffer;
+        Assert.Equal(elementCount * sizeof(double), buffer.Length);
+
+        foreach (var segment in buffer)
+            Assert.True(segment.Length <= maximumWriteLength);
+
+        Assert.False(buffer.IsSingleSegment);
+        pipe.Reader.AdvanceTo(buffer.End);
+        await pipe.Reader.CompleteAsync();
+        await pipe.Writer.CompleteAsync();
+    }
+
+    [Fact]
+    public async Task RegistersMemoryPerReadingGroupChunk()
+    {
+        var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var end = begin + samplePeriod * 4;
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+
+        var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource1)
+            .AddResource(resource2)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(0, []);
+
+        resource1 = catalog.Resources![0];
+        resource2 = catalog.Resources![1];
+
+        var request1 = new CatalogItemRequest(new CatalogItem(catalog, resource1, representation, default), default, default!);
+        var request2 = new CatalogItemRequest(new CatalogItem(catalog, resource2, representation, default), default, default!);
+        var pipe1 = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var pipe2 = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+
+        var controller1 = Mock.Of<IDataSourceController>();
+        var controller2 = Mock.Of<IDataSourceController>();
+
+        SetupStaticReadController(controller1);
+        SetupStaticReadController(controller2);
+
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>(
+                (minimum, _, _) => new AllocationRegistration(memoryTracker, minimum));
+
+        await DataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            [
+                new DataReadingGroup(controller1, [new CatalogItemRequestPipeWriter(request1, pipe1.Writer)]),
+                new DataReadingGroup(controller2, [new CatalogItemRequestPipeWriter(request2, pipe2.Writer)])
+            ],
+            default!,
+            memoryTracker,
+            default,
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None);
+
+        Mock.Get(memoryTracker)
+            .Verify(current => current.RegisterAllocationAsync(
+                It.IsAny<long>(),
+                It.IsAny<long>(),
+                It.IsAny<CancellationToken>()), Times.Exactly(8));
+
+        Mock.Get(controller1)
+            .Verify(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                samplePeriod,
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()), Times.Exactly(4));
+
+        Mock.Get(controller2)
+            .Verify(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                samplePeriod,
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()), Times.Exactly(4));
+
+        await pipe1.Reader.CompleteAsync();
+        await pipe2.Reader.CompleteAsync();
+
+        static void SetupStaticReadController(IDataSourceController controller)
+        {
+            Mock.Get(controller)
+                .Setup(current => current.ReadAsync(
+                    It.IsAny<DateTime>(),
+                    It.IsAny<DateTime>(),
+                    It.IsAny<TimeSpan>(),
+                    It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                    It.IsAny<ReadDataHandler>(),
+                    It.IsAny<IProgress<double>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                    async (currentBegin, currentEnd, currentSamplePeriod, pipeWriters, _, progress, cancellationToken) =>
+                    {
+                        var elementCount = (int)((currentEnd - currentBegin).Ticks / currentSamplePeriod.Ticks);
+                        var byteCount = elementCount * sizeof(double);
+
+                        foreach (var pipeWriter in pipeWriters)
+                        {
+                            var buffer = pipeWriter.DataWriter.GetMemory(byteCount)[..byteCount];
+                            MemoryMarshal.Cast<byte, double>(buffer.Span).Fill(1);
+                            pipeWriter.DataWriter.Advance(byteCount);
+                            await pipeWriter.DataWriter.FlushAsync(cancellationToken);
+                        }
+
+                        progress.Report(1);
+                    });
+        }
+    }
+
+    [Fact]
+    public async Task FaultsPipesAndCancelsSiblingsWhenReadingGroupFails()
+    {
+        var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var end = begin + samplePeriod;
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource1)
+            .AddResource(resource2)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(0, []);
+
+        resource1 = catalog.Resources![0];
+        resource2 = catalog.Resources![1];
+
+        var request1 = new CatalogItemRequest(new CatalogItem(catalog, resource1, representation, default), default, default!);
+        var request2 = new CatalogItemRequest(new CatalogItem(catalog, resource2, representation, default), default, default!);
+        var pipe1 = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var pipe2 = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var controller1 = Mock.Of<IDataSourceController>();
+        var controller2 = Mock.Of<IDataSourceController>();
+        var siblingStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var siblingCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var expectedException = new InvalidOperationException("boom");
+
+        Mock.Get(controller1)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                await siblingStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                throw expectedException;
+            });
+
+        Mock.Get(controller2)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, _, _, _, _, cancellationToken) =>
+                {
+                    siblingStarted.SetResult();
+
+                    try
+                    {
+                        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        siblingCancelled.SetResult();
+                        throw;
+                    }
+                });
+
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>(
+                (_, maximum, _) => new AllocationRegistration(memoryTracker, maximum));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => DataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            [
+                new DataReadingGroup(controller1, [new CatalogItemRequestPipeWriter(request1, pipe1.Writer)]),
+                new DataReadingGroup(controller2, [new CatalogItemRequestPipeWriter(request2, pipe2.Writer)])
+            ],
+            default!,
+            memoryTracker,
+            default,
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None));
+
+        await siblingCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await pipe1.Reader.ReadAsync());
+
+        await pipe1.Reader.CompleteAsync();
+        await pipe2.Reader.CompleteAsync();
+    }
+
+    [Fact]
+    public async Task GroupsCanUseDifferentChunkSizes()
+    {
+        var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var end = begin + samplePeriod * 4;
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
+        var resource3 = new ResourceBuilder("C").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource1)
+            .AddResource(resource2)
+            .AddResource(resource3)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(0, []);
+
+        resource1 = catalog.Resources![0];
+        resource2 = catalog.Resources![1];
+        resource3 = catalog.Resources![2];
+
+        var request1 = new CatalogItemRequest(new CatalogItem(catalog, resource1, representation, default), default, default!);
+        var request2 = new CatalogItemRequest(new CatalogItem(catalog, resource2, representation, default), default, default!);
+        var request3 = new CatalogItemRequest(new CatalogItem(catalog, resource3, representation, default), default, default!);
+        var pipe1 = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var pipe2 = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var pipe3 = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var controller1 = Mock.Of<IDataSourceController>();
+        var controller2 = Mock.Of<IDataSourceController>();
+
+        SetupStaticReadController(controller1);
+        SetupStaticReadController(controller2);
+
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>(
+                (_, maximum, _) => new AllocationRegistration(memoryTracker, Math.Min(maximum, 34)));
+
+        await DataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            [
+                new DataReadingGroup(controller1, [new CatalogItemRequestPipeWriter(request1, pipe1.Writer)]),
+                new DataReadingGroup(controller2,
+                [
+                    new CatalogItemRequestPipeWriter(request2, pipe2.Writer),
+                    new CatalogItemRequestPipeWriter(request3, pipe3.Writer)
+                ])
+            ],
+            default!,
+            memoryTracker,
+            default,
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None);
+
+        Mock.Get(memoryTracker)
+            .Verify(current => current.RegisterAllocationAsync(
+                It.IsAny<long>(),
+                It.IsAny<long>(),
+                It.IsAny<CancellationToken>()), Times.Exactly(6));
+
+        Mock.Get(controller1)
+            .Verify(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                samplePeriod,
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()), Times.Exactly(2));
+
+        Mock.Get(controller2)
+            .Verify(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                samplePeriod,
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()), Times.Exactly(4));
+
+        await pipe1.Reader.CompleteAsync();
+        await pipe2.Reader.CompleteAsync();
+        await pipe3.Reader.CompleteAsync();
+
+        static void SetupStaticReadController(IDataSourceController controller)
+        {
+            Mock.Get(controller)
+                .Setup(current => current.ReadAsync(
+                    It.IsAny<DateTime>(),
+                    It.IsAny<DateTime>(),
+                    It.IsAny<TimeSpan>(),
+                    It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                    It.IsAny<ReadDataHandler>(),
+                    It.IsAny<IProgress<double>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                    async (currentBegin, currentEnd, currentSamplePeriod, pipeWriters, _, progress, cancellationToken) =>
+                    {
+                        var elementCount = (int)((currentEnd - currentBegin).Ticks / currentSamplePeriod.Ticks);
+                        var byteCount = elementCount * sizeof(double);
+
+                        foreach (var pipeWriter in pipeWriters)
+                        {
+                            var buffer = pipeWriter.DataWriter.GetMemory(byteCount)[..byteCount];
+                            MemoryMarshal.Cast<byte, double>(buffer.Span).Fill(1);
+                            pipeWriter.DataWriter.Advance(byteCount);
+                            await pipeWriter.DataWriter.FlushAsync(cancellationToken);
+                        }
+
+                        progress.Report(1);
+                    });
+        }
+    }
+
+    [Fact]
+    public async Task PropagatesSourceFailureBeforeAnyOriginalOutput()
+    {
+        var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var end = begin + samplePeriod;
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var resource = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(0, []);
+
+        resource = catalog.Resources![0];
+
+        var request = new CatalogItemRequest(new CatalogItem(catalog, resource, representation, default), default, default!);
+        var pipe = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var expectedException = new InvalidOperationException("source failed");
+        var dataSource = Mock.Of<IDataSource<object?>>();
+
+        Mock.Get(dataSource)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<ReadRequest[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(expectedException);
+
+        var controller = await CreateSingleSourceControllerAsync(dataSource, catalog);
+        var memoryTracker = CreateMemoryTracker(actualByteCount: 17);
+
+        var actualException = await Assert.ThrowsAsync<InvalidOperationException>(() => DataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            [new DataReadingGroup(controller, [new CatalogItemRequestPipeWriter(request, pipe.Writer)])],
+            default!,
+            memoryTracker,
+            new Progress<double>(),
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None));
+
+        Assert.Same(expectedException, actualException);
+
+        await pipe.Reader.CompleteAsync();
+    }
+
+    [Fact]
+    public async Task PropagatesSourceFailureAfterPartialOriginalOutput()
+    {
+        var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var end = begin + samplePeriod * 2;
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var resource = new ResourceBuilder("A").AddRepresentation(representation).Build();
+        var catalog = new ResourceCatalogBuilder("/C1")
+            .AddResource(resource)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(0, []);
+
+        resource = catalog.Resources![0];
+
+        var request = new CatalogItemRequest(new CatalogItem(catalog, resource, representation, default), default, default!);
+        var pipe = new Pipe(new PipeOptions(pauseWriterThreshold: long.MaxValue));
+        var expectedException = new InvalidOperationException("source failed");
+        var dataSource = Mock.Of<IDataSource<object?>>();
+        var callCount = 0;
+
+        Mock.Get(dataSource)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<ReadRequest[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, requests, _, _, _) =>
+                {
+                    callCount++;
+
+                    if (callCount == 2)
+                        throw expectedException;
+
+                    MemoryMarshal.Cast<byte, double>(requests[0].Data.Span)[0] = 42;
+                    requests[0].Status.Span[0] = 1;
+                    await requests[0].CompleteAsync();
+                });
+
+        var controller = await CreateSingleSourceControllerAsync(dataSource, catalog);
+        var memoryTracker = CreateMemoryTracker(actualByteCount: 17);
+
+        var actualException = await Assert.ThrowsAsync<InvalidOperationException>(() => DataSourceController.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            [new DataReadingGroup(controller, [new CatalogItemRequestPipeWriter(request, pipe.Writer)])],
+            default!,
+            memoryTracker,
+            new Progress<double>(),
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None));
+
+        Assert.Same(expectedException, actualException);
+        Assert.True(callCount > 1);
+
+        await pipe.Reader.CompleteAsync();
+    }
+
+    private static async Task<DataSourceController> CreateSingleSourceControllerAsync(IDataSource<object?> dataSource, ResourceCatalog catalog)
+    {
+        var controller = new DataSourceController(
+            [dataSource],
+            [new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default)],
+            default!,
+            default!,
+            default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog> { [catalog.Id] = catalog }, new LoggerFactory(), CancellationToken.None);
+
+        return controller;
+    }
+
+    private static IMemoryTracker CreateMemoryTracker(long actualByteCount)
+    {
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>(
+                (_, _, _) => new AllocationRegistration(memoryTracker, actualByteCount));
+
+        return memoryTracker;
     }
 
     [Fact]

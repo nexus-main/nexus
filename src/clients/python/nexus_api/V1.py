@@ -359,7 +359,7 @@ class JobsClient:
         Cancels the specified job.
 
         Args:
-            job_id: 
+            job_id:
         """
 
         __url = "/api/v1/jobs/{jobId}"
@@ -372,7 +372,7 @@ class JobsClient:
         Gets the status of the specified job.
 
         Args:
-            job_id: 
+            job_id:
         """
 
         __url = "/api/v1/jobs/{jobId}/status"
@@ -1241,7 +1241,7 @@ class JobsAsyncClient:
         Cancels the specified job.
 
         Args:
-            job_id: 
+            job_id:
         """
 
         __url = "/api/v1/jobs/{jobId}"
@@ -1254,7 +1254,7 @@ class JobsAsyncClient:
         Gets the status of the specified job.
 
         Args:
-            job_id: 
+            job_id:
         """
 
         __url = "/api/v1/jobs/{jobId}/status"

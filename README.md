@@ -6,6 +6,10 @@ Nexus is an extensible user interface for your time-series data lake with REST A
 
 Nexus allows streaming data directly into the UI or into Python, C# or Matlab clients. Additionally, Nexus supports exporting the data into a specific file format. Supported formats are CSV, HDF5, Matlab (v7.3) and Famos. Like for data sources, it is possible to create and register new custom data writers.
 
+# Batch Streaming
+
+The v2 API streams up to 100 resources through one framed response from `POST /api/v2/data`. Reverse proxies should disable response buffering for these streaming responses to preserve end-to-end back-pressure. Buffering makes the proxy read and store the response independently of the downstream client, so Nexus can continue producing data even when the client is slow or disconnected. With buffering disabled, slow clients naturally slow the server-side stream and cancellation propagates promptly.
+
 # Usage
 
 The main elements presented in Nexus are called `catalogs`. These catalogs are often equivalent to a measurement campaign. Within a catalog, there are `resources` (e.g. channels of a data acquisition device) which comprise a unique name, arbitrary properties (metadata) and one or more `representations`. A representation defines the sample period (e.g. `100 ms`) and optional parameters of the associated resource.
