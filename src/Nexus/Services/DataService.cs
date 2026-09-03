@@ -1,11 +1,13 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using System.Buffers;
 using System.ComponentModel.DataAnnotations;
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
+using System.Threading.Channels;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Core.V2;
@@ -211,12 +213,21 @@ internal class DataService(
                 ReadProgress,
                 _loggerFactory.CreateLogger<DataSourceController>(),
                 cts.Token);
-            var writeGate = new SemaphoreSlim(1, 1);
+
+            var frames = Channel.CreateBounded<BatchStreamFrame>(new BoundedChannelOptions(capacity: dataReaders.Count)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
+
             var pumping = dataReaders
-                .Select(current => PumpAsync(current.Index, current.Reader, outputPipe.Writer, writeGate, cts.Token))
+                .Select(current => PumpAsync(current.Index, current.Reader, frames.Writer, cts.Token))
                 .ToArray();
 
-            _ = CompleteAndLogAsync(reading, pumping, readingGroups, dataReaders, outputPipe.Writer, writeGate, cts);
+            var outputWriting = WriteBatchFramesAsync(frames.Reader, outputPipe.Writer, cts.Token);
+
+            _ = CompleteAndLogAsync(reading, pumping, outputWriting, frames.Writer, readingGroups, dataReaders, outputPipe.Writer, cts);
             return outputPipe.Reader.AsStream();
         }
         catch
@@ -269,8 +280,7 @@ internal class DataService(
         static async Task PumpAsync(
             int resourceIndex,
             PipeReader input,
-            PipeWriter output,
-            SemaphoreSlim writeGate,
+            ChannelWriter<BatchStreamFrame> output,
             CancellationToken cancellationToken)
         {
             const int maximumPayloadLength = 64 * 1024;
@@ -289,28 +299,17 @@ internal class DataService(
                         while (!remaining.IsEmpty)
                         {
                             var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
-                            await writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                            var payloadBuffer = ArrayPool<byte>.Shared.Rent(payload.Length);
+                            payload.CopyTo(payloadBuffer);
 
                             try
                             {
-                                var header = output.GetSpan(8);
-                                BinaryPrimitives.WriteInt32LittleEndian(header, resourceIndex);
-                                BinaryPrimitives.WriteInt32LittleEndian(header[4..], payload.Length);
-                                output.Advance(8);
-                                payload.CopyTo(output.GetMemory(payload.Length));
-                                output.Advance(payload.Length);
-
-                                var flushResult = await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-
-                                if (flushResult.IsCanceled)
-                                    throw new OperationCanceledException(cancellationToken);
-
-                                if (flushResult.IsCompleted)
-                                    throw new IOException("The batch output pipe completed before all data was written.");
+                                await output.WriteAsync(new BatchStreamFrame(resourceIndex, payloadBuffer, payload.Length), cancellationToken).ConfigureAwait(false);
                             }
-                            finally
+                            catch
                             {
-                                writeGate.Release();
+                                ArrayPool<byte>.Shared.Return(payloadBuffer);
+                                throw;
                             }
 
                             remaining = remaining[payload.Length..];
@@ -327,18 +326,60 @@ internal class DataService(
             }
         }
 
+        static async Task WriteBatchFramesAsync(
+            ChannelReader<BatchStreamFrame> frames,
+            PipeWriter output,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await foreach (var frame in frames.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    try
+                    {
+                        var header = output.GetSpan(8);
+                        BinaryPrimitives.WriteInt32LittleEndian(header, frame.ResourceIndex);
+                        BinaryPrimitives.WriteInt32LittleEndian(header[4..], frame.PayloadLength);
+                        output.Advance(8);
+                        frame.Payload.AsMemory(0, frame.PayloadLength).CopyTo(output.GetMemory(frame.PayloadLength));
+                        output.Advance(frame.PayloadLength);
+
+                        var flushResult = await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+                        if (flushResult.IsCanceled)
+                            throw new OperationCanceledException(cancellationToken);
+
+                        if (flushResult.IsCompleted)
+                            throw new IOException("The batch output pipe completed before all data was written.");
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(frame.Payload);
+                    }
+                }
+            }
+            finally
+            {
+                while (frames.TryRead(out var frame))
+                {
+                    ArrayPool<byte>.Shared.Return(frame.Payload);
+                }
+            }
+        }
+
         async Task CompleteAndLogAsync(
             Task reading,
             Task[] pumping,
+            Task outputWriting,
+            ChannelWriter<BatchStreamFrame> frameWriter,
             List<DataReadingGroup> groups,
             List<(int Index, PipeReader Reader)> readers,
             PipeWriter output,
-            SemaphoreSlim writeGate,
             CancellationTokenSource cts)
         {
             try
             {
-                await CompleteAsync(reading, pumping, groups, readers, output, writeGate, cts).ConfigureAwait(false);
+                await CompleteAsync(reading, pumping, outputWriting, frameWriter, groups, readers, output, cts).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -349,22 +390,32 @@ internal class DataService(
         async Task CompleteAsync(
             Task reading,
             Task[] pumping,
+            Task outputWriting,
+            ChannelWriter<BatchStreamFrame> frameWriter,
             List<DataReadingGroup> groups,
             List<(int Index, PipeReader Reader)> readers,
             PipeWriter output,
-            SemaphoreSlim writeGate,
             CancellationTokenSource cts)
         {
             Exception? error = null;
 
             try
             {
-                await NexusUtilities.WhenAllFailFastAsync([reading, .. pumping], cts.Token).ConfigureAwait(false);
+                var producing = NexusUtilities.WhenAllFailFastAsync([reading, .. pumping], cts.Token);
+                var firstCompleted = await Task.WhenAny(producing, outputWriting).ConfigureAwait(false);
+
+                if (firstCompleted == outputWriting)
+                    await outputWriting.ConfigureAwait(false);
+
+                await producing.ConfigureAwait(false);
+                frameWriter.TryComplete();
+                await outputWriting.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 error = ex;
                 await cts.CancelAsync().ConfigureAwait(false);
+                frameWriter.TryComplete(ex);
 
                 foreach (var writer in groups.SelectMany(group => group.CatalogItemRequestPipeWriters))
                 {
@@ -379,7 +430,7 @@ internal class DataService(
 
                 try
                 {
-                    await Task.WhenAll(pumping).ConfigureAwait(false);
+                    await Task.WhenAll([.. pumping, outputWriting]).ConfigureAwait(false);
                 }
                 catch
                 {
@@ -387,16 +438,17 @@ internal class DataService(
             }
             finally
             {
-                await CleanupBatchStreamAsync(groups, readers, output, writeGate, cts, error, _logger).ConfigureAwait(false);
+                await CleanupBatchStreamAsync(groups, readers, output, cts, error, _logger).ConfigureAwait(false);
             }
         }
     }
+
+    private readonly record struct BatchStreamFrame(int ResourceIndex, byte[] Payload, int PayloadLength);
 
     internal static async Task CleanupBatchStreamAsync(
         IReadOnlyList<DataReadingGroup> groups,
         IReadOnlyList<(int Index, PipeReader Reader)> readers,
         PipeWriter output,
-        SemaphoreSlim writeGate,
         CancellationTokenSource cts,
         Exception? error,
         ILogger logger)
@@ -432,15 +484,6 @@ internal class DataService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Completing batch output pipe failed");
-        }
-
-        try
-        {
-            writeGate.Dispose();
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Disposing batch stream write gate failed");
         }
 
         try
