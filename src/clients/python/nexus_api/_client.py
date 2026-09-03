@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import struct
@@ -9,7 +8,6 @@ from array import array
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
-from typing import Callable
 from typing import (Any, AsyncIterable, Callable, Iterable, Optional, Type,
                     TypeVar, Union, cast)
 from zipfile import ZipFile
@@ -222,12 +220,10 @@ class NexusClient:
 
         catalog_item_map = self.v1.catalogs.search_catalog_items(resource_path_list)
         response = self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list))
-        total_length = sum(
-            int((end - begin) / catalog_item_map[path].representation.sample_period) * 8
-            for path in resource_path_list)
         expected_lengths = [
-            int((end - begin) / catalog_item_map[path].representation.sample_period) * 8
+            ((end - begin) // catalog_item_map[path].representation.sample_period) * 8
             for path in resource_path_list]
+        total_length = sum(expected_lengths)
         consumed = 0
 
         def report_progress(bytes_read: int) -> None:
@@ -278,7 +274,6 @@ class NexusClient:
         response: Response,
         expected_lengths: list[int],
         report_progress: Optional[Callable[[int], None]] = None) -> list[array[float]]:
-        maximum_payload_length = 64 * 1024
         buffers = [bytearray(length) for length in expected_lengths]
         offsets = [0] * len(expected_lengths)
         pending = bytearray()
@@ -299,7 +294,7 @@ class NexusClient:
                     if current_index < 0 or current_index >= len(buffers):
                         raise Exception("The batch stream contains an invalid resource index.")
 
-                    if payload_length <= 0 or payload_length > maximum_payload_length or payload_length % 8 != 0:
+                    if payload_length < 0:
                         raise Exception("The batch stream contains an invalid payload length.")
 
                     if offsets[current_index] > expected_lengths[current_index] - payload_length:
@@ -641,12 +636,10 @@ class NexusAsyncClient:
 
         catalog_item_map = await self.v1.catalogs.search_catalog_items(resource_path_list)
         response = await self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list))
-        total_length = sum(
-            int((end - begin) / catalog_item_map[path].representation.sample_period) * 8
-            for path in resource_path_list)
         expected_lengths = [
-            int((end - begin) / catalog_item_map[path].representation.sample_period) * 8
+            ((end - begin) // catalog_item_map[path].representation.sample_period) * 8
             for path in resource_path_list]
+        total_length = sum(expected_lengths)
         consumed = 0
 
         def report_progress(bytes_read: int) -> None:
@@ -697,7 +690,6 @@ class NexusAsyncClient:
         response: Response,
         expected_lengths: list[int],
         report_progress: Optional[Callable[[int], None]] = None) -> list[array[float]]:
-        maximum_payload_length = 64 * 1024
         buffers = [bytearray(length) for length in expected_lengths]
         offsets = [0] * len(expected_lengths)
         pending = bytearray()
@@ -718,7 +710,7 @@ class NexusAsyncClient:
                     if current_index < 0 or current_index >= len(buffers):
                         raise Exception("The batch stream contains an invalid resource index.")
 
-                    if payload_length <= 0 or payload_length > maximum_payload_length or payload_length % 8 != 0:
+                    if payload_length < 0:
                         raise Exception("The batch stream contains an invalid payload length.")
 
                     if offsets[current_index] > expected_lengths[current_index] - payload_length:

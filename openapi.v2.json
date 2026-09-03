@@ -84,23 +84,16 @@
         "type": "object",
         "description": "A request to stream multiple resources.",
         "additionalProperties": false,
-        "required": [
-          "begin",
-          "end",
-          "resourcePaths"
-        ],
         "properties": {
           "begin": {
             "type": "string",
             "description": "The start date/time.",
-            "format": "date-time",
-            "minLength": 1
+            "format": "date-time"
           },
           "end": {
             "type": "string",
             "description": "The end date/time.",
-            "format": "date-time",
-            "minLength": 1
+            "format": "date-time"
           },
           "resourcePaths": {
             "type": "array",

@@ -110,6 +110,21 @@ public class ClientTests
     }
 
     [Fact]
+    public async Task CanLoadWhenResponseStreamPinsReadBuffer()
+    {
+        var path = "/A/B/C";
+        var catalogItems = CreateCatalogItemMap(path);
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : PinningBinaryResponse(Frame(0, 1))));
+
+        var result = await client.LoadAsync(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(1), [path]);
+
+        Assert.Equal([1d], result[path].Values);
+    }
+
+    [Fact]
     public async Task RejectsInvalidBatchFrame()
     {
         var path = "/A/B/C";
@@ -207,6 +222,11 @@ public class ClientTests
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(value) };
     }
 
+    private static HttpResponseMessage PinningBinaryResponse(byte[] value)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PinningReadStream(value)) };
+    }
+
     private static Task<IReadOnlyDictionary<string, DataResponse>> LoadBatchAsync(byte[] content, DateTime? end = default)
     {
         var path = "/A/B/C";
@@ -237,5 +257,53 @@ public class ClientTests
             BinaryPrimitives.WriteInt64LittleEndian(result.AsSpan(8 + index * sizeof(double)), BitConverter.DoubleToInt64Bits(values[index]));
 
         return result;
+    }
+
+    private sealed class PinningReadStream(byte[] content) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => content.Length;
+
+        public override long Position
+        {
+            get => _position;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return Read(buffer.AsSpan(offset, count));
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var count = Math.Min(buffer.Length, content.Length - _position);
+            content.AsSpan(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            using var handle = buffer.Pin();
+            return ValueTask.FromResult(Read(buffer.Span));
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

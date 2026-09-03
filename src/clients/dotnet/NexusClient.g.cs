@@ -436,7 +436,6 @@ public class NexusClient : INexusClient, IDisposable
         Action<long>? reportProgress = default,
         CancellationToken cancellationToken = default)
     {
-        const int maximumPayloadLength = 64 * 1024;
         var values = expectedLengths.Select(length => new double[length / sizeof(double)]).ToArray();
         var offsets = new int[expectedLengths.Length];
         var header = new byte[8];
@@ -457,15 +456,16 @@ public class NexusClient : INexusClient, IDisposable
             if (resourceIndex < 0 || resourceIndex >= values.Length)
                 throw new Exception("The batch stream contains an invalid resource index.");
 
-            if (payloadLength <= 0 || payloadLength > maximumPayloadLength || payloadLength % sizeof(double) != 0)
+            if (payloadLength < 0)
                 throw new Exception("The batch stream contains an invalid payload length.");
 
             if (offsets[resourceIndex] > expectedLengths[resourceIndex] - payloadLength)
                 throw new Exception("The batch stream contains more data than expected.");
 
-            var target = new CastMemoryManager<double, byte>(values[resourceIndex]).Memory
-                .Slice(offsets[resourceIndex], payloadLength);
+            using var manager = new DoubleToByteMemoryManager(values[resourceIndex]);
+            var target = manager.Memory.Slice(offsets[resourceIndex], payloadLength);
             await ReadExactlyAsync(target).ConfigureAwait(false);
+
             offsets[resourceIndex] += payloadLength;
             reportProgress?.Invoke(payloadLength);
         }
@@ -771,24 +771,33 @@ public class NexusClient : INexusClient, IDisposable
     }
 }
 
-internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
-     where TFrom : struct
-     where TTo : struct
+internal sealed class DoubleToByteMemoryManager : MemoryManager<byte>
 {
-    private readonly Memory<TFrom> _from;
+    private readonly double[] _values;
 
-    public CastMemoryManager(Memory<TFrom> from) => _from = from;
+    public DoubleToByteMemoryManager(double[] values) => _values = values;
 
-    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.Span);
+    public override Span<byte> GetSpan() => MemoryMarshal.AsBytes(_values.AsSpan());
 
     protected override void Dispose(bool disposing)
     {
         //
     }
 
-    public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+    public override unsafe MemoryHandle Pin(int elementIndex = 0)
+    {
+        if ((uint)elementIndex > (uint)(_values.Length * sizeof(double)))
+            throw new ArgumentOutOfRangeException(nameof(elementIndex));
 
-    public override void Unpin() => throw new NotSupportedException();
+        var handle = GCHandle.Alloc(_values, GCHandleType.Pinned);
+        var pointer = (byte*)handle.AddrOfPinnedObject() + elementIndex;
+
+        return new MemoryHandle(pointer, handle);
+    }
+
+    public override void Unpin()
+    {
+    }
 }
 
 /// <summary>
@@ -992,7 +1001,7 @@ public interface IArtifactsClient
 public class ArtifactsClient : IArtifactsClient
 {
     private NexusClient ___client;
-
+    
     internal ArtifactsClient(NexusClient client)
     {
         ___client = client;
@@ -1531,7 +1540,7 @@ public interface IDataClient
 public class DataClient : IDataClient
 {
     private NexusClient ___client;
-
+    
     internal DataClient(NexusClient client)
     {
         ___client = client;
@@ -3381,7 +3390,7 @@ public interface IDataClient
 public class DataClient : IDataClient
 {
     private NexusClient ___client;
-
+    
     internal DataClient(NexusClient client)
     {
         ___client = client;
