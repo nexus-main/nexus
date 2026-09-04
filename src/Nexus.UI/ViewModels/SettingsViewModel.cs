@@ -7,6 +7,7 @@ using Nexus.UI.Core;
 using Nexus.UI.Services;
 using System.ComponentModel;
 using System.Text.Json;
+using ExportParameters = Nexus.Api.V2.ExportParameters;
 
 namespace Nexus.UI.ViewModels;
 

@@ -14,7 +14,6 @@ using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Xunit;
 
 namespace DataSource;
@@ -129,11 +128,11 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         };
 
         // V1
-        var result1 = new double[86401];
+        var result1 = new float[86401];
 
         var writing1 = Task.Run(async () =>
         {
-            var resultBuffer1 = result1.AsMemory().Cast<double, byte>();
+            var resultBuffer1 = result1.AsMemory().Cast<float, byte>();
             var stream1 = pipe1.Reader.AsStream();
 
             while (resultBuffer1.Length > 0)
@@ -148,11 +147,11 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         });
 
         // T1
-        var result2 = new double[86401];
+        var result2 = new float[86401];
 
         var writing2 = Task.Run(async () =>
         {
-            var resultBuffer2 = result2.AsMemory().Cast<double, byte>();
+            var resultBuffer2 = result2.AsMemory().Cast<float, byte>();
             var stream2 = pipe2.Reader.AsStream();
 
             while (resultBuffer2.Length > 0)
@@ -167,11 +166,11 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         });
 
         // foo
-        var result3 = new double[86401];
+        var result3 = new float[86401];
 
         var writing3 = Task.Run(async () =>
         {
-            var resultBuffer3 = result3.AsMemory().Cast<double, byte>();
+            var resultBuffer3 = result3.AsMemory().Cast<float, byte>();
             var stream3 = pipe3.Reader.AsStream();
 
             while (resultBuffer3.Length > 0)
@@ -195,6 +194,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             readingGroups,
             default!,
             memoryTracker,
@@ -383,6 +383,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             catalogItemRequestPipeWriters,
             default!,
             new Progress<double>(),
@@ -395,8 +396,8 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         // This proves per-resource streaming via CompleteAsync.
         Assert.False(proceedToB.Task.IsCompleted, "Source must still be running when pipe1 data arrives.");
 
-        var result1 = new double[2];
-        var buffer1 = result1.AsMemory().Cast<double, byte>();
+        var result1 = new float[2];
+        var buffer1 = result1.AsMemory().Cast<float, byte>();
         var stream1 = pipe1.Reader.AsStream();
 
         while (buffer1.Length > 0)
@@ -413,8 +414,8 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         // let source proceed to complete B
         proceedToB.SetResult();
 
-        var result2 = new double[2];
-        var buffer2 = result2.AsMemory().Cast<double, byte>();
+        var result2 = new float[2];
+        var buffer2 = result2.AsMemory().Cast<float, byte>();
         var stream2 = pipe2.Reader.AsStream();
 
         while (buffer2.Length > 0)
@@ -437,7 +438,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     [Fact]
     public async Task LimitsIndividualPipeWritesToFourMiB()
     {
-        const int elementCount = 600_000;
+        const int elementCount = 1_200_000;
         const int maximumWriteLength = 4 * 1024 * 1024;
         var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromTicks(1);
@@ -482,13 +483,14 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             [new CatalogItemRequestPipeWriter(request, pipe.Writer)],
             default!,
             new Progress<double>(),
             CancellationToken.None);
 
         var buffer = (await pipe.Reader.ReadAsync()).Buffer;
-        Assert.Equal(elementCount * sizeof(double), buffer.Length);
+        Assert.Equal(elementCount * sizeof(float), buffer.Length);
 
         foreach (var segment in buffer)
             Assert.True(segment.Length <= maximumWriteLength);
@@ -540,6 +542,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             [
                 new DataReadingGroup(controller1, [new CatalogItemRequestPipeWriter(request1, pipe1.Writer)]),
                 new DataReadingGroup(controller2, [new CatalogItemRequestPipeWriter(request2, pipe2.Writer)])
@@ -561,6 +564,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
                 samplePeriod,
+                It.IsAny<Precision>(),
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
@@ -571,6 +575,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
                 samplePeriod,
+                It.IsAny<Precision>(),
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
@@ -586,20 +591,21 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                     It.IsAny<DateTime>(),
                     It.IsAny<DateTime>(),
                     It.IsAny<TimeSpan>(),
+                    It.IsAny<Precision>(),
                     It.IsAny<CatalogItemRequestPipeWriter[]>(),
                     It.IsAny<ReadDataHandler>(),
                     It.IsAny<IProgress<double>>(),
                     It.IsAny<CancellationToken>()))
-                .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
-                    async (currentBegin, currentEnd, currentSamplePeriod, pipeWriters, _, progress, cancellationToken) =>
+                .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                    async (currentBegin, currentEnd, currentSamplePeriod, _, pipeWriters, _, progress, cancellationToken) =>
                     {
                         var elementCount = (int)((currentEnd - currentBegin).Ticks / currentSamplePeriod.Ticks);
-                        var byteCount = elementCount * sizeof(double);
+                        var byteCount = elementCount * sizeof(float);
 
                         foreach (var pipeWriter in pipeWriters)
                         {
                             var buffer = pipeWriter.DataWriter.GetMemory(byteCount)[..byteCount];
-                            MemoryMarshal.Cast<byte, double>(buffer.Span).Fill(1);
+                            MemoryMarshal.Cast<byte, float>(buffer.Span).Fill(1);
                             pipeWriter.DataWriter.Advance(byteCount);
                             await pipeWriter.DataWriter.FlushAsync(cancellationToken);
                         }
@@ -642,6 +648,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
                 It.IsAny<TimeSpan>(),
+                It.IsAny<Precision>(),
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
@@ -657,12 +664,13 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
                 It.IsAny<TimeSpan>(),
+                It.IsAny<Precision>(),
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
                 It.IsAny<CancellationToken>()))
-            .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
-                async (_, _, _, _, _, _, cancellationToken) =>
+            .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, _, _, _, _, _, cancellationToken) =>
                 {
                     siblingStarted.SetResult();
 
@@ -688,6 +696,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             [
                 new DataReadingGroup(controller1, [new CatalogItemRequestPipeWriter(request1, pipe1.Writer)]),
                 new DataReadingGroup(controller2, [new CatalogItemRequestPipeWriter(request2, pipe2.Writer)])
@@ -749,6 +758,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             [
                 new DataReadingGroup(controller1, [new CatalogItemRequestPipeWriter(request1, pipe1.Writer)]),
                 new DataReadingGroup(controller2,
@@ -774,6 +784,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
                 samplePeriod,
+                It.IsAny<Precision>(),
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
@@ -784,6 +795,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
                 samplePeriod,
+                It.IsAny<Precision>(),
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
@@ -800,20 +812,21 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                     It.IsAny<DateTime>(),
                     It.IsAny<DateTime>(),
                     It.IsAny<TimeSpan>(),
+                    It.IsAny<Precision>(),
                     It.IsAny<CatalogItemRequestPipeWriter[]>(),
                     It.IsAny<ReadDataHandler>(),
                     It.IsAny<IProgress<double>>(),
                     It.IsAny<CancellationToken>()))
-                .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
-                    async (currentBegin, currentEnd, currentSamplePeriod, pipeWriters, _, progress, cancellationToken) =>
+                .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                    async (currentBegin, currentEnd, currentSamplePeriod, _, pipeWriters, _, progress, cancellationToken) =>
                     {
                         var elementCount = (int)((currentEnd - currentBegin).Ticks / currentSamplePeriod.Ticks);
-                        var byteCount = elementCount * sizeof(double);
+                        var byteCount = elementCount * sizeof(float);
 
                         foreach (var pipeWriter in pipeWriters)
                         {
                             var buffer = pipeWriter.DataWriter.GetMemory(byteCount)[..byteCount];
-                            MemoryMarshal.Cast<byte, double>(buffer.Span).Fill(1);
+                            MemoryMarshal.Cast<byte, float>(buffer.Span).Fill(1);
                             pipeWriter.DataWriter.Advance(byteCount);
                             await pipeWriter.DataWriter.FlushAsync(cancellationToken);
                         }
@@ -860,6 +873,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             [new DataReadingGroup(controller, [new CatalogItemRequestPipeWriter(request, pipe.Writer)])],
             default!,
             memoryTracker,
@@ -921,6 +935,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             [new DataReadingGroup(controller, [new CatalogItemRequestPipeWriter(request, pipe.Writer)])],
             default!,
             memoryTracker,
@@ -1016,7 +1031,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         // Assert
         processingService
             .Verify(processingService => processingService.Resample(
-               NexusDataType.FLOAT64,
+               NexusDataType.FLOAT32,
                It.IsAny<ReadOnlyMemory<byte>>(),
                It.IsAny<ReadOnlyMemory<byte>>(),
                It.IsAny<Memory<double>>(),
@@ -1028,8 +1043,8 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     public async Task CanReadCached()
     {
         // Arrange
-        var expected1 = new double[] { 65, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 101 };
-        var expected2 = new double[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
+        var expected1 = new float[] { 65, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 101 };
+        var expected2 = new float[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
 
         var begin = new DateTime(2020, 01, 01, 23, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2020, 01, 03, 1, 0, 0, DateTimeKind.Utc);
@@ -1201,14 +1216,15 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             begin,
             end,
             samplePeriod,
+            Precision.Float32,
             catalogItemRequestPipeWriters,
             default!,
             new Progress<double>(),
             CancellationToken.None);
 
         // Assert
-        var actual1 = MemoryMarshal.Cast<byte, double>((await pipe1.Reader.ReadAsync()).Buffer.First.Span).ToArray();
-        var actual2 = MemoryMarshal.Cast<byte, double>((await pipe2.Reader.ReadAsync()).Buffer.First.Span).ToArray();
+        var actual1 = MemoryMarshal.Cast<byte, float>((await pipe1.Reader.ReadAsync()).Buffer.First.Span).ToArray();
+        var actual2 = MemoryMarshal.Cast<byte, float>((await pipe2.Reader.ReadAsync()).Buffer.First.Span).ToArray();
 
         Assert.True(expected1.SequenceEqual(actual1));
         Assert.True(expected2.SequenceEqual(actual2));

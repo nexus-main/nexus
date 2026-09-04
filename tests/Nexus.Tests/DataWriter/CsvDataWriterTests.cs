@@ -7,6 +7,7 @@ using Nexus.Extensibility;
 using Nexus.Writers;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Xunit;
@@ -34,8 +35,8 @@ public class CsvDataWriterTests(DataWriterFixture fixture)
             {
                 ["row-index-format"] = JsonSerializer.SerializeToElement(rowIndexFormat),
                 ["significant-figures"] = JsonSerializer.SerializeToElement("7")
-            }
-        );
+            },
+            Precision: Precision.Float32);
 
         await dataWriter.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
@@ -54,22 +55,22 @@ public class CsvDataWriterTests(DataWriterFixture fixture)
         {
             Enumerable
                 .Range(0, length)
-                .Select(value => random.NextDouble() * 1e4)
+                .Select(value => (float)(random.NextDouble() * 1e4))
                 .ToArray(),
 
             Enumerable
                 .Range(0, length)
-                .Select(value => random.NextDouble() * -1)
+                .Select(value => (float)(random.NextDouble() * -1))
                 .ToArray(),
 
             Enumerable
                 .Range(0, length)
-                .Select(value => random.NextDouble() * Math.PI)
+                .Select(value => (float)(random.NextDouble() * Math.PI))
                 .ToArray()
         };
 
         var requests = catalogItems
-            .Select((catalogItem, i) => new WriteRequest(catalogItem, data[i]))
+            .Select((catalogItem, i) => new WriteRequest(catalogItem, MemoryMarshal.AsBytes<float>(data[i].AsSpan()).ToArray()))
             .ToArray();
 
         await dataWriter.OpenAsync(begin, default, samplePeriod, catalogItems, CancellationToken.None);
@@ -142,7 +143,7 @@ public class CsvDataWriterTests(DataWriterFixture fixture)
             "# catalog_id: /A/B/C",
             $"{expected[0].Item1},resource1_1_s (°C),resource1_10_s (°C)",
             $"{expected[0].Item3},2486.686,-0.7557958",
-            $"{expected[1].Item3},1107.44,-0.4584072",
+            $"{expected[1].Item3},1107.44,-0.4584073",
             $"{expected[2].Item3},4670.107,-0.001267695",
             $"{expected[3].Item3},7716.041,-0.09289372"
         };

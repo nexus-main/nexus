@@ -20,8 +20,8 @@ public record LineSeriesData(
 
 public sealed class LineSeries
 {
-    public LineSeries(string name, string unit, TimeSpan samplePeriod, double[] data)
-        : this(name, unit, samplePeriod, LineSeriesSource.FromArray(data))
+    public LineSeries(string name, string unit, TimeSpan samplePeriod, float[] data)
+        : this(name, unit, samplePeriod, new LineSeriesSource(data))
     {
     }
 
@@ -46,24 +46,18 @@ public sealed class LineSeries
 
 internal sealed class LineSeriesSource
 {
-    private LineSeriesSource(double[] values)
+    public LineSeriesSource(float[] values)
     {
         Values = values;
         Length = values.Length;
     }
 
     public int Length { get; }
-    private double[] Values { get; }
+    private float[] Values { get; }
 
-    public static LineSeriesSource FromArray(double[] values)
-    {
-        ArgumentNullException.ThrowIfNull(values);
-        return new LineSeriesSource((double[])values.Clone());
-    }
+    internal ReadOnlyMemory<float> Read(int offset, int count) => Values.AsMemory(offset, count);
 
-    internal ReadOnlyMemory<double> Read(int offset, int count) => Values.AsMemory(offset, count);
-
-    internal bool TryGetValue(int index, out double value)
+    internal bool TryGetValue(int index, out float value)
     {
         if ((uint)index < (uint)Values.Length)
         {

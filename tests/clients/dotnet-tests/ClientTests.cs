@@ -102,10 +102,10 @@ public class ClientTests
                 : BinaryResponse(content);
         }));
 
-        var result = await client.LoadAsync(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(2), paths);
+        var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(2), paths);
 
-        Assert.Equal([1d, 2d], result[paths[0]].Values);
-        Assert.Equal([3d, 4d], result[paths[1]].Values);
+        Assert.Equal([1f, 2f], result[paths[0]].Values);
+        Assert.Equal([3f, 4f], result[paths[1]].Values);
         Assert.Single(requests, current => current.RequestUri!.AbsolutePath == "/api/v2/data");
     }
 
@@ -119,9 +119,9 @@ public class ClientTests
                 ? JsonResponse(catalogItems, CreateJsonOptions())
                 : PinningBinaryResponse(Frame(0, 1))));
 
-        var result = await client.LoadAsync(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(1), [path]);
+        var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(1), [path]);
 
-        Assert.Equal([1d], result[path].Values);
+        Assert.Equal([1f], result[path].Values);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class ClientTests
                 ? JsonResponse(catalogItems, CreateJsonOptions())
                 : BinaryResponse(invalidFrame)));
 
-        await Assert.ThrowsAsync<Exception>(() => client.LoadAsync(
+        await Assert.ThrowsAsync<Exception>(() => client.LoadAsync<float>(
             DateTime.UnixEpoch,
             DateTime.UnixEpoch.AddSeconds(1),
             [path]));
@@ -152,7 +152,7 @@ public class ClientTests
     [Fact]
     public async Task RejectsTruncatedBatchFramePayload()
     {
-        var content = Header(resourceIndex: 0, payloadLength: sizeof(double))
+        var content = Header(resourceIndex: 0, payloadLength: sizeof(float))
             .Concat(new byte[] { 0, 0 })
             .ToArray();
 
@@ -227,7 +227,7 @@ public class ClientTests
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PinningReadStream(value)) };
     }
 
-    private static Task<IReadOnlyDictionary<string, DataResponse>> LoadBatchAsync(byte[] content, DateTime? end = default)
+    private static Task<IReadOnlyDictionary<string, DataResponse<float>>> LoadBatchAsync(byte[] content, DateTime? end = default)
     {
         var path = "/A/B/C";
         var catalogItems = CreateCatalogItemMap(path);
@@ -236,7 +236,7 @@ public class ClientTests
                 ? JsonResponse(catalogItems, CreateJsonOptions())
                 : BinaryResponse(content)));
 
-        return client.LoadAsync(DateTime.UnixEpoch, end ?? DateTime.UnixEpoch.AddSeconds(1), [path]);
+        return client.LoadAsync<float>(DateTime.UnixEpoch, end ?? DateTime.UnixEpoch.AddSeconds(1), [path]);
     }
 
     private static byte[] Header(int resourceIndex, int payloadLength)
@@ -247,14 +247,14 @@ public class ClientTests
         return result;
     }
 
-    private static byte[] Frame(int resourceIndex, params double[] values)
+    private static byte[] Frame(int resourceIndex, params float[] values)
     {
-        var result = new byte[8 + values.Length * sizeof(double)];
+        var result = new byte[8 + values.Length * sizeof(float)];
         BinaryPrimitives.WriteInt32LittleEndian(result, resourceIndex);
         BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(4), result.Length - 8);
 
         for (var index = 0; index < values.Length; index++)
-            BinaryPrimitives.WriteInt64LittleEndian(result.AsSpan(8 + index * sizeof(double)), BitConverter.DoubleToInt64Bits(values[index]));
+            BinaryPrimitives.WriteSingleLittleEndian(result.AsSpan(8 + index * sizeof(float)), values[index]);
 
         return result;
     }

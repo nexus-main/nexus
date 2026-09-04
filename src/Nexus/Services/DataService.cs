@@ -9,7 +9,6 @@ using System.IO.Pipelines;
 using System.Security.Claims;
 using System.Threading.Channels;
 using Nexus.Core;
-using Nexus.Core.V1;
 using Nexus.Core.V2;
 using Nexus.Extensibility;
 using Nexus.Utilities;
@@ -207,6 +206,7 @@ internal class DataService(
                 begin,
                 end,
                 samplePeriod,
+                request.Precision,
                 readingGroups.ToArray(),
                 ReadAsDoubleAsync,
                 _memoryTracker,
@@ -673,6 +673,7 @@ internal class DataService(
             exportParameters.Begin,
             exportParameters.End,
             exportContext.SamplePeriod,
+            exportParameters.Precision,
             readingGroups.ToArray(),
             exportContext.ReadDataHandler,
             _memoryTracker,

@@ -7,6 +7,7 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Core.V2;
 using Nexus.DataModel;
+using ExportParameters = Nexus.Core.V2.ExportParameters;
 using Nexus.Extensibility;
 using Nexus.Services;
 using System.Buffers.Binary;
@@ -152,7 +153,9 @@ public class DataServiceTests
             FilePeriod: TimeSpan.FromSeconds(10),
             Type: "A",
             ResourcePaths: [catalogItem1.ToPath(), catalogItem2.ToPath()],
-            Configuration: default);
+            Configuration: default,
+            Precision: Precision.Float32
+        );
 
         // data service
         var dataService = new DataService(
@@ -233,16 +236,17 @@ public class DataServiceTests
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
                 samplePeriod,
+                It.IsAny<Precision>(),
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
                 It.IsAny<CancellationToken>()))
-            .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
-                async (_, _, _, writers, _, progress, cancellationToken) =>
+            .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, _, _, writers, _, progress, cancellationToken) =>
                 {
                     foreach (var writer in writers)
                     {
-                        await writer.DataWriter.WriteAsync(BitConverter.GetBytes(1d), cancellationToken);
+                        await writer.DataWriter.WriteAsync(BitConverter.GetBytes(1f), cancellationToken);
                     }
 
                     progress.Report(1);
@@ -320,7 +324,7 @@ public class DataServiceTests
             loggerFactory);
 
         var stream = await dataService.ReadBatchAsStreamAsync(
-            new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s"]),
+            new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s"], Precision.Float32),
             CancellationToken.None);
 
         var sink = new MemoryStream();
@@ -371,15 +375,16 @@ public class DataServiceTests
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
                 samplePeriod,
+                It.IsAny<Precision>(),
                 It.IsAny<CatalogItemRequestPipeWriter[]>(),
                 It.IsAny<ReadDataHandler>(),
                 It.IsAny<IProgress<double>>(),
                 It.IsAny<CancellationToken>()))
-            .Returns<DateTime, DateTime, TimeSpan, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
-                async (_, _, _, writers, _, progress, cancellationToken) =>
+            .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, _, _, writers, _, progress, cancellationToken) =>
                 {
-                    await writers[1].DataWriter.WriteAsync(BitConverter.GetBytes(2d), cancellationToken);
-                    await writers[0].DataWriter.WriteAsync(BitConverter.GetBytes(1d), cancellationToken);
+                    await writers[1].DataWriter.WriteAsync(BitConverter.GetBytes(2f), cancellationToken);
+                    await writers[0].DataWriter.WriteAsync(BitConverter.GetBytes(1f), cancellationToken);
                     progress.Report(1);
                 });
 
@@ -450,26 +455,26 @@ public class DataServiceTests
             loggerFactory);
 
         var stream = await dataService.ReadBatchAsStreamAsync(
-            new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"]),
+            new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"], Precision.Float32),
             CancellationToken.None);
 
         var sink = new MemoryStream();
         await stream.CopyToAsync(sink).WaitAsync(TimeSpan.FromSeconds(5));
 
-        var frames = new Dictionary<int, double>();
+        var frames = new Dictionary<int, float>();
         var bytes = sink.ToArray();
 
-        for (var offset = 0; offset < bytes.Length; offset += 16)
+        for (var offset = 0; offset < bytes.Length; offset += 12)
         {
             var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
             var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 4));
 
-            Assert.Equal(sizeof(double), payloadLength);
-            frames.Add(resourceIndex, BitConverter.ToDouble(bytes, offset + 8));
+            Assert.Equal(sizeof(float), payloadLength);
+            frames.Add(resourceIndex, BitConverter.ToSingle(bytes, offset + 8));
         }
 
         Assert.Equal(2, frames.Count);
-        Assert.Equal(1d, frames[0]);
-        Assert.Equal(2d, frames[1]);
+        Assert.Equal(1f, frames[0]);
+        Assert.Equal(2f, frames[1]);
     }
 }

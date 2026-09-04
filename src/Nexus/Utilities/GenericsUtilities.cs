@@ -6,9 +6,34 @@ using System.Reflection.Emit;
 
 namespace Nexus.Utilities;
 
-internal static class GenericToDouble<T>
+internal static class GenericToFloat32<T>
 {
-    private static readonly Func<T, double> _to_double_function = GenericToDouble<T>.EmitToDoubleConverter();
+    private static readonly Func<T, float> _to_float_function = GenericToFloat32<T>.EmitToFloatConverter();
+
+    private static Func<T, float> EmitToFloatConverter()
+    {
+        var method = new DynamicMethod(string.Empty, typeof(float), [typeof(T)]);
+        var ilGenerator = method.GetILGenerator();
+
+        ilGenerator.Emit(OpCodes.Ldarg_0);
+
+        if (typeof(T) != typeof(float))
+            ilGenerator.Emit(OpCodes.Conv_R4);
+
+        ilGenerator.Emit(OpCodes.Ret);
+
+        return (Func<T, float>)method.CreateDelegate(typeof(Func<T, float>));
+    }
+
+    public static float ToFloat32(T value)
+    {
+        return _to_float_function(value);
+    }
+}
+
+internal static class GenericToFloat64<T>
+{
+    private static readonly Func<T, double> _to_double_function = GenericToFloat64<T>.EmitToDoubleConverter();
 
     private static Func<T, double> EmitToDoubleConverter()
     {
@@ -25,7 +50,7 @@ internal static class GenericToDouble<T>
         return (Func<T, double>)method.CreateDelegate(typeof(Func<T, double>));
     }
 
-    public static double ToDouble(T value)
+    public static double ToFloat64(T value)
     {
         return _to_double_function(value);
     }

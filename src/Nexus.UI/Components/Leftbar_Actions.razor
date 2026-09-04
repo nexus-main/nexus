@@ -1,7 +1,9 @@
 ﻿@implements IDisposable
 
-@using System.Text.Json
 @using System.Text
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using Nexus.Api.V2
 
 @inject ISnackbar Snackbar
 @inject AppState AppState
@@ -63,95 +65,103 @@
         try
         {
             using var stream = e.File.OpenReadStream(maxAllowedSize: long.MaxValue);
-            var exportParameters = await JsonSerializer.DeserializeAsync<ExportParameters>(stream, JsonSerializerOptions.Web);
+            var jsonObject = await JsonSerializer.DeserializeAsync<JsonObject>(stream, JsonSerializerOptions.Web);
 
-            if (exportParameters is not null)
+            if (jsonObject is not null)
             {
-                var catalogItemSelections = new List<CatalogItemSelectionViewModel>();
-                var commonSamplePeriod = default(TimeSpan);
+                if (!jsonObject.ContainsKey("Precision"))
+                    jsonObject["Precision"] = (int)Precision.Float32;
 
-                foreach (var resourcePath in exportParameters.ResourcePaths)
+                var exportParameters = jsonObject.Deserialize<Nexus.Api.V2.ExportParameters>(JsonSerializerOptions.Web);
+
+                if (exportParameters is not null)
                 {
-                    try
+                    var catalogItemSelections = new List<CatalogItemSelectionViewModel>();
+                    var commonSamplePeriod = default(TimeSpan);
+
+                    foreach (var resourcePath in exportParameters.ResourcePaths)
                     {
-                        Utilities.ParseResourcePath(
-                            resourcePath,
-                            out var parseResult,
-                            out var parsedParameters);
-
-                        if (commonSamplePeriod.Equals(default))
-                            commonSamplePeriod = parseResult.SamplePeriod;
-
-                        else if (commonSamplePeriod != parseResult.SamplePeriod)
-                            continue;
-
-                        // select catalog
-                        await AppState.RootCatalog.SelectCatalogAsync(parseResult.CatalogId);
-
-                        if (AppState.SelectedCatalog is not null && 
-                            AppState.SelectedCatalog.Catalog!.Resources is not null)
+                        try
                         {
-                            var catalog = AppState.SelectedCatalog.Catalog;
+                            Utilities.ParseResourcePath(
+                                resourcePath,
+                                out var parseResult,
+                                out var parsedParameters);
 
-                            // find resource                            
-                            var resource = catalog.Resources
-                                .FirstOrDefault(resource => resource.Id == parseResult.ResourceId);
+                            if (commonSamplePeriod.Equals(default))
+                                commonSamplePeriod = parseResult.SamplePeriod;
 
-                            if (resource is not null && resource.Representations is not null)
+                            else if (commonSamplePeriod != parseResult.SamplePeriod)
+                                continue;
+
+                            // select catalog
+                            await AppState.RootCatalog.SelectCatalogAsync(parseResult.CatalogId);
+
+                            if (AppState.SelectedCatalog is not null && 
+                                AppState.SelectedCatalog.Catalog!.Resources is not null)
                             {
-                                // find representation
-                                var representation = resource.Representations
-                                    .FirstOrDefault(representation => representation.SamplePeriod == parseResult.BasePeriod!.Value);
+                                var catalog = AppState.SelectedCatalog.Catalog;
 
-                                if (representation is not null)
+                                // find resource                            
+                                var resource = catalog.Resources
+                                    .FirstOrDefault(resource => resource.Id == parseResult.ResourceId);
+
+                                if (resource is not null && resource.Representations is not null)
                                 {
-                                    // try find catalog item selection
-                                    var catalogItemSelection = catalogItemSelections.FirstOrDefault(item => 
-                                        item.BaseItem.Catalog.Id == catalog.Id &&
-                                        item.BaseItem.Resource.Id == resource.Id &&
-                                        item.BaseItem.Representation.SamplePeriod == representation.SamplePeriod &&
-                                        (item.Parameters is null && parsedParameters is null ||
-                                            (item.Parameters is not null && parsedParameters is not null &&
-                                             item.Parameters.SequenceEqual(parsedParameters))));
+                                    // find representation
+                                    var representation = resource.Representations
+                                        .FirstOrDefault(representation => representation.SamplePeriod == parseResult.BasePeriod!.Value);
 
-                                    // there is none ... create a new one
-                                    if (catalogItemSelection is null)
+                                    if (representation is not null)
                                     {
-                                        Dictionary<string, string>? matchedParameters = default;
+                                        // try find catalog item selection
+                                        var catalogItemSelection = catalogItemSelections.FirstOrDefault(item => 
+                                            item.BaseItem.Catalog.Id == catalog.Id &&
+                                            item.BaseItem.Resource.Id == resource.Id &&
+                                            item.BaseItem.Representation.SamplePeriod == representation.SamplePeriod &&
+                                            (item.Parameters is null && parsedParameters is null ||
+                                                (item.Parameters is not null && parsedParameters is not null &&
+                                                 item.Parameters.SequenceEqual(parsedParameters))));
 
-                                        if (parsedParameters is not null && representation.Parameters is not null)
+                                        // there is none ... create a new one
+                                        if (catalogItemSelection is null)
                                         {
-                                            matchedParameters = parsedParameters
-                                                .Where(parsedParameter => parsedParameter.Value is not null && representation.Parameters.Any(current => current.Key == parsedParameter.Key))
-                                                .ToDictionary(
-                                                    parsedParameter => parsedParameter.Key,
-                                                    parsedParameter => parsedParameter.Value);
+                                            Dictionary<string, string>? matchedParameters = default;
 
-                                            // make sure all required parameters are there
-                                            if (!matchedParameters.Keys.SequenceEqual(representation.Parameters.Keys))
-                                                continue;
+                                            if (parsedParameters is not null && representation.Parameters is not null)
+                                            {
+                                                matchedParameters = parsedParameters
+                                                    .Where(parsedParameter => parsedParameter.Value is not null && representation.Parameters.Any(current => current.Key == parsedParameter.Key))
+                                                    .ToDictionary(
+                                                        parsedParameter => parsedParameter.Key,
+                                                        parsedParameter => parsedParameter.Value);
+
+                                                // make sure all required parameters are there
+                                                if (!matchedParameters.Keys.SequenceEqual(representation.Parameters.Keys))
+                                                    continue;
+                                            }
+
+                                            var catalogItem = new CatalogItemViewModel(catalog, resource, representation);
+                                            catalogItemSelection = new CatalogItemSelectionViewModel(catalogItem, matchedParameters);
+                                            catalogItemSelections.Add(catalogItemSelection);
                                         }
 
-                                        var catalogItem = new CatalogItemViewModel(catalog, resource, representation);
-                                        catalogItemSelection = new CatalogItemSelectionViewModel(catalogItem, matchedParameters);
-                                        catalogItemSelections.Add(catalogItemSelection);
+                                        // add the kind
+                                        catalogItemSelection.Kinds.Add(parseResult.Kind);
                                     }
-
-                                    // add the kind
-                                    catalogItemSelection.Kinds.Add(parseResult.Kind);
                                 }
                             }
                         }
+                        catch (Exception)
+                        {
+                            //
+                        }
                     }
-                    catch (Exception)
-                    {
-                        //
-                    }
-                }
 
-                AppState.Settings.SamplePeriod = new Period(commonSamplePeriod);
-                AppState.Settings.SetSelectedCatalogItems(catalogItemSelections);
-                AppState.ExportParameters = exportParameters;
+                    AppState.Settings.SamplePeriod = new Period(commonSamplePeriod);
+                    AppState.Settings.SetSelectedCatalogItems(catalogItemSelections);
+                    AppState.ExportParameters = exportParameters;
+                }
             }
         }
         catch (Exception ex)

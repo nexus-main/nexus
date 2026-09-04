@@ -15,7 +15,7 @@ public class NexusDemoClientTests
         var begin = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var resourcePath = "/SAMPLE/LOCAL/temperature/1_min";
 
-        var result = await client.LoadAsync(begin, begin.AddMinutes(2), [resourcePath]);
+        var result = await client.LoadAsync<float>(begin, begin.AddMinutes(2), [resourcePath]);
 
         var response = Assert.Single(result).Value;
         Assert.Equal(TimeSpan.FromMinutes(1), response.SamplePeriod);
@@ -31,7 +31,7 @@ public class NexusDemoClientTests
     {
         var client = new NexusDemoClient();
         var begin = DateTime.UnixEpoch;
-        var result = await client.LoadAsync(begin, begin.AddMinutes(2),
+        var result = await client.LoadAsync<float>(begin, begin.AddMinutes(2),
         [
             "/SAMPLE/LOCAL/temperature/1_min",
             "/SAMPLE/LOCAL/wind_speed/1_min"

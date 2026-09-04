@@ -219,7 +219,7 @@ public class UtilitiesTests
     }
 
     [Fact]
-    public void CanApplyRepresentationStatus()
+    public void CanApplyRepresentationStatusFloat64()
     {
         // Arrange
         var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -228,14 +228,30 @@ public class UtilitiesTests
         var expected = new double[] { 1, double.NaN, 3, double.NaN, 5, double.NaN, 7, double.NaN };
 
         // Act
-        BufferUtilities.ApplyRepresentationStatus<int>(data, status, actual);
+        BufferUtilities.ApplyRepresentationStatusFloat64<int>(data, status, actual);
 
         // Assert
         Assert.True(expected.SequenceEqual(actual.ToArray()));
     }
 
     [Fact]
-    public void CanApplyRepresentationStatusByType()
+    public void CanApplyRepresentationStatusFloat32()
+    {
+        // Arrange
+        var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        var actual = new float[status.Length];
+        var expected = new float[] { 1, float.NaN, 3, float.NaN, 5, float.NaN, 7, float.NaN };
+
+        // Act
+        BufferUtilities.ApplyRepresentationStatusFloat32<int>(data, status, actual);
+
+        // Assert
+        Assert.True(expected.SequenceEqual(actual.ToArray()));
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatusFloat64ByType()
     {
         // Arrange
         var data = new CastMemoryManager<int, byte>(new int[] { 1, 2, 3, 4, 5, 6, 7, 8 }).Memory;
@@ -244,7 +260,23 @@ public class UtilitiesTests
         var expected = new double[] { 1, double.NaN, 3, double.NaN, 5, double.NaN, 7, double.NaN };
 
         // Act
-        BufferUtilities.ApplyRepresentationStatusByDataType(NexusDataType.INT32, data, status, actual);
+        BufferUtilities.ApplyRepresentationStatusFloat64ByDataType(NexusDataType.INT32, data, status, actual);
+
+        // Assert
+        Assert.True(expected.SequenceEqual(actual.ToArray()));
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatusByTypeFloat32()
+    {
+        // Arrange
+        var data = new CastMemoryManager<int, byte>(new int[] { 1, 2, 3, 4, 5, 6, 7, 8 }).Memory;
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        var actual = new float[status.Length];
+        var expected = new float[] { 1, float.NaN, 3, float.NaN, 5, float.NaN, 7, float.NaN };
+
+        // Act
+        BufferUtilities.ApplyRepresentationStatusFloat32ByDataType(NexusDataType.INT32, data, status, actual);
 
         // Assert
         Assert.True(expected.SequenceEqual(actual.ToArray()));
@@ -270,7 +302,33 @@ public class UtilitiesTests
         where T : unmanaged //, IEqualityComparer<T> (does not compile correctly)
     {
         // Act
-        var actual = GenericToDouble<T>.ToDouble(value);
+        var actual = GenericToFloat64<T>.ToFloat64(value);
+
+        // Assert
+        Assert.Equal(expected, actual, precision: 3);
+    }
+
+    public static IList<object[]> ToFloat32Data { get; } = new List<object[]>
+    {
+        new object[]{ (byte)99, (float)99 },
+        new object[]{ (sbyte)-99, (float)-99 },
+        new object[]{ (ushort)99, (float)99 },
+        new object[]{ (short)-99, (float)-99 },
+        new object[]{ (uint)99, (float)99 },
+        new object[]{ (int)-99, (float)-99 },
+        new object[]{ (ulong)99, (float)99 },
+        new object[]{ (long)-99, (float)-99 },
+        new object[]{ (float)-99.123, (float)-99.123 },
+        new object[]{ (double)-99.123, (float)-99.123 },
+    };
+
+    [Theory]
+    [MemberData(nameof(ToFloat32Data))]
+    public void CanGenericConvertToFloat32<T>(T value, float expected)
+        where T : unmanaged
+    {
+        // Act
+        var actual = GenericToFloat32<T>.ToFloat32(value);
 
         // Assert
         Assert.Equal(expected, actual, precision: 3);

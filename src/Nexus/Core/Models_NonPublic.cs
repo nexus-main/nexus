@@ -20,6 +20,7 @@ internal record struct Interval(
 
 internal record ReadUnit(
     CatalogItemRequest CatalogItemRequest,
+    Precision Precision,
     PipeWriter DataWriter);
 
 internal record CatalogItemRequest(
@@ -40,7 +41,7 @@ internal record ExportContext(
     TimeSpan SamplePeriod,
     IEnumerable<CatalogItemRequest> CatalogItemRequests,
     ReadDataHandler ReadDataHandler,
-    ExportParameters ExportParameters);
+    V2.ExportParameters ExportParameters);
 
 internal record JobControl(
     DateTime Start,

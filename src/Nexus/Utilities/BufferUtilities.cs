@@ -9,24 +9,55 @@ namespace Nexus.Utilities;
 
 internal static class BufferUtilities
 {
-    public static void ApplyRepresentationStatusByDataType(NexusDataType dataType, ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<double> target)
+    public static void ApplyRepresentationStatusFloat32ByDataType(NexusDataType dataType, ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<float> target)
     {
         var targetType = NexusUtilities.GetTypeFromNexusDataType(dataType);
 
         var method = typeof(BufferUtilities)
-            .GetMethod(nameof(InternalApplyRepresentationStatusByDataType), BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetMethod(nameof(InternalApplyRepresentationStatusFloat32ByDataType), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(targetType);
 
-        method.Invoke(null, new object[] { data, status, target });
+        method.Invoke(null, [data, status, target]);
     }
 
-    private static void InternalApplyRepresentationStatusByDataType<T>(ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<double> target)
+    private static void InternalApplyRepresentationStatusFloat32ByDataType<T>(ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<float> target)
         where T : unmanaged
     {
-        ApplyRepresentationStatus<T>(data.Cast<byte, T>(), status, target);
+        ApplyRepresentationStatusFloat32(data.Cast<byte, T>(), status, target);
     }
 
-    public static unsafe void ApplyRepresentationStatus<T>(ReadOnlyMemory<T> data, ReadOnlyMemory<byte> status, Memory<double> target) where T : unmanaged
+    public static void ApplyRepresentationStatusFloat64ByDataType(NexusDataType dataType, ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<double> target)
+    {
+        var targetType = NexusUtilities.GetTypeFromNexusDataType(dataType);
+
+        var method = typeof(BufferUtilities)
+            .GetMethod(nameof(InternalApplyRepresentationStatusFloat64ByDataType), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(targetType);
+
+        method.Invoke(null, [data, status, target]);
+    }
+
+    private static void InternalApplyRepresentationStatusFloat64ByDataType<T>(ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<double> target)
+        where T : unmanaged
+    {
+        ApplyRepresentationStatusFloat64(data.Cast<byte, T>(), status, target);
+    }
+
+    public static unsafe void ApplyRepresentationStatusFloat32<T>(ReadOnlyMemory<T> data, ReadOnlyMemory<byte> status, Memory<float> target) where T : unmanaged
+    {
+        fixed (T* dataPtr = data.Span)
+        {
+            fixed (byte* statusPtr = status.Span)
+            {
+                fixed (float* targetPtr = target.Span)
+                {
+                    InternalApplyRepresentationStatusFloat32(target.Length, dataPtr, statusPtr, targetPtr);
+                }
+            }
+        }
+    }
+
+    public static unsafe void ApplyRepresentationStatusFloat64<T>(ReadOnlyMemory<T> data, ReadOnlyMemory<byte> status, Memory<double> target) where T : unmanaged
     {
         fixed (T* dataPtr = data.Span)
         {
@@ -34,13 +65,25 @@ internal static class BufferUtilities
             {
                 fixed (double* targetPtr = target.Span)
                 {
-                    InternalApplyRepresentationStatus(target.Length, dataPtr, statusPtr, targetPtr);
+                    InternalApplyRepresentationStatusFloat64(target.Length, dataPtr, statusPtr, targetPtr);
                 }
             }
         }
     }
 
-    private unsafe static void InternalApplyRepresentationStatus<T>(int length, T* dataPtr, byte* statusPtr, double* targetPtr) where T : unmanaged
+    private unsafe static void InternalApplyRepresentationStatusFloat32<T>(int length, T* dataPtr, byte* statusPtr, float* targetPtr) where T : unmanaged
+    {
+        Parallel.For(0, length, i =>
+        {
+            if (statusPtr[i] != 1)
+                targetPtr[i] = float.NaN;
+
+            else
+                targetPtr[i] = GenericToFloat32<T>.ToFloat32(dataPtr[i]);
+        });
+    }
+
+    private unsafe static void InternalApplyRepresentationStatusFloat64<T>(int length, T* dataPtr, byte* statusPtr, double* targetPtr) where T : unmanaged
     {
         Parallel.For(0, length, i =>
         {
@@ -48,7 +91,7 @@ internal static class BufferUtilities
                 targetPtr[i] = double.NaN;
 
             else
-                targetPtr[i] = GenericToDouble<T>.ToDouble(dataPtr[i]);
+                targetPtr[i] = GenericToFloat64<T>.ToFloat64(dataPtr[i]);
         });
     }
 }

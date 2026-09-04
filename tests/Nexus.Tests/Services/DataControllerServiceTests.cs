@@ -9,6 +9,8 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Nexus.Core;
 using Nexus.Core.V1;
+using Nexus.DataModel;
+using ExportParameters = Nexus.Core.V2.ExportParameters;
 using Nexus.Extensibility;
 using Nexus.Services;
 using Nexus.Sources;
@@ -111,7 +113,7 @@ public class DataControllerServiceTests
 
         var loggerFactory = Mock.Of<ILoggerFactory>();
         var resourceLocator = new Uri("A", UriKind.Relative);
-        var exportParameters = new ExportParameters(default, default, default, "dummy", default!, default);
+        var exportParameters = new ExportParameters(default, default, default, "dummy", default!, default, Precision.Float32);
 
         // Act
         var dataControllerService = new DataControllerService(

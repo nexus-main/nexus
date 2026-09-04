@@ -6,7 +6,7 @@ from datetime import datetime
 import pytest
 from httpx import Client, MockTransport, Request, Response, SyncByteStream, codes
 from nexus_api import NexusClient, NexusException
-from nexus_api.V2 import BatchStreamRequest
+from nexus_api.V2 import BatchStreamRequest, Precision
 
 nexus_configuration_header_key = "Nexus-Configuration"
 
@@ -77,7 +77,7 @@ def _catalog_item_map(paths: list[str]):
 
 
 def _frame(index: int, *values: float):
-    payload = struct.pack(f"<{len(values)}d", *values)
+    payload = struct.pack(f"<{len(values)}f", *values)
     return struct.pack("<ii", index, len(payload)) + payload
 
 
@@ -95,7 +95,7 @@ def can_load_framed_response_over_http_test():
         return Response(codes.OK, content=content)
 
     with NexusClient(Client(base_url="http://localhost", transport=MockTransport(handler))) as client:
-        result = client.load(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 2), paths, None)
+        result = client.load(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 2), paths, Precision.FLOAT32, None)
 
     assert list(result[paths[0]].values) == [1, 2]
     assert list(result[paths[1]].values) == [3, 4]
@@ -122,7 +122,7 @@ def streamed_unsuccessful_response_has_body_and_closes_test():
     http_client = Client(base_url="http://localhost", transport=MockTransport(handler))
     client = NexusClient(http_client)
 
-    request = BatchStreamRequest(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 1), ["/A/B/C"])
+    request = BatchStreamRequest(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 1), ["/A/B/C"], Precision.FLOAT32)
     with pytest.raises(NexusException, match="stream failed"):
         client.v2.data.get_stream(request)
 
@@ -134,7 +134,7 @@ def rejects_invalid_batch_frame_test():
     client = NexusClient(Client(base_url="http://localhost"))
 
     with pytest.raises(Exception, match="resource index"):
-        client._read_batch(response, [8])
+        client._read_batch(response, [4], Precision.FLOAT32)
 
 
 def rejects_truncated_batch_frame_header_test():
@@ -142,15 +142,15 @@ def rejects_truncated_batch_frame_header_test():
     client = NexusClient(Client(base_url="http://localhost"))
 
     with pytest.raises(Exception, match="middle of a frame"):
-        client._read_batch(response, [8])
+        client._read_batch(response, [4], Precision.FLOAT32)
 
 
 def rejects_truncated_batch_frame_payload_test():
-    response = Response(codes.OK, stream=_TrackingStream(_header(0, 8) + b"\x00\x00"))
+    response = Response(codes.OK, stream=_TrackingStream(_header(0, 4) + b"\x00\x00"))
     client = NexusClient(Client(base_url="http://localhost"))
 
     with pytest.raises(Exception, match="middle of a frame"):
-        client._read_batch(response, [8])
+        client._read_batch(response, [4], Precision.FLOAT32)
 
 
 def rejects_incomplete_batch_stream_test():
@@ -158,4 +158,4 @@ def rejects_incomplete_batch_stream_test():
     client = NexusClient(Client(base_url="http://localhost"))
 
     with pytest.raises(Exception, match="before all data was received"):
-        client._read_batch(response, [16])
+        client._read_batch(response, [8], Precision.FLOAT32)

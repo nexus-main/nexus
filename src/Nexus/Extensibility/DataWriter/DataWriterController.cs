@@ -31,6 +31,7 @@ internal class DataWriterController(
     IDataWriter dataWriter,
     Uri resourceLocator,
     IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
+    Precision precision,
     ILogger<DataWriterController> logger) : IDataWriterController
 {
     private IReadOnlyDictionary<string, JsonElement>? RequestConfiguration { get; } = requestConfiguration;
@@ -38,6 +39,8 @@ internal class DataWriterController(
     private IDataWriter DataWriter { get; } = dataWriter;
 
     private Uri ResourceLocator { get; } = resourceLocator;
+
+    private Precision Precision { get; } = precision;
 
     private ILogger Logger { get; } = logger;
 
@@ -47,7 +50,8 @@ internal class DataWriterController(
     {
         var context = new DataWriterContext(
             ResourceLocator: ResourceLocator,
-            RequestConfiguration: RequestConfiguration
+            RequestConfiguration: RequestConfiguration,
+            Precision: Precision
         );
 
         await DataWriter.SetContextAsync(context, logger, cancellationToken);
@@ -72,7 +76,8 @@ internal class DataWriterController(
                 throw new ValidationException("All representations must be of the same sample period.");
         }
 
-        DataWriterController.ValidateParameters(begin, samplePeriod, filePeriod);
+        ValidateParameters(begin, samplePeriod, filePeriod);
+        var elementSize = (int)Precision;
 
         /* periods */
         var totalPeriod = end - begin;
@@ -148,7 +153,7 @@ internal class DataWriterController(
                     .ToArray();
 
                 var readResults = await NexusUtilities.WhenAll(readResultTasks);
-                var bufferPeriod = readResults.Min(readResult => readResult.Buffer.First.Cast<byte, double>().Length) * samplePeriod;
+                var bufferPeriod = readResults.Min(readResult => readResult.Buffer.First.Length / elementSize) * samplePeriod;
 
                 if (bufferPeriod == default)
                     throw new ValidationException("The pipe is empty.");
@@ -182,7 +187,7 @@ internal class DataWriterController(
 
                     var writeRequest = new WriteRequest(
                         catalogItem,
-                        readResult.Buffer.First.Cast<byte, double>()[..currentLength]);
+                        readResult.Buffer.First[..(currentLength * elementSize)]);
 
                     return writeRequest;
                 }).ToArray();
@@ -196,7 +201,7 @@ internal class DataWriterController(
                 /* advance */
                 foreach (var ((_, dataReader), readResult) in catalogItemRequestPipeReaders.Zip(readResults))
                 {
-                    dataReader.AdvanceTo(readResult.Buffer.GetPosition(currentLength * sizeof(double)));
+                    dataReader.AdvanceTo(readResult.Buffer.GetPosition(currentLength * elementSize));
                 }
 
                 /* update loop state */
