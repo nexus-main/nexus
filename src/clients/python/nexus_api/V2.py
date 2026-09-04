@@ -188,10 +188,10 @@ class BatchStreamRequest:
 class Precision(Enum):
     """Specifies floating point precision for API output values."""
 
-    FLOAT32 = "FLOAT32"
+    FLOAT32 = 4
     """Float32"""
 
-    FLOAT64 = "FLOAT64"
+    FLOAT64 = 8
     """Float64"""
 
 

@@ -219,7 +219,7 @@ class NexusClient:
         if not resource_path_list:
             return {}
 
-        precision_size = 4 if precision == Precision.FLOAT32 else 8
+        precision_size = precision.value
 
         catalog_item_map = self.v1.catalogs.search_catalog_items(resource_path_list)
         response = self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list, precision))
@@ -638,7 +638,7 @@ class NexusAsyncClient:
         if not resource_path_list:
             return {}
 
-        precision_size = 4 if precision == Precision.FLOAT32 else 8
+        precision_size = precision.value
 
         catalog_item_map = await self.v1.catalogs.search_catalog_items(resource_path_list)
         response = await self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list, precision))
