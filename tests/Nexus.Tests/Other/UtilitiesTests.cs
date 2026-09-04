@@ -6,6 +6,7 @@ using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Utilities;
 using OpenIddict.Abstractions;
+using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Text.Json;
 using Xunit;
@@ -280,6 +281,230 @@ public class UtilitiesTests
 
         // Assert
         Assert.True(expected.SequenceEqual(actual.ToArray()));
+    }
+
+    // ===== Comprehensive BufferUtilities tests for all 10 NexusDataType types =====
+
+    private static float[] ComputeExpectedFloat32<T>(T[] data, byte[] status) where T : unmanaged
+    {
+        var result = new float[data.Length];
+        for (int i = 0; i < data.Length; i++)
+            result[i] = status[i] != 0 ? GenericToFloat32<T>.ToFloat32(data[i]) : float.NaN;
+        return result;
+    }
+
+    private static double[] ComputeExpectedFloat64<T>(T[] data, byte[] status) where T : unmanaged
+    {
+        var result = new double[data.Length];
+        for (int i = 0; i < data.Length; i++)
+            result[i] = status[i] != 0 ? GenericToFloat64<T>.ToFloat64(data[i]) : double.NaN;
+        return result;
+    }
+
+    private static void VerifyGenericFloat32<T>(T[] data, byte[] status) where T : unmanaged
+    {
+        var expected = ComputeExpectedFloat32(data, status);
+        var actual = new float[data.Length];
+        BufferUtilities.ApplyRepresentationStatusFloat32<T>(data, status, actual);
+        Assert.True(expected.SequenceEqual(actual),
+            $"Float32 generic mismatch for {typeof(T).Name}");
+    }
+
+    private static void VerifyGenericFloat64<T>(T[] data, byte[] status) where T : unmanaged
+    {
+        var expected = ComputeExpectedFloat64(data, status);
+        var actual = new double[data.Length];
+        BufferUtilities.ApplyRepresentationStatusFloat64<T>(data, status, actual);
+        Assert.True(expected.SequenceEqual(actual),
+            $"Float64 generic mismatch for {typeof(T).Name}");
+    }
+
+    private static void VerifyByDataTypeFloat32<T>(NexusDataType dataType, T[] data, byte[] status) where T : unmanaged
+    {
+        var expected = ComputeExpectedFloat32(data, status);
+        var dataBytes = new CastMemoryManager<T, byte>(data).Memory;
+        var actual = new float[data.Length];
+        BufferUtilities.ApplyRepresentationStatusFloat32ByDataType(dataType, dataBytes, status, actual);
+        Assert.True(expected.SequenceEqual(actual),
+            $"Float32 ByDataType mismatch for {dataType}");
+    }
+
+    private static void VerifyByDataTypeFloat64<T>(NexusDataType dataType, T[] data, byte[] status) where T : unmanaged
+    {
+        var expected = ComputeExpectedFloat64(data, status);
+        var dataBytes = new CastMemoryManager<T, byte>(data).Memory;
+        var actual = new double[data.Length];
+        BufferUtilities.ApplyRepresentationStatusFloat64ByDataType(dataType, dataBytes, status, actual);
+        Assert.True(expected.SequenceEqual(actual),
+            $"Float64 ByDataType mismatch for {dataType}");
+    }
+
+    private static void VerifyAll<T>(NexusDataType dataType, T[] data, byte[] status) where T : unmanaged
+    {
+        VerifyGenericFloat32(data, status);
+        VerifyGenericFloat64(data, status);
+        VerifyByDataTypeFloat32(dataType, data, status);
+        VerifyByDataTypeFloat64(dataType, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_Byte()
+    {
+        var data = new byte[] { 0, 1, 127, 128, 255, 0, 100, 200 };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.UINT8, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_SByte()
+    {
+        var data = new sbyte[] { -128, -1, 0, 1, 127, -127, 100, -100 };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.INT8, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_UShort()
+    {
+        var data = new ushort[] { 0, 1, 32767, 32768, 65535, 100, 200, 300 };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.UINT16, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_Short()
+    {
+        var data = new short[] { -32768, -1, 0, 1, 32767, -100, 100, 200 };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.INT16, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_UInt()
+    {
+        var data = new uint[] { 0u, 1u, 2147483647u, 2147483648u, 4294967295u, 100u, 200u, 300u };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.UINT32, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_Int()
+    {
+        var data = new int[] { -2147483648, -1, 0, 1, 2147483647, -100, 100, 200 };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.INT32, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_ULong()
+    {
+        var data = new ulong[] { 0ul, 1ul, 9223372036854775807ul, 9223372036854775808ul, 18446744073709551615ul, 100ul, 200ul, 300ul };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.UINT64, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_Long()
+    {
+        var data = new long[] { -9223372036854775808L, -1L, 0L, 1L, 9223372036854775807L, -100L, 100L, 200L };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.INT64, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_Float()
+    {
+        var data = new float[] { -1.5f, 0f, 1.5f, -3.14f, 3.14f, 100.5f, -100.5f, 200.25f };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.FLOAT32, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_Double()
+    {
+        var data = new double[] { -1.5, 0.0, 1.5, -3.14, 3.14, 100.5, -100.5, 200.25 };
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+        VerifyAll(NexusDataType.FLOAT64, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_LargeArray()
+    {
+        var count = 100;
+        var data = new int[count];
+        var status = new byte[count];
+        for (int i = 0; i < count; i++)
+        {
+            data[i] = i - 50;
+            status[i] = (byte)((i & 1) == 0 ? 1 : 0);
+        }
+        VerifyAll(NexusDataType.INT32, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_AllGoodStatus()
+    {
+        var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        var status = new byte[] { 1, 1, 1, 1, 1, 1, 1, 1 };
+        VerifyAll(NexusDataType.INT32, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_AllBadStatus()
+    {
+        var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        var status = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 };
+        VerifyAll(NexusDataType.INT32, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_SmallArray()
+    {
+        var data = new int[] { 1, 2, 3 };
+        var status = new byte[] { 1, 0, 1 };
+        VerifyAll(NexusDataType.INT32, data, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_EmptyArray()
+    {
+        var data = Array.Empty<int>();
+        var status = Array.Empty<byte>();
+        VerifyAll(NexusDataType.INT32, data, status);
+    }
+
+    [Fact]
+    public void ScalarAndVectorizedProduceSameResult_AllTypes()
+    {
+        var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
+
+        CompareScalarVectorized(new byte[] { 0, 1, 127, 128, 255, 0, 100, 200 }, status);
+        CompareScalarVectorized(new sbyte[] { -128, -1, 0, 1, 127, -127, 100, -100 }, status);
+        CompareScalarVectorized(new ushort[] { 0, 1, 32767, 32768, 65535, 100, 200, 300 }, status);
+        CompareScalarVectorized(new short[] { -32768, -1, 0, 1, 32767, -100, 100, 200 }, status);
+        CompareScalarVectorized(new uint[] { 0u, 1u, 2147483647u, 2147483648u, 4294967295u, 100u, 200u, 300u }, status);
+        CompareScalarVectorized(new int[] { -2147483648, -1, 0, 1, 2147483647, -100, 100, 200 }, status);
+        CompareScalarVectorized(new ulong[] { 0ul, 1ul, 9223372036854775807ul, 9223372036854775808ul, 18446744073709551615ul, 100ul, 200ul, 300ul }, status);
+        CompareScalarVectorized(new long[] { -9223372036854775808L, -1L, 0L, 1L, 9223372036854775807L, -100L, 100L, 200L }, status);
+        CompareScalarVectorized(new float[] { -1.5f, 0f, 1.5f, -3.14f, 3.14f, 100.5f, -100.5f, 200.25f }, status);
+        CompareScalarVectorized(new double[] { -1.5, 0.0, 1.5, -3.14, 3.14, 100.5, -100.5, 200.25 }, status);
+    }
+
+    private static void CompareScalarVectorized<T>(T[] data, byte[] status) where T : unmanaged
+    {
+        var scalar32 = new float[data.Length];
+        var vectorized32 = new float[data.Length];
+        BufferUtilities.ScalarApplyRepresentationStatusFloat32<T>(data, status, scalar32);
+        BufferUtilities.ApplyRepresentationStatusFloat32<T>(data, status, vectorized32);
+        Assert.True(scalar32.SequenceEqual(vectorized32),
+            $"Float32 scalar vs vectorized mismatch for {typeof(T).Name}");
+
+        var scalar64 = new double[data.Length];
+        var vectorized64 = new double[data.Length];
+        BufferUtilities.ScalarApplyRepresentationStatusFloat64<T>(data, status, scalar64);
+        BufferUtilities.ApplyRepresentationStatusFloat64<T>(data, status, vectorized64);
+        Assert.True(scalar64.SequenceEqual(vectorized64),
+            $"Float64 scalar vs vectorized mismatch for {typeof(T).Name}");
     }
 
     public static IList<object[]> ToDoubleData { get; } = new List<object[]>

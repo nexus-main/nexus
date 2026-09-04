@@ -2,6 +2,9 @@
   <Folder Name="/profiling/">
     <Project Path="profiling/Nexus.Profiling/Nexus.Profiling.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Nexus.Benchmarks/Nexus.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj" />
     <Project Path="src/Nexus.UI/Nexus.UI.csproj" />

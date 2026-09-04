@@ -5,6 +5,7 @@
   <ItemGroup>
     <PackageVersion Include="Apollo3zehn.OpenApiClientGenerator" Version="1.0.0-beta.26" />
     <PackageVersion Include="Apollo3zehn.PackageManagement" Version="1.0.0-beta.9" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="BlazorJsonForm" Version="1.0.0-beta.4" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.2" />

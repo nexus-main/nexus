@@ -18,7 +18,12 @@ internal static class GenericToFloat32<T>
         ilGenerator.Emit(OpCodes.Ldarg_0);
 
         if (typeof(T) != typeof(float))
+        {
+            if (typeof(T) == typeof(uint) || typeof(T) == typeof(ulong))
+                ilGenerator.Emit(OpCodes.Conv_R_Un);
+
             ilGenerator.Emit(OpCodes.Conv_R4);
+        }
 
         ilGenerator.Emit(OpCodes.Ret);
 
@@ -43,7 +48,12 @@ internal static class GenericToFloat64<T>
         ilGenerator.Emit(OpCodes.Ldarg_0);
 
         if (typeof(T) != typeof(double))
+        {
+            if (typeof(T) == typeof(uint) || typeof(T) == typeof(ulong))
+                ilGenerator.Emit(OpCodes.Conv_R_Un);
+
             ilGenerator.Emit(OpCodes.Conv_R8);
+        }
 
         ilGenerator.Emit(OpCodes.Ret);
 
