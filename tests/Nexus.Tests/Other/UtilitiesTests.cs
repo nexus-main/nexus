@@ -232,7 +232,7 @@ public class UtilitiesTests
         BufferUtilities.ApplyRepresentationStatusFloat64<int>(data, status, actual);
 
         // Assert
-        Assert.True(expected.SequenceEqual(actual.ToArray()));
+        Assert.True(expected.SequenceEqual(actual));
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public class UtilitiesTests
         BufferUtilities.ApplyRepresentationStatusFloat32<int>(data, status, actual);
 
         // Assert
-        Assert.True(expected.SequenceEqual(actual.ToArray()));
+        Assert.True(expected.SequenceEqual(actual));
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public class UtilitiesTests
         BufferUtilities.ApplyRepresentationStatusFloat64ByDataType(NexusDataType.INT32, data, status, actual);
 
         // Assert
-        Assert.True(expected.SequenceEqual(actual.ToArray()));
+        Assert.True(expected.SequenceEqual(actual));
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public class UtilitiesTests
         BufferUtilities.ApplyRepresentationStatusFloat32ByDataType(NexusDataType.INT32, data, status, actual);
 
         // Assert
-        Assert.True(expected.SequenceEqual(actual.ToArray()));
+        Assert.True(expected.SequenceEqual(actual));
     }
 
     // ===== Comprehensive BufferUtilities tests for all 10 NexusDataType types =====
@@ -289,7 +289,7 @@ public class UtilitiesTests
     {
         var result = new float[data.Length];
         for (int i = 0; i < data.Length; i++)
-            result[i] = status[i] != 0 ? GenericToFloat32<T>.ToFloat32(data[i]) : float.NaN;
+            result[i] = status[i] == 1 ? GenericToFloat32<T>.ToFloat32(data[i]) : float.NaN;
         return result;
     }
 
@@ -297,7 +297,7 @@ public class UtilitiesTests
     {
         var result = new double[data.Length];
         for (int i = 0; i < data.Length; i++)
-            result[i] = status[i] != 0 ? GenericToFloat64<T>.ToFloat64(data[i]) : double.NaN;
+            result[i] = status[i] == 1 ? GenericToFloat64<T>.ToFloat64(data[i]) : double.NaN;
         return result;
     }
 
@@ -382,7 +382,7 @@ public class UtilitiesTests
     [Fact]
     public void CanApplyRepresentationStatus_UInt()
     {
-        var data = new uint[] { 0u, 1u, 2147483647u, 2147483648u, 4294967295u, 100u, 200u, 300u };
+        var data = new uint[] { 0u, 1u, 2147483647u, 2147483648u, 4294967295u, 100u, 2164260993u, 300u };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
         VerifyAll(NexusDataType.UINT32, data, status);
     }
@@ -431,13 +431,32 @@ public class UtilitiesTests
     public void CanApplyRepresentationStatus_LargeArray()
     {
         var count = 100;
-        var data = new int[count];
         var status = new byte[count];
+        var intData = new int[count];
+        var uintData = new uint[count];
+        var longData = new long[count];
+        var ulongData = new ulong[count];
+
         for (int i = 0; i < count; i++)
         {
-            data[i] = i - 50;
+            intData[i] = i - 50;
+            uintData[i] = 2164260993u + (uint)i;
+            longData[i] = (i & 1) == 0 ? long.MinValue + i : long.MaxValue - i;
+            ulongData[i] = (i & 1) == 0 ? (ulong)i : ulong.MaxValue - (ulong)i;
             status[i] = (byte)((i & 1) == 0 ? 1 : 0);
         }
+
+        VerifyAll(NexusDataType.INT32, intData, status);
+        VerifyAll(NexusDataType.UINT32, uintData, status);
+        VerifyAll(NexusDataType.INT64, longData, status);
+        VerifyAll(NexusDataType.UINT64, ulongData, status);
+    }
+
+    [Fact]
+    public void CanApplyRepresentationStatus_OnlyStatusOneIsValid()
+    {
+        var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        var status = new byte[] { 1, 2, 255, 0, 1, 2, 255, 0 };
         VerifyAll(NexusDataType.INT32, data, status);
     }
 
@@ -488,6 +507,14 @@ public class UtilitiesTests
         CompareScalarVectorized(new long[] { -9223372036854775808L, -1L, 0L, 1L, 9223372036854775807L, -100L, 100L, 200L }, status);
         CompareScalarVectorized(new float[] { -1.5f, 0f, 1.5f, -3.14f, 3.14f, 100.5f, -100.5f, 200.25f }, status);
         CompareScalarVectorized(new double[] { -1.5, 0.0, 1.5, -3.14, 3.14, 100.5, -100.5, 200.25 }, status);
+    }
+
+    [Fact]
+    public void ScalarAndVectorizedProduceSameResult_UInt32Float32RoundingRegression()
+    {
+        var data = new uint[] { 2164260993u, 2164260994u, 2164260995u, 2164260996u, 2164260997u, 2164260998u, 2164260999u, 2164261000u };
+        var status = new byte[] { 1, 1, 1, 1, 1, 1, 1, 1 };
+        CompareScalarVectorized(data, status);
     }
 
     private static void CompareScalarVectorized<T>(T[] data, byte[] status) where T : unmanaged

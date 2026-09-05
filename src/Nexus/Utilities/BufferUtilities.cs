@@ -256,6 +256,21 @@ internal static class BufferUtilities
         return Vector256.Create(lo, hi);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Vector256<double> ConvertUInt32ToFloat64x4(Vector128<uint> data)
+    {
+        var signBit = Vector128.Create(unchecked((int)0x80000000));
+        var zero = Vector128.Create(0);
+        var two31 = Vector256.Create(2147483648.0);
+        var dataAsInt32 = data.AsInt32();
+        var highBitSet = Sse2.CompareGreaterThan(zero, dataAsInt32);
+        var cleared = Sse2.AndNot(signBit, dataAsInt32);
+        var doubles = ConvertInt32ToFloat64x4(cleared);
+        var maskInt64 = Avx2.ConvertToVector256Int64(highBitSet);
+        var adjustment = Avx.And(maskInt64.AsDouble(), two31);
+        return Avx.Add(doubles, adjustment);
+    }
+
     #endregion
 
     #region Float32 vectorized paths
@@ -319,21 +334,16 @@ internal static class BufferUtilities
     private static unsafe void ApplyFloat32FromUInt32(int length, uint* dataPtr, byte* statusPtr, float* targetPtr)
     {
         var nan = Vector256.Create(float.NaN);
-        var signBit = Vector256.Create(unchecked((int)0x80000000));
-        var zero = Vector256.Create(0);
-        var two31 = Vector256.Create(2147483648.0f);
         int i = 0;
         int vectorEnd = length - (length % 8);
 
         for (; i < vectorEnd; i += 8)
         {
             var mask = LoadStatusMaskFloat8(statusPtr, i);
-            var data = Unsafe.ReadUnaligned<Vector256<uint>>(dataPtr + i).AsInt32();
-            var highBitSet = Avx2.CompareGreaterThan(zero, data);
-            var cleared = Avx2.AndNot(signBit, data);
-            var floats = Avx2.ConvertToVector256Single(cleared);
-            var adjustment = Avx2.And(highBitSet.AsSingle(), two31);
-            var converted = Avx2.Add(floats, adjustment);
+            var data = Unsafe.ReadUnaligned<Vector256<uint>>(dataPtr + i);
+            var lo = Avx.ConvertToVector128Single(ConvertUInt32ToFloat64x4(data.GetLower()));
+            var hi = Avx.ConvertToVector128Single(ConvertUInt32ToFloat64x4(data.GetUpper()));
+            var converted = Vector256.Create(lo, hi);
             var result = Avx.BlendVariable(nan, converted, mask);
             Unsafe.WriteUnaligned(targetPtr + i, result);
         }
@@ -527,22 +537,14 @@ internal static class BufferUtilities
     private static unsafe void ApplyFloat64FromUInt32(int length, uint* dataPtr, byte* statusPtr, double* targetPtr)
     {
         var nan = Vector256.Create(double.NaN);
-        var signBit = Vector128.Create(unchecked((int)0x80000000));
-        var zero = Vector128.Create(0);
-        var two31 = Vector256.Create(2147483648.0);
         int i = 0;
         int vectorEnd = length - (length % 4);
 
         for (; i < vectorEnd; i += 4)
         {
             var mask = LoadStatusMaskDouble4(statusPtr, i);
-            var data = Unsafe.ReadUnaligned<Vector128<uint>>(dataPtr + i).AsInt32();
-            var highBitSet = Sse2.CompareGreaterThan(zero, data);
-            var cleared = Sse2.AndNot(signBit, data);
-            var doubles = ConvertInt32ToFloat64x4(cleared);
-            var maskInt64 = Avx2.ConvertToVector256Int64(highBitSet);
-            var adjustment = Avx.And(maskInt64.AsDouble(), two31);
-            var converted = Avx.Add(doubles, adjustment);
+            var data = Unsafe.ReadUnaligned<Vector128<uint>>(dataPtr + i);
+            var converted = ConvertUInt32ToFloat64x4(data);
             var result = Avx.BlendVariable(nan, converted, mask);
             Unsafe.WriteUnaligned(targetPtr + i, result);
         }
