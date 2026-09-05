@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nexus.Core;
@@ -45,6 +46,7 @@ internal interface IDataSourceController : IDisposable
         DateTime begin,
         DateTime end,
         TimeSpan samplePeriod,
+        Precision precision,
         CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
         ReadDataHandler readDataHandler,
         IProgress<double> progress,
@@ -289,6 +291,7 @@ internal class DataSourceController(
         DateTime begin,
         DateTime end,
         TimeSpan samplePeriod,
+        Precision precision,
         CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
         ReadDataHandler readDataHandler,
         IProgress<double> progress,
@@ -308,10 +311,11 @@ internal class DataSourceController(
          */
 
         /* preparation */
-        var readUnits = PrepareReadUnits(catalogItemRequestPipeWriters);
+        var readUnits = PrepareReadUnits(catalogItemRequestPipeWriters, precision);
         var readingTasks = new List<Task>(capacity: readUnits.Length);
         var targetElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, samplePeriod);
-        var targetByteCount = sizeof(double) * targetElementCount;
+        var outputElementSize = (int)precision;
+        var targetByteCount = outputElementSize * targetElementCount;
 
         var progressGate = new object();
         var totalProgress = 0.0;
@@ -426,7 +430,7 @@ internal class DataSourceController(
         var tuples = originalUnits
             .Select(readUnit =>
             {
-                var (catalogItemRequest, dataWriter) = readUnit;
+                var (catalogItemRequest, precision, dataWriter) = readUnit;
 
                 ReadRequestManager manager = null!;
                 var onCompleted = async (CancellationToken cancellationToken) =>
@@ -440,16 +444,35 @@ internal class DataSourceController(
                     {
                         var elementCount = Math.Min(
                             targetElementCount - elementOffset,
-                            MaximumPipeWriteByteCount / sizeof(double));
-                        var byteCount = elementCount * sizeof(double);
-                        var buffer = dataWriter.GetMemory(byteCount)[..byteCount];
-                        var targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
+                            MaximumPipeWriteByteCount / (int)precision
+                        );
 
-                        BufferUtilities.ApplyRepresentationStatusByDataType(
-                            catalogItemRequest.Item.Representation.DataType,
-                            data.Slice(elementOffset * sourceElementSize, elementCount * sourceElementSize),
-                            status.Slice(elementOffset, elementCount),
-                            target: targetBuffer);
+                        var byteCount = elementCount * (int)precision;
+                        var buffer = dataWriter.GetMemory(byteCount)[..byteCount];
+                        var dataSlice = data.Slice(elementOffset * sourceElementSize, elementCount * sourceElementSize);
+                        var statusSlice = status.Slice(elementOffset, elementCount);
+
+                        switch (precision)
+                        {
+                            case Precision.Float32:
+                                BufferUtilities.ApplyRepresentationStatusFloat32ByDataType(
+                                    catalogItemRequest.Item.Representation.DataType,
+                                    dataSlice,
+                                    statusSlice,
+                                    target: new CastMemoryManager<byte, float>(buffer).Memory);
+                                break;
+
+                            case Precision.Float64:
+                                BufferUtilities.ApplyRepresentationStatusFloat64ByDataType(
+                                    catalogItemRequest.Item.Representation.DataType,
+                                    dataSlice,
+                                    statusSlice,
+                                    target: new CastMemoryManager<byte, double>(buffer).Memory);
+                                break;
+
+                            default:
+                                throw new NotSupportedException($"The precision {readUnit.Precision} is not supported.");
+                        }
 
                         _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", byteCount);
                         dataWriter.Advance(byteCount);
@@ -539,24 +562,36 @@ internal class DataSourceController(
     }
 
     private async Task ReadAggregatedAsync(
-       DateTime begin,
-       DateTime end,
-       ReadUnit readUnit,
-       ReadDataHandler readDataHandler,
-       int targetByteCount,
-       IProgress<double> progress,
-       CancellationToken cancellationToken)
+        DateTime begin,
+        DateTime end,
+        ReadUnit readUnit,
+        ReadDataHandler readDataHandler,
+        int targetByteCount,
+        IProgress<double> progress,
+        CancellationToken cancellationToken)
     {
         var item = readUnit.CatalogItemRequest.Item;
         var baseItem = readUnit.CatalogItemRequest.BaseItem!;
         var samplePeriod = item.Representation.SamplePeriod;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
-
+        var targetElementCount = targetByteCount / (int)readUnit.Precision;
         /* target buffer */
-        var buffer = readUnit.DataWriter
-           .GetMemory(targetByteCount)[..targetByteCount];
+        Memory<double> targetBuffer;
+        IMemoryOwner<double>? poolBuffer = null;
 
-        var targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
+        if (readUnit.Precision == Precision.Float64)
+        {
+            var buffer = readUnit.DataWriter
+               .GetMemory(targetByteCount)[..targetByteCount];
+
+            targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
+        }
+
+        else
+        {
+            poolBuffer = MemoryPool<double>.Shared.Rent(targetElementCount);
+            targetBuffer = poolBuffer.Memory[..targetElementCount];
+        }
 
         /* read request */
         var readElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, baseSamplePeriod);
@@ -613,6 +648,7 @@ internal class DataSourceController(
                     readRequest.Status.Slice(
                         start: NexusUtilities.Scale(offset, sourceSamplePeriod),
                         length: NexusUtilities.Scale(length, sourceSamplePeriod)),
+
                     _ => Task.CompletedTask,
                     cancellationToken);
 
@@ -668,10 +704,25 @@ internal class DataSourceController(
         }
         finally
         {
+            /* convert double buffer to Float32 pipe bytes if needed */
+            if (readUnit.Precision == Precision.Float32)
+            {
+                var buffer = readUnit.DataWriter
+                    .GetMemory(targetByteCount)[..targetByteCount];
+
+                var sourceSpan = targetBuffer.Span;
+                var targetSpan = MemoryMarshal.Cast<byte, float>(buffer.Span);
+
+                for (int i = 0; i < targetElementCount; i++)
+                    targetSpan[i] = (float)sourceSpan[i];
+            }
+
             /* update progress */
             _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
             readUnit.DataWriter.Advance(targetByteCount);
             await readUnit.DataWriter.FlushAsync(cancellationToken);
+
+            poolBuffer?.Dispose();
         }
     }
 
@@ -688,12 +739,25 @@ internal class DataSourceController(
         var baseItem = readUnit.CatalogItemRequest.BaseItem!;
         var samplePeriod = item.Representation.SamplePeriod;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
+        var targetElementCount = targetByteCount / (int)readUnit.Precision;
 
         /* target buffer */
-        var buffer = readUnit.DataWriter
-           .GetMemory(targetByteCount)[..targetByteCount];
+        Memory<double> targetBuffer;
+        IMemoryOwner<double>? poolBuffer = null;
 
-        var targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
+        if (readUnit.Precision == Precision.Float64)
+        {
+            var buffer = readUnit.DataWriter
+               .GetMemory(targetByteCount)[..targetByteCount];
+
+            targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
+        }
+
+        else
+        {
+            poolBuffer = MemoryPool<double>.Shared.Rent(targetElementCount);
+            targetBuffer = poolBuffer.Memory[..targetElementCount];
+        }
 
         /* Calculate rounded begin and end values.
          *
@@ -770,15 +834,33 @@ internal class DataSourceController(
 
             targetBuffer.Span.Fill(double.NaN);
         }
+        finally
+        {
+            /* convert double buffer to Float32 pipe bytes if needed */
+            if (readUnit.Precision == Precision.Float32)
+            {
+                var buffer = readUnit.DataWriter
+                   .GetMemory(targetByteCount)[..targetByteCount];
 
-        /* update progress */
-        _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
-        readUnit.DataWriter.Advance(targetByteCount);
-        await readUnit.DataWriter.FlushAsync(cancellationToken);
+                var sourceSpan = targetBuffer.Span;
+                var targetSpan = MemoryMarshal.Cast<byte, float>(buffer.Span);
+
+                for (int i = 0; i < targetElementCount; i++)
+                    targetSpan[i] = (float)sourceSpan[i];
+            }
+
+            /* update progress */
+            _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+            readUnit.DataWriter.Advance(targetByteCount);
+            await readUnit.DataWriter.FlushAsync(cancellationToken);
+
+            poolBuffer?.Dispose();
+        }
     }
 
     private ReadUnit[] PrepareReadUnits(
-        CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters)
+        CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
+        Precision precision)
     {
         var readUnits = new List<ReadUnit>();
 
@@ -794,7 +876,7 @@ internal class DataSourceController(
              * because GetCatalogAsync is called before ReadAsync */
             if (_catalogCache.TryGetValue(item.Catalog.Id, out var catalog))
             {
-                var readUnit = new ReadUnit(catalogItemRequest, dataWriter);
+                var readUnit = new ReadUnit(catalogItemRequest, precision, dataWriter);
                 readUnits.Add(readUnit);
             }
 
@@ -829,6 +911,7 @@ internal class DataSourceController(
         DateTime begin,
         DateTime end,
         TimeSpan samplePeriod,
+        Precision precision,
         DataReadingGroup[] readingGroups,
         ReadDataHandler readDataHandler,
         IMemoryTracker memoryTracker,
@@ -893,6 +976,7 @@ internal class DataSourceController(
             begin,
             totalPeriod,
             samplePeriod,
+            precision,
             readingGroups,
             readDataHandler,
             memoryTracker,
@@ -905,6 +989,7 @@ internal class DataSourceController(
         DateTime begin,
         TimeSpan totalPeriod,
         TimeSpan samplePeriod,
+        Precision precision,
         DataReadingGroup[] readingGroups,
         ReadDataHandler readDataHandler,
         IMemoryTracker memoryTracker,
@@ -935,7 +1020,7 @@ internal class DataSourceController(
         {
             var cancellationToken = cancellationTokenSource.Token;
             var (controller, catalogItemRequestPipeWriters) = readingGroup;
-            var (bytesPerRow, largestSamplePeriod) = CalculateReadMetrics(catalogItemRequestPipeWriters, samplePeriod);
+            var (bytesPerRow, largestSamplePeriod, outputElementSize) = CalculateReadMetrics(catalogItemRequestPipeWriters, samplePeriod, precision);
 
             logger.LogTrace("A single row for reading group has a size of {BytesPerRow} bytes", bytesPerRow);
 
@@ -961,7 +1046,7 @@ internal class DataSourceController(
 
                     var rowCount = Math.Min(
                         chunkSize / bytesPerRow,
-                        MaximumPipeWriteByteCount / sizeof(double));
+                        MaximumPipeWriteByteCount / outputElementSize);
                     logger.LogTrace("{RowCount} rows can be processed per reading group chunk", rowCount);
 
                     var maxPeriodPerRequest = TimeSpan
@@ -1003,6 +1088,7 @@ internal class DataSourceController(
                         currentBegin,
                         currentEnd,
                         samplePeriod,
+                        precision,
                         catalogItemRequestPipeWriters,
                         readDataHandler,
                         dataSourceProgress,
@@ -1046,9 +1132,10 @@ internal class DataSourceController(
         }
     }
 
-    private static (long BytesPerRow, TimeSpan LargestSamplePeriod) CalculateReadMetrics(
+    private static (long BytesPerRow, TimeSpan LargestSamplePeriod, int OutputElementSize) CalculateReadMetrics(
         CatalogItemRequestPipeWriter[] catalogItemRequestPipeWriters,
-        TimeSpan samplePeriod)
+        TimeSpan samplePeriod,
+        Precision precision)
     {
         // If the user requests /xxx/10_min_mean#base=10_ms, then the algorithm below will assume a period
         // of 10 minutes and a sample period of 10 ms, which leads to an estimated row size of 8 * 60000 bytes.
@@ -1085,10 +1172,10 @@ internal class DataSourceController(
 
             var sourceElementCount = Math.Max(1, elementCount);
             bytesPerRow += sourceElementCount * (elementSize + sizeof(byte));
-            bytesPerRow += sizeof(double);
+            bytesPerRow += (int)precision;
         }
 
-        return (bytesPerRow, largestSamplePeriod);
+        return (bytesPerRow, largestSamplePeriod, (int)precision);
     }
 
     internal static void ValidateParameters(

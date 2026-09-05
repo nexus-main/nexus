@@ -5,10 +5,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Nexus.Core;
-using Nexus.Core.V1;
+using Nexus.DataModel;
 using Nexus.Services;
 using Nexus.Utilities;
+using Nexus.Core.V1;
 using System.ComponentModel.DataAnnotations;
+using V1Parameters = Nexus.Core.V1.ExportParameters;
+using V2Parameters = Nexus.Core.V2.ExportParameters;
 
 namespace Nexus.Controllers.V1;
 
@@ -140,7 +143,7 @@ internal class JobsController(
     /// <returns></returns>
     [HttpPost("export")]
     public async Task<ActionResult<Job>> ExportAsync(
-        ExportParameters parameters,
+        V1Parameters parameters,
         CancellationToken cancellationToken)
     {
         _diagnosticContext.Set("Body", JsonSerializerHelper.SerializeIndented(parameters));
@@ -151,10 +154,20 @@ internal class JobsController(
             End = parameters.End.ToUniversalTime()
         };
 
+        // map V1 export parameters (no precision) to V2 export parameters with Float64 precision
+        var v2Parameters = new V2Parameters(
+            parameters.Begin,
+            parameters.End,
+            parameters.FilePeriod,
+            parameters.Type,
+            parameters.ResourcePaths,
+            parameters.Configuration,
+            Precision.Float64);
+
         var root = _appStateManager.AppState.CatalogState.Root;
 
         // check that there is anything to export
-        if (!parameters.ResourcePaths.Any())
+        if (!v2Parameters.ResourcePaths.Any())
             return BadRequest("The list of resource paths is empty.");
 
         // translate resource paths to catalog item requests
@@ -162,7 +175,7 @@ internal class JobsController(
 
         try
         {
-            catalogItemRequests = await Task.WhenAll(parameters.ResourcePaths.Select(async resourcePath =>
+            catalogItemRequests = await Task.WhenAll(v2Parameters.ResourcePaths.Select(async resourcePath =>
             {
                 var catalogItemRequest = await root.TryFindAsync(root, resourcePath, cancellationToken)
                     ?? throw new ValidationException($"Could not find resource path {resourcePath}.");
@@ -193,7 +206,7 @@ internal class JobsController(
 
         //
         var username = User.Identity?.Name!;
-        var job = new Job(Guid.NewGuid(), "export", username, parameters);
+        var job = new Job(Guid.NewGuid(), "export", username, v2Parameters);
         var dataService = _serviceProvider.GetRequiredService<IDataService>();
 
         try
@@ -202,7 +215,7 @@ internal class JobsController(
             {
                 try
                 {
-                    var result = await dataService.ExportAsync(job.Id, catalogItemRequests, dataService.ReadAsDoubleAsync, parameters, cts.Token);
+                    var result = await dataService.ExportAsync(job.Id, catalogItemRequests, dataService.ReadAsDoubleAsync, v2Parameters, cts.Token);
                     return result;
                 }
                 catch (Exception ex)

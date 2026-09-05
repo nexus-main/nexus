@@ -9,6 +9,7 @@ using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace Nexus.UI.Charts;
 
@@ -612,11 +613,9 @@ public partial class Chart : IDisposable
         await JSRuntime.InvokeVoidAsync("nexus.chartWebGpu.provideSeriesChunk", _chartId, requestId, streamReference);
     }
 
-    private static void FillFloatBytes(Span<byte> destination, ReadOnlySpan<double> source)
+    private static void FillFloatBytes(Span<byte> destination, ReadOnlySpan<float> source)
     {
-        var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(destination);
-        for (var index = 0; index < source.Length; index++)
-            floats[index] = (float)source[index];
+        MemoryMarshal.AsBytes(source).CopyTo(destination);
     }
 
     private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, int length, int webGpuGeneration)
@@ -777,11 +776,11 @@ public partial class Chart : IDisposable
                 if (series.Show && snappedIndex >= 0 && snappedIndex < seriesLength)
                 {
                     var x = (snappedIndex * sampleStep - _zoomLeft) / zoomRange;
-                    var sourceValue = 0.0;
+                    var sourceValue = 0.0f;
                     var hasValue = series.SyntheticKind.HasValue || series.Source.TryGetValue(snappedIndex, out sourceValue);
                     var value = series.SyntheticKind.HasValue
                         ? GetSyntheticValue(series.SyntheticKind.Value, snappedIndex)
-                        : (float)sourceValue;
+                        : sourceValue;
                     var y = (value - axisInfo.Min) / (axisInfo.Max - axisInfo.Min);
 
                     if (hasValue && double.IsFinite(x) && 0 <= x && x <= 1 &&

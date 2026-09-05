@@ -76,6 +76,40 @@
           }
         }
       }
+    },
+    "/api/v2/jobs/export": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Creates a new export job.",
+        "operationId": "Jobs_Export",
+        "requestBody": {
+          "x-name": "parameters",
+          "description": "Export parameters.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportParameters"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -101,6 +135,102 @@
             "items": {
               "type": "string"
             }
+          },
+          "precision": {
+            "description": "The floating point precision used for streamed sample values.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Precision"
+              }
+            ]
+          }
+        }
+      },
+      "Precision": {
+        "type": "string",
+        "description": "Specifies floating point precision for API output values.",
+        "x-enumNames": [
+          "Float32",
+          "Float64"
+        ],
+        "enum": [
+          "Float32",
+          "Float64"
+        ],
+        "x-enum-values": [
+          4,
+          8
+        ]
+      },
+      "Job": {
+        "type": "object",
+        "description": "Description of a job.",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The global unique identifier.",
+            "format": "guid"
+          },
+          "type": {
+            "type": "string",
+            "description": "The job type."
+          },
+          "owner": {
+            "type": "string",
+            "description": "The owner of the job."
+          },
+          "parameters": {
+            "description": "The job parameters.",
+            "nullable": true
+          }
+        }
+      },
+      "ExportParameters": {
+        "type": "object",
+        "description": "A structure for export parameters.",
+        "additionalProperties": false,
+        "properties": {
+          "begin": {
+            "type": "string",
+            "description": "The start date/time.",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "description": "The end date/time.",
+            "format": "date-time"
+          },
+          "filePeriod": {
+            "type": "string",
+            "description": "The file period.",
+            "format": "duration"
+          },
+          "type": {
+            "type": "string",
+            "description": "The writer type. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.",
+            "nullable": true
+          },
+          "resourcePaths": {
+            "type": "array",
+            "description": "The resource paths to export.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "configuration": {
+            "type": "object",
+            "description": "The configuration.",
+            "nullable": true,
+            "additionalProperties": {}
+          },
+          "precision": {
+            "description": "The floating point precision used for exported sample values.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Precision"
+              }
+            ]
           }
         }
       }

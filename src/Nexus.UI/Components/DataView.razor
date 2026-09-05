@@ -150,7 +150,7 @@ else
             if (requests.Count > 0)
             {
                 var resourcePaths = requests.Select(request => request.ResourcePath).ToArray();
-                var data = await Client.LoadAsync(
+                var data = await Client.LoadAsync<float>(
                     begin,
                     end,
                     resourcePaths,
@@ -169,11 +169,14 @@ else
                         ? dataResponse.Name!
                         : $"{dataResponse.Name} ({kindAsString})";
 
-                    lineSeriesSet.Add(new LineSeries(
-                        name,
-                        dataResponse.Unit ?? string.Empty,
-                        AppState.Settings.SamplePeriod.Value,
-                        dataResponse.Values));
+                    lineSeriesSet.Add(
+                        new LineSeries(
+                            name,
+                            dataResponse.Unit ?? string.Empty,
+                            AppState.Settings.SamplePeriod.Value,
+                            dataResponse.Values
+                        )
+                    );
                 }
             }
 

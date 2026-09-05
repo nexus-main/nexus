@@ -41,7 +41,8 @@ internal static class DataSourceControllerExtensions
             memoryTracker,
             progress: default,
             logger,
-            cancellationToken);
+            cancellationToken
+        );
 
         _ = Task.Run(async () =>
         {
@@ -89,6 +90,7 @@ internal static class DataSourceControllerExtensions
             begin,
             end,
             samplePeriod,
+            Precision.Float64,
             [readingGroup],
             readDataHandler,
             memoryTracker,

@@ -20,6 +20,7 @@ class V2:
     """A client for version V2."""
     
     _data: DataClient
+    _jobs: JobsClient
 
 
     def __init__(self, invoke: HttpRequestHandler):
@@ -31,12 +32,18 @@ class V2:
         """
 
         self._data = DataClient(invoke)
+        self._jobs = JobsClient(invoke)
 
 
     @property
     def data(self) -> DataClient:
         """Gets the DataClient."""
         return self._data
+
+    @property
+    def jobs(self) -> JobsClient:
+        """Gets the JobsClient."""
+        return self._jobs
 
 
 
@@ -60,11 +67,32 @@ class DataClient:
         return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
 
 
+class JobsClient:
+    """Provides methods to interact with jobs."""
+
+    ___invoke: HttpRequestHandler
+    
+    def __init__(self, invoke: HttpRequestHandler):
+        self.___invoke = invoke
+
+    def export(self, parameters: ExportParameters) -> Job:
+        """
+        Creates a new export job.
+
+        Args:
+        """
+
+        __url = "/api/v2/jobs/export"
+
+        return self.___invoke(Job, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(parameters, _json_encoder_options)))
+
+
 
 class V2Async:
     """A client for version V2."""
     
     _data: DataAsyncClient
+    _jobs: JobsAsyncClient
 
 
     def __init__(self, invoke: HttpRequestHandlerAsync):
@@ -76,12 +104,18 @@ class V2Async:
         """
 
         self._data = DataAsyncClient(invoke)
+        self._jobs = JobsAsyncClient(invoke)
 
 
     @property
     def data(self) -> DataAsyncClient:
         """Gets the DataAsyncClient."""
         return self._data
+
+    @property
+    def jobs(self) -> JobsAsyncClient:
+        """Gets the JobsAsyncClient."""
+        return self._jobs
 
 
 
@@ -105,6 +139,26 @@ class DataAsyncClient:
         return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
 
 
+class JobsAsyncClient:
+    """Provides methods to interact with jobs."""
+
+    ___invoke: HttpRequestHandlerAsync
+    
+    def __init__(self, invoke: HttpRequestHandlerAsync):
+        self.___invoke = invoke
+
+    def export(self, parameters: ExportParameters) -> Awaitable[Job]:
+        """
+        Creates a new export job.
+
+        Args:
+        """
+
+        __url = "/api/v2/jobs/export"
+
+        return self.___invoke(Job, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(parameters, _json_encoder_options)))
+
+
 
 @dataclass(frozen=True)
 class BatchStreamRequest:
@@ -115,6 +169,7 @@ class BatchStreamRequest:
         begin: The start date/time.
         end: The end date/time.
         resource_paths: The resource paths to stream.
+        precision: The floating point precision used for streamed sample values.
     """
 
     begin: datetime
@@ -125,6 +180,81 @@ class BatchStreamRequest:
 
     resource_paths: list[str]
     """The resource paths to stream."""
+
+    precision: Precision
+    """The floating point precision used for streamed sample values."""
+
+
+class Precision(Enum):
+    """Specifies floating point precision for API output values."""
+
+    FLOAT32 = 4
+    """Float32"""
+
+    FLOAT64 = 8
+    """Float64"""
+
+
+@dataclass(frozen=True)
+class Job:
+    """
+    Description of a job.
+
+    Args:
+        id: The global unique identifier.
+        type: The job type.
+        owner: The owner of the job.
+        parameters: The job parameters.
+    """
+
+    id: UUID
+    """The global unique identifier."""
+
+    type: str
+    """The job type."""
+
+    owner: str
+    """The owner of the job."""
+
+    parameters: Optional[object]
+    """The job parameters."""
+
+
+@dataclass(frozen=True)
+class ExportParameters:
+    """
+    A structure for export parameters.
+
+    Args:
+        begin: The start date/time.
+        end: The end date/time.
+        file_period: The file period.
+        type: The writer type. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.
+        resource_paths: The resource paths to export.
+        configuration: The configuration.
+        precision: The floating point precision used for exported sample values.
+    """
+
+    begin: datetime
+    """The start date/time."""
+
+    end: datetime
+    """The end date/time."""
+
+    file_period: timedelta
+    """The file period."""
+
+    type: Optional[str]
+    """The writer type. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation."""
+
+    resource_paths: list[str]
+    """The resource paths to export."""
+
+    configuration: Optional[dict[str, object]]
+    """The configuration."""
+
+    precision: Precision
+    """The floating point precision used for exported sample values."""
 
 
 

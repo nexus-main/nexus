@@ -35,32 +35,68 @@ public class NexusDemoClient : INexusClient
         throw new NotImplementedException();
     }
 
-    public IReadOnlyDictionary<string, DataResponse> Load(
+    public void Export(
+        DateTime begin,
+        DateTime end,
+        TimeSpan filePeriod,
+        string? fileFormat,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, object>? configuration,
+        string targetFolder,
+        Api.V2.Precision precision = Api.V2.Precision.Float32,
+        Action<double, string>? onProgress = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task ExportAsync(
+        DateTime begin,
+        DateTime end,
+        TimeSpan filePeriod,
+        string? fileFormat,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, object>? configuration,
+        string targetFolder,
+        Api.V2.Precision precision = Api.V2.Precision.Float32,
+        Action<double, string>? onProgress = default,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IReadOnlyDictionary<string, DataResponse<T>> Load<T>(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default)
+        where T : struct
     {
-        return LoadAsync(begin, end, resourcePaths, onProgress).GetAwaiter().GetResult();
+        return LoadAsync<T>(begin, end, resourcePaths, onProgress).GetAwaiter().GetResult();
     }
 
-    public async Task<IReadOnlyDictionary<string, DataResponse>> LoadAsync(
+    public async Task<IReadOnlyDictionary<string, DataResponse<T>>> LoadAsync<T>(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
+        where T : struct
     {
+        var precision = typeof(T) == typeof(double) ? Api.V2.Precision.Float64
+            : typeof(T) == typeof(float) ? Api.V2.Precision.Float32
+            : throw new NotSupportedException($"The type {typeof(T)} is not supported.");
+
         var resourcePathList = resourcePaths.ToList();
         var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken);
         using var response = await V2.Data.GetStreamAsync(
-            new Api.V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken);
+            new Api.V2.BatchStreamRequest(begin, end, resourcePathList, precision), cancellationToken);
         var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var values = resourcePathList.Select(resourcePath => new double[checked((int)(
+        var precisionSize = (int)precision;
+        var values = resourcePathList.Select(resourcePath => new T[checked((int)(
             (end - begin).Ticks / catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks))]).ToArray();
         var offsets = new int[values.Length];
         var header = new byte[8];
-        var result = new Dictionary<string, DataResponse>();
+        var result = new Dictionary<string, DataResponse<T>>();
 
         while (await stream.ReadAsync(header.AsMemory(0, 1), cancellationToken) != 0)
         {
@@ -69,17 +105,18 @@ public class NexusDemoClient : INexusClient
             var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
 
             if (resourceIndex < 0 || resourceIndex >= values.Length ||
-                payloadLength <= 0 || payloadLength % sizeof(double) != 0 ||
-                offsets[resourceIndex] > values[resourceIndex].Length * sizeof(double) - payloadLength)
+                payloadLength < 0 || payloadLength % precisionSize != 0 ||
+                offsets[resourceIndex] > values[resourceIndex].Length * precisionSize - payloadLength)
                 throw new InvalidDataException("The demo batch stream is invalid.");
 
-            var payload = new byte[payloadLength];
-            await stream.ReadExactlyAsync(payload, cancellationToken);
-            payload.CopyTo(MemoryMarshal.AsBytes(values[resourceIndex].AsSpan())[offsets[resourceIndex]..]);
+            using var manager = new CastMemoryManager<T, byte>(values[resourceIndex]);
+            var target = manager.Memory.Slice(offsets[resourceIndex], payloadLength);
+            await stream.ReadExactlyAsync(target, cancellationToken);
+
             offsets[resourceIndex] += payloadLength;
         }
 
-        if (!offsets.Select((offset, index) => offset == values[index].Length * sizeof(double)).All(value => value))
+        if (!offsets.Select((offset, index) => offset == values[index].Length * precisionSize).All(value => value))
             throw new InvalidDataException("The demo batch stream ended early.");
 
         for (var i = 0; i < resourcePathList.Count; i++)
@@ -87,7 +124,7 @@ public class NexusDemoClient : INexusClient
             var resourcePath = resourcePathList[i];
             var catalogItem = catalogItemMap[resourcePath];
             var resource = catalogItem.Resource;
-            result[resourcePath] = new DataResponse(
+            result[resourcePath] = new DataResponse<T>(
                 catalogItem,
                 resource.Id,
                 GetStringProperty(resource, "unit"),
@@ -116,6 +153,8 @@ public class V2 : Api.V2.IV2
     private readonly DataV2DemoClient _data = new();
 
     public Api.V2.IDataClient Data => _data;
+
+    public Api.V2.IJobsClient Jobs => throw new NotImplementedException();
 }
 
 public class V1 : IV1
@@ -422,19 +461,29 @@ public class DataV2DemoClient : Api.V2.IDataClient
     {
         using var stream = new MemoryStream();
         var header = new byte[8];
+        var precisionSize = (int)request.Precision;
 
         for (var resourceIndex = 0; resourceIndex < request.ResourcePaths.Count; resourceIndex++)
         {
             var resourcePath = request.ResourcePaths[resourceIndex];
             var length = checked((int)((request.End - request.Begin).Ticks / SamplePeriod.Ticks));
-            var data = new byte[length * sizeof(double)];
-            var doubleData = MemoryMarshal.Cast<byte, double>(data);
+            var data = new byte[length * precisionSize];
             var offset = resourcePath.Contains("temperature") ? 7 : 12;
             var factor = resourcePath.Contains("temperature") ? 0.3 : 3;
             var random = new Random();
 
-            for (var index = 0; index < length; index++)
-                doubleData[index] = offset + random.NextDouble() * factor;
+            if (request.Precision == Api.V2.Precision.Float64)
+            {
+                var doubleData = MemoryMarshal.Cast<byte, double>(data);
+                for (var index = 0; index < length; index++)
+                    doubleData[index] = offset + random.NextDouble() * factor;
+            }
+            else
+            {
+                var floatData = MemoryMarshal.Cast<byte, float>(data);
+                for (var index = 0; index < length; index++)
+                    floatData[index] = (float)(offset + random.NextDouble() * factor);
+            }
 
             BinaryPrimitives.WriteInt32LittleEndian(header, resourceIndex);
             BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), data.Length);

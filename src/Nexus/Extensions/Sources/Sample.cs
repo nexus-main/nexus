@@ -15,68 +15,68 @@ internal class Sample : IDataSource<object?>
 {
     public static readonly Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
 
-    private static readonly double[] DATA =
+    private static readonly float[] DATA =
     [
-        6.5,
-        6.7,
-        7.9,
-        8.1,
-        7.5,
-        7.6,
-        7.0,
-        6.5,
-        6.0,
-        5.9,
-        5.8,
-        5.2,
-        4.6,
-        5.0,
-        5.1,
-        4.9,
-        5.3,
-        5.8,
-        5.9,
-        6.1,
-        5.9,
-        6.3,
-        6.5,
-        6.9,
-        7.1,
-        6.9,
-        7.1,
-        7.2,
-        7.6,
-        7.9,
-        8.2,
-        8.1,
-        8.2,
-        8.0,
-        7.5,
-        7.7,
-        7.6,
-        8.0,
-        7.5,
-        7.2,
-        6.8,
-        6.5,
-        6.6,
-        6.6,
-        6.7,
-        6.2,
-        5.9,
-        5.7,
-        5.9,
-        6.3,
-        6.6,
-        6.7,
-        6.9,
-        6.5,
-        6.0,
-        5.8,
-        5.3,
-        5.8,
-        6.1,
-        6.8
+        6.5f,
+        6.7f,
+        7.9f,
+        8.1f,
+        7.5f,
+        7.6f,
+        7.0f,
+        6.5f,
+        6.0f,
+        5.9f,
+        5.8f,
+        5.2f,
+        4.6f,
+        5.0f,
+        5.1f,
+        4.9f,
+        5.3f,
+        5.8f,
+        5.9f,
+        6.1f,
+        5.9f,
+        6.3f,
+        6.5f,
+        6.9f,
+        7.1f,
+        6.9f,
+        7.1f,
+        7.2f,
+        7.6f,
+        7.9f,
+        8.2f,
+        8.1f,
+        8.2f,
+        8.0f,
+        7.5f,
+        7.7f,
+        7.6f,
+        8.0f,
+        7.5f,
+        7.2f,
+        6.8f,
+        6.5f,
+        6.6f,
+        6.6f,
+        6.7f,
+        6.2f,
+        5.9f,
+        5.7f,
+        5.9f,
+        6.3f,
+        6.6f,
+        6.7f,
+        6.9f,
+        6.5f,
+        6.0f,
+        5.8f,
+        5.3f,
+        5.8f,
+        6.1f,
+        6.8f
     ];
 
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
@@ -177,16 +177,21 @@ internal class Sample : IDataSource<object?>
                         throw new Exception("The provided credentials are invalid.");
                 }
 
-                double[] dataDouble;
+                double[] dataFloat64;
+                float[] dataFloat32;
 
                 var beginTime = ToUnixTimeStamp(begin);
                 var elementCount = data.Length / representation.ElementSize;
 
-                // unit time
+                // unix time
                 if (resource.Id.Contains("unix_time"))
                 {
                     var dt = representation.SamplePeriod.TotalSeconds;
-                    dataDouble = Enumerable.Range(0, elementCount).Select(i => i * dt + beginTime).ToArray();
+                    dataFloat64 = Enumerable.Range(0, elementCount).Select(i => i * dt + beginTime).ToArray();
+
+                    MemoryMarshal
+                    .AsBytes(dataFloat64.AsSpan())
+                    .CopyTo(data.Span);
                 }
 
                 // temperature or wind speed
@@ -195,17 +200,17 @@ internal class Sample : IDataSource<object?>
                     var offset = (long)beginTime;
                     var dataLength = DATA.Length;
 
-                    dataDouble = new double[elementCount];
+                    dataFloat32 = new float[elementCount];
 
                     for (int i = 0; i < elementCount; i++)
                     {
-                        dataDouble[i] = DATA[(offset + i) % dataLength];
+                        dataFloat32[i] = DATA[(offset + i) % dataLength];
                     }
-                }
 
-                MemoryMarshal
-                    .AsBytes(dataDouble.AsSpan())
-                    .CopyTo(data.Span);
+                    MemoryMarshal
+                        .AsBytes(dataFloat32.AsSpan())
+                        .CopyTo(data.Span);
+                }
 
                 status.Span
                     .Fill(1);
@@ -247,14 +252,14 @@ internal class Sample : IDataSource<object?>
             .WithUnit("°C")
             .WithDescription("Test Resource A")
             .WithGroups("Group 1")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var resourceB = new ResourceBuilder(id: "V1")
             .WithUnit("m/s")
             .WithDescription("Test Resource B")
             .WithGroups("Group 1")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var resourceC = new ResourceBuilder(id: "unix_time1")

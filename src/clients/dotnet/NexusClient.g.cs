@@ -8,9 +8,11 @@ using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Precision = Nexus.Api.V2.Precision;
 
 namespace Nexus.Api
 {
@@ -56,11 +58,13 @@ public interface INexusClient
     /// <param name="end">End date/time.</param>
     /// <param name="resourcePaths">The resource paths.</param>
     /// <param name="onProgress">A callback which accepts the current progress.</param>
-    IReadOnlyDictionary<string, DataResponse> Load(
+    /// <typeparam name="T">The element type. Use <see cref="double"/> for 64-bit or <see cref="float"/> for 32-bit precision.</typeparam>
+    IReadOnlyDictionary<string, DataResponse<T>> Load<T>(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        Action<double>? onProgress = default);
+        Action<double>? onProgress = default)
+        where T : struct;
 
     /// <summary>
     /// This high-level methods simplifies loading multiple resources at once.
@@ -70,11 +74,61 @@ public interface INexusClient
     /// <param name="resourcePaths">The resource paths.</param>
     /// <param name="onProgress">A callback which accepts the current progress.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, DataResponse>> LoadAsync(
+    /// <typeparam name="T">The element type. Use <see cref="double"/> for 64-bit or <see cref="float"/> for 32-bit precision.</typeparam>
+    Task<IReadOnlyDictionary<string, DataResponse<T>>> LoadAsync<T>(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct;
+
+    /// <summary>
+    /// This high-level methods simplifies exporting multiple resources at once.
+    /// </summary>
+    /// <param name="begin">The begin date/time.</param>
+    /// <param name="end">The end date/time.</param>
+    /// <param name="filePeriod">The file period. Use TimeSpan.Zero to get a single file.</param>
+    /// <param name="fileFormat">The target file format. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
+    /// <param name="resourcePaths">The resource paths to export.</param>
+    /// <param name="configuration">The configuration.</param>
+    /// <param name="targetFolder">The target folder for the files to extract.</param>
+    /// <param name="precision">The floating point precision used for exported sample values.</param>
+    /// <param name="onProgress">A callback which accepts the current progress and the progress message.</param>
+    void Export(
+        DateTime begin,
+        DateTime end,
+        TimeSpan filePeriod,
+        string? fileFormat,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, object>? configuration,
+        string targetFolder,
+        Precision precision,
+        Action<double, string>? onProgress = default);
+
+    /// <summary>
+    /// This high-level methods simplifies exporting multiple resources at once.
+    /// </summary>
+    /// <param name="begin">The begin date/time.</param>
+    /// <param name="end">The end date/time.</param>
+    /// <param name="filePeriod">The file period. Use TimeSpan.Zero to get a single file.</param>
+    /// <param name="fileFormat">The target file format. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
+    /// <param name="resourcePaths">The resource paths to export.</param>
+    /// <param name="configuration">The configuration.</param>
+    /// <param name="targetFolder">The target folder for the files to extract.</param>
+    /// <param name="precision">The floating point precision used for exported sample values.</param>
+    /// <param name="onProgress">A callback which accepts the current progress and the progress message.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    Task ExportAsync(
+        DateTime begin,
+        DateTime end,
+        TimeSpan filePeriod,
+        string? fileFormat,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, object>? configuration,
+        string targetFolder,
+        Precision precision,
+        Action<double, string>? onProgress = default,
         CancellationToken cancellationToken = default);
 }
 
@@ -297,37 +351,33 @@ public class NexusClient : INexusClient, IDisposable
         __httpClient?.Dispose();
     }
 
-    /// <summary>
-    /// This high-level methods simplifies loading multiple resources at once.
-    /// </summary>
-    /// <param name="begin">Start date/time.</param>
-    /// <param name="end">End date/time.</param>
-    /// <param name="resourcePaths">The resource paths.</param>
-    /// <param name="onProgress">A callback which accepts the current progress.</param>
-    public IReadOnlyDictionary<string, DataResponse> Load(
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, DataResponse<T>> Load<T>(
         DateTime begin, 
         DateTime end, 
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default)
+        where T : struct
     {
+        var precision = GetPrecisionFromType<T>();
         var resourcePathList = resourcePaths.ToList();
 
         if (resourcePathList.Count == 0)
-            return new Dictionary<string, DataResponse>();
+            return new Dictionary<string, DataResponse<T>>();
 
         var catalogItemMap = V1.Catalogs.SearchCatalogItems(resourcePathList);
-        using var response = V2.Data.GetStream(new V2.BatchStreamRequest(begin, end, resourcePathList));
-        var totalLength = GetTotalLength(begin, end, resourcePathList, catalogItemMap);
+        using var response = V2.Data.GetStream(new V2.BatchStreamRequest(begin, end, resourcePathList, precision));
+        var totalLength = GetTotalLength(begin, end, resourcePathList, catalogItemMap, precision);
         var consumedLength = 0L;
-        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap);
-        var data = ReadBatchAsync(response, expectedLengths, useAsync: false, ReportProgress).GetAwaiter().GetResult();
+        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap, precision);
+        var data = ReadBatchAsync<T>(response, expectedLengths, useAsync: false, ReportProgress).GetAwaiter().GetResult();
 
         onProgress?.Invoke(1);
         return resourcePathList
             .Select((resourcePath, index) => (resourcePath, Values: data[index]))
             .ToDictionary(
                 item => item.resourcePath,
-                item => CreateDataResponse(item.resourcePath, catalogItemMap[item.resourcePath], item.Values));
+                item => CreateDataResponse<T>(item.resourcePath, catalogItemMap[item.resourcePath], item.Values));
 
         void ReportProgress(long bytesRead)
         {
@@ -336,39 +386,34 @@ public class NexusClient : INexusClient, IDisposable
         }
     }
 
-    /// <summary>
-    /// This high-level methods simplifies loading multiple resources at once.
-    /// </summary>
-    /// <param name="begin">Start date/time.</param>
-    /// <param name="end">End date/time.</param>
-    /// <param name="resourcePaths">The resource paths.</param>
-    /// <param name="onProgress">A callback which accepts the current progress.</param>
-    /// <param name="cancellationToken">A token to cancel the current operation.</param>
-    public async Task<IReadOnlyDictionary<string, DataResponse>> LoadAsync(
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<string, DataResponse<T>>> LoadAsync<T>(
         DateTime begin, 
         DateTime end, 
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
+        where T : struct
     {
+        var precision = GetPrecisionFromType<T>();
         var resourcePathList = resourcePaths.ToList();
 
         if (resourcePathList.Count == 0)
-            return new Dictionary<string, DataResponse>();
+            return new Dictionary<string, DataResponse<T>>();
 
         var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken).ConfigureAwait(false);
-        using var response = await V2.Data.GetStreamAsync(new V2.BatchStreamRequest(begin, end, resourcePathList), cancellationToken).ConfigureAwait(false);
-        var totalLength = GetTotalLength(begin, end, resourcePathList, catalogItemMap);
+        using var response = await V2.Data.GetStreamAsync(new V2.BatchStreamRequest(begin, end, resourcePathList, precision), cancellationToken).ConfigureAwait(false);
+        var totalLength = GetTotalLength(begin, end, resourcePathList, catalogItemMap, precision);
         var consumedLength = 0L;
-        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap);
-        var data = await ReadBatchAsync(response, expectedLengths, useAsync: true, ReportProgress, cancellationToken).ConfigureAwait(false);
+        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap, precision);
+        var data = await ReadBatchAsync<T>(response, expectedLengths, useAsync: true, ReportProgress, cancellationToken).ConfigureAwait(false);
 
         onProgress?.Invoke(1);
         return resourcePathList
             .Select((resourcePath, index) => (resourcePath, Values: data[index]))
             .ToDictionary(
                 item => item.resourcePath,
-                item => CreateDataResponse(item.resourcePath, catalogItemMap[item.resourcePath], item.Values));
+                item => CreateDataResponse<T>(item.resourcePath, catalogItemMap[item.resourcePath], item.Values));
 
         void ReportProgress(long bytesRead)
         {
@@ -381,27 +426,41 @@ public class NexusClient : INexusClient, IDisposable
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap)
+        IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap,
+        Precision precision)
     {
         return resourcePaths.Sum(resourcePath => checked(
             (end - begin).Ticks /
             catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks *
-            sizeof(double)));
+            (int)precision));
     }
 
     private static int[] GetExpectedLengths(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap)
+        IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap,
+        Precision precision)
     {
         return resourcePaths.Select(resourcePath => checked((int)(
             (end - begin).Ticks /
             catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks *
-            sizeof(double)))).ToArray();
+            (int)precision))).ToArray();
     }
 
-    private static DataResponse CreateDataResponse(string resourcePath, V1.CatalogItem catalogItem, double[] doubleData)
+    private static Precision GetPrecisionFromType<T>() where T : struct
+    {
+        if (typeof(T) == typeof(double))
+            return Precision.Float64;
+
+        if (typeof(T) == typeof(float))
+            return Precision.Float32;
+
+        throw new NotSupportedException($"The type {typeof(T)} is not supported. Only double and float are allowed.");
+    }
+
+    private static DataResponse<T> CreateDataResponse<T>(string resourcePath, V1.CatalogItem catalogItem, T[] values)
+        where T : struct
     {
         var resource = catalogItem.Resource;
 
@@ -419,24 +478,24 @@ public class NexusClient : INexusClient, IDisposable
             descriptionElement.ValueKind == JsonValueKind.String)
             description = descriptionElement.GetString();
 
-        return new DataResponse(
+        return new DataResponse<T>(
             CatalogItem: catalogItem,
             Name: resource.Id,
             Unit: unit,
             Description: description,
             SamplePeriod: catalogItem.Representation.SamplePeriod,
-            Values: doubleData
-        );
+            Values: values);
     }
 
-    private static async Task<double[][]> ReadBatchAsync(
+    private static async Task<T[][]> ReadBatchAsync<T>(
         HttpResponseMessage responseMessage,
         int[] expectedLengths,
         bool useAsync,
         Action<long>? reportProgress = default,
         CancellationToken cancellationToken = default)
+        where T : struct
     {
-        var values = expectedLengths.Select(length => new double[length / sizeof(double)]).ToArray();
+        var values = expectedLengths.Select(length => new T[length / Unsafe.SizeOf<T>()]).ToArray();
         var offsets = new int[expectedLengths.Length];
         var header = new byte[8];
         Stream stream = useAsync
@@ -462,7 +521,7 @@ public class NexusClient : INexusClient, IDisposable
             if (offsets[resourceIndex] > expectedLengths[resourceIndex] - payloadLength)
                 throw new Exception("The batch stream contains more data than expected.");
 
-            using var manager = new DoubleToByteMemoryManager(values[resourceIndex]);
+            using var manager = new CastMemoryManager<T, byte>(values[resourceIndex]);
             var target = manager.Memory.Slice(offsets[resourceIndex], payloadLength);
             await ReadExactlyAsync(target).ConfigureAwait(false);
 
@@ -496,17 +555,7 @@ public class NexusClient : INexusClient, IDisposable
         }
     }
 
-    /// <summary>
-    /// This high-level methods simplifies exporting multiple resources at once.
-    /// </summary>
-    /// <param name="begin">The begin date/time.</param>
-    /// <param name="end">The end date/time.</param>
-    /// <param name="filePeriod">The file period. Use TimeSpan.Zero to get a single file.</param>
-    /// <param name="fileFormat">The target file format. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
-    /// <param name="resourcePaths">The resource paths to export.</param>
-    /// <param name="configuration">The configuration.</param>
-    /// <param name="targetFolder">The target folder for the files to extract.</param>
-    /// <param name="onProgress">A callback which accepts the current progress and the progress message.</param>
+    /// <inheritdoc />
     public void Export(
         DateTime begin, 
         DateTime end,
@@ -515,22 +564,24 @@ public class NexusClient : INexusClient, IDisposable
         IEnumerable<string> resourcePaths,
         IReadOnlyDictionary<string, object>? configuration,
         string targetFolder,
+        Precision precision,
         Action<double, string>? onProgress = default)
     {
         var actualConfiguration = configuration is null
             ? default
             : JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(JsonSerializer.Serialize(configuration));
 
-        var exportParameters = new V1.ExportParameters(
+        var exportParameters = new V2.ExportParameters(
             begin,
             end,
             filePeriod,
             fileFormat,
             resourcePaths.ToList(),
-            actualConfiguration);
+            actualConfiguration,
+            precision);
 
         // Start Job
-        var job = V1.Jobs.Export(exportParameters);
+        var job = V2.Jobs.Export(exportParameters);
 
         // Wait for job to finish
         string? artifactId = default;
@@ -632,18 +683,7 @@ public class NexusClient : INexusClient, IDisposable
         }
     }
 
-    /// <summary>
-    /// This high-level methods simplifies exporting multiple resources at once.
-    /// </summary>
-    /// <param name="begin">The begin date/time.</param>
-    /// <param name="end">The end date/time.</param>
-    /// <param name="filePeriod">The file period. Use TimeSpan.Zero to get a single file.</param>
-    /// <param name="fileFormat">The target file format. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
-    /// <param name="resourcePaths">The resource paths to export.</param>
-    /// <param name="configuration">The configuration.</param>
-    /// <param name="targetFolder">The target folder for the files to extract.</param>
-    /// <param name="onProgress">A callback which accepts the current progress and the progress message.</param>
-    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    /// <inheritdoc />
     public async Task ExportAsync(
         DateTime begin, 
         DateTime end,
@@ -652,6 +692,7 @@ public class NexusClient : INexusClient, IDisposable
         IEnumerable<string> resourcePaths,
         IReadOnlyDictionary<string, object>? configuration,
         string targetFolder,
+        Precision precision,
         Action<double, string>? onProgress = default,
         CancellationToken cancellationToken = default)
     {
@@ -659,16 +700,17 @@ public class NexusClient : INexusClient, IDisposable
             ? default
             : JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(JsonSerializer.Serialize(configuration));
 
-        var exportParameters = new V1.ExportParameters(
+        var exportParameters = new V2.ExportParameters(
             begin,
             end,
             filePeriod,
             fileFormat,
             resourcePaths.ToList(),
-            actualConfiguration);
+            actualConfiguration,
+            precision);
 
         // Start Job
-        var job = await V1.Jobs.ExportAsync(exportParameters).ConfigureAwait(false);
+        var job = await V2.Jobs.ExportAsync(exportParameters).ConfigureAwait(false);
 
         // Wait for job to finish
         string? artifactId = default;
@@ -771,34 +813,6 @@ public class NexusClient : INexusClient, IDisposable
     }
 }
 
-internal sealed class DoubleToByteMemoryManager : MemoryManager<byte>
-{
-    private readonly double[] _values;
-
-    public DoubleToByteMemoryManager(double[] values) => _values = values;
-
-    public override Span<byte> GetSpan() => MemoryMarshal.AsBytes(_values.AsSpan());
-
-    protected override void Dispose(bool disposing)
-    {
-        //
-    }
-
-    public override unsafe MemoryHandle Pin(int elementIndex = 0)
-    {
-        if ((uint)elementIndex > (uint)(_values.Length * sizeof(double)))
-            throw new ArgumentOutOfRangeException(nameof(elementIndex));
-
-        var handle = GCHandle.Alloc(_values, GCHandleType.Pinned);
-        var pointer = (byte*)handle.AddrOfPinnedObject() + elementIndex;
-
-        return new MemoryHandle(pointer, handle);
-    }
-
-    public override void Unpin()
-    {
-    }
-}
 
 /// <summary>
 /// A NexusException.
@@ -861,13 +875,45 @@ internal static class Utilities
 /// <param name="Description">The optional resource description.</param>
 /// <param name="SamplePeriod">The sample period.</param>
 /// <param name="Values">The data.</param>
-public record DataResponse(
+/// <typeparam name="T">The element type of the data.</typeparam>
+public record DataResponse<T>(
     V1.CatalogItem CatalogItem, 
     string? Name,
     string? Unit,
     string? Description,
     TimeSpan SamplePeriod,
-    double[] Values);
+    T[] Values) where T : struct;
+
+internal sealed class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
+    where TFrom : struct
+    where TTo : struct
+{
+    private readonly TFrom[] _values;
+
+    public CastMemoryManager(TFrom[] values) => _values = values;
+
+    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_values.AsSpan());
+
+    protected override void Dispose(bool disposing)
+    {
+        //
+    }
+
+    public override unsafe MemoryHandle Pin(int elementIndex = 0)
+    {
+        if ((uint)elementIndex > (uint)(_values.Length * Unsafe.SizeOf<TFrom>()))
+            throw new ArgumentOutOfRangeException(nameof(elementIndex));
+
+        var handle = GCHandle.Alloc(_values, GCHandleType.Pinned);
+        var pointer = (byte*)handle.AddrOfPinnedObject() + elementIndex;
+
+        return new MemoryHandle(pointer, handle);
+    }
+
+    public override void Unpin()
+    {
+    }
+}
 }
 
 namespace Nexus.Api.V1
@@ -3344,6 +3390,11 @@ public interface IV2
     /// </summary>
     IDataClient Data { get; }
 
+    /// <summary>
+    /// Gets the <see cref="IJobsClient"/>.
+    /// </summary>
+    IJobsClient Jobs { get; }
+
 
 }
 
@@ -3357,11 +3408,15 @@ public class V2 : IV2
     public V2(NexusClient client)
     {
         Data = new DataClient(client);
+        Jobs = new JobsClient(client);
 
     }
 
     /// <inheritdoc />
     public IDataClient Data { get; }
+
+    /// <inheritdoc />
+    public IJobsClient Jobs { get; }
 
 
 }
@@ -3418,6 +3473,58 @@ public class DataClient : IDataClient
 
 }
 
+/// <summary>
+/// Provides methods to interact with jobs.
+/// </summary>
+public interface IJobsClient
+{
+    /// <summary>
+    /// Creates a new export job.
+    /// </summary>
+    /// <param name="parameters">Export parameters.</param>
+    Job Export(ExportParameters parameters);
+
+    /// <summary>
+    /// Creates a new export job.
+    /// </summary>
+    /// <param name="parameters">Export parameters.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<Job> ExportAsync(ExportParameters parameters, CancellationToken cancellationToken = default);
+
+}
+
+/// <inheritdoc />
+public class JobsClient : IJobsClient
+{
+    private NexusClient ___client;
+    
+    internal JobsClient(NexusClient client)
+    {
+        ___client = client;
+    }
+
+    /// <inheritdoc />
+    public Job Export(ExportParameters parameters)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/jobs/export");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<Job>("POST", __url, "application/json", "application/json", JsonContent.Create(parameters, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<Job> ExportAsync(ExportParameters parameters, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/jobs/export");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<Job>("POST", __url, "application/json", "application/json", JsonContent.Create(parameters, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+}
+
 
 
 /// <summary>
@@ -3426,7 +3533,46 @@ public class DataClient : IDataClient
 /// <param name="Begin">The start date/time.</param>
 /// <param name="End">The end date/time.</param>
 /// <param name="ResourcePaths">The resource paths to stream.</param>
-public record BatchStreamRequest(DateTime Begin, DateTime End, IReadOnlyList<string> ResourcePaths);
+/// <param name="Precision">The floating point precision used for streamed sample values.</param>
+public record BatchStreamRequest(DateTime Begin, DateTime End, IReadOnlyList<string> ResourcePaths, Precision Precision);
+
+/// <summary>
+/// Specifies floating point precision for API output values.
+/// </summary>
+public enum Precision
+{
+    /// <summary>
+    /// Float32
+    /// </summary>
+    Float32 = 4,
+
+    /// <summary>
+    /// Float64
+    /// </summary>
+    Float64 = 8
+}
+
+
+/// <summary>
+/// Description of a job.
+/// </summary>
+/// <param name="Id">The global unique identifier.</param>
+/// <param name="Type">The job type.</param>
+/// <param name="Owner">The owner of the job.</param>
+/// <param name="Parameters">The job parameters.</param>
+public record Job(Guid Id, string Type, string Owner, JsonElement? Parameters);
+
+/// <summary>
+/// A structure for export parameters.
+/// </summary>
+/// <param name="Begin">The start date/time.</param>
+/// <param name="End">The end date/time.</param>
+/// <param name="FilePeriod">The file period.</param>
+/// <param name="Type">The writer type. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
+/// <param name="ResourcePaths">The resource paths to export.</param>
+/// <param name="Configuration">The configuration.</param>
+/// <param name="Precision">The floating point precision used for exported sample values.</param>
+public record ExportParameters(DateTime Begin, DateTime End, TimeSpan FilePeriod, string? Type, IReadOnlyList<string> ResourcePaths, IReadOnlyDictionary<string, JsonElement>? Configuration, Precision Precision);
 
 
 

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Nexus.Controllers.V2;
 using Nexus.Core.V2;
+using Nexus.DataModel;
 using Nexus.Services;
 using System.ComponentModel.DataAnnotations;
 using Xunit;
@@ -19,7 +20,7 @@ public class DataControllerTests
     {
         var expected = new MemoryStream([1, 2, 3]);
         var service = Mock.Of<IDataService>();
-        var request = new BatchStreamRequest(default, default, ["/A/B"]);
+        var request = new BatchStreamRequest(default, default, ["/A/B"], Precision.Float32);
 
         Mock.Get(service)
             .Setup(current => current.ReadBatchAsStreamAsync(request, It.IsAny<CancellationToken>()))
@@ -37,7 +38,7 @@ public class DataControllerTests
     public async Task ReturnsUnprocessableEntityForInvalidRequest()
     {
         var service = Mock.Of<IDataService>();
-        var request = new BatchStreamRequest(default, default, []);
+        var request = new BatchStreamRequest(default, default, [], Precision.Float32);
 
         Mock.Get(service)
             .Setup(current => current.ReadBatchAsStreamAsync(request, It.IsAny<CancellationToken>()))

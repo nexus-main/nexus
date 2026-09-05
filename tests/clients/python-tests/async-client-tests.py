@@ -6,7 +6,7 @@ from datetime import datetime
 import pytest
 from httpx import AsyncByteStream, AsyncClient, MockTransport, Request, Response, codes
 from nexus_api import NexusAsyncClient, NexusException
-from nexus_api.V2 import BatchStreamRequest
+from nexus_api.V2 import BatchStreamRequest, Precision
 
 nexus_configuration_header_key = "Nexus-Configuration"
 
@@ -83,7 +83,7 @@ def _catalog_item_map(paths: list[str]):
 
 
 def _frame(index: int, *values: float):
-    payload = struct.pack(f"<{len(values)}d", *values)
+    payload = struct.pack(f"<{len(values)}f", *values)
     return struct.pack("<ii", index, len(payload)) + payload
 
 
@@ -102,7 +102,7 @@ async def can_load_framed_response_over_http_test():
         return Response(codes.OK, content=content)
 
     async with NexusAsyncClient(AsyncClient(base_url="http://localhost", transport=MockTransport(handler))) as client:
-        result = await client.load(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 2), paths, None)
+        result = await client.load(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 2), paths, Precision.FLOAT32, None)
 
     assert list(result[paths[0]].values) == [1, 2]
     assert list(result[paths[1]].values) == [3, 4]
@@ -130,7 +130,7 @@ async def streamed_unsuccessful_response_has_body_and_closes_test():
     http_client = AsyncClient(base_url="http://localhost", transport=MockTransport(handler))
     client = NexusAsyncClient(http_client)
 
-    request = BatchStreamRequest(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 1), ["/A/B/C"])
+    request = BatchStreamRequest(datetime(2020, 1, 1), datetime(2020, 1, 1, 0, 0, 1), ["/A/B/C"], Precision.FLOAT32)
     with pytest.raises(NexusException, match="stream failed"):
         await client.v2.data.get_stream(request)
 
@@ -143,7 +143,7 @@ async def rejects_invalid_batch_frame_test():
     client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
 
     with pytest.raises(Exception, match="resource index"):
-        await client._read_batch(response, [8])
+        await client._read_batch(response, [4], Precision.FLOAT32)
 
 
 @pytest.mark.anyio
@@ -152,16 +152,16 @@ async def rejects_truncated_batch_frame_header_test():
     client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
 
     with pytest.raises(Exception, match="middle of a frame"):
-        await client._read_batch(response, [8])
+        await client._read_batch(response, [4], Precision.FLOAT32)
 
 
 @pytest.mark.anyio
 async def rejects_truncated_batch_frame_payload_test():
-    response = Response(codes.OK, stream=_TrackingAsyncStream(_header(0, 8) + b"\x00\x00"))
+    response = Response(codes.OK, stream=_TrackingAsyncStream(_header(0, 4) + b"\x00\x00"))
     client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
 
     with pytest.raises(Exception, match="middle of a frame"):
-        await client._read_batch(response, [8])
+        await client._read_batch(response, [4], Precision.FLOAT32)
 
 
 @pytest.mark.anyio
@@ -170,4 +170,4 @@ async def rejects_incomplete_batch_stream_test():
     client = NexusAsyncClient(AsyncClient(base_url="http://localhost"))
 
     with pytest.raises(Exception, match="before all data was received"):
-        await client._read_batch(response, [16])
+        await client._read_batch(response, [8], Precision.FLOAT32)

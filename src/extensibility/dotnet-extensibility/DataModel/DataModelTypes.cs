@@ -75,6 +75,22 @@ public enum NexusDataType : ushort
 }
 
 /// <summary>
+/// Specifies floating point precision for API output values.
+/// </summary>
+public enum Precision
+{
+    /// <summary>
+    /// 32-bit floating point output.
+    /// </summary>
+    Float32 = 4,
+
+    /// <summary>
+    /// 64-bit floating point output.
+    /// </summary>
+    Float64 = 8
+}
+
+/// <summary>
 /// A catalog item consists of a catalog, a resource and a representation.
 /// </summary>
 /// <param name="Catalog">The catalog.</param>

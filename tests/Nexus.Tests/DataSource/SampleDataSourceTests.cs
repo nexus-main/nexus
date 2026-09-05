@@ -38,7 +38,7 @@ public class SampleDataSourceTests
         var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2" };
         var expectedUnits = new List<string>() { "°C", "m/s", default!, default! };
         var expectedGroups = new List<string>() { "Group 1", "Group 1", "Group 2", "Group 2" };
-        var expectedDataTypes = new List<NexusDataType>() { NexusDataType.FLOAT64, NexusDataType.FLOAT64, NexusDataType.FLOAT64, NexusDataType.FLOAT64 };
+        var expectedDataTypes = new List<NexusDataType>() { NexusDataType.FLOAT32, NexusDataType.FLOAT32, NexusDataType.FLOAT64, NexusDataType.FLOAT64 };
 
         Assert.True(expectedIds.SequenceEqual(actualIds));
         Assert.True(expectedUnits.SequenceEqual(actualUnits));
@@ -118,10 +118,10 @@ public class SampleDataSourceTests
             new Progress<double>(),
             CancellationToken.None);
 
-        var doubleData = data.Cast<byte, double>();
+        var floatData = data.Cast<byte, float>();
 
-        Assert.Equal(6.5, doubleData.Span[0], precision: 1);
-        Assert.Equal(7.9, doubleData.Span[29], precision: 1);
-        Assert.Equal(6.0, doubleData.Span[54], precision: 1);
+        Assert.Equal(6.5, floatData.Span[0], precision: 1);
+        Assert.Equal(7.9, floatData.Span[29], precision: 1);
+        Assert.Equal(6.0, floatData.Span[54], precision: 1);
     }
 }

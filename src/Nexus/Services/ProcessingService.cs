@@ -47,7 +47,7 @@ internal class ProcessingService(IOptions<DataOptions> dataOptions)
         using var memoryOwner = MemoryPool<double>.Shared.Rent(status.Length);
         var doubleData = memoryOwner.Memory[..status.Length];
 
-        BufferUtilities.ApplyRepresentationStatusByDataType(
+        BufferUtilities.ApplyRepresentationStatusFloat64ByDataType(
             dataType,
             data,
             status,
@@ -104,7 +104,7 @@ internal class ProcessingService(IOptions<DataOptions> dataOptions)
                 {
                     var doubleData2 = memoryOwner.Memory[..Tdata.Length];
 
-                    BufferUtilities.ApplyRepresentationStatus<T>(Tdata, status, target: doubleData2);
+                    BufferUtilities.ApplyRepresentationStatusFloat64<T>(Tdata, status, target: doubleData2);
                     ApplyAggregationFunction(kind, blockSize, doubleData2, targetBuffer);
                 }
 

@@ -3,24 +3,23 @@ from __future__ import annotations
 import base64
 import json
 import struct
+import asyncio
 import time
-from array import array
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 from typing import (Any, AsyncIterable, Callable, Iterable, Optional, Type,
                     TypeVar, Union, cast)
 from zipfile import ZipFile
-from uuid import UUID
 
 from httpx import AsyncClient, Client, Request, Response
 
 from ._encoder import JsonEncoder
 from ._shared import NexusException, _json_encoder_options
 from .V1 import V1, V1Async
-from .V1 import CatalogItem, ExportParameters, TaskStatus
+from .V1 import CatalogItem, TaskStatus
 from .V2 import V2, V2Async
-from .V2 import BatchStreamRequest
+from .V2 import BatchStreamRequest, ExportParameters, Precision
 
 
 T = TypeVar("T")
@@ -203,13 +202,15 @@ class NexusClient:
         begin: datetime, 
         end: datetime, 
         resource_paths: Iterable[str],
-        on_progress: Optional[Callable[[float], None]]) -> dict[str, DataResponse]:
+        precision: Precision,
+        on_progress: Optional[Callable[[float], None]] = None) -> dict[str, DataResponse]:
         """This high-level methods simplifies loading multiple resources at once.
 
         Args:
             begin: Start date/time.
             end: End date/time.
             resource_paths: The resource paths.
+            precision: The floating point precision requested from the server.
             onProgress: A callback which accepts the current progress.
         """
 
@@ -218,10 +219,12 @@ class NexusClient:
         if not resource_path_list:
             return {}
 
+        precision_size = precision.value
+
         catalog_item_map = self.v1.catalogs.search_catalog_items(resource_path_list)
-        response = self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list))
+        response = self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list, precision))
         expected_lengths = [
-            ((end - begin) // catalog_item_map[path].representation.sample_period) * 8
+            ((end - begin) // catalog_item_map[path].representation.sample_period) * precision_size
             for path in resource_path_list]
         total_length = sum(expected_lengths)
         consumed = 0
@@ -233,7 +236,7 @@ class NexusClient:
                 on_progress(min(1, consumed / total_length))
 
         try:
-            values = self._read_batch(response, expected_lengths, report_progress)
+            values = self._read_batch(response, expected_lengths, precision, report_progress)
         finally:
             response.close()
 
@@ -273,8 +276,12 @@ class NexusClient:
         self,
         response: Response,
         expected_lengths: list[int],
-        report_progress: Optional[Callable[[int], None]] = None) -> list[array[float]]:
+        precision: Precision,
+        report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview[float]]:
+        array_type = "f" if precision == Precision.FLOAT32 else "d"
+
         buffers = [bytearray(length) for length in expected_lengths]
+        byte_views = [memoryview(buffer).cast("B") for buffer in buffers]
         offsets = [0] * len(expected_lengths)
         pending = bytearray()
         resource_index: Optional[int] = None
@@ -291,7 +298,7 @@ class NexusClient:
                     current_index, payload_length = struct.unpack_from("<ii", pending)
                     del pending[:8]
 
-                    if current_index < 0 or current_index >= len(buffers):
+                    if current_index < 0 or current_index >= len(byte_views):
                         raise Exception("The batch stream contains an invalid resource index.")
 
                     if payload_length < 0:
@@ -307,7 +314,7 @@ class NexusClient:
 
                 current_index = cast(int, resource_index)
                 offset = offsets[current_index]
-                buffers[current_index][offset:offset + payload_length] = pending[:payload_length]
+                byte_views[current_index][offset:offset + payload_length] = pending[:payload_length]
                 del pending[:payload_length]
                 offsets[current_index] += payload_length
 
@@ -323,15 +330,7 @@ class NexusClient:
         if offsets != expected_lengths:
             raise Exception("The batch stream ended before all data was received.")
 
-        values = []
-
-        for buffer in buffers:
-            resource_values = array("d")
-            resource_values.frombytes(buffer)
-
-            values.append(resource_values)
-
-        return values
+        return [memoryview(buffer).cast(array_type) for buffer in buffers]
 
     def export(
         self,
@@ -342,7 +341,8 @@ class NexusClient:
         resource_paths: Iterable[str],
         configuration: dict[str, object],
         target_folder: str,
-        on_progress: Optional[Callable[[float, str], None]]) -> None:
+        precision: Precision,
+        on_progress: Optional[Callable[[float, str], None]] = None) -> None:
         """This high-level methods simplifies exporting multiple resources at once.
 
         Args:
@@ -353,6 +353,7 @@ class NexusClient:
             resource_paths: The resource paths to export.
             configuration: The configuration.
             targetFolder: The target folder for the files to extract.
+            precision: The floating point precision requested from the server.
             onProgress: A callback which accepts the current progress and the progress message.
         """
 
@@ -362,11 +363,12 @@ class NexusClient:
             file_period,
             file_format,
             list(resource_paths),
-            configuration
+            configuration,
+            precision
         )
 
         # Start job
-        job = self.v1.jobs.export(export_parameters)
+        job = self.v2.jobs.export(export_parameters)
 
         # Wait for job to finish
         artifact_id: Optional[str] = None
@@ -619,13 +621,15 @@ class NexusAsyncClient:
         begin: datetime, 
         end: datetime, 
         resource_paths: Iterable[str],
-        on_progress: Optional[Callable[[float], None]]) -> dict[str, DataResponse]:
+        precision: Precision,
+        on_progress: Optional[Callable[[float], None]] = None) -> dict[str, DataResponse]:
         """This high-level methods simplifies loading multiple resources at once.
 
         Args:
             begin: Start date/time.
             end: End date/time.
             resource_paths: The resource paths.
+            precision: The floating point precision requested from the server.
             onProgress: A callback which accepts the current progress.
         """
 
@@ -634,10 +638,12 @@ class NexusAsyncClient:
         if not resource_path_list:
             return {}
 
+        precision_size = precision.value
+
         catalog_item_map = await self.v1.catalogs.search_catalog_items(resource_path_list)
-        response = await self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list))
+        response = await self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list, precision))
         expected_lengths = [
-            ((end - begin) // catalog_item_map[path].representation.sample_period) * 8
+            ((end - begin) // catalog_item_map[path].representation.sample_period) * precision_size
             for path in resource_path_list]
         total_length = sum(expected_lengths)
         consumed = 0
@@ -649,7 +655,7 @@ class NexusAsyncClient:
                 on_progress(min(1, consumed / total_length))
 
         try:
-            values = await self._read_batch(response, expected_lengths, report_progress)
+            values = await self._read_batch(response, expected_lengths, precision, report_progress)
         finally:
             await response.aclose()
 
@@ -689,8 +695,12 @@ class NexusAsyncClient:
         self,
         response: Response,
         expected_lengths: list[int],
-        report_progress: Optional[Callable[[int], None]] = None) -> list[array[float]]:
+        precision: Precision,
+        report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview[float]]:
+        array_type = "f" if precision == Precision.FLOAT32 else "d"
+
         buffers = [bytearray(length) for length in expected_lengths]
+        byte_views = [memoryview(buffer).cast("B") for buffer in buffers]
         offsets = [0] * len(expected_lengths)
         pending = bytearray()
         resource_index: Optional[int] = None
@@ -707,7 +717,7 @@ class NexusAsyncClient:
                     current_index, payload_length = struct.unpack_from("<ii", pending)
                     del pending[:8]
 
-                    if current_index < 0 or current_index >= len(buffers):
+                    if current_index < 0 or current_index >= len(byte_views):
                         raise Exception("The batch stream contains an invalid resource index.")
 
                     if payload_length < 0:
@@ -723,7 +733,7 @@ class NexusAsyncClient:
 
                 current_index = cast(int, resource_index)
                 offset = offsets[current_index]
-                buffers[current_index][offset:offset + payload_length] = pending[:payload_length]
+                byte_views[current_index][offset:offset + payload_length] = pending[:payload_length]
                 del pending[:payload_length]
                 offsets[current_index] += payload_length
 
@@ -739,15 +749,7 @@ class NexusAsyncClient:
         if offsets != expected_lengths:
             raise Exception("The batch stream ended before all data was received.")
 
-        values = []
-
-        for buffer in buffers:
-            resource_values = array("d")
-            resource_values.frombytes(buffer)
-
-            values.append(resource_values)
-
-        return values
+        return [memoryview(buffer).cast(array_type) for buffer in buffers]
 
     async def export(
         self,
@@ -758,7 +760,8 @@ class NexusAsyncClient:
         resource_paths: Iterable[str],
         configuration: dict[str, object],
         target_folder: str,
-        on_progress: Optional[Callable[[float, str], None]]) -> None:
+        precision: Precision,
+        on_progress: Optional[Callable[[float, str], None]] = None) -> None:
         """This high-level methods simplifies exporting multiple resources at once.
 
         Args:
@@ -769,6 +772,7 @@ class NexusAsyncClient:
             resource_paths: The resource paths to export.
             configuration: The configuration.
             targetFolder: The target folder for the files to extract.
+            precision: The floating point precision requested from the server.
             onProgress: A callback which accepts the current progress and the progress message.
         """
 
@@ -778,11 +782,12 @@ class NexusAsyncClient:
             file_period,
             file_format,
             list(resource_paths),
-            configuration
+            configuration,
+            precision
         )
 
         # Start job
-        job = await self.v1.jobs.export(export_parameters)
+        job = await self.v2.jobs.export(export_parameters)
 
         # Wait for job to finish
         artifact_id: Optional[str] = None
@@ -887,5 +892,5 @@ class DataResponse:
     sample_period: timedelta
     """The sample period."""
 
-    values: array[float]
+    values: memoryview[float]
     """The data."""
