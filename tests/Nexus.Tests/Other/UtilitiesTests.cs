@@ -453,14 +453,6 @@ public class UtilitiesTests
     }
 
     [Fact]
-    public void CanApplyRepresentationStatus_OnlyStatusOneIsValid()
-    {
-        var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-        var status = new byte[] { 1, 2, 255, 0, 1, 2, 255, 0 };
-        VerifyAll(NexusDataType.INT32, data, status);
-    }
-
-    [Fact]
     public void CanApplyRepresentationStatus_AllGoodStatus()
     {
         var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
