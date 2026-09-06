@@ -177,9 +177,6 @@ internal class Sample : IDataSource<object?>
                         throw new Exception("The provided credentials are invalid.");
                 }
 
-                double[] dataFloat64;
-                float[] dataFloat32;
-
                 var beginTime = ToUnixTimeStamp(begin);
                 var elementCount = data.Length / representation.ElementSize;
 
@@ -187,29 +184,27 @@ internal class Sample : IDataSource<object?>
                 if (resource.Id.Contains("unix_time"))
                 {
                     var dt = representation.SamplePeriod.TotalSeconds;
-                    dataFloat64 = Enumerable.Range(0, elementCount).Select(i => i * dt + beginTime).ToArray();
+                    var target = MemoryMarshal.Cast<byte, double>(data.Span);
 
-                    MemoryMarshal
-                    .AsBytes(dataFloat64.AsSpan())
-                    .CopyTo(data.Span);
+                    for (int i = 0; i < elementCount; i++)
+                        target[i] = i * dt + beginTime;
                 }
 
                 // temperature or wind speed
                 else
                 {
-                    var offset = (long)beginTime;
                     var dataLength = DATA.Length;
+                    var sourceOffset = (int)(((long)beginTime % dataLength + dataLength) % dataLength);
+                    var target = MemoryMarshal.Cast<byte, float>(data.Span);
 
-                    dataFloat32 = new float[elementCount];
-
-                    for (int i = 0; i < elementCount; i++)
+                    while (!target.IsEmpty)
                     {
-                        dataFloat32[i] = DATA[(offset + i) % dataLength];
+                        var source = DATA.AsSpan(sourceOffset);
+                        var count = Math.Min(source.Length, target.Length);
+                        source[..count].CopyTo(target);
+                        target = target[count..];
+                        sourceOffset = 0;
                     }
-
-                    MemoryMarshal
-                        .AsBytes(dataFloat32.AsSpan())
-                        .CopyTo(data.Span);
                 }
 
                 status.Span
