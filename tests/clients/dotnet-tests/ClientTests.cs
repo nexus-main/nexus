@@ -171,6 +171,33 @@ public class ClientTests
         Assert.Contains("before all data was received", exception.Message);
     }
 
+    [Fact]
+    public async Task LoadAsyncUsesChunkAwareProviderArguments()
+    {
+        var path = "/A/B/C";
+        var calls = new List<(string ResourcePath, int ChunkLength, long RemainingLength)>();
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(CreateCatalogItemMap(path), CreateJsonOptions())
+                : BinaryResponse(Frame(0, 1, 2))));
+
+        var result = await client.LoadAsync<float>(
+            DateTime.UnixEpoch,
+            DateTime.UnixEpoch.AddSeconds(2),
+            [path],
+            (resourcePath, chunkLength, remainingLength) =>
+            {
+                calls.Add((resourcePath, chunkLength, remainingLength));
+                return new float[chunkLength];
+            });
+
+        var call = Assert.Single(calls);
+        Assert.Equal(path, call.ResourcePath);
+        Assert.Equal(2, call.ChunkLength);
+        Assert.Equal(2, call.RemainingLength);
+        Assert.Empty(result[path].Values.ToArray());
+    }
+
     private static HttpClient CreateHttpClient(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> handler)
     {
         var messageHandlerMock = new Mock<HttpMessageHandler>();

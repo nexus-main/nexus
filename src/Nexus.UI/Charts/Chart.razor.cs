@@ -9,7 +9,6 @@ using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 using System.Globalization;
-using System.Runtime.InteropServices;
 
 namespace Nexus.UI.Charts;
 
@@ -22,8 +21,8 @@ public partial class Chart : IDisposable
     /* tracks which immutable series identity and length was transmitted to JS/WebGPU
      * per series id, so unchanged data is not re-serialized and re-marshaled on
      * every redraw (zoom, pan, resize, series toggle). */
-    private readonly Dictionary<string, (int Version, int Length)> _sentSeriesVersions = new();
-    private readonly Dictionary<string, (int Version, int Length)> _sendingSeriesVersions = new();
+    private readonly Dictionary<string, (int Version, long Length)> _sentSeriesVersions = new();
+    private readonly Dictionary<string, (int Version, long Length)> _sendingSeriesVersions = new();
     private readonly Dictionary<string, SeriesRange> _seriesRanges = new();
     private LineSeriesData? _axisData;
     private SeriesParameterSnapshot[] _seriesParameterSnapshots = [];
@@ -34,6 +33,12 @@ public partial class Chart : IDisposable
     private string? _webGpuErrorTitle;
     private string? _webGpuErrorMessage;
     private bool _webGpuRetrying;
+
+    private static void LogGpuFlow(string message) =>
+        Console.WriteLine($"[temporary gpu-flow] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
+
+    private static double GetElapsedMilliseconds(long startTimestamp) =>
+        (System.Diagnostics.Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 
     /* zoom */
     private readonly DotNetObjectReference<Chart> _dotNetHelper;
@@ -532,7 +537,7 @@ public partial class Chart : IDisposable
             ApplyVerticalZoom(axisInfo, _zoomBox);
     }
 
-    private async Task<SeriesRange> PrepareSeriesAsync(LineSeries series, int dataVersion, int length, int webGpuGeneration)
+    private async Task<SeriesRange> PrepareSeriesAsync(LineSeries series, int dataVersion, long length, int webGpuGeneration)
     {
         long? uploadToken = null;
         try
@@ -543,29 +548,45 @@ public partial class Chart : IDisposable
                 return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
             }
 
+            LogGpuFlow($"beginChunkedSeries starting series='{series.Name}' id={series.Id} dataVersion={dataVersion} length={length}");
+            var beginTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             uploadToken = await JSRuntime.InvokeAsync<long>(
                 "nexus.chartWebGpu.beginChunkedSeries", _chartId, series.Id, dataVersion, length);
+            LogGpuFlow($"beginChunkedSeries completed series='{series.Name}' token={uploadToken.Value} beginMs={GetElapsedMilliseconds(beginTimestamp):F1}");
             const int chunkLength = 4 * 1024 * 1024;
             var bytes = GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
 
-            for (var offset = 0; offset < length; offset += chunkLength)
+            for (var offset = 0L; offset < length; offset += chunkLength)
             {
                 if (_disposed || webGpuGeneration != _webGpuGeneration)
                     return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
 
-                var count = Math.Min(chunkLength, length - offset);
-                FillFloatBytes(bytes.AsSpan(0, count * sizeof(float)), series.Source.Read(offset, count).Span);
-                using var stream = new MemoryStream(bytes, 0, count * sizeof(float), writable: false, publiclyVisible: true);
-                using var streamReference = new DotNetStreamReference(stream);
+                var count = checked((int)Math.Min(chunkLength, length - offset));
+
+                LogGpuFlow($"waiting for source range series='{series.Name}' offset={offset} count={count}");
+                var waitTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (!await series.Source.WaitForRangeAsync(offset, count).ConfigureAwait(false))
+                    return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
+                LogGpuFlow($"source range available series='{series.Name}' offset={offset} count={count} waitMs={GetElapsedMilliseconds(waitTimestamp):F1}");
+
+                var copyTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                series.Source.CopyBytesTo(offset, bytes.AsSpan(0, count * sizeof(float)));
+                LogGpuFlow($"source copy completed series='{series.Name}' offset={offset} count={count} copyMs={GetElapsedMilliseconds(copyTimestamp):F1}");
+                LogGpuFlow($"appendChunkedSeries starting series='{series.Name}' offset={offset} count={count}");
+                var appendTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
                 await JSRuntime.InvokeVoidAsync(
-                    "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, streamReference);
+                    "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, bytes, count * sizeof(float));
+                LogGpuFlow($"appendChunkedSeries completed series='{series.Name}' offset={offset} count={count} appendMs={GetElapsedMilliseconds(appendTimestamp):F1}");
             }
 
             if (_disposed || webGpuGeneration != _webGpuGeneration)
                 return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
 
+            LogGpuFlow($"completeChunkedSeries starting series='{series.Name}' token={uploadToken.Value}");
+            var completeTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             var range = await JSRuntime.InvokeAsync<GpuRange>(
                 "nexus.chartWebGpu.completeChunkedSeries", _chartId, uploadToken.Value);
+            LogGpuFlow($"completeChunkedSeries completed series='{series.Name}' token={uploadToken.Value} completeMs={GetElapsedMilliseconds(completeTimestamp):F1}");
             uploadToken = null;
             if (!_disposed && webGpuGeneration == _webGpuGeneration)
                 _sentSeriesVersions[series.Id] = (dataVersion, length);
@@ -598,27 +619,28 @@ public partial class Chart : IDisposable
     }
 
     [JSInvokable]
-    public async Task ProvideSeriesChunk(string seriesId, int offset, int count, long requestId)
+    public async Task ProvideSeriesChunk(string seriesId, long offset, int count, long requestId)
     {
         var series = LineSeriesData.Series.SingleOrDefault(item => item.Id == seriesId);
         if (series is null || offset < 0 || count < 0 || offset > series.Source.Length - count)
             throw new InvalidOperationException($"Raw data request for series '{seriesId}' is no longer valid.");
 
-        var values = series.Source.Read(offset, count);
+        var waitTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (!await series.Source.WaitForRangeAsync(offset, count).ConfigureAwait(false))
+            throw new InvalidOperationException($"Raw data request for series '{seriesId}' is not available.");
+        LogGpuFlow($"provideSeriesChunk source range available series='{series.Name}' offset={offset} count={count} waitMs={GetElapsedMilliseconds(waitTimestamp):F1}");
+
         var bytes = GC.AllocateUninitializedArray<byte>(count * sizeof(float));
-        FillFloatBytes(bytes, values.Span);
+        var copyTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        series.Source.CopyBytesTo(offset, bytes);
+        LogGpuFlow($"provideSeriesChunk source copy completed series='{series.Name}' offset={offset} count={count} copyMs={GetElapsedMilliseconds(copyTimestamp):F1}");
 
-        using var stream = new MemoryStream(bytes, writable: false);
-        using var streamReference = new DotNetStreamReference(stream);
-        await JSRuntime.InvokeVoidAsync("nexus.chartWebGpu.provideSeriesChunk", _chartId, requestId, streamReference);
+        var provideTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        await JSRuntime.InvokeVoidAsync("nexus.chartWebGpu.provideSeriesChunk", _chartId, requestId, bytes, bytes.Length);
+        LogGpuFlow($"provideSeriesChunk completed series='{series.Name}' offset={offset} count={count} provideMs={GetElapsedMilliseconds(provideTimestamp):F1}");
     }
 
-    private static void FillFloatBytes(Span<byte> destination, ReadOnlySpan<float> source)
-    {
-        MemoryMarshal.AsBytes(source).CopyTo(destination);
-    }
-
-    private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, int length, int webGpuGeneration)
+    private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, long length, int webGpuGeneration)
     {
         try
         {
@@ -722,7 +744,7 @@ public partial class Chart : IDisposable
             RebuildAxes(_axisData);
     }
 
-    private static int GetSeriesLength(LineSeries series) =>
+    private static long GetSeriesLength(LineSeries series) =>
         series.SyntheticKind.HasValue ? series.SyntheticLength : series.Source.Length;
 
     private static int GetSeriesVersion(LineSeries series) =>
@@ -731,10 +753,10 @@ public partial class Chart : IDisposable
             : 0;
 
     private static bool HasSeriesVersion(
-        Dictionary<string, (int Version, int Length)> versions,
+        Dictionary<string, (int Version, long Length)> versions,
         string seriesId,
         int dataVersion,
-        int length)
+        long length)
     {
         return versions.TryGetValue(seriesId, out var version) &&
                version.Version == dataVersion &&
@@ -850,8 +872,8 @@ public partial class Chart : IDisposable
     }
 
     private readonly record struct GpuRange(bool HasValue, float Minimum, float Maximum);
-    private readonly record struct SeriesRange(string SeriesId, int Version, int Length, bool HasValue, float Minimum, float Maximum);
-    private readonly record struct SeriesParameterSnapshot(string Id, int Version, int Length, string Unit, TimeSpan SamplePeriod);
+    private readonly record struct SeriesRange(string SeriesId, int Version, long Length, bool HasValue, float Minimum, float Maximum);
+    private readonly record struct SeriesParameterSnapshot(string Id, int Version, long Length, string Unit, TimeSpan SamplePeriod);
     private readonly record struct AuxiliarySeriesUpdate(string Id, bool Visible, double X, double Y, string Text);
 
     private static SeriesParameterSnapshot CreateSeriesParameterSnapshot(LineSeries series) =>

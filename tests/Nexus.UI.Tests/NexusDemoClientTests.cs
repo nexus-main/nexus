@@ -40,4 +40,25 @@ public class NexusDemoClientTests
         Assert.Equal(2, result.Count);
         Assert.All(result.Values, response => Assert.Equal(2, response.Values.Length));
     }
+
+    [Fact]
+    public async Task LoadAsyncSupportsChunkAwareProvider()
+    {
+        var client = new NexusDemoClient();
+        var begin = DateTime.UnixEpoch;
+        var calls = new List<(int ChunkLength, long RemainingLength)>();
+
+        var result = await client.LoadAsync<float>(
+            begin,
+            begin.AddMinutes(2),
+            ["/SAMPLE/LOCAL/temperature/1_min"],
+            (_, chunkLength, remainingLength) =>
+            {
+                calls.Add((chunkLength, remainingLength));
+                return new float[chunkLength];
+            });
+
+        Assert.Equal((2, 2L), Assert.Single(calls));
+        Assert.Empty(Assert.Single(result).Value.Values.ToArray());
+    }
 }

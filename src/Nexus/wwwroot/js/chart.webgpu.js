@@ -518,9 +518,9 @@
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
                 beginChunkedSeriesAsync(chartId, id, version, length));
         },
-        appendChunkedSeries(chartId, token, offset, streamReference) {
+        appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
-                appendChunkedSeriesAsync(chartId, token, offset, streamReference));
+                appendChunkedSeriesAsync(chartId, token, offset, dataReference, dataLength));
         },
         completeChunkedSeries(chartId, token) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
@@ -529,9 +529,9 @@
         abortChunkedSeries(chartId, token) {
             abortChunkedSeries(chartId, token);
         },
-        provideSeriesChunk(chartId, requestId, streamReference) {
+        provideSeriesChunk(chartId, requestId, dataReference, dataLength) {
             return runRuntimeOperation(chartId, 'WebGPU data loading failed', () =>
-                provideSeriesChunkAsync(chartId, requestId, streamReference));
+                provideSeriesChunkAsync(chartId, requestId, dataReference, dataLength));
         },
         renderSeries(chartId, payload) {
             scheduleRender(chartId, payload)

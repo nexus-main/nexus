@@ -31,7 +31,17 @@ else
         <div class="h-full p-5 relative">
             <Chart @key="_chartKey" LineSeriesData="_lineSeriesData" BeginAtZero="AppState.BeginAtZero" />
 
-            <MudOverlay Visible="_showReloadButton" DarkBackground AutoClose Absolute>
+            <MudOverlay Visible="_isLoading" DarkBackground Absolute>
+                <div class="h-full flex justify-center items-center mx-auto">
+                    <MudProgressCircular
+                    Color="Color.Primary"
+                    Value="_progress"
+                    Max="1" />
+                    <span class="ml-3 text-gray-400">Loading data ...</span>
+                </div>
+            </MudOverlay>
+
+            <MudOverlay Visible="_showReloadButton && !_isLoading" DarkBackground AutoClose Absolute>
                 <MudButton
                 StartIcon="@Icons.Material.Filled.Refresh"
                 Variant="Variant.Filled"
@@ -63,6 +73,12 @@ else
     private int _chartKey;
 
     private CancellationTokenSource? _cts;
+
+    private static void LogChunkFlow(string message) =>
+        Console.WriteLine($"[temporary chunk-flow] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
+
+    private static double GetElapsedMilliseconds(long startTimestamp) =>
+        (System.Diagnostics.Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 
     public DataView()
     {
@@ -110,6 +126,7 @@ else
 
         _showReloadButton = false;
 
+        LogChunkFlow("visualization invalidated before load");
         await ReleaseCurrentVisualizationAsync();
 
         if (AppState.Settings.IsSizeLimitExceeded)
@@ -156,16 +173,47 @@ else
                     ResourcePath: catalogItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value)
                 )))
                 .ToList();
-            var lineSeriesSet = new List<LineSeries>();
-
             if (requests.Count > Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT)
                 throw new InvalidOperationException($"A maximum of {Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT} resources can be loaded at once.");
 
             if (requests.Count > 0)
             {
-                loadBuffers = new VisualizationBuffers();
+                void AssignLineSeriesDataIfReady()
+                {
+                    if (!ReferenceEquals(_cts, cts) ||
+                        loadBuffers is null ||
+                        _lineSeriesData is not null ||
+                        !loadBuffers.AreSourcesReady)
+                    {
+                        return;
+                    }
+
+                    var lineSeriesSet = requests.Select(request =>
+                    {
+                        var kindAsString = Utilities.KindToString(request.Kind);
+                        var name = kindAsString is null
+                            ? request.CatalogItem.BaseItem.Resource.Id
+                            : $"{request.CatalogItem.BaseItem.Resource.Id} ({kindAsString})";
+
+                        return new LineSeries(
+                            name,
+                            request.CatalogItem.BaseItem.Unit ?? string.Empty,
+                            AppState.Settings.SamplePeriod.Value,
+                            loadBuffers.GetSource(request.ResourcePath)!);
+                    }).ToList();
+
+                    _chartKey++;
+                    LogChunkFlow($"assigning LineSeriesData early series={lineSeriesSet.Count}");
+                    _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);
+                    _visualizationBuffers = loadBuffers;
+                    _ = InvokeAsync(StateHasChanged);
+                }
+
                 var resourcePaths = requests.Select(request => request.ResourcePath).ToArray();
-                var data = await Client.LoadAsync<float>(
+                loadBuffers = new VisualizationBuffers(resourcePaths, AssignLineSeriesDataIfReady);
+                LogChunkFlow($"LoadAsync starting resources={resourcePaths.Length} begin={begin:O} end={end:O}");
+                var loadTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                _ = await Client.LoadAsync<float>(
                     begin,
                     end,
                     resourcePaths,
@@ -177,38 +225,29 @@ else
                     },
                     cts.Token);
 
-                foreach (var request in requests)
-                {
-                    var dataResponse = data[request.ResourcePath];
-                    var kindAsString = Utilities.KindToString(request.Kind);
-                    var name = kindAsString is null
-                        ? dataResponse.Name!
-                        : $"{dataResponse.Name} ({kindAsString})";
+                LogChunkFlow($"LoadAsync returned; completing final chunks loadMs={GetElapsedMilliseconds(loadTimestamp):F1}");
+                loadBuffers.Complete();
+                LogChunkFlow("final chunks completed");
+                AssignLineSeriesDataIfReady();
 
-                    lineSeriesSet.Add(
-                        new LineSeries(
-                            name,
-                            dataResponse.Unit ?? string.Empty,
-                            AppState.Settings.SamplePeriod.Value,
-                            dataResponse.Values
-                        )
-                    );
-                }
+                if (ReferenceEquals(_cts, cts) && ReferenceEquals(_visualizationBuffers, loadBuffers))
+                    loadBuffers = null;
             }
-
-            if (ReferenceEquals(_cts, cts))
+            else if (ReferenceEquals(_cts, cts))
             {
                 _chartKey++;
-                _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);
-                _visualizationBuffers = loadBuffers;
-                loadBuffers = null;
+                LogChunkFlow("assigning empty LineSeriesData");
+                _lineSeriesData = new LineSeriesData(begin, end, []);
             }
         }
         catch (OperationCanceledException)
         {
+            LogChunkFlow("LoadAsync cancelled; in-flight buffers will be disposed");
         }
         catch (Exception ex)
         {
+            LogChunkFlow($"LoadAsync failed; in-flight buffers will be disposed error={ex.GetType().Name}: {ex.Message}");
+
             if (ReferenceEquals(_cts, cts))
                 AppState.AddError(ex, Snackbar);
         }
@@ -232,6 +271,7 @@ else
             }
 
             cts.Dispose();
+            LogChunkFlow("disposing unassigned in-flight buffers if present");
             loadBuffers?.Dispose();
         }
     }
@@ -240,6 +280,8 @@ else
     {
         if (_lineSeriesData is null && _visualizationBuffers is null)
             return;
+
+        LogChunkFlow("releasing current visualization");
 
         if (_lineSeriesData is not null)
         {
@@ -250,6 +292,7 @@ else
             await Task.Yield();
         }
 
+        LogChunkFlow("disposing current visualization buffers");
         _visualizationBuffers?.Dispose();
         _visualizationBuffers = null;
 
@@ -260,6 +303,7 @@ else
 
     public void Dispose()
     {
+        LogChunkFlow("DataView disposed; cancelling load and disposing current buffers");
         _cts?.Cancel();
         _visualizationBuffers?.Dispose();
         _visualizationBuffers = null;
@@ -270,25 +314,104 @@ else
 
     private sealed class VisualizationBuffers : IDisposable
     {
-        private readonly Dictionary<string, IMemoryOwner<float>> _owners = [];
+        private static int _nextId;
 
-        public Memory<float> ProvideBuffer(string resourcePath, int requiredLength)
+        private readonly Dictionary<string, ResourceBuffers> _resources = [];
+        private readonly List<IMemoryOwner<float>> _owners = [];
+        private readonly HashSet<string> _pendingResourcePaths;
+        private readonly Action _onSourcesReady;
+        private readonly int _id = System.Threading.Interlocked.Increment(ref _nextId);
+
+        public VisualizationBuffers(IEnumerable<string> resourcePaths, Action onSourcesReady)
         {
-            if (requiredLength == 0)
+            _pendingResourcePaths = resourcePaths.ToHashSet();
+            _onSourcesReady = onSourcesReady;
+            LogChunkFlow($"buffers {_id}: created");
+        }
+
+        public bool AreSourcesReady => _pendingResourcePaths.Count == 0;
+
+        public Memory<float> ProvideBuffer(string resourcePath, int chunkLength, long remainingLength)
+        {
+            var providerTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            LogChunkFlow($"buffers {_id}: provide requested resource='{resourcePath}' chunkLength={chunkLength} remainingLength={remainingLength}");
+
+            if (chunkLength == 0)
+            {
+                LogChunkFlow($"buffers {_id}: returning empty buffer resource='{resourcePath}' providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
                 return Memory<float>.Empty;
+            }
 
-            var owner = MemoryPool<float>.Shared.Rent(requiredLength);
-            _owners.Add(resourcePath, owner);
+            if (!_resources.TryGetValue(resourcePath, out var resource))
+            {
+                resource = new ResourceBuffers(new LineSeriesSource(remainingLength));
+                _resources.Add(resourcePath, resource);
+                LogChunkFlow($"buffers {_id}: resource initialized resource='{resourcePath}' totalLength={remainingLength}");
 
-            return owner.Memory;
+                if (_pendingResourcePaths.Remove(resourcePath) && AreSourcesReady)
+                {
+                    LogChunkFlow($"buffers {_id}: all sources ready; requesting early chart assignment");
+                    _onSourcesReady();
+                }
+            }
+            else
+            {
+                PublishCurrent(_id, resourcePath, resource);
+            }
+
+            var owner = MemoryPool<float>.Shared.Rent(chunkLength);
+            _owners.Add(owner);
+            resource.Current = owner.Memory[..chunkLength];
+            LogChunkFlow($"buffers {_id}: provider completed resource='{resourcePath}' offset={resource.NextOffset} length={chunkLength} isFinal={chunkLength == remainingLength} providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
+
+            return resource.Current;
+        }
+
+        public LineSeriesSource? GetSource(string resourcePath) =>
+            _resources.TryGetValue(resourcePath, out var resource) ? resource.Source : null;
+
+        public void Complete()
+        {
+            LogChunkFlow($"buffers {_id}: complete requested resources={_resources.Count}");
+
+            foreach (var resource in _resources.Values)
+            {
+                var resourcePath = _resources.First(pair => ReferenceEquals(pair.Value, resource)).Key;
+                PublishCurrent(_id, resourcePath, resource);
+                resource.Source.Complete();
+                LogChunkFlow($"buffers {_id}: resource complete resource='{resourcePath}' length={resource.NextOffset}");
+            }
         }
 
         public void Dispose()
         {
-            foreach (var owner in _owners.Values)
+            LogChunkFlow($"buffers {_id}: dispose owners={_owners.Count} resources={_resources.Count}");
+
+            foreach (var owner in _owners)
                 owner.Dispose();
 
             _owners.Clear();
+            _resources.Clear();
+        }
+
+        private static void PublishCurrent(int id, string resourcePath, ResourceBuffers resource)
+        {
+            if (resource.Current.Length == 0)
+                return;
+
+            LogChunkFlow($"buffers {id}: publish previous chunk resource='{resourcePath}' offset={resource.NextOffset} length={resource.Current.Length}");
+            var publishTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            resource.Source.AddChunk(resource.Current);
+            LogChunkFlow($"buffers {id}: publish completed resource='{resourcePath}' offset={resource.NextOffset} length={resource.Current.Length} publishMs={GetElapsedMilliseconds(publishTimestamp):F1}");
+            resource.NextOffset += resource.Current.Length;
+            resource.Current = Memory<float>.Empty;
+        }
+
+        private sealed class ResourceBuffers(LineSeriesSource source)
+        {
+            public LineSeriesSource Source { get; } = source;
+            public Memory<float> Current { get; set; }
+            public long NextOffset { get; set; }
         }
     }
 }

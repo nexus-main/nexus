@@ -57,14 +57,14 @@ public interface INexusClient
     /// <param name="begin">Start date/time.</param>
     /// <param name="end">End date/time.</param>
     /// <param name="resourcePaths">The resource paths.</param>
-    /// <param name="bufferProvider">An optional callback which provides a writable buffer for each resource path and required element count.</param>
+    /// <param name="bufferProvider">An optional callback which provides a writable buffer for each resource path, chunk element count, and remaining resource element count.</param>
     /// <param name="onProgress">A callback which accepts the current progress.</param>
     /// <typeparam name="T">The element type. Use <see cref="double"/> for 64-bit or <see cref="float"/> for 32-bit precision.</typeparam>
     IReadOnlyDictionary<string, DataResponse<T>> Load<T>(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        Func<string, int, Memory<T>>? bufferProvider = default,
+        Func<string, int, long, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default)
         where T : struct;
 
@@ -74,7 +74,7 @@ public interface INexusClient
     /// <param name="begin">Start date/time.</param>
     /// <param name="end">End date/time.</param>
     /// <param name="resourcePaths">The resource paths.</param>
-    /// <param name="bufferProvider">An optional callback which provides a writable buffer for each resource path and required element count.</param>
+    /// <param name="bufferProvider">An optional callback which provides a writable buffer for each resource path, chunk element count, and remaining resource element count.</param>
     /// <param name="onProgress">A callback which accepts the current progress.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
     /// <typeparam name="T">The element type. Use <see cref="double"/> for 64-bit or <see cref="float"/> for 32-bit precision.</typeparam>
@@ -82,7 +82,7 @@ public interface INexusClient
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        Func<string, int, Memory<T>>? bufferProvider = default,
+        Func<string, int, long, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
         where T : struct;
@@ -360,7 +360,7 @@ public class NexusClient : INexusClient, IDisposable
         DateTime begin, 
         DateTime end, 
         IEnumerable<string> resourcePaths,
-        Func<string, int, Memory<T>>? bufferProvider = default,
+        Func<string, int, long, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default)
         where T : struct
     {
@@ -396,7 +396,7 @@ public class NexusClient : INexusClient, IDisposable
         DateTime begin, 
         DateTime end, 
         IEnumerable<string> resourcePaths,
-        Func<string, int, Memory<T>>? bufferProvider = default,
+        Func<string, int, long, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
         where T : struct
@@ -428,17 +428,17 @@ public class NexusClient : INexusClient, IDisposable
         }
     }
 
-    private static int[] GetExpectedLengths(
+    private static long[] GetExpectedLengths(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
         IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap,
         Precision precision)
     {
-        return resourcePaths.Select(resourcePath => checked((int)(
+        return resourcePaths.Select(resourcePath => checked(
             (end - begin).Ticks /
             catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks *
-            (int)precision))).ToArray();
+            (long)precision)).ToArray();
     }
 
     private static Precision GetPrecisionFromType<T>() where T : struct
@@ -483,26 +483,46 @@ public class NexusClient : INexusClient, IDisposable
     private static async Task<Memory<T>[]> ReadBatchAsync<T>(
         HttpResponseMessage responseMessage,
         IReadOnlyList<string> resourcePaths,
-        int[] expectedLengths,
-        Func<string, int, Memory<T>>? bufferProvider,
+        long[] expectedLengths,
+        Func<string, int, long, Memory<T>>? bufferProvider,
         bool useAsync,
         Action<long>? reportProgress = default,
         CancellationToken cancellationToken = default)
         where T : struct
     {
-        var values = expectedLengths
-            .Select((byteLength, index) =>
+        var elementSize = Unsafe.SizeOf<T>();
+        var maxChunkLength = Math.Max(1, 16 * 1024 * 1024 / elementSize);
+        var values = new Memory<T>[expectedLengths.Length];
+        var chunks = new Memory<T>[expectedLengths.Length];
+        var chunkOffsets = new int[expectedLengths.Length];
+        var chunkLengths = new int[expectedLengths.Length];
+        var offsets = new long[expectedLengths.Length];
+
+        for (var index = 0; index < expectedLengths.Length; index++)
+        {
+            if (expectedLengths[index] % elementSize != 0)
+                throw new Exception("The expected resource length is not aligned to the requested precision.");
+
+            var requiredLength = expectedLengths[index] / elementSize;
+
+            if (bufferProvider is null)
             {
-                var requiredLength = byteLength / Unsafe.SizeOf<T>();
-                var memory = bufferProvider?.Invoke(resourcePaths[index], requiredLength) ?? new T[requiredLength];
+                if (requiredLength > int.MaxValue)
+                    throw new InvalidOperationException($"The resource '{resourcePaths[index]}' is too large for a single contiguous buffer. Provide a chunk-aware buffer provider.");
 
-                if (memory.Length < requiredLength)
-                    throw new ArgumentException($"The buffer provided for resource path '{resourcePaths[index]}' is too small. Required length: {requiredLength}. Provided length: {memory.Length}.", nameof(bufferProvider));
+                values[index] = new T[checked((int)requiredLength)];
+                chunks[index] = values[index];
+                chunkLengths[index] = checked((int)expectedLengths[index]);
+            }
+            else
+            {
+                values[index] = Memory<T>.Empty;
 
-                return memory[..requiredLength];
-            })
-            .ToArray();
-        var offsets = new int[expectedLengths.Length];
+                if (requiredLength > 0)
+                    RentNextChunk(index, requiredLength);
+            }
+        }
+
         var header = new byte[8];
         Stream stream = useAsync
             ? await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false)
@@ -524,21 +544,55 @@ public class NexusClient : INexusClient, IDisposable
             if (payloadLength < 0)
                 throw new Exception("The batch stream contains an invalid payload length.");
 
+            if (payloadLength % elementSize != 0)
+                throw new Exception("The batch stream contains an unaligned payload length.");
+
             if (offsets[resourceIndex] > expectedLengths[resourceIndex] - payloadLength)
                 throw new Exception("The batch stream contains more data than expected.");
 
-            using var manager = new CastMemoryManager<T, byte>(values[resourceIndex]);
-            var target = manager.Memory.Slice(offsets[resourceIndex], payloadLength);
-            await ReadExactlyAsync(target).ConfigureAwait(false);
+            var remainingPayloadLength = payloadLength;
 
-            offsets[resourceIndex] += payloadLength;
-            reportProgress?.Invoke(payloadLength);
+            while (remainingPayloadLength > 0)
+            {
+                if (chunkOffsets[resourceIndex] == chunkLengths[resourceIndex])
+                {
+                    var remainingLength = (expectedLengths[resourceIndex] - offsets[resourceIndex]) / elementSize;
+                    RentNextChunk(resourceIndex, remainingLength);
+                }
+
+                var count = Math.Min(remainingPayloadLength, chunkLengths[resourceIndex] - chunkOffsets[resourceIndex]);
+
+                using var manager = new CastMemoryManager<T, byte>(chunks[resourceIndex]);
+                var target = manager.Memory.Slice(chunkOffsets[resourceIndex], count);
+                await ReadExactlyAsync(target).ConfigureAwait(false);
+
+                chunkOffsets[resourceIndex] += count;
+                offsets[resourceIndex] += count;
+                remainingPayloadLength -= count;
+                reportProgress?.Invoke(count);
+            }
         }
 
         if (!offsets.SequenceEqual(expectedLengths))
             throw new Exception("The batch stream ended before all data was received.");
 
         return values;
+
+        void RentNextChunk(int index, long remainingLength)
+        {
+            if (bufferProvider is null)
+                throw new Exception("The batch stream contains more chunk data than expected.");
+
+            var chunkLength = checked((int)Math.Min(maxChunkLength, remainingLength));
+            var memory = bufferProvider(resourcePaths[index], chunkLength, remainingLength);
+
+            if (memory.Length < chunkLength)
+                throw new ArgumentException($"The buffer provided for resource path '{resourcePaths[index]}' is too small. Required length: {chunkLength}. Provided length: {memory.Length}.", nameof(bufferProvider));
+
+            chunks[index] = memory[..chunkLength];
+            chunkOffsets[index] = 0;
+            chunkLengths[index] = checked(chunkLength * elementSize);
+        }
 
         ValueTask<int> ReadAsync(Memory<byte> buffer)
         {

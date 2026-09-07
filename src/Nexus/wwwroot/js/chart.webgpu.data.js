@@ -123,12 +123,27 @@
         ns.destroyTrackedBuffer(instance, upload.paramsBuffer);
     }
 
+    function logWebGpuFlow(message) {
+        console.log(`[temporary webgpu-flow] ${new Date().toLocaleTimeString('en-GB', { hour12: false })}.${String(new Date().getMilliseconds()).padStart(3, '0')} ${message}`);
+    }
+
     async function processOverviewChunkAsync(instance, transientBuffer, paramsBuffer, bindGroup, offset, values, count) {
+        const totalStart = performance.now();
+        const writeStart = performance.now();
         instance.device.queue.writeBuffer(transientBuffer, 0, values);
+        const writeBufferMs = performance.now() - writeStart;
+
+        const rangeStart = performance.now();
         const range = await calculateSeriesRangeAsync(instance, transientBuffer, count);
+        const rangeMs = performance.now() - rangeStart;
+
+        const paramsStart = performance.now();
         instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([
             offset, count, Math.floor(offset / overviewBucketSize), 0,
         ]));
+        const paramsMs = performance.now() - paramsStart;
+
+        const submitStart = performance.now();
         const encoder = instance.device.createCommandEncoder();
         const pass = encoder.beginComputePass();
         pass.setPipeline(instance.overviewPipeline);
@@ -136,7 +151,13 @@
         pass.dispatchWorkgroups(Math.ceil(count / overviewBucketSize));
         pass.end();
         instance.device.queue.submit([encoder.finish()]);
+        const submitMs = performance.now() - submitStart;
+
+        const queueSyncStart = performance.now();
         await instance.device.queue.onSubmittedWorkDone();
+        const queueSyncMs = performance.now() - queueSyncStart;
+
+        logWebGpuFlow(`processOverviewChunk offset=${offset} count=${count} writeBufferMs=${writeBufferMs.toFixed(1)} rangeMs=${rangeMs.toFixed(1)} paramsMs=${paramsMs.toFixed(1)} submitMs=${submitMs.toFixed(1)} queueSyncMs=${queueSyncMs.toFixed(1)} totalMs=${(performance.now() - totalStart).toFixed(1)}`);
         return range;
     }
 
@@ -351,21 +372,73 @@
         }
     }
 
-    async function appendChunkedSeriesAsync(chartId, token, offset, streamReference) {
+    function getDataLength(dataLength, availableLength, unit) {
+        const actualLength = dataLength ?? availableLength;
+        if (!Number.isSafeInteger(actualLength) || actualLength < 0 || actualLength > availableLength)
+            throw new Error(`Chunk ${unit} length ${actualLength} exceeds payload ${unit} length ${availableLength}`);
+
+        return actualLength;
+    }
+
+    async function readFloatDataReferenceAsync(dataReference, dataLength) {
+        if (dataReference instanceof Float32Array) {
+            const actualLength = getDataLength(dataLength, dataReference.length, 'sample');
+            return actualLength === dataReference.length ? dataReference : dataReference.subarray(0, actualLength);
+        }
+
+        if (ArrayBuffer.isView(dataReference)) {
+            if (dataReference instanceof Uint8Array || dataReference instanceof Int8Array || dataReference instanceof Uint8ClampedArray) {
+                const bytes = new Uint8Array(dataReference.buffer, dataReference.byteOffset, dataReference.byteLength);
+                const actualByteLength = getDataLength(dataLength, bytes.byteLength, 'byte');
+                if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
+                    throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
+
+                return new Float32Array(bytes.buffer, bytes.byteOffset, actualByteLength / Float32Array.BYTES_PER_ELEMENT);
+            }
+
+            const values = Float32Array.from(dataReference);
+            const actualLength = getDataLength(dataLength, values.length, 'sample');
+            return actualLength === values.length ? values : values.subarray(0, actualLength);
+        }
+
+        if (dataReference instanceof ArrayBuffer) {
+            const actualByteLength = getDataLength(dataLength, dataReference.byteLength, 'byte');
+            if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
+                throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
+
+            return new Float32Array(dataReference, 0, actualByteLength / Float32Array.BYTES_PER_ELEMENT);
+        }
+
+        if (Array.isArray(dataReference)) {
+            const values = Float32Array.from(dataReference);
+            const actualLength = getDataLength(dataLength, values.length, 'sample');
+            return actualLength === values.length ? values : values.subarray(0, actualLength);
+        }
+
+        const bytes = new Uint8Array(await dataReference.arrayBuffer());
+        const actualByteLength = getDataLength(dataLength, bytes.byteLength, 'byte');
+        if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
+            throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
+
+        return new Float32Array(bytes.buffer, bytes.byteOffset, actualByteLength / Float32Array.BYTES_PER_ELEMENT);
+    }
+
+    async function appendChunkedSeriesAsync(chartId, token, offset, dataReference, dataLength) {
         const instance = await getInstance(chartId);
         const upload = instance?.chunkedUploadSessions.get(token);
         if (!upload)
             throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
-        const bytes = new Uint8Array(await streamReference.arrayBuffer());
-        if (bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
-            throw new Error(`Chunked series upload ${token} contains invalid data`);
-        const count = bytes.byteLength / Float32Array.BYTES_PER_ELEMENT;
+        const readStart = performance.now();
+        const values = await readFloatDataReferenceAsync(dataReference, dataLength);
+        const readMs = performance.now() - readStart;
+        const count = values.length;
         if (offset !== upload.writtenLength || offset + count > upload.length)
             throw new Error(`Chunked series upload ${token} expected sample offset ${upload.writtenLength}, received ${offset}`);
+        logWebGpuFlow(`appendChunkedSeries dataReference token=${token} offset=${offset} count=${count} readMs=${readMs.toFixed(1)}`);
 
         const range = await processOverviewChunkAsync(
             instance, upload.transientBuffer, upload.paramsBuffer,
-            upload.bindGroup, offset, bytes, count);
+            upload.bindGroup, offset, values, count);
         if (instances.get(chartId) !== instance || instance.chunkedUploadSessions.get(token) !== upload)
             throw ns.cancellationError(`Chunked series upload ${token} was superseded`);
         if (range.hasValue) {
@@ -459,6 +532,7 @@
     }
 
     async function calculateSeriesRangeAsync(instance, source, length) {
+        const totalStart = performance.now();
         const workgroupCount = Math.min(maxRangeWorkgroups, Math.max(1, Math.ceil(length / rangeWorkgroupSize)));
         const resultSize = workgroupCount * 16;
         let resultBuffer = null;
@@ -466,6 +540,7 @@
         let paramsBuffer = null;
 
         try {
+            const setupStart = performance.now();
             resultBuffer = ns.createTrackedBuffer(instance, { size: resultSize, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
             readbackBuffer = ns.createTrackedBuffer(instance, { size: resultSize, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
             paramsBuffer = ns.createTrackedBuffer(instance, { size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -478,6 +553,9 @@
                     { binding: 2, resource: { buffer: paramsBuffer } },
                 ],
             });
+            const setupMs = performance.now() - setupStart;
+
+            const submitStart = performance.now();
             const encoder = instance.device.createCommandEncoder();
             const pass = encoder.beginComputePass();
             pass.setPipeline(instance.rangePipeline);
@@ -486,8 +564,13 @@
             pass.end();
             encoder.copyBufferToBuffer(resultBuffer, 0, readbackBuffer, 0, resultSize);
             instance.device.queue.submit([encoder.finish()]);
-            await readbackBuffer.mapAsync(GPUMapMode.READ);
+            const submitMs = performance.now() - submitStart;
 
+            const mapStart = performance.now();
+            await readbackBuffer.mapAsync(GPUMapMode.READ);
+            const mapMs = performance.now() - mapStart;
+
+            const reduceStart = performance.now();
             const view = new DataView(readbackBuffer.getMappedRange());
             let minimum = 0;
             let maximum = 0;
@@ -509,6 +592,9 @@
                 maximum = hasValue ? Math.max(maximum, localMaximum) : localMaximum;
                 hasValue = true;
             }
+
+            const reduceMs = performance.now() - reduceStart;
+            logWebGpuFlow(`calculateSeriesRange length=${length} workgroups=${workgroupCount} setupMs=${setupMs.toFixed(1)} submitMs=${submitMs.toFixed(1)} mapMs=${mapMs.toFixed(1)} reduceMs=${reduceMs.toFixed(1)} totalMs=${(performance.now() - totalStart).toFixed(1)}`);
 
             return { hasValue, minimum, maximum };
         } finally {
@@ -618,18 +704,25 @@
         return promise;
     }
 
-    async function provideSeriesChunkAsync(chartId, requestId, streamReference) {
+    async function provideSeriesChunkAsync(chartId, requestId, dataReference, dataLength) {
         const instance = instances.get(chartId);
         const callbacks = instance?.workerCallbacks.get(requestId);
         if (!callbacks)
             return;
 
-        const bytes = await streamReference.arrayBuffer();
-        if (bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
-            throw new Error(`Raw chunk response ${requestId} has an invalid byte length`);
-        if (bytes.byteLength !== callbacks.byteLength)
+        const readStart = performance.now();
+        const values = await readFloatDataReferenceAsync(dataReference, dataLength);
+        const readMs = performance.now() - readStart;
+        if (values.byteLength !== callbacks.byteLength)
             throw new Error(`Raw chunk response ${requestId} has an unexpected byte length`);
-        callbacks.onmessage({ data: { requestId, values: new Float32Array(bytes) } });
+        logWebGpuFlow(`provideSeriesChunk dataReference requestId=${requestId} count=${values.length} readMs=${readMs.toFixed(1)}`);
+
+        callbacks.onmessage({
+            data: {
+                requestId,
+                values,
+            },
+        });
     }
 
     function rerenderLastPayloads(instance) {

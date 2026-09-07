@@ -69,7 +69,7 @@ public class NexusDemoClient : INexusClient
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        Func<string, int, Memory<T>>? bufferProvider = default,
+        Func<string, int, long, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default)
         where T : struct
     {
@@ -80,7 +80,7 @@ public class NexusDemoClient : INexusClient
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        Func<string, int, Memory<T>>? bufferProvider = default,
+        Func<string, int, long, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
         where T : struct
@@ -95,15 +95,17 @@ public class NexusDemoClient : INexusClient
             new Api.V2.BatchStreamRequest(begin, end, resourcePathList, precision), cancellationToken);
         var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var precisionSize = (int)precision;
+        var maxChunkLength = Math.Max(1, 16 * 1024 * 1024 / Marshal.SizeOf<T>());
         var values = resourcePathList.Select(resourcePath =>
         {
             var requiredLength = checked((int)((end - begin).Ticks / catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks));
-            var memory = bufferProvider?.Invoke(resourcePath, requiredLength) ?? new T[requiredLength];
+            var chunkLength = Math.Min(maxChunkLength, requiredLength);
+            var memory = bufferProvider?.Invoke(resourcePath, chunkLength, requiredLength) ?? new T[requiredLength];
 
-            if (memory.Length < requiredLength)
-                throw new ArgumentException($"The buffer provided for resource path '{resourcePath}' is too small. Required length: {requiredLength}. Provided length: {memory.Length}.", nameof(bufferProvider));
+            if (memory.Length < chunkLength)
+                throw new ArgumentException($"The buffer provided for resource path '{resourcePath}' is too small. Required length: {chunkLength}. Provided length: {memory.Length}.", nameof(bufferProvider));
 
-            return memory[..requiredLength];
+            return memory[..chunkLength];
         }).ToArray();
         var offsets = new int[values.Length];
         var header = new byte[8];
@@ -141,7 +143,7 @@ public class NexusDemoClient : INexusClient
                 GetStringProperty(resource, "unit"),
                 GetStringProperty(resource, "description"),
                 catalogItem.Representation.SamplePeriod,
-                values[i]);
+                bufferProvider is null ? values[i] : Memory<T>.Empty);
         }
 
         onProgress?.Invoke(1);
