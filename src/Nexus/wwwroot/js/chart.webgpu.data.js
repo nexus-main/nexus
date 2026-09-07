@@ -1,7 +1,7 @@
 (function () {
     const ns = window.__nexusChartWebGpu;
     const {
-        instances, dotNetHelpers, getInstance, valueOf, isPerformanceLoggingEnabled, perfLog,
+        instances, dotNetHelpers, getInstance, valueOf,
         overviewBucketSize, reducedPointsPerBucket, syntheticStreamChunkLength, rawChunkLength,
         rangeWorkgroupSize, maxRangeWorkgroups,
     } = ns;
@@ -57,8 +57,6 @@
 
         while (instance.ownedGpuBytes + instance.rawReservedBytes + requiredBytes > budget && candidates.length) {
             const [key, chunk] = candidates.shift();
-            if (isPerformanceLoggingEnabled())
-                perfLog(`raw evict chart=${instance.chartId} key=${key} bytes=${chunk.byteLength} ownedBytes=${instance.ownedGpuBytes} reservedBytes=${instance.rawReservedBytes} requiredBytes=${requiredBytes}`);
             destroyRawChunk(instance, key, chunk);
         }
 
@@ -130,29 +128,19 @@
     }
 
     async function processOverviewChunkAsync(instance, transientBuffer, paramsBuffer, bindGroup, offset, values, count) {
-        const logPerf = isPerformanceLoggingEnabled();
-        const writeStart = logPerf ? performance.now() : 0;
         instance.device.queue.writeBuffer(transientBuffer, 0, values);
-        const writeBufferMs = logPerf ? performance.now() - writeStart : 0;
 
         return await processUploadedOverviewChunkAsync(
-            instance, transientBuffer, paramsBuffer, bindGroup, offset, count, 'dataReference', writeBufferMs);
+            instance, transientBuffer, paramsBuffer, bindGroup, offset, count);
     }
 
-    async function processUploadedOverviewChunkAsync(instance, transientBuffer, paramsBuffer, bindGroup, offset, count, uploadKind, writeBufferMs = 0) {
-        const logPerf = isPerformanceLoggingEnabled();
-        const totalStart = logPerf ? performance.now() : 0;
-        const rangeStart = logPerf ? performance.now() : 0;
+    async function processUploadedOverviewChunkAsync(instance, transientBuffer, paramsBuffer, bindGroup, offset, count) {
         const range = await calculateSeriesRangeAsync(instance, transientBuffer, count);
-        const rangeMs = logPerf ? performance.now() - rangeStart : 0;
 
-        const paramsStart = logPerf ? performance.now() : 0;
         instance.device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([
             offset, count, Math.floor(offset / overviewBucketSize), 0,
         ]));
-        const paramsMs = logPerf ? performance.now() - paramsStart : 0;
 
-        const submitStart = logPerf ? performance.now() : 0;
         const encoder = instance.device.createCommandEncoder();
         const pass = encoder.beginComputePass();
         pass.setPipeline(instance.overviewPipeline);
@@ -160,15 +148,8 @@
         pass.dispatchWorkgroups(Math.ceil(count / overviewBucketSize));
         pass.end();
         instance.device.queue.submit([encoder.finish()]);
-        const submitMs = logPerf ? performance.now() - submitStart : 0;
 
-        const queueSyncStart = logPerf ? performance.now() : 0;
         await instance.device.queue.onSubmittedWorkDone();
-        const queueSyncMs = logPerf ? performance.now() - queueSyncStart : 0;
-
-        if (logPerf) {
-            perfLog(`overview chart=${instance.chartId} path=${uploadKind} offset=${offset} count=${count} writeBufferMs=${writeBufferMs.toFixed(1)} rangeMs=${rangeMs.toFixed(1)} paramsMs=${paramsMs.toFixed(1)} submitMs=${submitMs.toFixed(1)} queueSyncMs=${queueSyncMs.toFixed(1)} totalMs=${(performance.now() - totalStart).toFixed(1)}`);
-        }
 
         return range;
     }
@@ -507,22 +488,13 @@
         if (!upload)
             throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
 
-        const logPerf = isPerformanceLoggingEnabled();
-        const readStart = logPerf ? performance.now() : 0;
         const values = readFloatDataReferenceSync(dataReference, dataLength);
-        const readMs = logPerf ? performance.now() - readStart : 0;
         const count = values.length;
 
         if (offset !== upload.writtenLength || offset + count > upload.length)
             throw new Error(`Chunked series upload ${token} expected sample offset ${upload.writtenLength}, received ${offset}`);
 
-        const writeStart = logPerf ? performance.now() : 0;
         instance.device.queue.writeBuffer(upload.transientBuffer, 0, values);
-        upload.memoryViewWriteBufferMs = logPerf ? performance.now() - writeStart : 0;
-
-        if (logPerf) {
-            perfLog(`upload memoryView chart=${chartId} token=${token} series=${upload.id} offset=${offset} count=${count} readMs=${readMs.toFixed(1)} writeBufferMs=${upload.memoryViewWriteBufferMs.toFixed(1)}`);
-        }
     }
 
     async function processChunkedSeriesUploadAsync(chartId, token, offset, count) {
@@ -536,7 +508,7 @@
 
         const range = await processUploadedOverviewChunkAsync(
             instance, upload.transientBuffer, upload.paramsBuffer,
-            upload.bindGroup, offset, count, 'memoryView', upload.memoryViewWriteBufferMs ?? 0);
+            upload.bindGroup, offset, count);
 
         if (instances.get(chartId) !== instance || instance.chunkedUploadSessions.get(token) !== upload)
             throw ns.cancellationError(`Chunked series upload ${token} was superseded`);
@@ -548,7 +520,6 @@
         }
 
         upload.writtenLength += count;
-        upload.memoryViewWriteBufferMs = undefined;
     }
 
     async function appendChunkedSeriesAsync(chartId, token, offset, dataReference, dataLength) {
@@ -556,16 +527,10 @@
         const upload = instance?.chunkedUploadSessions.get(token);
         if (!upload)
             throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
-        const logPerf = isPerformanceLoggingEnabled();
-        const readStart = logPerf ? performance.now() : 0;
         const values = await readFloatDataReferenceAsync(dataReference, dataLength);
-        const readMs = logPerf ? performance.now() - readStart : 0;
         const count = values.length;
         if (offset !== upload.writtenLength || offset + count > upload.length)
             throw new Error(`Chunked series upload ${token} expected sample offset ${upload.writtenLength}, received ${offset}`);
-
-        if (logPerf)
-            perfLog(`upload dataReference chart=${chartId} token=${token} series=${upload.id} offset=${offset} count=${count} readMs=${readMs.toFixed(1)}`);
 
         const range = await processOverviewChunkAsync(
             instance, upload.transientBuffer, upload.paramsBuffer,
@@ -663,8 +628,6 @@
     }
 
     async function calculateSeriesRangeAsync(instance, source, length) {
-        const logPerf = isPerformanceLoggingEnabled();
-        const totalStart = logPerf ? performance.now() : 0;
         const workgroupCount = Math.min(maxRangeWorkgroups, Math.max(1, Math.ceil(length / rangeWorkgroupSize)));
         const resultSize = workgroupCount * 16;
         let resultBuffer = null;
@@ -672,7 +635,6 @@
         let paramsBuffer = null;
 
         try {
-            const setupStart = logPerf ? performance.now() : 0;
             resultBuffer = ns.createTrackedBuffer(instance, { size: resultSize, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
             readbackBuffer = ns.createTrackedBuffer(instance, { size: resultSize, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
             paramsBuffer = ns.createTrackedBuffer(instance, { size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -685,9 +647,7 @@
                     { binding: 2, resource: { buffer: paramsBuffer } },
                 ],
             });
-            const setupMs = logPerf ? performance.now() - setupStart : 0;
 
-            const submitStart = logPerf ? performance.now() : 0;
             const encoder = instance.device.createCommandEncoder();
             const pass = encoder.beginComputePass();
             pass.setPipeline(instance.rangePipeline);
@@ -696,13 +656,9 @@
             pass.end();
             encoder.copyBufferToBuffer(resultBuffer, 0, readbackBuffer, 0, resultSize);
             instance.device.queue.submit([encoder.finish()]);
-            const submitMs = logPerf ? performance.now() - submitStart : 0;
 
-            const mapStart = logPerf ? performance.now() : 0;
             await readbackBuffer.mapAsync(GPUMapMode.READ);
-            const mapMs = logPerf ? performance.now() - mapStart : 0;
 
-            const reduceStart = logPerf ? performance.now() : 0;
             const view = new DataView(readbackBuffer.getMappedRange());
             let minimum = 0;
             let maximum = 0;
@@ -725,11 +681,6 @@
                 hasValue = true;
             }
 
-            if (logPerf) {
-                const reduceMs = performance.now() - reduceStart;
-                perfLog(`range chart=${instance.chartId} length=${length} workgroups=${workgroupCount} setupMs=${setupMs.toFixed(1)} submitMs=${submitMs.toFixed(1)} mapMs=${mapMs.toFixed(1)} reduceMs=${reduceMs.toFixed(1)} totalMs=${(performance.now() - totalStart).toFixed(1)}`);
-            }
-
             return { hasValue, minimum, maximum };
         } finally {
             if (readbackBuffer?.mapState === 'mapped')
@@ -750,17 +701,12 @@
 
         if (cached) {
             cached.lastUsed = performance.now();
-            if (isPerformanceLoggingEnabled())
-                perfLog(`raw cacheHit chart=${instance.chartId} series=${source.id} chunk=${chunkIndex} offset=${cached.offset} count=${cached.length} bytes=${cached.byteLength}`);
             return Promise.resolve(cached);
         }
 
         const pending = instance.rawRequests.get(key);
-        if (pending) {
-            if (isPerformanceLoggingEnabled())
-                perfLog(`raw pending chart=${instance.chartId} series=${source.id} chunk=${chunkIndex} requestId=${pending.requestId}`);
+        if (pending)
             return pending.promise;
-        }
 
         const offset = chunkIndex * rawChunkLength;
         if (offset >= source.length)
@@ -772,11 +718,6 @@
         instance.rawReservedBytes += byteLength;
 
         const requestId = ++instance.workerRequestId;
-        const logPerf = isPerformanceLoggingEnabled();
-        const requestStart = logPerf ? performance.now() : 0;
-        if (logPerf)
-            perfLog(`raw request chart=${instance.chartId} series=${source.id} chunk=${chunkIndex} requestId=${requestId} offset=${offset} count=${count} bytes=${byteLength}`);
-
         let resolveRequest;
         let rejectRequest;
         const promise = new Promise((resolve, reject) => {
@@ -812,9 +753,7 @@
                         size: values.byteLength,
                         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
                     });
-                    const uploadStart = logPerf ? performance.now() : 0;
                     instance.device.queue.writeBuffer(buffer, 0, values);
-                    const uploadMs = logPerf ? performance.now() - uploadStart : 0;
                     const chunk = {
                         id: source.id, buffer, pointBuffer: buffer, dataMode: 0, decimations: new Map(),
                         offset, length: values.length, byteLength: values.byteLength, lastUsed: performance.now(),
@@ -823,9 +762,6 @@
                     instance.rawRequests.delete(key);
                     instance.workerCallbacks.delete(requestId);
                     evictRawChunks(instance, 0);
-                    if (logPerf) {
-                        perfLog(`raw ready chart=${instance.chartId} series=${source.id} chunk=${chunkIndex} requestId=${requestId} count=${values.length} uploadMs=${uploadMs.toFixed(1)} totalMs=${(performance.now() - requestStart).toFixed(1)}`);
-                    }
                     resolveRequest(chunk);
                     rerenderLastPayloads(instance);
                 } catch (error) {
@@ -859,15 +795,9 @@
         if (!callbacks)
             return;
 
-        const logPerf = isPerformanceLoggingEnabled();
-        const readStart = logPerf ? performance.now() : 0;
         const values = await readFloatDataReferenceAsync(dataReference, dataLength);
-        const readMs = logPerf ? performance.now() - readStart : 0;
         if (values.byteLength !== callbacks.byteLength)
             throw new Error(`Raw chunk response ${requestId} has an unexpected byte length`);
-
-        if (logPerf)
-            perfLog(`raw providerResponse chart=${chartId} requestId=${requestId} count=${values.length} readMs=${readMs.toFixed(1)}`);
 
         callbacks.onmessage({
             data: {

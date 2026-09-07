@@ -102,7 +102,7 @@ public class AppState : INotifyPropertyChanged, IAppState
         IsDemo = isDemo;
         _client = client;
         _jsInterop = jsInterop;
-        Settings = new SettingsViewModel(this, jsInterop, client);
+        Settings = new SettingsViewModel(this, client);
 
         var childCatalogInfosTask = client.V1.Catalogs.GetChildCatalogInfosAsync(ResourceCatalogViewModel.ROOT_CATALOG_ID, CancellationToken.None);
 

@@ -33,7 +33,8 @@ else
     {
         _handler = (sender, e) => 
         {
-            if (e.PropertyName == nameof(AppState.Settings.CanExport))
+            if (e.PropertyName == nameof(AppState.Settings.CanExport) ||
+                e.PropertyName == nameof(AppState.Settings.ExportByteCount))
                 StateHasChanged();
         };
     }
@@ -60,7 +61,7 @@ else
 
     private string GetLabel()
     {
-        var byteCount = AppState.Settings.GetTotalByteCount();
+        var byteCount = AppState.Settings.ExportByteCount;
 
         if (byteCount > 0)
             return FormatByteCount(byteCount);

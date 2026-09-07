@@ -3,6 +3,7 @@
 
 using Apollo3zehn.OpenApiClientGenerator;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Readers;
@@ -12,6 +13,8 @@ namespace Nexus.ClientGenerator;
 
 public static class Program
 {
+    private const string PublishedOpenApiServerAddress = "http://localhost:5000";
+
     public static async Task Main(string[] args)
     {
         if (args.Length > 2)
@@ -34,6 +37,8 @@ public static class Program
         //
         var builder = WebApplication.CreateBuilder([]);
 
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+
         builder.Services
             .AddMvcCore().AddApplicationPart(typeof(ArtifactsController).Assembly);
 
@@ -52,16 +57,20 @@ public static class Program
 
         try
         {
+            var serverAddress = app.Urls.Single();
+
             // read open API documents
             using var client = new HttpClient();
-            using var v1Response = await client.GetAsync("http://localhost:5000/openapi/v1.json");
-            using var v2Response = await client.GetAsync("http://localhost:5000/openapi/v2.json");
+            using var v1Response = await client.GetAsync($"{serverAddress}/openapi/v1.json");
+            using var v2Response = await client.GetAsync($"{serverAddress}/openapi/v2.json");
 
             v1Response.EnsureSuccessStatusCode();
             v2Response.EnsureSuccessStatusCode();
 
-            var openApiV1JsonString = await v1Response.Content.ReadAsStringAsync();
-            var openApiV2JsonString = await v2Response.Content.ReadAsStringAsync();
+            var openApiV1JsonString = (await v1Response.Content.ReadAsStringAsync())
+                .Replace(serverAddress, PublishedOpenApiServerAddress);
+            var openApiV2JsonString = (await v2Response.Content.ReadAsStringAsync())
+                .Replace(serverAddress, PublishedOpenApiServerAddress);
 
             var v1Document = new OpenApiStringReader()
                 .Read(openApiV1JsonString, out _);

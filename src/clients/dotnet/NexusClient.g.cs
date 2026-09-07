@@ -141,8 +141,6 @@ public class NexusClient : INexusClient, IDisposable
 {
     private const string ConfigurationHeaderKey = "Nexus-Configuration";
     private const string AuthorizationHeaderKey = "Authorization";
-    private const string BatchStreamPerformanceLoggingSwitch = "Nexus.BatchStreamPerformanceLogging";
-    private const string BatchStreamPerformanceLoggingEnvironmentVariable = "NEXUS_BATCH_STREAM_DEBUG";
 
     private string? __token;
     private HttpClient __httpClient;
@@ -212,22 +210,6 @@ public class NexusClient : INexusClient, IDisposable
         __httpClient.DefaultRequestHeaders.Remove(ConfigurationHeaderKey);
     }
 
-    private static bool IsBatchStreamPerformanceLoggingEnabled()
-    {
-        if (AppContext.TryGetSwitch(BatchStreamPerformanceLoggingSwitch, out var isEnabled))
-            return isEnabled;
-
-        var value = Environment.GetEnvironmentVariable(BatchStreamPerformanceLoggingEnvironmentVariable);
-
-        return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static void LogBatchStreamPerformance(string message) =>
-        Console.WriteLine($"[nexus chart perf] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
-
-    private static double GetElapsedMilliseconds(long startTimestamp) =>
-        (Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / Stopwatch.Frequency;
 
     internal T Invoke<T>(string method, string relativeUrl, string? acceptHeaderValue, string? contentTypeValue, HttpContent? content)
     {
@@ -516,18 +498,6 @@ public class NexusClient : INexusClient, IDisposable
         var chunkOffsets = new int[expectedLengths.Length];
         var chunkLengths = new int[expectedLengths.Length];
         var offsets = new long[expectedLengths.Length];
-        var completedChunkCounts = new int[expectedLengths.Length];
-        var chunkFrameCounts = new int[expectedLengths.Length];
-        var chunkReadOperations = new int[expectedLengths.Length];
-        var chunkReadMilliseconds = new double[expectedLengths.Length];
-        var chunkTimestamps = new long[expectedLengths.Length];
-        var batchLogPerf = IsBatchStreamPerformanceLoggingEnabled();
-        var batchTimestamp = batchLogPerf ? Stopwatch.GetTimestamp() : 0;
-        var frameCount = 0L;
-        var totalPayloadBytes = 0L;
-
-        if (batchLogPerf)
-            LogBatchStreamPerformance($"client readStart resources={resourcePaths.Count} expectedBytes={expectedLengths.Sum()} elementSize={elementSize} chunkElements={maxChunkLength} async={useAsync}");
 
         for (var index = 0; index < expectedLengths.Length; index++)
         {
@@ -538,20 +508,12 @@ public class NexusClient : INexusClient, IDisposable
 
             if (bufferProvider is null)
             {
-                var allocateTimestamp = batchLogPerf ? Stopwatch.GetTimestamp() : 0;
-
                 if (requiredLength > int.MaxValue)
                     throw new InvalidOperationException($"The resource '{resourcePaths[index]}' is too large for a single contiguous buffer. Provide a chunk-aware buffer provider.");
 
                 values[index] = new T[checked((int)requiredLength)];
                 chunks[index] = values[index];
                 chunkLengths[index] = checked((int)expectedLengths[index]);
-
-                if (batchLogPerf)
-                {
-                    chunkTimestamps[index] = Stopwatch.GetTimestamp();
-                    LogBatchStreamPerformance($"client allocate resource='{resourcePaths[index]}' index={index} length={requiredLength} bytes={expectedLengths[index]} allocateMs={GetElapsedMilliseconds(allocateTimestamp):F1}");
-                }
             }
             else
             {
@@ -563,22 +525,16 @@ public class NexusClient : INexusClient, IDisposable
         }
 
         var header = new byte[8];
-        var streamTimestamp = batchLogPerf ? Stopwatch.GetTimestamp() : 0;
         Stream stream = useAsync
             ? await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false)
             : responseMessage.Content.ReadAsStream(cancellationToken);
 
-        if (batchLogPerf)
-            LogBatchStreamPerformance($"client streamReady streamMs={GetElapsedMilliseconds(streamTimestamp):F1}");
-
         while (true)
         {
-            var headerTimestamp = batchLogPerf ? Stopwatch.GetTimestamp() : 0;
             if (await ReadAsync(header.AsMemory(0, 1)).ConfigureAwait(false) == 0)
                 break;
 
             await ReadExactlyAsync(header.AsMemory(1)).ConfigureAwait(false);
-            var headerMs = batchLogPerf ? GetElapsedMilliseconds(headerTimestamp) : 0;
 
             var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(header);
             var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
@@ -596,13 +552,6 @@ public class NexusClient : INexusClient, IDisposable
                 throw new Exception("The batch stream contains more data than expected.");
 
             var remainingPayloadLength = payloadLength;
-            var frameTimestamp = batchLogPerf ? Stopwatch.GetTimestamp() : 0;
-            var frameOffset = offsets[resourceIndex];
-            frameCount++;
-            totalPayloadBytes += payloadLength;
-
-            if (batchLogPerf)
-                chunkFrameCounts[resourceIndex]++;
 
             while (remainingPayloadLength > 0)
             {
@@ -614,49 +563,19 @@ public class NexusClient : INexusClient, IDisposable
 
                 var count = Math.Min(remainingPayloadLength, chunkLengths[resourceIndex] - chunkOffsets[resourceIndex]);
 
-                var readTimestamp = batchLogPerf ? Stopwatch.GetTimestamp() : 0;
                 using var manager = new CastMemoryManager<T, byte>(chunks[resourceIndex]);
                 var target = manager.Memory.Slice(chunkOffsets[resourceIndex], count);
                 await ReadExactlyAsync(target).ConfigureAwait(false);
-                var readMs = batchLogPerf ? GetElapsedMilliseconds(readTimestamp) : 0;
 
                 chunkOffsets[resourceIndex] += count;
                 offsets[resourceIndex] += count;
                 remainingPayloadLength -= count;
                 reportProgress?.Invoke(count);
-
-                if (batchLogPerf)
-                {
-                    var chunkLength = chunkLengths[resourceIndex];
-                    var isChunkComplete = chunkLength > 0 && chunkOffsets[resourceIndex] == chunkLength;
-                    chunkReadOperations[resourceIndex]++;
-                    chunkReadMilliseconds[resourceIndex] += readMs;
-
-                    if (readMs >= 10)
-                    {
-                        LogBatchStreamPerformance($"client readPayload resource='{resourcePaths[resourceIndex]}' index={resourceIndex} offsetBytes={offsets[resourceIndex] - count} bytes={count} readMs={readMs:F1} chunkOffsetBytes={chunkOffsets[resourceIndex]} chunkBytes={chunkLength}");
-                    }
-
-                    if (isChunkComplete)
-                    {
-                        completedChunkCounts[resourceIndex]++;
-                        LogBatchStreamPerformance($"client chunkComplete resource='{resourcePaths[resourceIndex]}' index={resourceIndex} chunk={completedChunkCounts[resourceIndex]} receivedBytes={offsets[resourceIndex]} expectedBytes={expectedLengths[resourceIndex]} frames={chunkFrameCounts[resourceIndex]} reads={chunkReadOperations[resourceIndex]} readMs={chunkReadMilliseconds[resourceIndex]:F1} chunkMs={GetElapsedMilliseconds(chunkTimestamps[resourceIndex]):F1} elapsedMs={GetElapsedMilliseconds(batchTimestamp):F1}");
-                        chunkFrameCounts[resourceIndex] = 0;
-                        chunkReadOperations[resourceIndex] = 0;
-                        chunkReadMilliseconds[resourceIndex] = 0;
-                    }
-                }
             }
-
-            if (batchLogPerf && (headerMs >= 10 || GetElapsedMilliseconds(frameTimestamp) >= 10))
-                LogBatchStreamPerformance($"client frame resource='{resourcePaths[resourceIndex]}' index={resourceIndex} offsetBytes={frameOffset} payloadBytes={payloadLength} headerMs={headerMs:F1} totalMs={GetElapsedMilliseconds(frameTimestamp):F1} frames={frameCount}");
         }
 
         if (!offsets.SequenceEqual(expectedLengths))
             throw new Exception("The batch stream ended before all data was received.");
-
-        if (batchLogPerf)
-            LogBatchStreamPerformance($"client readComplete frames={frameCount} payloadBytes={totalPayloadBytes} totalMs={GetElapsedMilliseconds(batchTimestamp):F1}");
 
         return values;
 
@@ -666,7 +585,6 @@ public class NexusClient : INexusClient, IDisposable
                 throw new Exception("The batch stream contains more chunk data than expected.");
 
             var chunkLength = checked((int)Math.Min(maxChunkLength, remainingLength));
-            var providerTimestamp = batchLogPerf ? Stopwatch.GetTimestamp() : 0;
             var memory = bufferProvider(resourcePaths[index], chunkLength, remainingLength);
 
             if (memory.Length < chunkLength)
@@ -675,12 +593,6 @@ public class NexusClient : INexusClient, IDisposable
             chunks[index] = memory[..chunkLength];
             chunkOffsets[index] = 0;
             chunkLengths[index] = checked(chunkLength * elementSize);
-
-            if (batchLogPerf)
-            {
-                chunkTimestamps[index] = Stopwatch.GetTimestamp();
-                LogBatchStreamPerformance($"client rentChunk resource='{resourcePaths[index]}' index={index} chunk={completedChunkCounts[index] + 1} offsetBytes={offsets[index]} length={chunkLength} remainingLength={remainingLength} providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
-            }
         }
 
         ValueTask<int> ReadAsync(Memory<byte> buffer)

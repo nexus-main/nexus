@@ -45,6 +45,8 @@ Found 0 unique roots.
 
 Additionally, a forced `GC.Collect()` actually reduced to memory consumption to a very low level. This leads to the assumption that the large object heap (LOH) is fragmented (https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/large-object-heap).
 
+For Blazor WebAssembly, .NET documents the `EmccMaximumHeapSize` setting and browser/runtime constraints in the Mono WASM feature notes: https://github.com/dotnet/runtime/blob/main/src/mono/wasm/features.md#maximum-memory-size.
+
 # Plot heap content
 
 `dotnet dump analyze core.dmp -c "dumpheap" -c exit > heap.txt`

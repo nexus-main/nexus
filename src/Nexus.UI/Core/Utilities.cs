@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Nexus.Api;
 using Nexus.Api.V1;
 using Nexus.UI.ViewModels;
+using Precision = Nexus.Api.V2.Precision;
 
 namespace Nexus.UI.Core;
 
@@ -88,11 +89,11 @@ public static partial class Utilities
         return (long)((end - begin).Ticks / samplePeriod.Ticks);
     }
 
-    public static long GetByteCount(long elementCount, IEnumerable<CatalogItemSelectionViewModel> selectedatalogItems)
+    public static long GetByteCount(long elementCount, IEnumerable<CatalogItemSelectionViewModel> selectedCatalogItems, Precision precision)
     {
-        var elementSize = 8;
+        var elementSize = (int)precision;
 
-        var representationCount = selectedatalogItems
+        var representationCount = selectedCatalogItems
             .Sum(item => item.Kinds.Count);
 
         return elementCount * elementSize * representationCount;

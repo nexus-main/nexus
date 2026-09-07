@@ -158,9 +158,10 @@
                         }
                     }
 
+                    AppState.ExportParameters = exportParameters;
                     AppState.Settings.SamplePeriod = new Period(commonSamplePeriod);
                     AppState.Settings.SetSelectedCatalogItems(catalogItemSelections);
-                    AppState.ExportParameters = exportParameters;
+                    AppState.Settings.ExportParametersChanged();
                 }
             }
         }

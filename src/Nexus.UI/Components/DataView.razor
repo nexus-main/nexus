@@ -4,14 +4,13 @@
 @inject ISnackbar Snackbar
 @inject AppState AppState
 @inject INexusClient Client
-@inject IJSInProcessRuntime JSRuntime
 
 @if (_sizeLimitExceeded)
 {
     <div class="h-2/3 flex flex-col justify-center items-center mx-auto text-gray-300">
         <span class="font-bold text-2xl">¯\_(ツ)_/¯</span>
-        <span class="mt-5 text-3xl ">Size limit (@(AppState.UISettings.EffectiveDataViewMemoryLimitMiB) MiB) exceeded</span>
-        <span class="mt-3 text-lg text-gray-400">Increase the data view memory limit in the settings.</span>
+        <span class="mt-5 text-3xl ">Size limit (@(AppState.Settings.SizeLimitMiB) MiB) exceeded</span>
+        <span class="mt-3 text-lg text-gray-400">Reduce the selected range or number of signals.</span>
     </div>
 }
 else
@@ -32,17 +31,17 @@ else
         <div class="h-full p-5 relative">
             <Chart @key="_chartKey" LineSeriesData="_lineSeriesData" BeginAtZero="AppState.BeginAtZero" />
 
-            <MudOverlay Visible="_isLoading" DarkBackground Absolute>
-                <div class="h-full flex justify-center items-center mx-auto">
+            <MudOverlay Visible="_isLoading" Absolute Class="backdrop-blur-sm">
+                <div class="h-full flex justify-center items-center gap-3 mx-auto">
                     <MudProgressCircular
                     Color="Color.Primary"
                     Value="_progress"
                     Max="1" />
-                    <span class="ml-3 text-gray-400">Loading data ...</span>
+                    <span class="text-orange-500 font-semibold">Loading data ...</span>
                 </div>
             </MudOverlay>
 
-            <MudOverlay Visible="_showReloadButton && !_isLoading" DarkBackground AutoClose Absolute>
+            <MudOverlay Visible="_showReloadButton && !_isLoading" AutoClose Absolute Class="backdrop-blur-sm">
                 <MudButton
                 StartIcon="@Icons.Material.Filled.Refresh"
                 Variant="Variant.Filled"
@@ -74,28 +73,6 @@ else
     private int _chartKey;
 
     private CancellationTokenSource? _cts;
-
-    private bool IsPerformanceLoggingEnabled()
-    {
-        try
-        {
-            return JSRuntime.Invoke<bool>("nexus.chartWebGpu.isPerformanceLoggingEnabled");
-        }
-        catch (JSException)
-        {
-            return false;
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
-    }
-
-    private static void LogPerformance(string message) =>
-        Console.WriteLine($"[nexus chart perf] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
-
-    private static double GetElapsedMilliseconds(long startTimestamp) =>
-        (System.Diagnostics.Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 
     public DataView()
     {
@@ -163,17 +140,6 @@ else
 
         await InvokeAsync(StateHasChanged);
 
-        var logPerf = IsPerformanceLoggingEnabled();
-        var totalTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
-        var batchStreamPerformanceLoggingHadSwitch = false;
-        var batchStreamPerformanceLoggingPreviousValue = false;
-
-        if (logPerf)
-        {
-            batchStreamPerformanceLoggingHadSwitch = AppContext.TryGetSwitch("Nexus.BatchStreamPerformanceLogging", out batchStreamPerformanceLoggingPreviousValue);
-            AppContext.SetSwitch("Nexus.BatchStreamPerformanceLogging", true);
-        }
-
         var progressTask = Task.Run(async () =>
         {
             while (!cts.IsCancellationRequested && ReferenceEquals(_cts, cts) && _isLoading)
@@ -232,16 +198,11 @@ else
                     _chartKey++;
                     _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);
                     _visualizationBuffers = loadBuffers;
-                    if (logPerf)
-                        LogPerformance($"stream assign chartKey={_chartKey} series={lineSeriesSet.Count} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
                     _ = InvokeAsync(StateHasChanged);
                 }
 
                 var resourcePaths = requests.Select(request => request.ResourcePath).ToArray();
-                loadBuffers = new VisualizationBuffers(resourcePaths, AssignLineSeriesDataIfReady, logPerf);
-                var loadTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
-                if (logPerf)
-                    LogPerformance($"stream loadStart resources={resourcePaths.Length} begin={begin:O} end={end:O}");
+                loadBuffers = new VisualizationBuffers(resourcePaths, AssignLineSeriesDataIfReady);
                 _ = await Client.LoadAsync<float>(
                     begin,
                     end,
@@ -254,11 +215,7 @@ else
                     },
                     cts.Token);
 
-                if (logPerf)
-                    LogPerformance($"stream loadReturned resources={resourcePaths.Length} loadMs={GetElapsedMilliseconds(loadTimestamp):F1} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
                 loadBuffers.Complete();
-                if (logPerf)
-                    LogPerformance($"stream complete resources={resourcePaths.Length} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
                 AssignLineSeriesDataIfReady();
 
                 if (ReferenceEquals(_cts, cts) && ReferenceEquals(_visualizationBuffers, loadBuffers))
@@ -268,28 +225,18 @@ else
             {
                 _chartKey++;
                 _lineSeriesData = new LineSeriesData(begin, end, []);
-                if (logPerf)
-                    LogPerformance($"stream assignEmpty chartKey={_chartKey} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
             }
         }
         catch (OperationCanceledException)
         {
-            if (logPerf)
-                LogPerformance($"stream cancelled elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
         }
         catch (Exception ex)
         {
-            if (logPerf)
-                LogPerformance($"stream failed type={ex.GetType().Name} message='{ex.Message}' elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
-
             if (ReferenceEquals(_cts, cts))
                 AppState.AddError(ex, Snackbar);
         }
         finally
         {
-            if (logPerf)
-                AppContext.SetSwitch("Nexus.BatchStreamPerformanceLogging", batchStreamPerformanceLoggingHadSwitch && batchStreamPerformanceLoggingPreviousValue);
-
             cts.Cancel();
 
             try
@@ -317,9 +264,6 @@ else
         if (_lineSeriesData is null && _visualizationBuffers is null)
             return;
 
-        var logPerf = IsPerformanceLoggingEnabled();
-        var releaseTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
-
         if (_lineSeriesData is not null)
         {
             _chartKey++;
@@ -335,9 +279,6 @@ else
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
-
-        if (logPerf)
-            LogPerformance($"stream releaseCurrent releaseMs={GetElapsedMilliseconds(releaseTimestamp):F1}");
     }
 
     public void Dispose()
@@ -356,43 +297,27 @@ else
         private readonly List<IMemoryOwner<float>> _owners = [];
         private readonly HashSet<string> _pendingResourcePaths;
         private readonly Action _onSourcesReady;
-        private readonly bool _logPerf;
 
-        public VisualizationBuffers(IEnumerable<string> resourcePaths, Action onSourcesReady, bool logPerf)
+        public VisualizationBuffers(IEnumerable<string> resourcePaths, Action onSourcesReady)
         {
             _pendingResourcePaths = resourcePaths.ToHashSet();
             _onSourcesReady = onSourcesReady;
-            _logPerf = logPerf;
         }
 
         public bool AreSourcesReady => _pendingResourcePaths.Count == 0;
 
         public Memory<float> ProvideBuffer(string resourcePath, int chunkLength, long remainingLength)
         {
-            var providerTimestamp = _logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
-
             if (chunkLength == 0)
-            {
-                if (_logPerf)
-                    LogPerformance($"stream provideEmpty resource='{resourcePath}' providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
-
                 return Memory<float>.Empty;
-            }
 
             if (!_resources.TryGetValue(resourcePath, out var resource))
             {
                 resource = new ResourceBuffers(new LineSeriesSource(remainingLength));
                 _resources.Add(resourcePath, resource);
-                if (_logPerf)
-                    LogPerformance($"stream sourceInitialized resource='{resourcePath}' totalLength={remainingLength}");
 
                 if (_pendingResourcePaths.Remove(resourcePath) && AreSourcesReady)
-                {
-                    if (_logPerf)
-                        LogPerformance("stream sourcesReady");
-
                     _onSourcesReady();
-                }
             }
             else
             {
@@ -403,9 +328,6 @@ else
             _owners.Add(owner);
             resource.Current = owner.Memory[..chunkLength];
 
-            if (_logPerf)
-                LogPerformance($"stream provide resource='{resourcePath}' offset={resource.NextOffset} length={chunkLength} remainingLength={remainingLength} providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
-
             return resource.Current;
         }
 
@@ -414,32 +336,20 @@ else
 
         public void Complete()
         {
-            var completeTimestamp = _logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
-
             foreach (var resource in _resources.Values)
             {
                 PublishCurrent(resource);
                 resource.Source.Complete();
             }
-
-            if (_logPerf)
-                LogPerformance($"stream buffersComplete resources={_resources.Count} completeMs={GetElapsedMilliseconds(completeTimestamp):F1}");
         }
 
         public void Dispose()
         {
-            var disposeTimestamp = _logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
-            var ownerCount = _owners.Count;
-            var resourceCount = _resources.Count;
-
             foreach (var owner in _owners)
                 owner.Dispose();
 
             _owners.Clear();
             _resources.Clear();
-
-            if (_logPerf)
-                LogPerformance($"stream buffersDisposed owners={ownerCount} resources={resourceCount} disposeMs={GetElapsedMilliseconds(disposeTimestamp):F1}");
         }
 
         private void PublishCurrent(ResourceBuffers resource)
@@ -447,10 +357,7 @@ else
             if (resource.Current.Length == 0)
                 return;
 
-            var publishTimestamp = _logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
             resource.Source.AddChunk(resource.Current);
-            if (_logPerf)
-                LogPerformance($"stream publish offset={resource.NextOffset} length={resource.Current.Length} publishMs={GetElapsedMilliseconds(publishTimestamp):F1}");
 
             resource.NextOffset += resource.Current.Length;
             resource.Current = Memory<float>.Empty;

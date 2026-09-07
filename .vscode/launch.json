@@ -19,8 +19,7 @@
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development",
-                "NEXUS_BATCH_STREAM_DEBUG": "1"
+                "ASPNETCORE_ENVIRONMENT": "Development"
             }
         },
         {

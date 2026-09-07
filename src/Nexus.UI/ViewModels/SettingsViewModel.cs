@@ -4,10 +4,10 @@
 using Nexus.Api;
 using Nexus.Api.V1;
 using Nexus.UI.Core;
-using Nexus.UI.Services;
 using System.ComponentModel;
 using System.Text.Json;
 using ExportParameters = Nexus.Api.V2.ExportParameters;
+using Precision = Nexus.Api.V2.Precision;
 
 namespace Nexus.UI.ViewModels;
 
@@ -17,18 +17,17 @@ public class SettingsViewModel : INotifyPropertyChanged
 
     private TimeSpan _samplePeriod = TimeSpan.FromSeconds(1);
 
+    private const int DataViewMemoryLimitMiB = 2048;
+
     private readonly AppState _appState;
 
     private readonly INexusClient _client;
 
-    private readonly NexusJSInterop _jsInterop;
-
     private List<CatalogItemSelectionViewModel> _selectedCatalogItems = [];
 
-    public SettingsViewModel(AppState appState, NexusJSInterop jsInterop, INexusClient client)
+    public SettingsViewModel(AppState appState, INexusClient client)
     {
         _appState = appState;
-        _jsInterop = jsInterop;
         _client = client;
 
         _appState.PropertyChanged += OnAppStatePropertyChanged;
@@ -120,6 +119,23 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public Precision Precision
+    {
+        get
+        {
+            return _appState.ExportParameters.Precision;
+        }
+        set
+        {
+            if (_appState.ExportParameters.Precision != value)
+            {
+                _appState.ExportParameters = _appState.ExportParameters with { Precision = value };
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Precision)));
+                ExportByteCountChanged();
+            }
+        }
+    }
+
     public IList<ExtensionDescription> WriterDescriptions { get; private set; } = default!;
 
     public ExtensionDescription? WriterDescription { get; private set; }
@@ -166,12 +182,13 @@ public class SettingsViewModel : INotifyPropertyChanged
     public void CanExportChanged()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanExport)));
+        ExportByteCountChanged();
     }
 
     public void CanVisualizeChanged()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanVisualize)));
-        SizeLimitExceededChanged();
+        VisualizeByteCountChanged();
     }
 
     public void SizeLimitExceededChanged()
@@ -179,20 +196,51 @@ public class SettingsViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSizeLimitExceeded)));
     }
 
-    public long SizeLimit => (long)_appState.UISettings.EffectiveDataViewMemoryLimitMiB * 1024 * 1024;
+    public int SizeLimitMiB => DataViewMemoryLimitMiB;
 
-    public bool IsSizeLimitExceeded => GetTotalByteCount() > SizeLimit;
+    public long SizeLimit => (long)SizeLimitMiB * 1024 * 1024;
 
-    public long GetTotalByteCount()
+    public bool IsSizeLimitExceeded => VisualizeByteCount > SizeLimit;
+
+    public long VisualizeByteCount => GetByteCount(Precision.Float32);
+
+    public long ExportByteCount => GetByteCount(Precision);
+
+    private long GetByteCount(Precision precision)
     {
         var elementCount = Utilities.GetElementCount(
             _appState.Settings.Begin,
             _appState.Settings.End,
             _appState.Settings.SamplePeriod.Value);
 
-        var byteCount = Utilities.GetByteCount(elementCount, _appState.Settings.SelectedCatalogItems);
+        var byteCount = Utilities.GetByteCount(elementCount, _appState.Settings.SelectedCatalogItems, precision);
 
         return byteCount;
+    }
+
+    private void ExportByteCountChanged()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ExportByteCount)));
+    }
+
+    private void VisualizeByteCountChanged()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(VisualizeByteCount)));
+        SizeLimitExceededChanged();
+    }
+
+    public void ExportParametersChanged()
+    {
+        if (WriterDescriptions is not null)
+            WriterDescription = WriterDescriptions.FirstOrDefault(description => description.Type == FileType);
+
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Begin)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(End)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(FilePeriod)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(FileType)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Precision)));
+        CanExportChanged();
+        CanVisualizeChanged();
     }
 
     public ExportParameters GetExportParameters()

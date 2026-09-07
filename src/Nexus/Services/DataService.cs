@@ -4,7 +4,6 @@
 using System.Buffers;
 using System.ComponentModel.DataAnnotations;
 using System.Buffers.Binary;
-using System.Diagnostics;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
@@ -63,20 +62,6 @@ internal class DataService(
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly IDataControllerService _dataControllerService = dataControllerService;
-
-    private static bool IsBatchStreamPerformanceLoggingEnabled()
-    {
-        var value = Environment.GetEnvironmentVariable("NEXUS_BATCH_STREAM_DEBUG");
-
-        return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static void LogBatchStreamPerformance(string message) =>
-        Console.WriteLine($"[nexus chart perf] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
-
-    private static double GetElapsedMilliseconds(long startTimestamp) =>
-        (Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / Stopwatch.Frequency;
 
     public Progress<double> ReadProgress { get; } = new Progress<double>();
 
@@ -170,11 +155,6 @@ internal class DataService(
         var dataReaders = new List<(int Index, PipeReader Reader)>();
         var readingGroups = new List<DataReadingGroup>();
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var logPerf = IsBatchStreamPerformanceLoggingEnabled();
-        var totalTimestamp = logPerf ? Stopwatch.GetTimestamp() : 0;
-
-        if (logPerf)
-            LogBatchStreamPerformance($"server batchStart resources={request.ResourcePaths.Length} begin={begin:O} end={end:O} precision={request.Precision}");
 
         try
         {
@@ -242,10 +222,10 @@ internal class DataService(
             });
 
             var pumping = dataReaders
-                .Select(current => PumpAsync(current.Index, request.ResourcePaths[current.Index], current.Reader, frames.Writer, logPerf, totalTimestamp, cts.Token))
+                .Select(current => PumpAsync(current.Index, current.Reader, frames.Writer, cts.Token))
                 .ToArray();
 
-            var outputWriting = WriteBatchFramesAsync(frames.Reader, outputPipe.Writer, logPerf, totalTimestamp, cts.Token);
+            var outputWriting = WriteBatchFramesAsync(frames.Reader, outputPipe.Writer, cts.Token);
 
             _ = CompleteAndLogAsync(reading, pumping, outputWriting, frames.Writer, readingGroups, dataReaders, outputPipe.Writer, cts);
             return outputPipe.Reader.AsStream();
@@ -299,27 +279,16 @@ internal class DataService(
 
         static async Task PumpAsync(
             int resourceIndex,
-            string resourcePath,
             PipeReader input,
             ChannelWriter<BatchStreamFrame> output,
-            bool logPerf,
-            long totalTimestamp,
             CancellationToken cancellationToken)
         {
             const int maximumPayloadLength = 4 * 1024 * 1024;
-            var frameCount = 0L;
-            var totalPayloadBytes = 0L;
 
             while (true)
             {
-                var readTimestamp = logPerf ? Stopwatch.GetTimestamp() : 0;
                 var result = await input.ReadAsync(cancellationToken).ConfigureAwait(false);
                 var buffer = result.Buffer;
-                var readMs = logPerf ? GetElapsedMilliseconds(readTimestamp) : 0;
-                var bufferLength = buffer.Length;
-
-                if (logPerf && readMs >= 10)
-                    LogBatchStreamPerformance($"server pumpRead resource='{resourcePath}' index={resourceIndex} bytes={bufferLength} readMs={readMs:F1} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
 
                 try
                 {
@@ -330,25 +299,12 @@ internal class DataService(
                         while (!remaining.IsEmpty)
                         {
                             var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
-                            var copyTimestamp = logPerf ? Stopwatch.GetTimestamp() : 0;
                             var payloadBuffer = ArrayPool<byte>.Shared.Rent(payload.Length);
                             payload.CopyTo(payloadBuffer);
-                            var copyMs = logPerf ? GetElapsedMilliseconds(copyTimestamp) : 0;
 
                             try
                             {
-                                var writeTimestamp = logPerf ? Stopwatch.GetTimestamp() : 0;
                                 await output.WriteAsync(new BatchStreamFrame(resourceIndex, payloadBuffer, payload.Length), cancellationToken).ConfigureAwait(false);
-                                var writeMs = logPerf ? GetElapsedMilliseconds(writeTimestamp) : 0;
-
-                                if (logPerf)
-                                {
-                                    frameCount++;
-                                    totalPayloadBytes += payload.Length;
-
-                                    if (writeMs >= 10 || copyMs >= 10)
-                                        LogBatchStreamPerformance($"server pumpFrame resource='{resourcePath}' index={resourceIndex} payloadBytes={payload.Length} copyMs={copyMs:F1} channelWriteMs={writeMs:F1} frames={frameCount} payloadBytes={totalPayloadBytes} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
-                                }
                             }
                             catch
                             {
@@ -366,27 +322,17 @@ internal class DataService(
                 }
 
                 if (result.IsCompleted)
-                {
-                    if (logPerf)
-                        LogBatchStreamPerformance($"server pumpComplete resource='{resourcePath}' index={resourceIndex} frames={frameCount} payloadBytes={totalPayloadBytes} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
-
                     return;
-                }
             }
         }
 
         static async Task WriteBatchFramesAsync(
             ChannelReader<BatchStreamFrame> frames,
             PipeWriter output,
-            bool logPerf,
-            long totalTimestamp,
             CancellationToken cancellationToken)
         {
             const int flushThreshold = 4 * 1024 * 1024;
-            var frameCount = 0L;
-            var totalPayloadBytes = 0L;
             var unflushedBytes = 0L;
-            var unflushedFrames = 0L;
 
             try
             {
@@ -394,26 +340,14 @@ internal class DataService(
                 {
                     try
                     {
-                        var writeTimestamp = logPerf ? Stopwatch.GetTimestamp() : 0;
                         var header = output.GetSpan(8);
                         BinaryPrimitives.WriteInt32LittleEndian(header, frame.ResourceIndex);
                         BinaryPrimitives.WriteInt32LittleEndian(header[4..], frame.PayloadLength);
                         output.Advance(8);
                         frame.Payload.AsMemory(0, frame.PayloadLength).CopyTo(output.GetMemory(frame.PayloadLength));
                         output.Advance(frame.PayloadLength);
-                        var writeMs = logPerf ? GetElapsedMilliseconds(writeTimestamp) : 0;
-
-                        if (logPerf)
-                        {
-                            frameCount++;
-                            totalPayloadBytes += frame.PayloadLength;
-
-                            if (writeMs >= 10)
-                                LogBatchStreamPerformance($"server outputFrame index={frame.ResourceIndex} payloadBytes={frame.PayloadLength} writeMs={writeMs:F1} frames={frameCount} totalPayloadBytes={totalPayloadBytes} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
-                        }
 
                         unflushedBytes += 8 + frame.PayloadLength;
-                        unflushedFrames++;
 
                         if (unflushedBytes >= flushThreshold)
                         {
@@ -431,9 +365,6 @@ internal class DataService(
             }
             finally
             {
-                if (logPerf)
-                    LogBatchStreamPerformance($"server outputComplete frames={frameCount} payloadBytes={totalPayloadBytes} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
-
                 while (frames.TryRead(out var frame))
                 {
                     ArrayPool<byte>.Shared.Return(frame.Payload);
@@ -442,14 +373,7 @@ internal class DataService(
 
             async Task FlushAsync()
             {
-                var flushTimestamp = logPerf ? Stopwatch.GetTimestamp() : 0;
-                var flushedBytes = unflushedBytes;
-                var flushedFrames = unflushedFrames;
                 var flushResult = await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-                var flushMs = logPerf ? GetElapsedMilliseconds(flushTimestamp) : 0;
-
-                if (logPerf && flushMs >= 10)
-                    LogBatchStreamPerformance($"server outputFlush frames={flushedFrames} bytes={flushedBytes} flushMs={flushMs:F1} totalFrames={frameCount} totalPayloadBytes={totalPayloadBytes} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
 
                 if (flushResult.IsCanceled)
                     throw new OperationCanceledException(cancellationToken);
@@ -458,7 +382,6 @@ internal class DataService(
                     throw new IOException("The batch output pipe completed before all data was written.");
 
                 unflushedBytes = 0;
-                unflushedFrames = 0;
             }
         }
 
