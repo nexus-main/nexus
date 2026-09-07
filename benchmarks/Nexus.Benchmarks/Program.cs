@@ -8,7 +8,7 @@
 //   Runtime: .NET 9.0.18, X64 RyuJIT x86-64-v4
 //   Tool:    BenchmarkDotNet v0.15.8
 //
-//   Type     | Scalar       | Vectorized   | Speedup
+//   Type     | Scalar       | Vectorized  | Speedup
 //   ---------|--------------|-------------|--------
 //   Byte     | 304.19 us    | 16.18 us    | 18.8x
 //   SByte    | 290.62 us    | 18.61 us    | 15.6x
@@ -22,8 +22,6 @@
 //   Double   | 211.30 us    | 30.64 us    | 6.9x
 //
 //   All 10 NexusDataType types vectorized. AVX-512DQ path active for UInt64/Int64.
-//   Zero allocations across all benchmarks (UInt64 Vectorized reported 1 B — likely
-//   one-time JIT artifact).
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
@@ -61,7 +59,7 @@ internal class Program
 public class BufferUtilitiesBenchmarks<T>
     where T : unmanaged
 {
-    private const int Count = 131_072;
+    private const int Count = 131_072; // 2^17
 
     private T[] _data = null!;
     private byte[] _status = null!;

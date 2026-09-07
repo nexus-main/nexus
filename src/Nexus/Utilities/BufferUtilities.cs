@@ -3,8 +3,6 @@
 
 using Nexus.Core;
 using Nexus.DataModel;
-using System.Collections.Concurrent;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
@@ -13,51 +11,82 @@ namespace Nexus.Utilities;
 
 internal static class BufferUtilities
 {
-    private static readonly ConcurrentDictionary<NexusDataType, Action<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>, Memory<float>>> _float32ByDataTypeCache = new();
-    private static readonly ConcurrentDictionary<NexusDataType, Action<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>, Memory<double>>> _float64ByDataTypeCache = new();
-
     public static void ApplyRepresentationStatusFloat32ByDataType(NexusDataType dataType, ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<float> target)
     {
-        var action = _float32ByDataTypeCache.GetOrAdd(dataType, dt =>
+        switch (dataType)
         {
-            var targetType = NexusUtilities.GetTypeFromNexusDataType(dt);
+            case NexusDataType.FLOAT64:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, double>(), status, target); break;
 
-            return (Action<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>, Memory<float>>)
-                typeof(BufferUtilities)
-                    .GetMethod(nameof(InternalApplyRepresentationStatusFloat32ByDataType), BindingFlags.NonPublic | BindingFlags.Static)!
-                    .MakeGenericMethod(targetType)
-                    .CreateDelegate(typeof(Action<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>, Memory<float>>));
-        });
+            case NexusDataType.FLOAT32:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, float>(), status, target); break;
 
-        action(data, status, target);
-    }
+            case NexusDataType.INT32:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, int>(), status, target); break;
 
-    private static void InternalApplyRepresentationStatusFloat32ByDataType<T>(ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<float> target)
-        where T : unmanaged
-    {
-        ApplyRepresentationStatusFloat32(data.Cast<byte, T>(), status, target);
+            case NexusDataType.UINT32:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, uint>(), status, target); break;
+
+            case NexusDataType.INT16:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, short>(), status, target); break;
+
+            case NexusDataType.UINT16:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, ushort>(), status, target); break;
+
+            case NexusDataType.UINT8:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, byte>(), status, target); break;
+
+            case NexusDataType.INT8:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, sbyte>(), status, target); break;
+
+            case NexusDataType.INT64:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, long>(), status, target); break;
+
+            case NexusDataType.UINT64:
+                ApplyRepresentationStatusFloat32(data.Cast<byte, ulong>(), status, target); break;
+
+            default:
+                throw new NotSupportedException($"The data type {dataType} is not supported.");
+        }
     }
 
     public static void ApplyRepresentationStatusFloat64ByDataType(NexusDataType dataType, ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<double> target)
     {
-        var action = _float64ByDataTypeCache.GetOrAdd(dataType, dt =>
+        switch (dataType)
         {
-            var targetType = NexusUtilities.GetTypeFromNexusDataType(dt);
+            case NexusDataType.FLOAT64:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, double>(), status, target); break;
 
-            return (Action<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>, Memory<double>>)
-                typeof(BufferUtilities)
-                    .GetMethod(nameof(InternalApplyRepresentationStatusFloat64ByDataType), BindingFlags.NonPublic | BindingFlags.Static)!
-                    .MakeGenericMethod(targetType)
-                    .CreateDelegate(typeof(Action<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>, Memory<double>>));
-        });
+            case NexusDataType.FLOAT32:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, float>(), status, target); break;
 
-        action(data, status, target);
-    }
+            case NexusDataType.INT32:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, int>(), status, target); break;
 
-    private static void InternalApplyRepresentationStatusFloat64ByDataType<T>(ReadOnlyMemory<byte> data, ReadOnlyMemory<byte> status, Memory<double> target)
-        where T : unmanaged
-    {
-        ApplyRepresentationStatusFloat64(data.Cast<byte, T>(), status, target);
+            case NexusDataType.UINT32:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, uint>(), status, target); break;
+
+            case NexusDataType.INT16:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, short>(), status, target); break;
+
+            case NexusDataType.UINT16:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, ushort>(), status, target); break;
+
+            case NexusDataType.UINT8:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, byte>(), status, target); break;
+
+            case NexusDataType.INT8:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, sbyte>(), status, target); break;
+
+            case NexusDataType.INT64:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, long>(), status, target); break;
+
+            case NexusDataType.UINT64:
+                ApplyRepresentationStatusFloat64(data.Cast<byte, ulong>(), status, target); break;
+
+            default:
+                throw new NotSupportedException($"The data type {dataType} is not supported.");
+        }
     }
 
     public static unsafe void ApplyRepresentationStatusFloat32<T>(ReadOnlyMemory<T> data, ReadOnlyMemory<byte> status, Memory<float> target) where T : unmanaged
@@ -116,69 +145,103 @@ internal static class BufferUtilities
         }
     }
 
-    private unsafe static void InternalApplyRepresentationStatusFloat32<T>(int length, T* dataPtr, byte* statusPtr, float* targetPtr) where T : unmanaged
+    private unsafe static void InternalApplyRepresentationStatusFloat32<T>(
+        int length,
+        T* dataPtr,
+        byte* statusPtr,
+        float* targetPtr
+    ) where T : unmanaged
     {
-        if (Avx2.IsSupported)
-        {
-            if (typeof(T) == typeof(float))
-                ApplyFloat32FromFloat(length, (float*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(double))
-                ApplyFloat32FromDouble(length, (double*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(int))
-                ApplyFloat32FromInt32(length, (int*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(uint))
-                ApplyFloat32FromUInt32(length, (uint*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(short))
-                ApplyFloat32FromInt16(length, (short*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(ushort))
-                ApplyFloat32FromUInt16(length, (ushort*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(byte))
-                ApplyFloat32FromByte(length, (byte*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(sbyte))
-                ApplyFloat32FromSByte(length, (sbyte*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(long) && Avx512DQ.IsSupported)
-                ApplyFloat32FromInt64(length, (long*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(ulong) && Avx512DQ.IsSupported)
-                ApplyFloat32FromUInt64(length, (ulong*)(void*)dataPtr, statusPtr, targetPtr);
-            else
-                ScalarApplyFloat32(length, dataPtr, statusPtr, targetPtr);
-        }
-        else
+        if (!Avx2.IsSupported)
         {
             ScalarApplyFloat32(length, dataPtr, statusPtr, targetPtr);
+            return;
+        }
+
+        switch (default(T))
+        {
+            case float:
+                ApplyFloat32FromFloat(length, (float*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case double:
+                ApplyFloat32FromDouble(length, (double*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case int:
+                ApplyFloat32FromInt32(length, (int*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case uint:
+                ApplyFloat32FromUInt32(length, (uint*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case short:
+                ApplyFloat32FromInt16(length, (short*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case ushort:
+                ApplyFloat32FromUInt16(length, (ushort*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case byte:
+                ApplyFloat32FromByte(length, (byte*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case sbyte:
+                ApplyFloat32FromSByte(length, (sbyte*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case long when Avx512DQ.IsSupported:
+                ApplyFloat32FromInt64(length, (long*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case ulong when Avx512DQ.IsSupported:
+                ApplyFloat32FromUInt64(length, (ulong*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            default:
+                ScalarApplyFloat32(length, dataPtr, statusPtr, targetPtr); break;
         }
     }
 
-    private unsafe static void InternalApplyRepresentationStatusFloat64<T>(int length, T* dataPtr, byte* statusPtr, double* targetPtr) where T : unmanaged
+    private unsafe static void InternalApplyRepresentationStatusFloat64<T>(
+        int length,
+        T* dataPtr,
+        byte* statusPtr,
+        double* targetPtr
+    ) where T : unmanaged
     {
-        if (Avx2.IsSupported)
-        {
-            if (typeof(T) == typeof(double))
-                ApplyFloat64FromDouble(length, (double*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(float))
-                ApplyFloat64FromFloat(length, (float*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(int))
-                ApplyFloat64FromInt32(length, (int*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(uint))
-                ApplyFloat64FromUInt32(length, (uint*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(short))
-                ApplyFloat64FromInt16(length, (short*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(ushort))
-                ApplyFloat64FromUInt16(length, (ushort*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(byte))
-                ApplyFloat64FromByte(length, (byte*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(sbyte))
-                ApplyFloat64FromSByte(length, (sbyte*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(long) && Avx512DQ.IsSupported)
-                ApplyFloat64FromInt64(length, (long*)(void*)dataPtr, statusPtr, targetPtr);
-            else if (typeof(T) == typeof(ulong) && Avx512DQ.IsSupported)
-                ApplyFloat64FromUInt64(length, (ulong*)(void*)dataPtr, statusPtr, targetPtr);
-            else
-                ScalarApplyFloat64(length, dataPtr, statusPtr, targetPtr);
-        }
-        else
+        if (!Avx2.IsSupported)
         {
             ScalarApplyFloat64(length, dataPtr, statusPtr, targetPtr);
+            return;
+        }
+
+        switch (default(T))
+        {
+            case double:
+                ApplyFloat64FromDouble(length, (double*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case float:
+                ApplyFloat64FromFloat(length, (float*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case int:
+                ApplyFloat64FromInt32(length, (int*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case uint:
+                ApplyFloat64FromUInt32(length, (uint*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case short:
+                ApplyFloat64FromInt16(length, (short*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case ushort:
+                ApplyFloat64FromUInt16(length, (ushort*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case byte:
+                ApplyFloat64FromByte(length, (byte*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case sbyte:
+                ApplyFloat64FromSByte(length, (sbyte*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case long when Avx512DQ.IsSupported:
+                ApplyFloat64FromInt64(length, (long*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            case ulong when Avx512DQ.IsSupported:
+                ApplyFloat64FromUInt64(length, (ulong*)(void*)dataPtr, statusPtr, targetPtr); break;
+
+            default:
+                ScalarApplyFloat64(length, dataPtr, statusPtr, targetPtr); break;
         }
     }
 
