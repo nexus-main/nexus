@@ -72,7 +72,7 @@ The request accepts at most 100 unique resource paths with one common sample per
 |---|---:|---|
 | Resource index | 4 bytes | signed little-endian integer |
 | Payload length | 4 bytes | signed little-endian integer |
-| Payload | up to 64 KiB | little-endian `FLOAT64` values |
+| Payload | up to 4 MiB | little-endian `FLOAT64` values |
 
 The resource index refers to the path's position in `resourcePaths`. End-of-stream marks successful completion; clients validate that every resource received the expected number of bytes.
 

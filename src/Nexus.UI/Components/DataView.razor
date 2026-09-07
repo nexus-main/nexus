@@ -4,6 +4,7 @@
 @inject ISnackbar Snackbar
 @inject AppState AppState
 @inject INexusClient Client
+@inject IJSInProcessRuntime JSRuntime
 
 @if (_sizeLimitExceeded)
 {
@@ -74,8 +75,24 @@ else
 
     private CancellationTokenSource? _cts;
 
-    private static void LogChunkFlow(string message) =>
-        Console.WriteLine($"[temporary chunk-flow] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
+    private bool IsPerformanceLoggingEnabled()
+    {
+        try
+        {
+            return JSRuntime.Invoke<bool>("nexus.chartWebGpu.isPerformanceLoggingEnabled");
+        }
+        catch (JSException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static void LogPerformance(string message) =>
+        Console.WriteLine($"[nexus chart perf] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
 
     private static double GetElapsedMilliseconds(long startTimestamp) =>
         (System.Diagnostics.Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
@@ -126,7 +143,6 @@ else
 
         _showReloadButton = false;
 
-        LogChunkFlow("visualization invalidated before load");
         await ReleaseCurrentVisualizationAsync();
 
         if (AppState.Settings.IsSizeLimitExceeded)
@@ -146,6 +162,17 @@ else
         _isLoading = true;
 
         await InvokeAsync(StateHasChanged);
+
+        var logPerf = IsPerformanceLoggingEnabled();
+        var totalTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+        var batchStreamPerformanceLoggingHadSwitch = false;
+        var batchStreamPerformanceLoggingPreviousValue = false;
+
+        if (logPerf)
+        {
+            batchStreamPerformanceLoggingHadSwitch = AppContext.TryGetSwitch("Nexus.BatchStreamPerformanceLogging", out batchStreamPerformanceLoggingPreviousValue);
+            AppContext.SetSwitch("Nexus.BatchStreamPerformanceLogging", true);
+        }
 
         var progressTask = Task.Run(async () =>
         {
@@ -203,16 +230,18 @@ else
                     }).ToList();
 
                     _chartKey++;
-                    LogChunkFlow($"assigning LineSeriesData early series={lineSeriesSet.Count}");
                     _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);
                     _visualizationBuffers = loadBuffers;
+                    if (logPerf)
+                        LogPerformance($"stream assign chartKey={_chartKey} series={lineSeriesSet.Count} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
                     _ = InvokeAsync(StateHasChanged);
                 }
 
                 var resourcePaths = requests.Select(request => request.ResourcePath).ToArray();
-                loadBuffers = new VisualizationBuffers(resourcePaths, AssignLineSeriesDataIfReady);
-                LogChunkFlow($"LoadAsync starting resources={resourcePaths.Length} begin={begin:O} end={end:O}");
-                var loadTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                loadBuffers = new VisualizationBuffers(resourcePaths, AssignLineSeriesDataIfReady, logPerf);
+                var loadTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                if (logPerf)
+                    LogPerformance($"stream loadStart resources={resourcePaths.Length} begin={begin:O} end={end:O}");
                 _ = await Client.LoadAsync<float>(
                     begin,
                     end,
@@ -225,9 +254,11 @@ else
                     },
                     cts.Token);
 
-                LogChunkFlow($"LoadAsync returned; completing final chunks loadMs={GetElapsedMilliseconds(loadTimestamp):F1}");
+                if (logPerf)
+                    LogPerformance($"stream loadReturned resources={resourcePaths.Length} loadMs={GetElapsedMilliseconds(loadTimestamp):F1} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
                 loadBuffers.Complete();
-                LogChunkFlow("final chunks completed");
+                if (logPerf)
+                    LogPerformance($"stream complete resources={resourcePaths.Length} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
                 AssignLineSeriesDataIfReady();
 
                 if (ReferenceEquals(_cts, cts) && ReferenceEquals(_visualizationBuffers, loadBuffers))
@@ -236,23 +267,29 @@ else
             else if (ReferenceEquals(_cts, cts))
             {
                 _chartKey++;
-                LogChunkFlow("assigning empty LineSeriesData");
                 _lineSeriesData = new LineSeriesData(begin, end, []);
+                if (logPerf)
+                    LogPerformance($"stream assignEmpty chartKey={_chartKey} elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
             }
         }
         catch (OperationCanceledException)
         {
-            LogChunkFlow("LoadAsync cancelled; in-flight buffers will be disposed");
+            if (logPerf)
+                LogPerformance($"stream cancelled elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
         }
         catch (Exception ex)
         {
-            LogChunkFlow($"LoadAsync failed; in-flight buffers will be disposed error={ex.GetType().Name}: {ex.Message}");
+            if (logPerf)
+                LogPerformance($"stream failed type={ex.GetType().Name} message='{ex.Message}' elapsedMs={GetElapsedMilliseconds(totalTimestamp):F1}");
 
             if (ReferenceEquals(_cts, cts))
                 AppState.AddError(ex, Snackbar);
         }
         finally
         {
+            if (logPerf)
+                AppContext.SetSwitch("Nexus.BatchStreamPerformanceLogging", batchStreamPerformanceLoggingHadSwitch && batchStreamPerformanceLoggingPreviousValue);
+
             cts.Cancel();
 
             try
@@ -271,7 +308,6 @@ else
             }
 
             cts.Dispose();
-            LogChunkFlow("disposing unassigned in-flight buffers if present");
             loadBuffers?.Dispose();
         }
     }
@@ -281,7 +317,8 @@ else
         if (_lineSeriesData is null && _visualizationBuffers is null)
             return;
 
-        LogChunkFlow("releasing current visualization");
+        var logPerf = IsPerformanceLoggingEnabled();
+        var releaseTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 
         if (_lineSeriesData is not null)
         {
@@ -292,18 +329,19 @@ else
             await Task.Yield();
         }
 
-        LogChunkFlow("disposing current visualization buffers");
         _visualizationBuffers?.Dispose();
         _visualizationBuffers = null;
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
+
+        if (logPerf)
+            LogPerformance($"stream releaseCurrent releaseMs={GetElapsedMilliseconds(releaseTimestamp):F1}");
     }
 
     public void Dispose()
     {
-        LogChunkFlow("DataView disposed; cancelling load and disposing current buffers");
         _cts?.Cancel();
         _visualizationBuffers?.Dispose();
         _visualizationBuffers = null;
@@ -314,31 +352,30 @@ else
 
     private sealed class VisualizationBuffers : IDisposable
     {
-        private static int _nextId;
-
         private readonly Dictionary<string, ResourceBuffers> _resources = [];
         private readonly List<IMemoryOwner<float>> _owners = [];
         private readonly HashSet<string> _pendingResourcePaths;
         private readonly Action _onSourcesReady;
-        private readonly int _id = System.Threading.Interlocked.Increment(ref _nextId);
+        private readonly bool _logPerf;
 
-        public VisualizationBuffers(IEnumerable<string> resourcePaths, Action onSourcesReady)
+        public VisualizationBuffers(IEnumerable<string> resourcePaths, Action onSourcesReady, bool logPerf)
         {
             _pendingResourcePaths = resourcePaths.ToHashSet();
             _onSourcesReady = onSourcesReady;
-            LogChunkFlow($"buffers {_id}: created");
+            _logPerf = logPerf;
         }
 
         public bool AreSourcesReady => _pendingResourcePaths.Count == 0;
 
         public Memory<float> ProvideBuffer(string resourcePath, int chunkLength, long remainingLength)
         {
-            var providerTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-            LogChunkFlow($"buffers {_id}: provide requested resource='{resourcePath}' chunkLength={chunkLength} remainingLength={remainingLength}");
+            var providerTimestamp = _logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 
             if (chunkLength == 0)
             {
-                LogChunkFlow($"buffers {_id}: returning empty buffer resource='{resourcePath}' providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
+                if (_logPerf)
+                    LogPerformance($"stream provideEmpty resource='{resourcePath}' providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
+
                 return Memory<float>.Empty;
             }
 
@@ -346,23 +383,28 @@ else
             {
                 resource = new ResourceBuffers(new LineSeriesSource(remainingLength));
                 _resources.Add(resourcePath, resource);
-                LogChunkFlow($"buffers {_id}: resource initialized resource='{resourcePath}' totalLength={remainingLength}");
+                if (_logPerf)
+                    LogPerformance($"stream sourceInitialized resource='{resourcePath}' totalLength={remainingLength}");
 
                 if (_pendingResourcePaths.Remove(resourcePath) && AreSourcesReady)
                 {
-                    LogChunkFlow($"buffers {_id}: all sources ready; requesting early chart assignment");
+                    if (_logPerf)
+                        LogPerformance("stream sourcesReady");
+
                     _onSourcesReady();
                 }
             }
             else
             {
-                PublishCurrent(_id, resourcePath, resource);
+                PublishCurrent(resource);
             }
 
             var owner = MemoryPool<float>.Shared.Rent(chunkLength);
             _owners.Add(owner);
             resource.Current = owner.Memory[..chunkLength];
-            LogChunkFlow($"buffers {_id}: provider completed resource='{resourcePath}' offset={resource.NextOffset} length={chunkLength} isFinal={chunkLength == remainingLength} providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
+
+            if (_logPerf)
+                LogPerformance($"stream provide resource='{resourcePath}' offset={resource.NextOffset} length={chunkLength} remainingLength={remainingLength} providerMs={GetElapsedMilliseconds(providerTimestamp):F1}");
 
             return resource.Current;
         }
@@ -372,37 +414,44 @@ else
 
         public void Complete()
         {
-            LogChunkFlow($"buffers {_id}: complete requested resources={_resources.Count}");
+            var completeTimestamp = _logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 
             foreach (var resource in _resources.Values)
             {
-                var resourcePath = _resources.First(pair => ReferenceEquals(pair.Value, resource)).Key;
-                PublishCurrent(_id, resourcePath, resource);
+                PublishCurrent(resource);
                 resource.Source.Complete();
-                LogChunkFlow($"buffers {_id}: resource complete resource='{resourcePath}' length={resource.NextOffset}");
             }
+
+            if (_logPerf)
+                LogPerformance($"stream buffersComplete resources={_resources.Count} completeMs={GetElapsedMilliseconds(completeTimestamp):F1}");
         }
 
         public void Dispose()
         {
-            LogChunkFlow($"buffers {_id}: dispose owners={_owners.Count} resources={_resources.Count}");
+            var disposeTimestamp = _logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+            var ownerCount = _owners.Count;
+            var resourceCount = _resources.Count;
 
             foreach (var owner in _owners)
                 owner.Dispose();
 
             _owners.Clear();
             _resources.Clear();
+
+            if (_logPerf)
+                LogPerformance($"stream buffersDisposed owners={ownerCount} resources={resourceCount} disposeMs={GetElapsedMilliseconds(disposeTimestamp):F1}");
         }
 
-        private static void PublishCurrent(int id, string resourcePath, ResourceBuffers resource)
+        private void PublishCurrent(ResourceBuffers resource)
         {
             if (resource.Current.Length == 0)
                 return;
 
-            LogChunkFlow($"buffers {id}: publish previous chunk resource='{resourcePath}' offset={resource.NextOffset} length={resource.Current.Length}");
-            var publishTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            var publishTimestamp = _logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
             resource.Source.AddChunk(resource.Current);
-            LogChunkFlow($"buffers {id}: publish completed resource='{resourcePath}' offset={resource.NextOffset} length={resource.Current.Length} publishMs={GetElapsedMilliseconds(publishTimestamp):F1}");
+            if (_logPerf)
+                LogPerformance($"stream publish offset={resource.NextOffset} length={resource.Current.Length} publishMs={GetElapsedMilliseconds(publishTimestamp):F1}");
+
             resource.NextOffset += resource.Current.Length;
             resource.Current = Memory<float>.Empty;
         }

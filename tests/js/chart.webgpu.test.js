@@ -574,6 +574,24 @@ test('chunked series keeps only its overview resident', async () => {
     assert.equal(instance.ownedGpuBytes, overviewBytes);
 });
 
+test('chunked series accepts source-generated MemoryView spans synchronously', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const values = new Float32Array([1, 2, 3, 4]);
+    const memoryView = {
+        _unsafe_create_view() { return new Uint8Array(values.buffer); },
+    };
+
+    const token = await environment.api.beginChunkedSeries('chart', 'series', 0, values.length);
+    environment.api.appendChunkedSeriesMemoryView('chart', token, 0, memoryView, values.byteLength);
+    await environment.api.processChunkedSeriesUpload('chart', token, 0, values.length);
+    await environment.api.completeChunkedSeries('chart', token);
+
+    const instance = environment.hooks.instances.get('chart');
+    assert.equal(instance.seriesBuffers.has(`series:0:${values.length}`), true);
+});
+
 test('chunked series requests raw detail from its .NET provider', async () => {
     const environment = createEnvironment();
     const calls = [];

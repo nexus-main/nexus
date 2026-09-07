@@ -176,6 +176,47 @@ internal sealed class LineSeriesSource
         CopyTo(offset, MemoryMarshal.Cast<byte, float>(destination));
     }
 
+    internal bool TryGetContiguousArraySegment(long offset, int count, out ArraySegment<float> segment)
+    {
+        if (offset < 0)
+            throw new ArgumentOutOfRangeException(nameof(offset));
+
+        if (count < 0)
+            throw new ArgumentOutOfRangeException(nameof(count));
+
+        lock (_gate)
+        {
+            if (offset + count > _availableLength)
+                throw new ArgumentOutOfRangeException(nameof(count));
+
+            var relativeOffset = offset;
+
+            foreach (var chunk in _chunks)
+            {
+                if (relativeOffset >= chunk.Length)
+                {
+                    relativeOffset -= chunk.Length;
+                    continue;
+                }
+
+                if (relativeOffset + count <= chunk.Length && MemoryMarshal.TryGetArray(chunk, out var chunkSegment))
+                {
+                    segment = new ArraySegment<float>(
+                        chunkSegment.Array!,
+                        chunkSegment.Offset + (int)relativeOffset,
+                        count);
+
+                    return true;
+                }
+
+                break;
+            }
+        }
+
+        segment = default;
+        return false;
+    }
+
     internal bool TryGetValue(long index, out float value)
     {
         lock (_gate)

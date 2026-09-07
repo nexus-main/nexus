@@ -1,184 +1,314 @@
 # Progressive GPU Streaming Plan
 
 ## Goal
-Stream data progressively to GPU/WebGPU for chart rendering so the GPU starts
-decimation as data arrives, instead of waiting for the full download to complete.
 
-## Background / Motivation
-The current data pipeline is sequential and blocking:
+Stream large resource data progressively through the Blazor WebAssembly client so the browser can start chart/GPU decimation before the full download has completed.
 
-1. `DataView.razor:153` fully awaits `Client.LoadAsync<float>(...)` — ALL data
-   must arrive before any processing.
-2. `NexusClient.g.cs:490` `ReadBatchAsync<T>` reads the framed stream into
-   pre-allocated `T[][]` arrays (zero-copy via `CastMemoryManager`).
-3. `DataView.razor:166-184` constructs `LineSeries` with `float[]` from
-   `dataResponse.Values`, wraps in `LineSeriesData`, passes to `<Chart>`.
-4. `Chart.razor.cs:546-557` `PrepareSeriesAsync` uploads to GPU in 4M-float
-   chunks via `beginChunkedSeries` / `appendChunkedSeries` / `completeChunkedSeries`
-   JS interop. GPU does per-chunk decimation during upload.
+This plan addresses two related limits:
 
-**The barrier**: the GPU sits idle during the entire download, then does all
-the work after. The server already streams frames (`DataService.cs:115`
-`ReadBatchAsStreamAsync` flushes per frame), and the JS side already supports
-progressive per-chunk upload + decimation. Only the C# client + UI block.
+- Avoid single huge .NET arrays or single huge WASM-backed memory views.
+- Reduce latency between the final network byte and the completed visualization by processing chunks as they arrive.
 
-## Constraints & Preferences
-- Do **not** manually patch generated files; fix the generator template and
-  regenerate.
-- Generator lives in `/home/wilvin/dev/openapi-client-generator` (separate repo,
-  branch `master`).
-- The `onFrame` callback must be **non-breaking** — an optional parameter that
-  defaults to null. Existing callers unaffected.
-- Blazor WASM is single-threaded; async/await interleaving provides natural
-  pipelining between network reads and GPU uploads. No new threading.
-- `float[]` remains the backing store for chart data — needed for raw chunk
-  access (zoom/pan) and zero-copy WebGPU upload.
-- V1 API must NOT be changed.
+The solution must keep downsampling/decimation in the browser. It must not move visualization downsampling to the server.
 
-## Callback Design: `T[]` not `Memory<T>`
-The `onFrame` callback passes the **full pre-allocated backing buffer** as
-`T[]`, not a per-frame `Memory<T>` slice, because:
+## Current State
 
-1. `ReadBatchAsync` allocates `T[][] values` internally; the arrays live for
-   the whole stream. The callback hands the caller a reference to
-   `values[resourceIndex]` so it can construct `LineSeriesSource(buffer)` on
-   the first frame and keep reading from it as more frames arrive.
-2. `LineSeriesSource(float[] values)` takes `float[]`; `Memory<T>` would force
-   an unwrap via `MemoryMarshal.TryGetArray` on every first-frame path.
-3. The same array is returned in `DataResponse<T>.Values` at completion — one
-   backing store, no copy.
-4. `Span<T>` can't cross async (`ReadBatchAsync` is async, callback fires
-   inside it; `Span<T>` is a ref struct).
-5. The GPU needs the total `length` for `beginChunkedSeries` overview buffer
-   allocation, and `LineSeriesSource` wraps the full array. A per-frame
-   `Memory<T>` slice couldn't build `LineSeries` early.
+The current OOM fix introduced caller-owned memory for the generated C# client:
 
-The caller derives any slice it needs via
-`buffer.AsMemory(0, writtenByteLength / Unsafe.SizeOf<T>())`.
+```csharp
+Func<string, int, Memory<T>>? bufferProvider = default
+```
 
-## Phases
+Current semantics:
 
-### Phase 1 — Generator template (`CSharpTemplate_Main.cs`)
-Add `onFrame` callback to `Load<T>`, `LoadAsync<T>` (interface + impl), and
-`ReadBatchAsync<T>` in the openapi-client-generator C# template.
+- The generated client computes the full required element count for each resource.
+- The UI may provide one writable `Memory<T>` per resource.
+- In the Blazor UI, `DataView` rents `IMemoryOwner<float>` values from `MemoryPool<float>.Shared`.
+- `DataView` owns and disposes the memory owners when the visualization is invalidated or the component is disposed.
+- `DataResponse<T>.Values` is `ReadOnlyMemory<T>`.
 
-- **Signature** (on `ReadBatchAsync` and `Load`/`LoadAsync`):
-  `Action<int, T[], int>? onFrame = default`
-  invoked as `onFrame?.Invoke(resourceIndex, values[resourceIndex], offsets[resourceIndex]);`
-  — `(resourceIndex, buffer, writtenByteLength)`.
-- Fire after each frame write inside the `ReadBatchAsync` while-loop, right
-  after `offsets[resourceIndex] += payloadLength;` and before/after
-  `reportProgress?.Invoke(payloadLength);`.
-- Non-breaking (optional param, defaults to null). Existing callers unaffected.
-- Regenerate `NexusClient.g.cs` + `openapi.json` via
-  `dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi.json`.
+This fixes reload OOMs caused by hidden generated-client `new float[...]` allocations and old/new visualization memory overlap, but it still uses one contiguous memory block per resource. That still runs into array/object/WASM/browser limits for very large resources.
 
-**Files**:
-- `/home/wilvin/dev/openapi-client-generator/src/Apollo3zehn.OpenApiClientGenerator/Templates/CSharpTemplate_Main.cs`
-  (interface declarations ~line 63-85, impl ~line 362-432, `ReadBatchAsync`
-  ~line 499-565)
-- `/home/wilvin/dev/nexus/src/clients/dotnet/NexusClient.g.cs` (regenerated)
+## Browser And Runtime Constraints
 
-### Phase 2 — `LineSeriesSource` stream-awareness (`ChartTypes.cs`)
-Add stream-awareness to `LineSeriesSource` so `PrepareSeriesAsync` can wait
-for data to arrive rather than assuming the whole `float[]` is populated.
+- .NET arrays and `Memory<T>` lengths are `int`-bounded.
+- A single very large managed object or WASM-backed view is not portable across browsers.
+- Firefox/SpiderMonkey has practical hard limits around 2 GB `ArrayBuffer` usage.
+- Firefox WebGPU currently has failures when `GPUQueue.writeBuffer()`, `writeTexture`, `setBindGroup`, or `setImmediateData` receives an `ArrayBufferView` from a WASM heap larger than 2 GB.
+- Chromium/V8 has better wasm32 memory support, but relying on Chromium-only behavior is not acceptable.
+- WebGPU uploads should stay comfortably below browser and adapter limits.
 
-- `public int WrittenLength { get; private set; }` — float count written so
-  far (0 → Length).
-- `public void ReportWritten(int byteLength)` — updates `WrittenLength` and
-  signals waiters. `WrittenLength += byteLength / sizeof(float)` (or set to
-  `byteLength / sizeof(float)` if passing cumulative bytes — decide during
-  impl; current plan: cumulative byte offset from `onFrame`).
-- `public Task<bool> WaitForDataAsync(int minimumLength,
-  CancellationToken cancellationToken = default)` — returns `true` when
-  `WrittenLength >= minimumLength` or stream completes, `false` on
-  error/cancellation.
-- `public void ReportComplete()` / `public void ReportError(Exception)` —
-  unblock all waiters.
-- `TaskCompletionSource` pattern with `RunContinuationsAsynchronously` (avoids
-  re-entrancy in single-threaded WASM). Multiple waiters at different
-  thresholds: a single `TaskCompletionSource<bool>` plus re-check on signal,
-  OR a list of `(threshold, TCS)` pairs woken on each `ReportWritten`.
+## Design Principle
 
-**Files**:
-- `/home/wilvin/dev/nexus/src/Nexus.UI/Charts/ChartTypes.cs` (`LineSeriesSource`
-  ~line 47-71)
+Extend the existing caller-owned buffer-provider model. Do not introduce generated-client-owned chunk objects.
 
-### Phase 3 — `DataView.LoadDataAsync` restructure
-Restructure `LoadDataAsync` to create `LineSeries` early (before the download
-finishes) and feed `onFrame` data into `LineSeriesSource`.
+The UI must remain the owner of all rented memory:
 
-- Pre-create `LineSeriesSource[]` (null initially). Call `LoadAsync<float>`
-  with `onFrame`.
-- In `onFrame(resourceIndex, buffer, writtenBytes)`:
-  - First frame per resource: create `LineSeriesSource(buffer)` + `LineSeries`
-    (name/unit from local `CatalogItemSelectionViewModel.BaseItem` which has
-    `Resource.Id`, `Resource.Properties["unit"]`, `Representation.SamplePeriod`
-    — no server lookup needed).
-  - When all resources have their first frame: set `_lineSeriesData` **once**
-    + `StateHasChanged` (avoids `ResetZoom` re-triggering on every frame).
-  - Every frame: `sources[resourceIndex].ReportWritten(writtenBytes)`.
-- After `LoadAsync` completes: `ReportComplete()` on all sources.
-- In `catch (OperationCanceledException)`: `ReportError(...)` on all sources
-  (unblocks `PrepareSeriesAsync` waiters).
-- `LoadAsync` return value used only for completion/error detection —
-  `LineSeries` metadata comes from local viewmodels.
+- UI rents chunks from `MemoryPool<T>`.
+- UI returns `Memory<T>` to the generated client.
+- Generated client writes into the provided memory only.
+- Generated client never disposes chunk memory.
+- UI publishes completed chunks to the chart source.
+- UI disposes all chunk owners when the visualization is invalidated, cancelled, replaced, or disposed.
 
-**Files**:
-- `/home/wilvin/dev/nexus/src/Nexus.UI/Components/DataView.razor`
-  (`LoadDataAsync` ~line 95-215)
+## Chunk-Aware Buffer Provider Contract
 
-### Phase 4 — `PrepareSeriesAsync` stream-aware (`Chart.razor.cs:551`)
-Make the GPU upload loop wait for data to arrive before reading each chunk.
+Replace the current full-resource provider shape for the progressive path with a chunk-aware provider:
 
-- Before each chunk read:
-  `await series.Source.WaitForDataAsync(offset + count, cancellationToken)`.
-- `length` param stays full `Length` (GPU needs total size for
-  `beginChunkedSeries` overview buffer).
-- Stream end/error handled by `WaitForDataAsync` return —
-  `PrepareSeriesAsync` bails gracefully (returns `SeriesRange` with
-  `hasValue: false`).
-- Cancellation: `WaitForDataAsync` accepts a `CancellationToken` tied to the
-  chart's disposal/webGpuGeneration changes.
+```csharp
+Func<string, int, long, Memory<T>>? bufferProvider = default
+```
 
-**Files**:
-- `/home/wilvin/dev/nexus/src/Nexus.UI/Charts/Chart.razor.cs`
-  (`PrepareSeriesAsync` ~line 535-595)
+Parameters:
 
-### Phase 5 (optional) — Progressive rendering
-Call `_skiaView.Invalidate()` after each chunk upload for progressive visual
-updates. JS-side: allow rendering from partial `overviewBuffer` during an
-active upload session.
+- `resourcePath`: identifies the logical resource/series.
+- `chunkLength`: exact number of elements requested for the next chunk.
+- `remainingLength`: number of elements still to be delivered for this resource, including the requested chunk.
 
-- Only worth doing if Phases 1-4 don't already give a good enough perceived
-  latency win. Decide after measuring.
+Semantics:
 
-**Files**:
-- `/home/wilvin/dev/nexus/src/Nexus.UI/Charts/Chart.razor.cs`
-- `/home/wilvin/dev/nexus/src/Nexus/wwwroot/js/chart.webgpu.data.js`
+- The first callback for a resource has `remainingLength == fullResourceLength`.
+- `chunkLength <= remainingLength` is always true.
+- `remainingLength == chunkLength` means this is the final chunk for that resource.
+- `chunkLength` is exact. The generated client writes exactly this many elements into the returned memory on success.
+- For a given `resourcePath`, a subsequent `bufferProvider(...)` call means the previous chunk for that resource has been fully written.
+- When `LoadAsync` returns successfully, the current final chunk for every resource has been fully written.
+- If `LoadAsync` throws or is cancelled, the in-flight visualization is invalid and the UI must discard/dispose its buffers.
+- The UI infers per-resource chunk offsets by accumulating previous `chunkLength` values. No `absoluteOffset` parameter is required for strictly sequential resource delivery.
 
-## Verification
-- Build the solution: `dotnet build src/Nexus/Nexus.csproj` and
-  `dotnet build src/Nexus.UI/Nexus.UI.csproj`.
-- Regenerate clients + `openapi.json` and confirm
-  `diff --strip-trailing-cr openapi.json openapi_new.json` is empty.
-- Run .NET tests: `dotnet test tests/Nexus.Tests/Nexus.Tests.csproj`.
-- Run UI tests: `dotnet test tests/Nexus.UI.Tests/Nexus.UI.Tests.csproj`.
-- Manual: load a large dataset in the running app and confirm the chart begins
-  rendering before the download completes (GPU upload interleaves with
-  network reads).
+Example for a resource with `10_000_000` floats and a max chunk size of `4_194_304`:
 
-## Key Decisions
-- `onFrame` callback signature: `Action<int, T[], int>?` =
-  `(resourceIndex, buffer, writtenByteLength)` — `T[]` not `Memory<T>`
-  (stable full-buffer reference; matches `DataResponse.Values`; `Span<T>`
-  can't cross async).
-- `GetSeriesLength` returns full `Length`; `beginChunkedSeries` needs total
-  size. `HasSeriesVersion` tracks `(0, fullLength)`. No change needed.
-- UI has all metadata locally via `CatalogItemSelectionViewModel.BaseItem` —
-  no server lookup needed for early `LineSeries` creation.
-- `TaskCompletionSource` with `RunContinuationsAsynchronously` for
-  single-threaded WASM safety.
-- Cancellation is safe: `DataView._cts` cancellation → `LoadAsync` throws →
-  `ReportError` on sources → `WaitForDataAsync` unblocks →
-  `PrepareSeriesAsync` bails.
+```csharp
+bufferProvider(path, chunkLength: 4_194_304, remainingLength: 10_000_000);
+bufferProvider(path, chunkLength: 4_194_304, remainingLength: 5_805_696);
+bufferProvider(path, chunkLength: 1_611_392, remainingLength: 1_611_392);
+```
+
+No separate `bufferCompleted(resourcePath, offset, values)` callback is required under this contract.
+
+## Chunk Size
+
+Use 16 MiB as the initial byte-based chunk target and derive element counts from `Unsafe.SizeOf<T>()`:
+
+```csharp
+const int ChunkByteLength = 16 * 1024 * 1024;
+var maxChunkLength = ChunkByteLength / Unsafe.SizeOf<T>();
+```
+
+Typical chunk lengths:
+
+- `float`: `4_194_304` elements, 16 MiB.
+- `double`: `2_097_152` elements, 16 MiB.
+- `int`: `4_194_304` elements, 16 MiB.
+- `byte`: `16_777_216` elements, 16 MiB.
+
+This is a sensible initial default because it matches the existing chart upload chunk size in `Chart.razor.cs`, keeps WebGPU write inputs far below problematic browser limits, and avoids excessive provider calls or JS interop overhead. Keep it tunable if measurements show a different browser/device-specific sweet spot.
+
+## Generated Client Changes
+
+Durable generated-client changes must be made in the parallel generator repository:
+
+```text
+/home/vincent/Documents/Git/github/openapi-client-generator
+```
+
+Then regenerate Nexus clients from the Nexus repo. Do not manually edit generated `NexusClient.g.cs` except for temporary chicken-egg compile fixes.
+
+Required C# generator changes:
+
+- Update Nexus-special `Load<T>` and `LoadAsync<T>` signatures to use the chunk-aware provider shape.
+- Keep the parameter optional.
+- Compute per-resource total element counts as `long`.
+- Keep each individual chunk length as `int` because `Memory<T>.Length` is `int`.
+- Split each resource into exact chunks of `maxChunkLength`, with a smaller exact final chunk.
+- Request chunks with `bufferProvider(resourcePath, chunkLength, remainingLength)`.
+- If `bufferProvider` is null, preserve simple caller behavior by allocating memory internally. This fallback can still allocate a complete resource for non-progressive callers unless/until `DataResponse<T>` is redesigned for chunked values.
+- Validate returned memory has at least `chunkLength` elements.
+- Slice returned memory to `chunkLength` before writing.
+- Continue to throw on stream errors, cancellation, invalid framing, or length mismatches.
+
+Important: the progressive UI path relies on callback side effects and UI-owned chunk state. The existing `DataResponse<T>.Values` full-memory return model is not sufficient to represent resource data larger than one contiguous `Memory<T>`.
+
+Open API decision:
+
+- Either keep `LoadAsync` as the progressive entry point and evolve `DataResponse<T>` to expose chunk metadata/chunks, or keep current full-memory `LoadAsync` semantics for general callers and add a progressive variant using the same chunk-aware provider semantics.
+- In both cases, do not introduce generated-client-owned `IMemoryOwner<T>` or disposable chunk ownership.
+- For the Blazor visualization path, `LoadAsync` success is the finalization signal for the last in-flight chunk.
+
+## UI Buffer Ownership
+
+`DataView` should evolve from one owner per resource to many owners per resource, scoped to one visualization.
+
+Conceptual owner container:
+
+```csharp
+private sealed class VisualizationBuffers : IDisposable
+{
+    private readonly Dictionary<string, ResourceState> _resources = [];
+
+    public Memory<float> ProvideBuffer(string resourcePath, int chunkLength, long remainingLength)
+    {
+        var state = GetOrCreateResourceState(resourcePath, fullLength: remainingLength);
+
+        state.PublishPreviousChunk();
+
+        var offset = state.NextOffset;
+        var owner = MemoryPool<float>.Shared.Rent(chunkLength);
+        var memory = owner.Memory[..chunkLength];
+
+        state.TrackCurrentChunk(owner, offset, chunkLength, memory);
+        state.NextOffset += chunkLength;
+
+        return memory;
+    }
+
+    public void Complete()
+    {
+        foreach (var state in _resources.Values)
+            state.PublishPreviousChunk();
+    }
+
+    public void Dispose()
+    {
+        foreach (var state in _resources.Values)
+            state.Dispose();
+
+        _resources.Clear();
+    }
+}
+```
+
+Rules:
+
+- The first `remainingLength` for a resource initializes the full logical series length.
+- Later `remainingLength` values are used to identify the final chunk and for validation/progress.
+- `ProvideBuffer` publishes the previous chunk for the same resource before renting/tracking the next chunk.
+- `Complete()` publishes the final current chunks after `LoadAsync` returns successfully.
+- `Dispose()` returns all rented owners to the pool.
+- Failed/cancelled loads dispose without calling `Complete()`.
+
+## Chunk-Aware Chart Source
+
+`LineSeriesSource` must become chunk-aware instead of wrapping a single `ReadOnlyMemory<float>`.
+
+It should know:
+
+- Full logical length.
+- Published chunk ranges.
+- Whether the source is complete.
+- Whether the source failed/cancelled.
+
+Likely API shape:
+
+```csharp
+internal sealed class LineSeriesSource
+{
+    public long Length { get; }
+
+    public void AddChunk(long offset, ReadOnlyMemory<float> values);
+    public ValueTask WaitForDataAsync(long offset, int count, CancellationToken cancellationToken);
+    public ReadOnlyMemory<float> Read(long offset, int count);
+    public void Complete();
+    public void Fail(Exception exception);
+}
+```
+
+Use `long` for logical offsets and total length. Use `int` for individual chunk lengths and read counts.
+
+The chart should not require one contiguous resource buffer. It should consume published chunks sequentially or by requested range.
+
+## Chart/GPU Pipeline Changes
+
+Current `Chart.razor.cs` already uploads to WebGPU in 4M-float chunks after the full resource has loaded.
+
+Change it so upload/decimation starts as soon as the first chunks are available:
+
+- `DataView` creates `LineSeriesData` and chunk-aware `LineSeriesSource` after the first provider call for each selected resource, because the first `remainingLength` gives the full logical length.
+- `PrepareSeriesAsync` starts `beginChunkedSeries` using the full logical length.
+- Before each upload chunk, wait until the source has enough data for that range.
+- Upload the chunk to JS/WebGPU as soon as it is available.
+- Continue until all chunks are uploaded and the source is complete.
+- Call `completeChunkedSeries` only after the final chunk has been published and uploaded.
+
+The JS side already has chunked upload concepts:
+
+- `beginChunkedSeriesAsync`
+- `appendChunkedSeriesAsync`
+- `completeChunkedSeriesAsync`
+
+Keep each JS/WebGPU upload chunk small, normally 16 MiB.
+
+## DataView Flow
+
+Target load flow:
+
+```csharp
+var buffers = new VisualizationBuffers(...);
+
+try
+{
+    await ReleaseCurrentVisualizationAsync();
+
+    await Client.LoadAsync<float>(
+        begin,
+        end,
+        resourcePaths,
+        buffers.ProvideBuffer,
+        progress,
+        cancellationToken);
+
+    buffers.Complete();
+    _visualizationBuffers = buffers;
+    buffers = null;
+}
+finally
+{
+    buffers?.Dispose();
+}
+```
+
+The actual implementation may need to set `_lineSeriesData` earlier than the `LoadAsync` return so the chart can start uploading while the download continues.
+
+Important sequencing:
+
+- Before a new visualization starts, remove/dispose the old chart data and old visualization buffers.
+- During an in-flight load, publish chunks as provider calls advance per resource.
+- On successful load completion, publish final chunks.
+- On cancellation/error, dispose in-flight buffers and do not publish incomplete chunks.
+- On component disposal, cancel the load and dispose all visualization buffers.
+
+## Validation
+
+Add/update tests for generated C# client behavior:
+
+- Provider receives first `remainingLength` equal to full resource length.
+- Provider receives exact full chunk sizes and exact final chunk size.
+- `remainingLength == chunkLength` on the final chunk.
+- Subsequent provider call for the same resource occurs only after previous chunk bytes were written.
+- Interleaved resource frames preserve independent per-resource chunk state.
+- Successful `LoadAsync` writes the final current chunk completely before returning.
+- Failed/cancelled streams throw and do not require finalization.
+- Provided memory shorter than `chunkLength` throws a clear `ArgumentException`.
+
+Add/update UI tests where feasible:
+
+- `VisualizationBuffers` publishes previous chunk on the next provider call.
+- `VisualizationBuffers.Complete()` publishes final chunks.
+- `VisualizationBuffers.Dispose()` disposes all owners.
+- Cancelled load disposes in-flight owners without completing the source.
+- Chunk-aware `LineSeriesSource` waits for missing data and returns published ranges correctly.
+
+Manual validation:
+
+- Load a resource larger than one chunk.
+- Load a resource large enough to exceed one contiguous array/object limit if loaded as a single buffer.
+- Verify chart starts processing before the full load completes.
+- Verify repeated large visualizations do not OOM.
+- Test Firefox and Chromium separately because their WASM/WebGPU limits differ.
+
+## Non-Goals
+
+- Do not add server-side visualization downsampling.
+- Do not make the generated client own or dispose UI memory.
+- Do not rely on browser-specific >2 GB WASM behavior.
+- Do not require a single contiguous buffer for one logical resource.

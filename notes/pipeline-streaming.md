@@ -23,7 +23,7 @@ POST /api/v2/data
   -> framed response stream
 ```
 
-Each frame has an eight-byte little-endian header containing the resource index and payload length, followed by at most 64 KiB of `FLOAT64` data. Resource indices correspond to request order. EOF indicates success.
+Each frame has an eight-byte little-endian header containing the resource index and payload length, followed by at most 4 MiB of `FLOAT64` data. Resource indices correspond to request order. EOF indicates success.
 
 # Source Completion
 

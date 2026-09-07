@@ -22,6 +22,23 @@
         return source[name] ?? source[camelName];
     }
 
+    function isPerformanceLoggingEnabled() {
+        if (window.__nexusChartDebug === true)
+            return true;
+
+        try {
+            const value = window.localStorage?.getItem('nexusChartDebug');
+            return value === '1' || value === 'true';
+        } catch {
+            return false;
+        }
+    }
+
+    function perfLog(message) {
+        if (isPerformanceLoggingEnabled())
+            console.log(`[nexus chart perf] ${performance.now().toFixed(1)}ms ${message}`);
+    }
+
     function colorOf(source) {
         const color = valueOf(source, 'Color') ?? {};
         return [
@@ -400,7 +417,7 @@
 
     Object.assign(ns, {
         instances, pendingInstances, lifecycleEpochs, failureStates, dotNetHelpers, configuredCacheBudgets,
-        valueOf, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
+        valueOf, isPerformanceLoggingEnabled, perfLog, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
         createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
         getLifecycleEpoch, advanceLifecycleEpoch, cancellationError, isCancellationError,
         reportFailure, reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, getSharedGpu, getInstance,

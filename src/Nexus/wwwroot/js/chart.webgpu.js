@@ -2,12 +2,14 @@
     const ns = window.__nexusChartWebGpu;
     const {
         instances, pendingInstances, lifecycleEpochs, failureStates, dotNetHelpers, configuredCacheBudgets,
-        valueOf, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
+        valueOf, isPerformanceLoggingEnabled, perfLog, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
         getSharedGpu, getInstance, getLifecycleEpoch, advanceLifecycleEpoch, isCancellationError,
         reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, getSyntheticWorker, evictRawChunks,
         createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
         synchronizeSeries,
         generateSyntheticSeriesAsync, beginChunkedSeriesAsync, appendChunkedSeriesAsync,
+        appendChunkedSeriesMemoryView: appendChunkedSeriesMemoryViewImpl,
+        processChunkedSeriesUploadAsync,
         completeChunkedSeriesAsync, abortChunkedSeries, provideSeriesChunkAsync,
         getSeriesBuffer, getPreviewRenderKey, getRawRenderItems,
         uniformBufferSize, fillVerticesPerSegment, lineVerticesPerSegment, decimationFactor,
@@ -328,6 +330,8 @@
     }
 
     async function renderSeriesAsync(chartId, payload, renderState = null, renderGeneration = 0) {
+        const logPerf = isPerformanceLoggingEnabled();
+        const totalStart = logPerf ? performance.now() : 0;
         const instance = await getInstance(chartId);
 
         if (!instance)
@@ -363,6 +367,9 @@
         const renderItems = [];
         const protectedRawKeys = new Set();
         let drawResourceCount = 0;
+        let rawItemCount = 0;
+        let overviewItemCount = 0;
+        const prepareStart = logPerf ? performance.now() : 0;
 
         if (plot) {
             const seriesList = valueOf(payload, 'Series') ?? [];
@@ -381,6 +388,7 @@
                     if (rawItems) {
                         for (const rawItem of rawItems)
                             renderItems.push({ series, ...rawItem });
+                        rawItemCount += rawItems.length;
                         continue;
                     }
                 }
@@ -394,9 +402,12 @@
 
                 const renderItem = getRenderBuffer(instance, cached, zoomInfo, plot, encoder, target, protectedRawKeys);
                 renderItems.push({ series, ...renderItem });
+                overviewItemCount++;
             }
         }
+        const prepareMs = logPerf ? performance.now() - prepareStart : 0;
 
+        const submitStart = logPerf ? performance.now() : 0;
         const pass = encoder.beginRenderPass({
             colorAttachments: [{
                 view: context.getCurrentTexture().createView(),
@@ -435,10 +446,15 @@
 
         pass.end();
         device.queue.submit([encoder.finish()]);
+        const submitMs = logPerf ? performance.now() - submitStart : 0;
         trimDrawResources(instance, target, drawResourceCount);
 
         if (previewRenderKey !== null)
             instance.previewRenderKeys.set(target, previewRenderKey);
+
+        if (logPerf) {
+            perfLog(`render chart=${chartId} target=${target} preview=${isPreview} items=${renderItems.length} rawItems=${rawItemCount} overviewItems=${overviewItemCount} drawResources=${drawResourceCount} prepareMs=${prepareMs.toFixed(1)} submitMs=${submitMs.toFixed(1)} totalMs=${(performance.now() - totalStart).toFixed(1)}`);
+        }
 
     }
 
@@ -505,6 +521,7 @@
 
             return !instance || instance.ownedGpuBytes + instance.rawReservedBytes <= bytes;
         },
+        isPerformanceLoggingEnabled,
         synchronizeSeries(chartId, activeIds) {
             const instance = instances.get(chartId);
             if (instance)
@@ -521,6 +538,13 @@
         appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
                 appendChunkedSeriesAsync(chartId, token, offset, dataReference, dataLength));
+        },
+        appendChunkedSeriesMemoryView(chartId, token, offset, dataReference, dataLength) {
+            appendChunkedSeriesMemoryViewImpl(chartId, token, offset, dataReference, dataLength);
+        },
+        processChunkedSeriesUpload(chartId, token, offset, count) {
+            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+                processChunkedSeriesUploadAsync(chartId, token, offset, count));
         },
         completeChunkedSeries(chartId, token) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>

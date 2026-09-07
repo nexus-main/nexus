@@ -9,6 +9,7 @@ using Nexus.UI.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace Nexus.UI.Charts;
 
@@ -34,8 +35,24 @@ public partial class Chart : IDisposable
     private string? _webGpuErrorMessage;
     private bool _webGpuRetrying;
 
-    private static void LogGpuFlow(string message) =>
-        Console.WriteLine($"[temporary gpu-flow] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
+    private bool IsPerformanceLoggingEnabled()
+    {
+        try
+        {
+            return JSRuntime.Invoke<bool>("nexus.chartWebGpu.isPerformanceLoggingEnabled");
+        }
+        catch (JSException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static void LogPerformance(string message) =>
+        Console.WriteLine($"[nexus chart perf] {DateTimeOffset.Now:HH:mm:ss.fff} {message}");
 
     private static double GetElapsedMilliseconds(long startTimestamp) =>
         (System.Diagnostics.Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
@@ -539,6 +556,8 @@ public partial class Chart : IDisposable
 
     private async Task<SeriesRange> PrepareSeriesAsync(LineSeries series, int dataVersion, long length, int webGpuGeneration)
     {
+        var logPerf = IsPerformanceLoggingEnabled();
+        var totalTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         long? uploadToken = null;
         try
         {
@@ -548,13 +567,15 @@ public partial class Chart : IDisposable
                 return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
             }
 
-            LogGpuFlow($"beginChunkedSeries starting series='{series.Name}' id={series.Id} dataVersion={dataVersion} length={length}");
-            var beginTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            var beginTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
             uploadToken = await JSRuntime.InvokeAsync<long>(
                 "nexus.chartWebGpu.beginChunkedSeries", _chartId, series.Id, dataVersion, length);
-            LogGpuFlow($"beginChunkedSeries completed series='{series.Name}' token={uploadToken.Value} beginMs={GetElapsedMilliseconds(beginTimestamp):F1}");
+            if (logPerf)
+                LogPerformance($"upload begin chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} version={dataVersion} length={length} beginMs={GetElapsedMilliseconds(beginTimestamp):F1}");
+
             const int chunkLength = 4 * 1024 * 1024;
-            var bytes = GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
+            byte[]? fallbackBytes = null;
+            var canUseMemoryViewUpload = true;
 
             for (var offset = 0L; offset < length; offset += chunkLength)
             {
@@ -563,30 +584,85 @@ public partial class Chart : IDisposable
 
                 var count = checked((int)Math.Min(chunkLength, length - offset));
 
-                LogGpuFlow($"waiting for source range series='{series.Name}' offset={offset} count={count}");
-                var waitTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                var waitTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
                 if (!await series.Source.WaitForRangeAsync(offset, count).ConfigureAwait(false))
                     return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
-                LogGpuFlow($"source range available series='{series.Name}' offset={offset} count={count} waitMs={GetElapsedMilliseconds(waitTimestamp):F1}");
+                if (logPerf)
+                    LogPerformance($"source wait chart={_chartId} series='{series.Name}' id={series.Id} offset={offset} count={count} waitMs={GetElapsedMilliseconds(waitTimestamp):F1}");
 
-                var copyTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-                series.Source.CopyBytesTo(offset, bytes.AsSpan(0, count * sizeof(float)));
-                LogGpuFlow($"source copy completed series='{series.Name}' offset={offset} count={count} copyMs={GetElapsedMilliseconds(copyTimestamp):F1}");
-                LogGpuFlow($"appendChunkedSeries starting series='{series.Name}' offset={offset} count={count}");
-                var appendTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-                await JSRuntime.InvokeVoidAsync(
-                    "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, bytes, count * sizeof(float));
-                LogGpuFlow($"appendChunkedSeries completed series='{series.Name}' offset={offset} count={count} appendMs={GetElapsedMilliseconds(appendTimestamp):F1}");
+                if (canUseMemoryViewUpload && series.Source.TryGetContiguousArraySegment(offset, count, out var segment))
+                {
+                    var uploadedWithMemoryView = false;
+
+                    try
+                    {
+                        var appendTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                        ChartWebGpuMemoryViewInterop.AppendChunkedSeriesMemoryView(
+                            _chartId,
+                            uploadToken.Value,
+                            offset,
+                            MemoryMarshal.AsBytes(segment.AsSpan()),
+                            count * sizeof(float));
+
+                        uploadedWithMemoryView = true;
+                        if (logPerf)
+                            LogPerformance($"upload appendMemoryView chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} offset={offset} count={count} appendMs={GetElapsedMilliseconds(appendTimestamp):F1}");
+                    }
+                    catch (JSException exception)
+                    {
+                        canUseMemoryViewUpload = false;
+                        if (logPerf)
+                            LogPerformance($"upload memoryViewUnavailable chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} offset={offset} message='{exception.Message}'");
+                    }
+
+                    if (uploadedWithMemoryView)
+                    {
+                        var processTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                        await JSRuntime.InvokeVoidAsync(
+                            "nexus.chartWebGpu.processChunkedSeriesUpload", _chartId, uploadToken.Value, offset, count);
+                        if (logPerf)
+                            LogPerformance($"upload processMemoryView chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} offset={offset} count={count} processMs={GetElapsedMilliseconds(processTimestamp):F1}");
+                    }
+                    else
+                    {
+                        fallbackBytes ??= GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
+                        var copyTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                        series.Source.CopyBytesTo(offset, fallbackBytes.AsSpan(0, count * sizeof(float)));
+                        if (logPerf)
+                            LogPerformance($"upload copyFallback chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} offset={offset} count={count} copyMs={GetElapsedMilliseconds(copyTimestamp):F1}");
+
+                        var appendTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                        await JSRuntime.InvokeVoidAsync(
+                            "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, fallbackBytes, count * sizeof(float));
+                        if (logPerf)
+                            LogPerformance($"upload appendFallback chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} offset={offset} count={count} appendMs={GetElapsedMilliseconds(appendTimestamp):F1}");
+                    }
+                }
+                else
+                {
+                    fallbackBytes ??= GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
+                    var copyTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                    series.Source.CopyBytesTo(offset, fallbackBytes.AsSpan(0, count * sizeof(float)));
+                    if (logPerf)
+                        LogPerformance($"upload copyFallback chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} offset={offset} count={count} copyMs={GetElapsedMilliseconds(copyTimestamp):F1}");
+
+                    var appendTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                    await JSRuntime.InvokeVoidAsync(
+                        "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, fallbackBytes, count * sizeof(float));
+                    if (logPerf)
+                        LogPerformance($"upload appendFallback chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} offset={offset} count={count} appendMs={GetElapsedMilliseconds(appendTimestamp):F1}");
+                }
             }
 
             if (_disposed || webGpuGeneration != _webGpuGeneration)
                 return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
 
-            LogGpuFlow($"completeChunkedSeries starting series='{series.Name}' token={uploadToken.Value}");
-            var completeTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            var completeTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
             var range = await JSRuntime.InvokeAsync<GpuRange>(
                 "nexus.chartWebGpu.completeChunkedSeries", _chartId, uploadToken.Value);
-            LogGpuFlow($"completeChunkedSeries completed series='{series.Name}' token={uploadToken.Value} completeMs={GetElapsedMilliseconds(completeTimestamp):F1}");
+            if (logPerf)
+                LogPerformance($"upload complete chart={_chartId} series='{series.Name}' id={series.Id} token={uploadToken.Value} length={length} completeMs={GetElapsedMilliseconds(completeTimestamp):F1} totalMs={GetElapsedMilliseconds(totalTimestamp):F1}");
+
             uploadToken = null;
             if (!_disposed && webGpuGeneration == _webGpuGeneration)
                 _sentSeriesVersions[series.Id] = (dataVersion, length);
@@ -621,23 +697,26 @@ public partial class Chart : IDisposable
     [JSInvokable]
     public async Task ProvideSeriesChunk(string seriesId, long offset, int count, long requestId)
     {
+        var logPerf = IsPerformanceLoggingEnabled();
+        var totalTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         var series = LineSeriesData.Series.SingleOrDefault(item => item.Id == seriesId);
         if (series is null || offset < 0 || count < 0 || offset > series.Source.Length - count)
             throw new InvalidOperationException($"Raw data request for series '{seriesId}' is no longer valid.");
 
-        var waitTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        var waitTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         if (!await series.Source.WaitForRangeAsync(offset, count).ConfigureAwait(false))
             throw new InvalidOperationException($"Raw data request for series '{seriesId}' is not available.");
-        LogGpuFlow($"provideSeriesChunk source range available series='{series.Name}' offset={offset} count={count} waitMs={GetElapsedMilliseconds(waitTimestamp):F1}");
+        var waitMs = logPerf ? GetElapsedMilliseconds(waitTimestamp) : 0;
 
         var bytes = GC.AllocateUninitializedArray<byte>(count * sizeof(float));
-        var copyTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        var copyTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         series.Source.CopyBytesTo(offset, bytes);
-        LogGpuFlow($"provideSeriesChunk source copy completed series='{series.Name}' offset={offset} count={count} copyMs={GetElapsedMilliseconds(copyTimestamp):F1}");
+        var copyMs = logPerf ? GetElapsedMilliseconds(copyTimestamp) : 0;
 
-        var provideTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        var provideTimestamp = logPerf ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         await JSRuntime.InvokeVoidAsync("nexus.chartWebGpu.provideSeriesChunk", _chartId, requestId, bytes, bytes.Length);
-        LogGpuFlow($"provideSeriesChunk completed series='{series.Name}' offset={offset} count={count} provideMs={GetElapsedMilliseconds(provideTimestamp):F1}");
+        if (logPerf)
+            LogPerformance($"raw provide chart={_chartId} series='{series.Name}' id={series.Id} requestId={requestId} offset={offset} count={count} waitMs={waitMs:F1} copyMs={copyMs:F1} interopMs={GetElapsedMilliseconds(provideTimestamp):F1} totalMs={GetElapsedMilliseconds(totalTimestamp):F1}");
     }
 
     private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, long length, int webGpuGeneration)
