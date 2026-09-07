@@ -104,8 +104,8 @@ public class ClientTests
 
         var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(2), paths);
 
-        Assert.Equal([1f, 2f], result[paths[0]].Values);
-        Assert.Equal([3f, 4f], result[paths[1]].Values);
+        Assert.Equal([1f, 2f], result[paths[0]].Values.ToArray());
+        Assert.Equal([3f, 4f], result[paths[1]].Values.ToArray());
         Assert.Single(requests, current => current.RequestUri!.AbsolutePath == "/api/v2/data");
     }
 
@@ -121,7 +121,7 @@ public class ClientTests
 
         var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(1), [path]);
 
-        Assert.Equal([1f], result[path].Values);
+        Assert.Equal([1f], result[path].Values.ToArray());
     }
 
     [Fact]

@@ -1419,6 +1419,10 @@ public partial class Chart : IDisposable
         _sentSeriesVersions.Clear();
         _sendingSeriesVersions.Clear();
         _seriesRanges.Clear();
+        _axesMap = new Dictionary<AxisInfo, LineSeries[]>();
+        _seriesParameterSnapshots = [];
+        _axisData = null;
+        LineSeriesData = default!;
         _dotNetHelper?.Dispose();
     }
 

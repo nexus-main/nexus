@@ -1,4 +1,5 @@
 ﻿@implements IDisposable
+@using System.Buffers
 
 @inject ISnackbar Snackbar
 @inject AppState AppState
@@ -28,7 +29,7 @@ else
     else
     {
         <div class="h-full p-5 relative">
-            <Chart LineSeriesData="_lineSeriesData" BeginAtZero="AppState.BeginAtZero" />
+            <Chart @key="_chartKey" LineSeriesData="_lineSeriesData" BeginAtZero="AppState.BeginAtZero" />
 
             <MudOverlay Visible="_showReloadButton" DarkBackground AutoClose Absolute>
                 <MudButton
@@ -56,6 +57,10 @@ else
     private bool _showReloadButton;
 
     private LineSeriesData? _lineSeriesData;
+
+    private VisualizationBuffers? _visualizationBuffers;
+
+    private int _chartKey;
 
     private CancellationTokenSource? _cts;
 
@@ -94,10 +99,18 @@ else
 
     private async Task LoadDataAsync()
     {
+        if (_isLoading)
+        {
+            _cts?.Cancel();
+            return;
+        }
+
         var previousCts = _cts;
         previousCts?.Cancel();
 
         _showReloadButton = false;
+
+        await ReleaseCurrentVisualizationAsync();
 
         if (AppState.Settings.IsSizeLimitExceeded)
         {
@@ -113,7 +126,6 @@ else
 
         _sizeLimitExceeded = false;
         _progress = 0;
-        _lineSeriesData = null;
         _isLoading = true;
 
         await InvokeAsync(StateHasChanged);
@@ -128,6 +140,8 @@ else
                     await InvokeAsync(StateHasChanged);
             }
         }, cts.Token);
+
+        VisualizationBuffers? loadBuffers = null;
 
         try
         {
@@ -149,11 +163,13 @@ else
 
             if (requests.Count > 0)
             {
+                loadBuffers = new VisualizationBuffers();
                 var resourcePaths = requests.Select(request => request.ResourcePath).ToArray();
                 var data = await Client.LoadAsync<float>(
                     begin,
                     end,
                     resourcePaths,
+                    loadBuffers.ProvideBuffer,
                     progress =>
                     {
                         if (ReferenceEquals(_cts, cts))
@@ -181,7 +197,12 @@ else
             }
 
             if (ReferenceEquals(_cts, cts))
+            {
+                _chartKey++;
                 _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);
+                _visualizationBuffers = loadBuffers;
+                loadBuffers = null;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -211,14 +232,63 @@ else
             }
 
             cts.Dispose();
+            loadBuffers?.Dispose();
         }
+    }
+
+    private async Task ReleaseCurrentVisualizationAsync()
+    {
+        if (_lineSeriesData is null && _visualizationBuffers is null)
+            return;
+
+        if (_lineSeriesData is not null)
+        {
+            _chartKey++;
+            _lineSeriesData = null;
+
+            await InvokeAsync(StateHasChanged);
+            await Task.Yield();
+        }
+
+        _visualizationBuffers?.Dispose();
+        _visualizationBuffers = null;
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
     }
 
     public void Dispose()
     {
         _cts?.Cancel();
+        _visualizationBuffers?.Dispose();
+        _visualizationBuffers = null;
 
         AppState.PropertyChanged -= _handler;
         AppState.Settings.PropertyChanged -= _handler;
+    }
+
+    private sealed class VisualizationBuffers : IDisposable
+    {
+        private readonly Dictionary<string, IMemoryOwner<float>> _owners = [];
+
+        public Memory<float> ProvideBuffer(string resourcePath, int requiredLength)
+        {
+            if (requiredLength == 0)
+                return Memory<float>.Empty;
+
+            var owner = MemoryPool<float>.Shared.Rent(requiredLength);
+            _owners.Add(resourcePath, owner);
+
+            return owner.Memory;
+        }
+
+        public void Dispose()
+        {
+            foreach (var owner in _owners.Values)
+                owner.Dispose();
+
+            _owners.Clear();
+        }
     }
 }

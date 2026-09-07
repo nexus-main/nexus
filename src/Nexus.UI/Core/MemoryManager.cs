@@ -7,13 +7,14 @@ using System.Runtime.InteropServices;
 
 namespace Nexus.UI.Core;
 
-internal sealed class CastMemoryManager<TFrom, TTo>(TFrom[] values) : MemoryManager<TTo>
+internal sealed class CastMemoryManager<TFrom, TTo>(Memory<TFrom> values) : MemoryManager<TTo>
     where TFrom : struct
     where TTo : struct
 {
-    private readonly TFrom[] _values = values;
+    private readonly Memory<TFrom> _values = values;
+    private MemoryHandle _handle;
 
-    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_values.AsSpan());
+    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_values.Span);
 
     protected override void Dispose(bool disposing)
     {
@@ -25,13 +26,14 @@ internal sealed class CastMemoryManager<TFrom, TTo>(TFrom[] values) : MemoryMana
         if ((uint)elementIndex > (uint)(_values.Length * Unsafe.SizeOf<TFrom>()))
             throw new ArgumentOutOfRangeException(nameof(elementIndex));
 
-        var handle = GCHandle.Alloc(_values, GCHandleType.Pinned);
-        var pointer = (byte*)handle.AddrOfPinnedObject() + elementIndex;
+        _handle = _values.Pin();
+        var pointer = (byte*)_handle.Pointer + elementIndex;
 
-        return new MemoryHandle(pointer, handle);
+        return new MemoryHandle(pointer, pinnable: this);
     }
 
     public override void Unpin()
     {
+        _handle.Dispose();
     }
 }

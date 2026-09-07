@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Net;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -68,16 +69,18 @@ public class NexusDemoClient : INexusClient
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
+        Func<string, int, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default)
         where T : struct
     {
-        return LoadAsync<T>(begin, end, resourcePaths, onProgress).GetAwaiter().GetResult();
+        return LoadAsync<T>(begin, end, resourcePaths, bufferProvider, onProgress).GetAwaiter().GetResult();
     }
 
     public async Task<IReadOnlyDictionary<string, DataResponse<T>>> LoadAsync<T>(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
+        Func<string, int, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
         where T : struct
@@ -92,8 +95,16 @@ public class NexusDemoClient : INexusClient
             new Api.V2.BatchStreamRequest(begin, end, resourcePathList, precision), cancellationToken);
         var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var precisionSize = (int)precision;
-        var values = resourcePathList.Select(resourcePath => new T[checked((int)(
-            (end - begin).Ticks / catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks))]).ToArray();
+        var values = resourcePathList.Select(resourcePath =>
+        {
+            var requiredLength = checked((int)((end - begin).Ticks / catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks));
+            var memory = bufferProvider?.Invoke(resourcePath, requiredLength) ?? new T[requiredLength];
+
+            if (memory.Length < requiredLength)
+                throw new ArgumentException($"The buffer provided for resource path '{resourcePath}' is too small. Required length: {requiredLength}. Provided length: {memory.Length}.", nameof(bufferProvider));
+
+            return memory[..requiredLength];
+        }).ToArray();
         var offsets = new int[values.Length];
         var header = new byte[8];
         var result = new Dictionary<string, DataResponse<T>>();
