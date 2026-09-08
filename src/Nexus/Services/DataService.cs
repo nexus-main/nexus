@@ -155,6 +155,10 @@ internal class DataService(
         var dataReaders = new List<(int Index, PipeReader Reader)>();
         var readingGroups = new List<DataReadingGroup>();
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var instrumentation = BatchStreamInstrumentation.CreateFromEnvironment();
+
+        if (instrumentation.IsEnabled)
+            instrumentation.Log($"batchStart resources={request.ResourcePaths.Length} begin={begin:O} end={end:O} precision={request.Precision}");
 
         try
         {
@@ -212,6 +216,7 @@ internal class DataService(
                 _memoryTracker,
                 ReadProgress,
                 _loggerFactory.CreateLogger<DataSourceController>(),
+                instrumentation,
                 cts.Token);
 
             var frames = Channel.CreateBounded<BatchStreamFrame>(new BoundedChannelOptions(capacity: dataReaders.Count)
@@ -222,10 +227,10 @@ internal class DataService(
             });
 
             var pumping = dataReaders
-                .Select(current => PumpAsync(current.Index, current.Reader, frames.Writer, cts.Token))
+                .Select(current => PumpAsync(current.Index, request.ResourcePaths[current.Index], current.Reader, frames.Writer, instrumentation, cts.Token))
                 .ToArray();
 
-            var outputWriting = WriteBatchFramesAsync(frames.Reader, outputPipe.Writer, cts.Token);
+            var outputWriting = WriteBatchFramesAsync(frames.Reader, outputPipe.Writer, instrumentation, cts.Token);
 
             _ = CompleteAndLogAsync(reading, pumping, outputWriting, frames.Writer, readingGroups, dataReaders, outputPipe.Writer, cts);
             return outputPipe.Reader.AsStream();
@@ -279,16 +284,25 @@ internal class DataService(
 
         static async Task PumpAsync(
             int resourceIndex,
+            string resourcePath,
             PipeReader input,
             ChannelWriter<BatchStreamFrame> output,
+            BatchStreamInstrumentation instrumentation,
             CancellationToken cancellationToken)
         {
             const int maximumPayloadLength = 4 * 1024 * 1024;
+            var frameCount = 0L;
+            var totalPayloadBytes = 0L;
 
             while (true)
             {
+                var readTimestamp = instrumentation.GetTimestamp();
                 var result = await input.ReadAsync(cancellationToken).ConfigureAwait(false);
                 var buffer = result.Buffer;
+                var readMs = instrumentation.GetElapsedMilliseconds(readTimestamp);
+
+                if (instrumentation.IsEnabled && readMs >= 10)
+                    instrumentation.Log($"pumpRead resource='{resourcePath}' index={resourceIndex} bytes={buffer.Length} readMs={readMs:F1}");
 
                 try
                 {
@@ -299,12 +313,25 @@ internal class DataService(
                         while (!remaining.IsEmpty)
                         {
                             var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
+                            var copyTimestamp = instrumentation.GetTimestamp();
                             var payloadBuffer = ArrayPool<byte>.Shared.Rent(payload.Length);
                             payload.CopyTo(payloadBuffer);
+                            var copyMs = instrumentation.GetElapsedMilliseconds(copyTimestamp);
 
                             try
                             {
+                                var writeTimestamp = instrumentation.GetTimestamp();
                                 await output.WriteAsync(new BatchStreamFrame(resourceIndex, payloadBuffer, payload.Length), cancellationToken).ConfigureAwait(false);
+                                var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
+
+                                if (instrumentation.IsEnabled)
+                                {
+                                    frameCount++;
+                                    totalPayloadBytes += payload.Length;
+
+                                    if (copyMs >= 10 || writeMs >= 10)
+                                        instrumentation.Log($"pumpFrame resource='{resourcePath}' index={resourceIndex} payloadBytes={payload.Length} copyMs={copyMs:F1} channelWriteMs={writeMs:F1} frames={frameCount} payloadBytes={totalPayloadBytes}");
+                                }
                             }
                             catch
                             {
@@ -322,17 +349,26 @@ internal class DataService(
                 }
 
                 if (result.IsCompleted)
+                {
+                    if (instrumentation.IsEnabled)
+                        instrumentation.Log($"pumpComplete resource='{resourcePath}' index={resourceIndex} frames={frameCount} payloadBytes={totalPayloadBytes}");
+
                     return;
+                }
             }
         }
 
         static async Task WriteBatchFramesAsync(
             ChannelReader<BatchStreamFrame> frames,
             PipeWriter output,
+            BatchStreamInstrumentation instrumentation,
             CancellationToken cancellationToken)
         {
             const int flushThreshold = 4 * 1024 * 1024;
+            var frameCount = 0L;
+            var totalPayloadBytes = 0L;
             var unflushedBytes = 0L;
+            var unflushedFrames = 0L;
 
             try
             {
@@ -340,14 +376,26 @@ internal class DataService(
                 {
                     try
                     {
+                        var writeTimestamp = instrumentation.GetTimestamp();
                         var header = output.GetSpan(8);
                         BinaryPrimitives.WriteInt32LittleEndian(header, frame.ResourceIndex);
                         BinaryPrimitives.WriteInt32LittleEndian(header[4..], frame.PayloadLength);
                         output.Advance(8);
                         frame.Payload.AsMemory(0, frame.PayloadLength).CopyTo(output.GetMemory(frame.PayloadLength));
                         output.Advance(frame.PayloadLength);
+                        var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
+
+                        if (instrumentation.IsEnabled)
+                        {
+                            frameCount++;
+                            totalPayloadBytes += frame.PayloadLength;
+
+                            if (writeMs >= 10)
+                                instrumentation.Log($"outputFrame index={frame.ResourceIndex} payloadBytes={frame.PayloadLength} writeMs={writeMs:F1} frames={frameCount} totalPayloadBytes={totalPayloadBytes}");
+                        }
 
                         unflushedBytes += 8 + frame.PayloadLength;
+                        unflushedFrames++;
 
                         if (unflushedBytes >= flushThreshold)
                         {
@@ -365,6 +413,9 @@ internal class DataService(
             }
             finally
             {
+                if (instrumentation.IsEnabled)
+                    instrumentation.Log($"outputComplete frames={frameCount} payloadBytes={totalPayloadBytes}");
+
                 while (frames.TryRead(out var frame))
                 {
                     ArrayPool<byte>.Shared.Return(frame.Payload);
@@ -373,7 +424,14 @@ internal class DataService(
 
             async Task FlushAsync()
             {
+                var flushTimestamp = instrumentation.GetTimestamp();
+                var flushedBytes = unflushedBytes;
+                var flushedFrames = unflushedFrames;
                 var flushResult = await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+                var flushMs = instrumentation.GetElapsedMilliseconds(flushTimestamp);
+
+                if (instrumentation.IsEnabled && flushMs >= 10)
+                    instrumentation.Log($"outputFlush frames={flushedFrames} bytes={flushedBytes} flushMs={flushMs:F1} totalFrames={frameCount} totalPayloadBytes={totalPayloadBytes}");
 
                 if (flushResult.IsCanceled)
                     throw new OperationCanceledException(cancellationToken);
@@ -382,6 +440,7 @@ internal class DataService(
                     throw new IOException("The batch output pipe completed before all data was written.");
 
                 unflushedBytes = 0;
+                unflushedFrames = 0;
             }
         }
 
