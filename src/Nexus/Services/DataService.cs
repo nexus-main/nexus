@@ -153,10 +153,6 @@ internal class DataService(
         var dataReaders = new List<(int Index, PipeReader Reader)>();
         var readingGroups = new List<DataReadingGroup>();
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var instrumentation = BatchStreamInstrumentation.CreateFromEnvironment();
-
-        if (instrumentation.IsEnabled)
-            instrumentation.Log($"batchStart resources={request.ResourcePaths.Length} begin={begin:O} end={end:O} precision={request.Precision}");
 
         try
         {
@@ -214,10 +210,9 @@ internal class DataService(
                 _memoryTracker,
                 ReadProgress,
                 _loggerFactory.CreateLogger<DataSourceController>(),
-                instrumentation,
                 cts.Token);
 
-            var outputWriting = DirectMuxWriteBatchFramesAsync(dataReaders, request.ResourcePaths, outputPipe.Writer, instrumentation, cts.Token);
+            var outputWriting = DirectMuxWriteBatchFramesAsync(dataReaders, outputPipe.Writer, cts.Token);
 
             _ = CompleteAndLogAsync(reading, outputWriting, readingGroups, dataReaders, outputPipe.Writer, cts);
             return outputPipe.Reader.AsStream();
@@ -271,15 +266,13 @@ internal class DataService(
 
         static async Task DirectMuxWriteBatchFramesAsync(
             IReadOnlyList<(int Index, PipeReader Reader)> readers,
-            IReadOnlyList<string> resourcePaths,
             PipeWriter output,
-            BatchStreamInstrumentation instrumentation,
             CancellationToken cancellationToken)
         {
             const int maximumPayloadLength = 4 * 1024 * 1024;
             const int flushThreshold = 4 * 1024 * 1024;
             var readerStates = readers
-                .Select(current => new BatchStreamReaderState(current.Index, resourcePaths[current.Index], current.Reader, instrumentation, cancellationToken))
+                .Select(current => new BatchStreamReaderState(current.Index, current.Reader, cancellationToken))
                 .ToArray();
             var activeReaderStates = new List<BatchStreamReaderState>(readerStates);
             var pendingReads = new List<Task<ReadResult>>(readerStates.Length);
@@ -287,10 +280,7 @@ internal class DataService(
             foreach (var readerState in readerStates)
                 pendingReads.Add(readerState.PendingRead!);
 
-            var frameCount = 0L;
-            var totalPayloadBytes = 0L;
             var unflushedBytes = 0L;
-            var unflushedFrames = 0L;
 
             try
             {
@@ -308,11 +298,7 @@ internal class DataService(
                     var result = await pendingReads[readerStateIndex].ConfigureAwait(false);
                     readerState.PendingRead = null;
                     var buffer = result.Buffer;
-                    var readMs = instrumentation.GetElapsedMilliseconds(readerState.ReadTimestamp);
                     var shouldFlush = false;
-
-                    if (instrumentation.IsEnabled && readMs >= 10)
-                        instrumentation.Log($"pumpRead resource='{readerState.ResourcePath}' index={readerState.Index} bytes={buffer.Length} readMs={readMs:F1}");
 
                     try
                     {
@@ -323,28 +309,14 @@ internal class DataService(
                             while (!remaining.IsEmpty)
                             {
                                 var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
-                                var writeTimestamp = instrumentation.GetTimestamp();
                                 var header = output.GetSpan(8);
                                 BinaryPrimitives.WriteInt32LittleEndian(header, readerState.Index);
                                 BinaryPrimitives.WriteInt32LittleEndian(header[4..], payload.Length);
                                 output.Advance(8);
                                 payload.CopyTo(output.GetMemory(payload.Length));
                                 output.Advance(payload.Length);
-                                var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
-
-                                frameCount++;
-                                totalPayloadBytes += payload.Length;
-                                readerState.FrameCount++;
-                                readerState.TotalPayloadBytes += payload.Length;
-
-                                if (instrumentation.IsEnabled)
-                                {
-                                    if (writeMs >= 10)
-                                        instrumentation.Log($"outputFrame index={readerState.Index} payloadBytes={payload.Length} writeMs={writeMs:F1} frames={frameCount} totalPayloadBytes={totalPayloadBytes}");
-                                }
 
                                 unflushedBytes += 8 + payload.Length;
-                                unflushedFrames++;
 
                                 if (unflushedBytes >= flushThreshold)
                                     shouldFlush = true;
@@ -363,9 +335,6 @@ internal class DataService(
                         readerState.IsCompleted = true;
                         activeReaderStates.RemoveAt(readerStateIndex);
                         pendingReads.RemoveAt(readerStateIndex);
-
-                        if (instrumentation.IsEnabled)
-                            instrumentation.Log($"pumpComplete resource='{readerState.ResourcePath}' index={readerState.Index} frames={readerState.FrameCount} payloadBytes={readerState.TotalPayloadBytes}");
                     }
                     else
                     {
@@ -383,21 +352,11 @@ internal class DataService(
             finally
             {
                 await CancelAndObservePendingReadsAsync(readerStates).ConfigureAwait(false);
-
-                if (instrumentation.IsEnabled)
-                    instrumentation.Log($"outputComplete frames={frameCount} payloadBytes={totalPayloadBytes}");
             }
 
             async Task FlushAsync()
             {
-                var flushTimestamp = instrumentation.GetTimestamp();
-                var flushedBytes = unflushedBytes;
-                var flushedFrames = unflushedFrames;
                 var flushResult = await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-                var flushMs = instrumentation.GetElapsedMilliseconds(flushTimestamp);
-
-                if (instrumentation.IsEnabled && flushMs >= 10)
-                    instrumentation.Log($"outputFlush frames={flushedFrames} bytes={flushedBytes} flushMs={flushMs:F1} totalFrames={frameCount} totalPayloadBytes={totalPayloadBytes}");
 
                 if (flushResult.IsCanceled)
                     throw new OperationCanceledException(cancellationToken);
@@ -406,7 +365,6 @@ internal class DataService(
                     throw new IOException("The batch output pipe completed before all data was written.");
 
                 unflushedBytes = 0;
-                unflushedFrames = 0;
             }
 
             static int GetCompletedReaderStateIndex(List<Task<ReadResult>> pendingReads)
@@ -523,19 +481,14 @@ internal class DataService(
     private sealed class BatchStreamReaderState
     {
         private readonly CancellationToken _cancellationToken;
-        private readonly BatchStreamInstrumentation _instrumentation;
 
         public BatchStreamReaderState(
             int index,
-            string resourcePath,
             PipeReader reader,
-            BatchStreamInstrumentation instrumentation,
             CancellationToken cancellationToken)
         {
             Index = index;
-            ResourcePath = resourcePath;
             Reader = reader;
-            _instrumentation = instrumentation;
             _cancellationToken = cancellationToken;
 
             StartRead();
@@ -543,23 +496,14 @@ internal class DataService(
 
         public int Index { get; }
 
-        public string ResourcePath { get; }
-
         public PipeReader Reader { get; }
 
         public Task<ReadResult>? PendingRead { get; set; }
 
         public bool IsCompleted { get; set; }
 
-        public long ReadTimestamp { get; private set; }
-
-        public long FrameCount { get; set; }
-
-        public long TotalPayloadBytes { get; set; }
-
         public void StartRead()
         {
-            ReadTimestamp = _instrumentation.GetTimestamp();
             PendingRead = Reader.ReadAsync(_cancellationToken).AsTask();
         }
     }

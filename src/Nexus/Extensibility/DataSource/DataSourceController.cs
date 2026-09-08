@@ -354,7 +354,6 @@ internal class DataSourceController(
             targetElementCount,
             targetByteCount,
             originalProgress,
-            BatchStreamInstrumentation.Current,
             cancellationToken);
 
         readingTasks.Add(originalTask);
@@ -400,7 +399,6 @@ internal class DataSourceController(
                     readDataHandler,
                     targetByteCount,
                     processingProgress,
-                    BatchStreamInstrumentation.Current,
                     cancellationToken)
 
                 : ReadAggregatedAsync(
@@ -410,7 +408,6 @@ internal class DataSourceController(
                     readDataHandler,
                     targetByteCount,
                     processingProgress,
-                    BatchStreamInstrumentation.Current,
                     cancellationToken);
 
             readingTasks.Add(processingTask);
@@ -428,7 +425,6 @@ internal class DataSourceController(
         int targetElementCount,
         int targetByteCount,
         IProgress<double> progress,
-        BatchStreamInstrumentation instrumentation,
         CancellationToken cancellationToken)
     {
         var tuples = originalUnits
@@ -452,7 +448,6 @@ internal class DataSourceController(
                         );
 
                         var byteCount = elementCount * (int)precision;
-                        var writeTimestamp = instrumentation.GetTimestamp();
                         var buffer = dataWriter.GetMemory(byteCount)[..byteCount];
                         var dataSlice = data.Slice(elementOffset * sourceElementSize, elementCount * sourceElementSize);
                         var statusSlice = status.Slice(elementOffset, elementCount);
@@ -481,15 +476,7 @@ internal class DataSourceController(
 
                         _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", byteCount);
                         dataWriter.Advance(byteCount);
-                        var flushTimestamp = instrumentation.GetTimestamp();
                         var flushResult = await dataWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
-                        var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
-                        var flushMs = instrumentation.GetElapsedMilliseconds(flushTimestamp);
-
-                        if (instrumentation.IsEnabled && (writeMs >= 10 || flushMs >= 10))
-                        {
-                            instrumentation.Log($"producerOriginalFlush resource='{catalogItemRequest.Item.Catalog.Id}/{catalogItemRequest.Item.Resource.Id}' byteCount={byteCount} elementOffset={elementOffset} elementCount={elementCount} writeMs={writeMs:F1} flushMs={flushMs:F1}");
-                        }
 
                         if (flushResult.IsCanceled)
                             throw new OperationCanceledException(cancellationToken);
@@ -581,7 +568,6 @@ internal class DataSourceController(
         ReadDataHandler readDataHandler,
         int targetByteCount,
         IProgress<double> progress,
-        BatchStreamInstrumentation instrumentation,
         CancellationToken cancellationToken)
     {
         var item = readUnit.CatalogItemRequest.Item;
@@ -721,7 +707,6 @@ internal class DataSourceController(
             /* convert double buffer to Float32 pipe bytes if needed */
             if (readUnit.Precision == Precision.Float32)
             {
-                var writeTimestamp = instrumentation.GetTimestamp();
                 var buffer = readUnit.DataWriter
                     .GetMemory(targetByteCount)[..targetByteCount];
 
@@ -730,22 +715,12 @@ internal class DataSourceController(
 
                 for (int i = 0; i < targetElementCount; i++)
                     targetSpan[i] = (float)sourceSpan[i];
-
-                var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
-
-                if (instrumentation.IsEnabled && writeMs >= 10)
-                    instrumentation.Log($"producerAggregatedWrite resource='{item.Catalog.Id}/{item.Resource.Id}' byteCount={targetByteCount} writeMs={writeMs:F1}");
             }
 
             /* update progress */
             _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
             readUnit.DataWriter.Advance(targetByteCount);
-            var flushTimestamp = instrumentation.GetTimestamp();
             await readUnit.DataWriter.FlushAsync(cancellationToken);
-            var flushMs = instrumentation.GetElapsedMilliseconds(flushTimestamp);
-
-            if (instrumentation.IsEnabled && flushMs >= 10)
-                instrumentation.Log($"producerAggregatedFlush resource='{item.Catalog.Id}/{item.Resource.Id}' byteCount={targetByteCount} flushMs={flushMs:F1}");
 
             poolBuffer?.Dispose();
         }
@@ -758,7 +733,6 @@ internal class DataSourceController(
         ReadDataHandler readDataHandler,
         int targetByteCount,
         IProgress<double> progress,
-        BatchStreamInstrumentation instrumentation,
         CancellationToken cancellationToken)
     {
         var item = readUnit.CatalogItemRequest.Item;
@@ -865,7 +839,6 @@ internal class DataSourceController(
             /* convert double buffer to Float32 pipe bytes if needed */
             if (readUnit.Precision == Precision.Float32)
             {
-                var writeTimestamp = instrumentation.GetTimestamp();
                 var buffer = readUnit.DataWriter
                    .GetMemory(targetByteCount)[..targetByteCount];
 
@@ -874,22 +847,12 @@ internal class DataSourceController(
 
                 for (int i = 0; i < targetElementCount; i++)
                     targetSpan[i] = (float)sourceSpan[i];
-
-                var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
-
-                if (instrumentation.IsEnabled && writeMs >= 10)
-                    instrumentation.Log($"producerResampledWrite resource='{item.Catalog.Id}/{item.Resource.Id}' byteCount={targetByteCount} writeMs={writeMs:F1}");
             }
 
             /* update progress */
             _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
             readUnit.DataWriter.Advance(targetByteCount);
-            var flushTimestamp = instrumentation.GetTimestamp();
             await readUnit.DataWriter.FlushAsync(cancellationToken);
-            var flushMs = instrumentation.GetElapsedMilliseconds(flushTimestamp);
-
-            if (instrumentation.IsEnabled && flushMs >= 10)
-                instrumentation.Log($"producerResampledFlush resource='{item.Catalog.Id}/{item.Resource.Id}' byteCount={targetByteCount} flushMs={flushMs:F1}");
 
             poolBuffer?.Dispose();
         }
@@ -956,33 +919,6 @@ internal class DataSourceController(
         ILogger<DataSourceController> logger,
         CancellationToken cancellationToken)
     {
-        await ReadAsync(
-            begin,
-            end,
-            samplePeriod,
-            precision,
-            readingGroups,
-            readDataHandler,
-            memoryTracker,
-            progress,
-            logger,
-            default,
-            cancellationToken);
-    }
-
-    public static async Task ReadAsync(
-        DateTime begin,
-        DateTime end,
-        TimeSpan samplePeriod,
-        Precision precision,
-        DataReadingGroup[] readingGroups,
-        ReadDataHandler readDataHandler,
-        IMemoryTracker memoryTracker,
-        IProgress<double>? progress,
-        ILogger<DataSourceController> logger,
-        BatchStreamInstrumentation instrumentation,
-        CancellationToken cancellationToken)
-    {
         var catalogItemRequestPipeWriters = readingGroups.SelectMany(readingGroup => readingGroup.CatalogItemRequestPipeWriters);
 
         if (!catalogItemRequestPipeWriters.Any())
@@ -1046,7 +982,6 @@ internal class DataSourceController(
             memoryTracker,
             progress,
             logger,
-            instrumentation,
             cancellationToken);
     }
 
@@ -1060,7 +995,6 @@ internal class DataSourceController(
         IMemoryTracker memoryTracker,
         IProgress<double>? progress,
         ILogger logger,
-        BatchStreamInstrumentation instrumentation,
         CancellationToken cancellationToken
     )
     {
@@ -1109,8 +1043,6 @@ internal class DataSourceController(
 
                     var chunkSize = allocationRegistration.ActualByteCount;
                     logger.LogTrace("The reading group chunk size is {ChunkSize} bytes", chunkSize);
-                    if (instrumentation.IsEnabled)
-                        instrumentation.Log($"producerChunkPlan resources={catalogItemRequestPipeWriters.Length} remainingBytes={remainingByteCount} chunkSize={chunkSize}");
 
                     var rowCount = Math.Min(
                         chunkSize / bytesPerRow,
@@ -1132,8 +1064,6 @@ internal class DataSourceController(
                     var currentEnd = currentBegin + currentPeriod;
 
                     logger.LogTrace("Process period {CurrentBegin} to {CurrentEnd}", currentBegin, currentEnd);
-                    if (instrumentation.IsEnabled)
-                        instrumentation.Log($"producerChunkStart resources={catalogItemRequestPipeWriters.Length} begin={currentBegin:O} end={currentEnd:O} periodMs={currentPeriod.TotalMilliseconds:F1}");
 
                     var dataSourceProgress = new Progress<double>();
 
@@ -1154,36 +1084,15 @@ internal class DataSourceController(
                         }
                     };
 
-                    var chunkTimestamp = instrumentation.GetTimestamp();
-                    if (instrumentation.IsEnabled)
-                    {
-                        using var instrumentationScope = BatchStreamInstrumentation.BeginScope(instrumentation);
-                        await controller.ReadAsync(
-                            currentBegin,
-                            currentEnd,
-                            samplePeriod,
-                            precision,
-                            catalogItemRequestPipeWriters,
-                            readDataHandler,
-                            dataSourceProgress,
-                            cancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await controller.ReadAsync(
-                            currentBegin,
-                            currentEnd,
-                            samplePeriod,
-                            precision,
-                            catalogItemRequestPipeWriters,
-                            readDataHandler,
-                            dataSourceProgress,
-                            cancellationToken).ConfigureAwait(false);
-                    }
-                    var chunkMs = instrumentation.GetElapsedMilliseconds(chunkTimestamp);
-
-                    if (instrumentation.IsEnabled)
-                        instrumentation.Log($"producerChunkComplete resources={catalogItemRequestPipeWriters.Length} bytes={rowCount * bytesPerRow} chunkMs={chunkMs:F1}");
+                    await controller.ReadAsync(
+                        currentBegin,
+                        currentEnd,
+                        samplePeriod,
+                        precision,
+                        catalogItemRequestPipeWriters,
+                        readDataHandler,
+                        dataSourceProgress,
+                        cancellationToken).ConfigureAwait(false);
 
                     consumedPeriod += currentPeriod;
                     remainingPeriod -= currentPeriod;
