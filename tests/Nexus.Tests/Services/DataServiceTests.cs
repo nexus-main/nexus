@@ -12,6 +12,7 @@ using Nexus.Extensibility;
 using Nexus.Services;
 using System.Buffers.Binary;
 using System.IO.Compression;
+using System.IO.Pipelines;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Xunit;
@@ -476,5 +477,286 @@ public class DataServiceTests
         Assert.Equal(2, frames.Count);
         Assert.Equal(1f, frames[0]);
         Assert.Equal(2f, frames[1]);
+    }
+
+    [Fact]
+    public async Task StreamsReadyResourceBeforeLaterResource()
+    {
+        const int payloadLength = 4 * 1024 * 1024;
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = begin + TimeSpan.FromSeconds(1);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var resource1Written = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writeResource0 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var streamingController = Mock.Of<IDataSourceController>();
+
+        Mock.Get(streamingController)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                samplePeriod,
+                It.IsAny<Precision>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, _, _, writers, _, progress, cancellationToken) =>
+                {
+                    await WriteRepeatedByteAsync(writers[1].DataWriter, 2, payloadLength, cancellationToken);
+                    resource1Written.SetResult();
+                    await writeResource0.Task.WaitAsync(cancellationToken);
+                    await writers[0].DataWriter.WriteAsync(BitConverter.GetBytes(1f), cancellationToken);
+                    progress.Report(1);
+                });
+
+        var dataService = CreateBatchDataService(begin, end, samplePeriod, streamingController, "T1", "T2");
+        var stream = await dataService.ReadBatchAsStreamAsync(
+            new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"], Precision.Float32),
+            CancellationToken.None);
+
+        await resource1Written.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var firstHeader = await ReadExactAsync(stream, 8).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(firstHeader.AsSpan(0, 4)));
+        Assert.Equal(payloadLength, BinaryPrimitives.ReadInt32LittleEndian(firstHeader.AsSpan(4, 4)));
+
+        await DiscardExactAsync(stream, payloadLength).WaitAsync(TimeSpan.FromSeconds(5));
+        writeResource0.SetResult();
+
+        var remaining = new MemoryStream();
+        await stream.CopyToAsync(remaining).WaitAsync(TimeSpan.FromSeconds(5));
+
+        var frames = ReadBatchFrames(remaining.ToArray());
+        var frame = Assert.Single(frames);
+
+        Assert.Equal(0, frame.ResourceIndex);
+        Assert.Equal(sizeof(float), frame.PayloadLength);
+        Assert.Equal(1f, BitConverter.ToSingle(frame.Payload));
+    }
+
+    [Fact]
+    public async Task SplitsLargeBatchPayloadsIntoBoundedFrames()
+    {
+        const int maximumPayloadLength = 4 * 1024 * 1024;
+        const int payloadLength = maximumPayloadLength + sizeof(float);
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = begin + TimeSpan.FromSeconds(1);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var streamingController = Mock.Of<IDataSourceController>();
+
+        Mock.Get(streamingController)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                samplePeriod,
+                It.IsAny<Precision>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, _, _, writers, _, progress, cancellationToken) =>
+                {
+                    await WriteRepeatedByteAsync(writers[0].DataWriter, 7, payloadLength, cancellationToken);
+                    progress.Report(1);
+                });
+
+        var dataService = CreateBatchDataService(begin, end, samplePeriod, streamingController, "T1");
+        var stream = await dataService.ReadBatchAsStreamAsync(
+            new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s"], Precision.Float32),
+            CancellationToken.None);
+
+        var sink = new MemoryStream();
+        await stream.CopyToAsync(sink).WaitAsync(TimeSpan.FromSeconds(5));
+
+        var frames = ReadBatchFrames(sink.ToArray());
+
+        Assert.True(frames.Count >= 2);
+        Assert.All(frames, frame =>
+        {
+            Assert.Equal(0, frame.ResourceIndex);
+            Assert.InRange(frame.PayloadLength, 1, maximumPayloadLength);
+            Assert.All(frame.Payload, value => Assert.Equal(7, value));
+        });
+        Assert.Equal(payloadLength, frames.Sum(frame => frame.PayloadLength));
+    }
+
+    [Fact]
+    public async Task CompletesBatchOutputWhenProducerFails()
+    {
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = begin + TimeSpan.FromSeconds(1);
+        var samplePeriod = TimeSpan.FromSeconds(1);
+        var streamingController = Mock.Of<IDataSourceController>();
+
+        Mock.Get(streamingController)
+            .Setup(current => current.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                samplePeriod,
+                It.IsAny<Precision>(),
+                It.IsAny<CatalogItemRequestPipeWriter[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                async (_, _, _, _, writers, _, _, cancellationToken) =>
+                {
+                    await writers[0].DataWriter.WriteAsync(BitConverter.GetBytes(1f), cancellationToken);
+                    throw new InvalidOperationException("producer failed");
+                });
+
+        var dataService = CreateBatchDataService(begin, end, samplePeriod, streamingController, "T1", "T2");
+        var stream = await dataService.ReadBatchAsStreamAsync(
+            new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"], Precision.Float32),
+            CancellationToken.None);
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
+            stream.CopyToAsync(Stream.Null).WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Contains("producer failed", exception.ToString(), StringComparison.Ordinal);
+        Mock.Get(streamingController).Verify(current => current.Dispose(), Times.Once);
+    }
+
+    private static DataService CreateBatchDataService(
+        DateTime begin,
+        DateTime end,
+        TimeSpan samplePeriod,
+        IDataSourceController streamingController,
+        params string[] resourceIds)
+    {
+        var registration = new DataSourceRegistration(Type: "A", new Uri("a", UriKind.Relative), default, default);
+        var pipeline = new DataSourcePipeline([registration]);
+        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var catalogBuilder = new ResourceCatalogBuilder("/A/B/C");
+
+        foreach (var resourceId in resourceIds)
+            catalogBuilder.AddResource(new ResourceBuilder(resourceId).AddRepresentation(representation).Build());
+
+        var catalog = catalogBuilder.Build().EnsureAndSanitizeMandatoryProperties(0, []);
+        var lookupController = Mock.Of<IDataSourceController>();
+
+        Mock.Get(lookupController)
+            .Setup(current => current.GetCatalogAsync(catalog.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(catalog);
+
+        Mock.Get(lookupController)
+            .Setup(current => current.GetTimeRangeAsync(catalog.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CatalogTimeRange(begin, end));
+
+        var dataControllerService = Mock.Of<IDataControllerService>();
+        var getControllerCallCount = 0;
+
+        Mock.Get(dataControllerService)
+            .Setup(current => current.GetDataSourceControllerAsync(pipeline, It.IsAny<CancellationToken>()))
+            .Returns(() => Task.FromResult(++getControllerCallCount == 1
+                ? lookupController
+                : streamingController));
+
+        var catalogManager = Mock.Of<ICatalogManager>();
+
+        Mock.Get(catalogManager)
+            .Setup(current => current.GetCatalogContainersAsync(
+                It.IsAny<CatalogContainer>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<CatalogContainer, CancellationToken>((container, _) => Task.FromResult(container.Id switch
+            {
+                "/" => new[]
+                {
+                    new CatalogContainer(
+                        new CatalogRegistration(catalog.Id, string.Empty),
+                        default,
+                        default,
+                        pipeline,
+                        default!,
+                        default!,
+                        catalogManager,
+                        default!,
+                        dataControllerService)
+                },
+                _ => throw new Exception("Unsupported catalog container.")
+            }));
+
+        var appState = new AppState
+        {
+            CatalogState = new CatalogState(
+                CatalogContainer.CreateRoot(catalogManager, default!),
+                new CatalogCache())
+        };
+
+        var memoryTracker = Mock.Of<IMemoryTracker>();
+
+        Mock.Get(memoryTracker)
+            .Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>(
+                (_, maximum, _) => new AllocationRegistration(memoryTracker, maximum));
+
+        var loggerFactory = Mock.Of<ILoggerFactory>();
+
+        Mock.Get(loggerFactory)
+            .Setup(current => current.CreateLogger(It.IsAny<string>()))
+            .Returns(Mock.Of<ILogger<DataSourceController>>());
+
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Role, nameof(NexusRoles.Administrator))],
+            authenticationType: "test"));
+
+        return new DataService(
+            appState,
+            user,
+            dataControllerService,
+            default!,
+            memoryTracker,
+            Mock.Of<ILogger<DataService>>(),
+            loggerFactory);
+    }
+
+    private static async Task WriteRepeatedByteAsync(PipeWriter writer, byte value, int byteCount, CancellationToken cancellationToken)
+    {
+        var span = writer.GetSpan(byteCount);
+        span[..byteCount].Fill(value);
+        writer.Advance(byteCount);
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private static async Task<byte[]> ReadExactAsync(Stream stream, int byteCount)
+    {
+        var bytes = new byte[byteCount];
+        await stream.ReadExactlyAsync(bytes);
+        return bytes;
+    }
+
+    private static async Task DiscardExactAsync(Stream stream, int byteCount)
+    {
+        var buffer = new byte[Math.Min(byteCount, 81920)];
+        var remaining = byteCount;
+
+        while (remaining > 0)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(0, Math.Min(buffer.Length, remaining)));
+
+            if (read == 0)
+                throw new EndOfStreamException();
+
+            remaining -= read;
+        }
+    }
+
+    private static List<(int ResourceIndex, int PayloadLength, byte[] Payload)> ReadBatchFrames(byte[] bytes)
+    {
+        var frames = new List<(int ResourceIndex, int PayloadLength, byte[] Payload)>();
+
+        for (var offset = 0; offset < bytes.Length;)
+        {
+            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
+            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 4));
+            var payload = bytes.AsSpan(offset + 8, payloadLength).ToArray();
+
+            frames.Add((resourceIndex, payloadLength, payload));
+            offset += 8 + payloadLength;
+        }
+
+        return frames;
     }
 }

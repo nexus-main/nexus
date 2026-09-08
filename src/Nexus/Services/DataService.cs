@@ -1,13 +1,11 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Buffers;
 using System.ComponentModel.DataAnnotations;
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
-using System.Threading.Channels;
 using Nexus.Core;
 using Nexus.Core.V2;
 using Nexus.Extensibility;
@@ -219,20 +217,9 @@ internal class DataService(
                 instrumentation,
                 cts.Token);
 
-            var frames = Channel.CreateBounded<BatchStreamFrame>(new BoundedChannelOptions(capacity: dataReaders.Count)
-            {
-                FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = true,
-                SingleWriter = false
-            });
+            var outputWriting = DirectMuxWriteBatchFramesAsync(dataReaders, request.ResourcePaths, outputPipe.Writer, instrumentation, cts.Token);
 
-            var pumping = dataReaders
-                .Select(current => PumpAsync(current.Index, request.ResourcePaths[current.Index], current.Reader, frames.Writer, instrumentation, cts.Token))
-                .ToArray();
-
-            var outputWriting = WriteBatchFramesAsync(frames.Reader, outputPipe.Writer, instrumentation, cts.Token);
-
-            _ = CompleteAndLogAsync(reading, pumping, outputWriting, frames.Writer, readingGroups, dataReaders, outputPipe.Writer, cts);
+            _ = CompleteAndLogAsync(reading, outputWriting, readingGroups, dataReaders, outputPipe.Writer, cts);
             return outputPipe.Reader.AsStream();
         }
         catch
@@ -282,89 +269,24 @@ internal class DataService(
             throw;
         }
 
-        static async Task PumpAsync(
-            int resourceIndex,
-            string resourcePath,
-            PipeReader input,
-            ChannelWriter<BatchStreamFrame> output,
-            BatchStreamInstrumentation instrumentation,
-            CancellationToken cancellationToken)
-        {
-            const int maximumPayloadLength = 4 * 1024 * 1024;
-            var frameCount = 0L;
-            var totalPayloadBytes = 0L;
-
-            while (true)
-            {
-                var readTimestamp = instrumentation.GetTimestamp();
-                var result = await input.ReadAsync(cancellationToken).ConfigureAwait(false);
-                var buffer = result.Buffer;
-                var readMs = instrumentation.GetElapsedMilliseconds(readTimestamp);
-
-                if (instrumentation.IsEnabled && readMs >= 10)
-                    instrumentation.Log($"pumpRead resource='{resourcePath}' index={resourceIndex} bytes={buffer.Length} readMs={readMs:F1}");
-
-                try
-                {
-                    foreach (var segment in buffer)
-                    {
-                        var remaining = segment;
-
-                        while (!remaining.IsEmpty)
-                        {
-                            var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
-                            var copyTimestamp = instrumentation.GetTimestamp();
-                            var payloadBuffer = ArrayPool<byte>.Shared.Rent(payload.Length);
-                            payload.CopyTo(payloadBuffer);
-                            var copyMs = instrumentation.GetElapsedMilliseconds(copyTimestamp);
-
-                            try
-                            {
-                                var writeTimestamp = instrumentation.GetTimestamp();
-                                await output.WriteAsync(new BatchStreamFrame(resourceIndex, payloadBuffer, payload.Length), cancellationToken).ConfigureAwait(false);
-                                var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
-
-                                if (instrumentation.IsEnabled)
-                                {
-                                    frameCount++;
-                                    totalPayloadBytes += payload.Length;
-
-                                    if (copyMs >= 10 || writeMs >= 10)
-                                        instrumentation.Log($"pumpFrame resource='{resourcePath}' index={resourceIndex} payloadBytes={payload.Length} copyMs={copyMs:F1} channelWriteMs={writeMs:F1} frames={frameCount} payloadBytes={totalPayloadBytes}");
-                                }
-                            }
-                            catch
-                            {
-                                ArrayPool<byte>.Shared.Return(payloadBuffer);
-                                throw;
-                            }
-
-                            remaining = remaining[payload.Length..];
-                        }
-                    }
-                }
-                finally
-                {
-                    input.AdvanceTo(buffer.End);
-                }
-
-                if (result.IsCompleted)
-                {
-                    if (instrumentation.IsEnabled)
-                        instrumentation.Log($"pumpComplete resource='{resourcePath}' index={resourceIndex} frames={frameCount} payloadBytes={totalPayloadBytes}");
-
-                    return;
-                }
-            }
-        }
-
-        static async Task WriteBatchFramesAsync(
-            ChannelReader<BatchStreamFrame> frames,
+        static async Task DirectMuxWriteBatchFramesAsync(
+            IReadOnlyList<(int Index, PipeReader Reader)> readers,
+            IReadOnlyList<string> resourcePaths,
             PipeWriter output,
             BatchStreamInstrumentation instrumentation,
             CancellationToken cancellationToken)
         {
+            const int maximumPayloadLength = 4 * 1024 * 1024;
             const int flushThreshold = 4 * 1024 * 1024;
+            var readerStates = readers
+                .Select(current => new BatchStreamReaderState(current.Index, resourcePaths[current.Index], current.Reader, instrumentation, cancellationToken))
+                .ToArray();
+            var activeReaderStates = new List<BatchStreamReaderState>(readerStates);
+            var pendingReads = new List<Task<ReadResult>>(readerStates.Length);
+
+            foreach (var readerState in readerStates)
+                pendingReads.Add(readerState.PendingRead!);
+
             var frameCount = 0L;
             var totalPayloadBytes = 0L;
             var unflushedBytes = 0L;
@@ -372,40 +294,87 @@ internal class DataService(
 
             try
             {
-                await foreach (var frame in frames.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                while (activeReaderStates.Count > 0)
                 {
+                    var readerStateIndex = GetCompletedReaderStateIndex(pendingReads);
+
+                    if (readerStateIndex == -1)
+                    {
+                        var completedRead = await Task.WhenAny(pendingReads).ConfigureAwait(false);
+                        readerStateIndex = pendingReads.IndexOf(completedRead);
+                    }
+
+                    var readerState = activeReaderStates[readerStateIndex];
+                    var result = await pendingReads[readerStateIndex].ConfigureAwait(false);
+                    readerState.PendingRead = null;
+                    var buffer = result.Buffer;
+                    var readMs = instrumentation.GetElapsedMilliseconds(readerState.ReadTimestamp);
+                    var shouldFlush = false;
+
+                    if (instrumentation.IsEnabled && readMs >= 10)
+                        instrumentation.Log($"pumpRead resource='{readerState.ResourcePath}' index={readerState.Index} bytes={buffer.Length} readMs={readMs:F1}");
+
                     try
                     {
-                        var writeTimestamp = instrumentation.GetTimestamp();
-                        var header = output.GetSpan(8);
-                        BinaryPrimitives.WriteInt32LittleEndian(header, frame.ResourceIndex);
-                        BinaryPrimitives.WriteInt32LittleEndian(header[4..], frame.PayloadLength);
-                        output.Advance(8);
-                        frame.Payload.AsMemory(0, frame.PayloadLength).CopyTo(output.GetMemory(frame.PayloadLength));
-                        output.Advance(frame.PayloadLength);
-                        var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
-
-                        if (instrumentation.IsEnabled)
+                        foreach (var segment in buffer)
                         {
-                            frameCount++;
-                            totalPayloadBytes += frame.PayloadLength;
+                            var remaining = segment;
 
-                            if (writeMs >= 10)
-                                instrumentation.Log($"outputFrame index={frame.ResourceIndex} payloadBytes={frame.PayloadLength} writeMs={writeMs:F1} frames={frameCount} totalPayloadBytes={totalPayloadBytes}");
-                        }
+                            while (!remaining.IsEmpty)
+                            {
+                                var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
+                                var writeTimestamp = instrumentation.GetTimestamp();
+                                var header = output.GetSpan(8);
+                                BinaryPrimitives.WriteInt32LittleEndian(header, readerState.Index);
+                                BinaryPrimitives.WriteInt32LittleEndian(header[4..], payload.Length);
+                                output.Advance(8);
+                                payload.CopyTo(output.GetMemory(payload.Length));
+                                output.Advance(payload.Length);
+                                var writeMs = instrumentation.GetElapsedMilliseconds(writeTimestamp);
 
-                        unflushedBytes += 8 + frame.PayloadLength;
-                        unflushedFrames++;
+                                frameCount++;
+                                totalPayloadBytes += payload.Length;
+                                readerState.FrameCount++;
+                                readerState.TotalPayloadBytes += payload.Length;
 
-                        if (unflushedBytes >= flushThreshold)
-                        {
-                            await FlushAsync().ConfigureAwait(false);
+                                if (instrumentation.IsEnabled)
+                                {
+                                    if (writeMs >= 10)
+                                        instrumentation.Log($"outputFrame index={readerState.Index} payloadBytes={payload.Length} writeMs={writeMs:F1} frames={frameCount} totalPayloadBytes={totalPayloadBytes}");
+                                }
+
+                                unflushedBytes += 8 + payload.Length;
+                                unflushedFrames++;
+
+                                if (unflushedBytes >= flushThreshold)
+                                    shouldFlush = true;
+
+                                remaining = remaining[payload.Length..];
+                            }
                         }
                     }
                     finally
                     {
-                        ArrayPool<byte>.Shared.Return(frame.Payload);
+                        readerState.Reader.AdvanceTo(buffer.End);
                     }
+
+                    if (result.IsCompleted)
+                    {
+                        readerState.IsCompleted = true;
+                        activeReaderStates.RemoveAt(readerStateIndex);
+                        pendingReads.RemoveAt(readerStateIndex);
+
+                        if (instrumentation.IsEnabled)
+                            instrumentation.Log($"pumpComplete resource='{readerState.ResourcePath}' index={readerState.Index} frames={readerState.FrameCount} payloadBytes={readerState.TotalPayloadBytes}");
+                    }
+                    else
+                    {
+                        readerState.StartRead();
+                        pendingReads[readerStateIndex] = readerState.PendingRead!;
+                    }
+
+                    if (shouldFlush)
+                        await FlushAsync().ConfigureAwait(false);
                 }
 
                 if (unflushedBytes > 0)
@@ -413,13 +382,10 @@ internal class DataService(
             }
             finally
             {
+                await CancelAndObservePendingReadsAsync(readerStates).ConfigureAwait(false);
+
                 if (instrumentation.IsEnabled)
                     instrumentation.Log($"outputComplete frames={frameCount} payloadBytes={totalPayloadBytes}");
-
-                while (frames.TryRead(out var frame))
-                {
-                    ArrayPool<byte>.Shared.Return(frame.Payload);
-                }
             }
 
             async Task FlushAsync()
@@ -442,13 +408,52 @@ internal class DataService(
                 unflushedBytes = 0;
                 unflushedFrames = 0;
             }
+
+            static int GetCompletedReaderStateIndex(List<Task<ReadResult>> pendingReads)
+            {
+                for (var index = 0; index < pendingReads.Count; index++)
+                {
+                    if (pendingReads[index].IsCompleted)
+                        return index;
+                }
+
+                return -1;
+            }
+
+            static async Task CancelAndObservePendingReadsAsync(BatchStreamReaderState[] readerStates)
+            {
+                foreach (var readerState in readerStates)
+                {
+                    if (readerState.PendingRead is not null)
+                        readerState.Reader.CancelPendingRead();
+                }
+
+                foreach (var readerState in readerStates)
+                {
+                    var pendingRead = readerState.PendingRead;
+
+                    if (pendingRead is null)
+                        continue;
+
+                    try
+                    {
+                        var result = await pendingRead.ConfigureAwait(false);
+                        readerState.Reader.AdvanceTo(result.Buffer.End);
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        readerState.PendingRead = null;
+                    }
+                }
+            }
         }
 
         async Task CompleteAndLogAsync(
             Task reading,
-            Task[] pumping,
             Task outputWriting,
-            ChannelWriter<BatchStreamFrame> frameWriter,
             List<DataReadingGroup> groups,
             List<(int Index, PipeReader Reader)> readers,
             PipeWriter output,
@@ -456,7 +461,7 @@ internal class DataService(
         {
             try
             {
-                await CompleteAsync(reading, pumping, outputWriting, frameWriter, groups, readers, output, cts).ConfigureAwait(false);
+                await CompleteAsync(reading, outputWriting, groups, readers, output, cts).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -466,9 +471,7 @@ internal class DataService(
 
         async Task CompleteAsync(
             Task reading,
-            Task[] pumping,
             Task outputWriting,
-            ChannelWriter<BatchStreamFrame> frameWriter,
             List<DataReadingGroup> groups,
             List<(int Index, PipeReader Reader)> readers,
             PipeWriter output,
@@ -478,21 +481,18 @@ internal class DataService(
 
             try
             {
-                var producing = NexusUtilities.WhenAllFailFastAsync([reading, .. pumping], cts.Token);
-                var firstCompleted = await Task.WhenAny(producing, outputWriting).ConfigureAwait(false);
+                var firstCompleted = await Task.WhenAny(reading, outputWriting).ConfigureAwait(false);
 
                 if (firstCompleted == outputWriting)
                     await outputWriting.ConfigureAwait(false);
 
-                await producing.ConfigureAwait(false);
-                frameWriter.TryComplete();
+                await reading.ConfigureAwait(false);
                 await outputWriting.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 error = ex;
                 await cts.CancelAsync().ConfigureAwait(false);
-                frameWriter.TryComplete(ex);
 
                 foreach (var writer in groups.SelectMany(group => group.CatalogItemRequestPipeWriters))
                 {
@@ -507,7 +507,7 @@ internal class DataService(
 
                 try
                 {
-                    await Task.WhenAll([reading, .. pumping, outputWriting]).ConfigureAwait(false);
+                    await Task.WhenAll(reading, outputWriting).ConfigureAwait(false);
                 }
                 catch
                 {
@@ -520,7 +520,49 @@ internal class DataService(
         }
     }
 
-    private readonly record struct BatchStreamFrame(int ResourceIndex, byte[] Payload, int PayloadLength);
+    private sealed class BatchStreamReaderState
+    {
+        private readonly CancellationToken _cancellationToken;
+        private readonly BatchStreamInstrumentation _instrumentation;
+
+        public BatchStreamReaderState(
+            int index,
+            string resourcePath,
+            PipeReader reader,
+            BatchStreamInstrumentation instrumentation,
+            CancellationToken cancellationToken)
+        {
+            Index = index;
+            ResourcePath = resourcePath;
+            Reader = reader;
+            _instrumentation = instrumentation;
+            _cancellationToken = cancellationToken;
+
+            StartRead();
+        }
+
+        public int Index { get; }
+
+        public string ResourcePath { get; }
+
+        public PipeReader Reader { get; }
+
+        public Task<ReadResult>? PendingRead { get; set; }
+
+        public bool IsCompleted { get; set; }
+
+        public long ReadTimestamp { get; private set; }
+
+        public long FrameCount { get; set; }
+
+        public long TotalPayloadBytes { get; set; }
+
+        public void StartRead()
+        {
+            ReadTimestamp = _instrumentation.GetTimestamp();
+            PendingRead = Reader.ReadAsync(_cancellationToken).AsTask();
+        }
+    }
 
     internal static async Task CleanupBatchStreamAsync(
         IReadOnlyList<DataReadingGroup> groups,
