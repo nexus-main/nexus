@@ -11,6 +11,7 @@ using Nexus.Extensibility;
 using Nexus.Services;
 using Nexus.Sources;
 using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -22,6 +23,24 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     : IClassFixture<DataSourceControllerFixture>
 {
     private readonly DataSourceControllerFixture _fixture = fixture;
+
+    [Fact]
+    public async Task StaticReadAsyncValidatesParameters()
+    {
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+
+        await Assert.ThrowsAsync<ValidationException>(() => DataSourceController.ReadAsync(
+            begin,
+            begin,
+            TimeSpan.FromSeconds(1),
+            Precision.Float32,
+            [],
+            default!,
+            Mock.Of<IMemoryTracker>(),
+            default,
+            NullLogger<DataSourceController>.Instance,
+            CancellationToken.None));
+    }
 
     [Fact]
     internal async Task CanGetAvailability()

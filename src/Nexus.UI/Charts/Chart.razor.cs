@@ -767,7 +767,7 @@ public partial class Chart : IDisposable
     private static int GetSeriesVersion(LineSeries series) =>
         series.SyntheticKind.HasValue
             ? HashCode.Combine(series.SyntheticKind.Value, series.SyntheticLength)
-            : 0;
+            : series.Source.Version;
 
     private static bool HasSeriesVersion(
         Dictionary<string, (int Version, long Length)> versions,

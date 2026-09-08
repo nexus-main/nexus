@@ -519,6 +519,9 @@ internal class DataSourceController(
                         )
                         .ToArray();
 
+                    if (currentReadRequests.Length == 0)
+                        continue;
+
                     await _dataSources[pipelinePosition].ReadAsync(
                         begin,
                         end,
@@ -919,6 +922,8 @@ internal class DataSourceController(
         ILogger<DataSourceController> logger,
         CancellationToken cancellationToken)
     {
+        ValidateParameters(begin, end, samplePeriod);
+
         var catalogItemRequestPipeWriters = readingGroups.SelectMany(readingGroup => readingGroup.CatalogItemRequestPipeWriters);
 
         if (!catalogItemRequestPipeWriters.Any())
@@ -1107,27 +1112,40 @@ internal class DataSourceController(
                     }
                 }
 
-                foreach (var catalogItemRequestPipeWriter in catalogItemRequestPipeWriters)
-                    await catalogItemRequestPipeWriter.DataWriter.CompleteAsync().ConfigureAwait(false);
+                await CompleteDataWritersAsync(catalogItemRequestPipeWriters, default).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 await cancellationTokenSource.CancelAsync().ConfigureAwait(false);
                 logger.LogError(ex, "Reading group failed");
 
-                foreach (var catalogItemRequestPipeWriter in catalogItemRequestPipeWriters)
+                await CompleteDataWritersAsync(catalogItemRequestPipeWriters, ex).ConfigureAwait(false);
+
+                throw;
+            }
+
+            async Task CompleteDataWritersAsync(
+                IEnumerable<CatalogItemRequestPipeWriter> writers,
+                Exception? error)
+            {
+                List<Exception>? completeExceptions = default;
+
+                foreach (var writer in writers)
                 {
                     try
                     {
-                        await catalogItemRequestPipeWriter.DataWriter.CompleteAsync(ex).ConfigureAwait(false);
+                        await writer.DataWriter.CompleteAsync(error).ConfigureAwait(false);
                     }
                     catch (Exception completeException)
                     {
                         logger.LogError(completeException, "Completing data pipe writer failed");
+                        completeExceptions ??= [];
+                        completeExceptions.Add(completeException);
                     }
                 }
 
-                throw;
+                if (completeExceptions is not null && error is null)
+                    throw new AggregateException(completeExceptions);
             }
         }
     }

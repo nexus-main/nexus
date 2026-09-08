@@ -40,6 +40,12 @@ public class DataServiceTests
     }
 
     [Fact]
+    public void RejectsUnsupportedPrecision()
+    {
+        Assert.Throws<ValidationException>(() => DataService.ValidatePrecision((Precision)123));
+    }
+
+    [Fact]
     public async Task CanExportAsync()
     {
         // create dirs

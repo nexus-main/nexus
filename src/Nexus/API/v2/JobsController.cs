@@ -43,6 +43,15 @@ internal class JobsController(
         ExportParameters parameters,
         CancellationToken cancellationToken)
     {
+        try
+        {
+            DataService.ValidatePrecision(parameters.Precision);
+        }
+        catch (ValidationException ex)
+        {
+            return UnprocessableEntity(ex.Message);
+        }
+
         _diagnosticContext.Set("Body", JsonSerializerHelper.SerializeIndented(parameters));
 
         parameters = parameters with

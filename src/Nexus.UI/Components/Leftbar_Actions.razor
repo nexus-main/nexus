@@ -44,6 +44,8 @@
 
 @code {
 
+    private const long MaximumSettingsUploadSize = 1 * 1024 * 1024; // 1 MiB
+
     private PropertyChangedEventHandler _handler;
 
     public Leftbar_Actions()
@@ -64,7 +66,7 @@
     {
         try
         {
-            using var stream = e.File.OpenReadStream(maxAllowedSize: long.MaxValue);
+            using var stream = e.File.OpenReadStream(maxAllowedSize: MaximumSettingsUploadSize);
             var jsonObject = await JsonSerializer.DeserializeAsync<JsonObject>(stream, JsonSerializerOptions.Web);
 
             if (jsonObject is not null)

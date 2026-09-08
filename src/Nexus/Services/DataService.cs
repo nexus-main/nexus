@@ -8,6 +8,7 @@ using System.IO.Pipelines;
 using System.Security.Claims;
 using Nexus.Core;
 using Nexus.Core.V2;
+using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Utilities;
 
@@ -114,6 +115,8 @@ internal class DataService(
        BatchStreamRequest request,
        CancellationToken cancellationToken)
     {
+        ValidatePrecision(request.Precision);
+
         var begin = DateTime.SpecifyKind(request.Begin, DateTimeKind.Utc);
         var end = DateTime.SpecifyKind(request.End, DateTimeKind.Utc);
 
@@ -605,6 +608,8 @@ internal class DataService(
         ExportParameters exportParameters,
         CancellationToken cancellationToken)
     {
+        ValidatePrecision(exportParameters.Precision);
+
         if (!catalogItemRequests.Any() || exportParameters.Begin == exportParameters.End)
             return string.Empty;
 
@@ -628,48 +633,58 @@ internal class DataService(
         IDataWriterController? controller = default!;
 
         var tmpFolderPath = Path.Combine(Path.GetTempPath(), "Nexus", Guid.NewGuid().ToString());
+        var tmpFolderCreated = false;
 
-        if (exportParameters.Type is not null)
-        {
-            // create tmp/target directory
-            Directory.CreateDirectory(tmpFolderPath);
-
-            // copy available licenses
-            var catalogIds = catalogItemRequests
-                .Select(request => request.Container.Id)
-                .Distinct();
-
-            foreach (var catalogId in catalogIds)
-            {
-                CopyLicenseIfAvailable(catalogId, tmpFolderPath);
-            }
-
-            // get data writer controller
-            var resourceLocator = new Uri(tmpFolderPath, UriKind.Absolute);
-            controller = await _dataControllerService.GetDataWriterControllerAsync(resourceLocator, exportParameters, cancellationToken);
-        }
-
-        // write data files
         try
         {
-            var exportContext = new ExportContext(samplePeriod, catalogItemRequests, readDataHandler, exportParameters);
-            await CreateFilesAsync(exportContext, controller, cancellationToken);
+            if (exportParameters.Type is not null)
+            {
+                // create tmp/target directory
+                Directory.CreateDirectory(tmpFolderPath);
+                tmpFolderCreated = true;
+
+                // copy available licenses
+                var catalogIds = catalogItemRequests
+                    .Select(request => request.Container.Id)
+                    .Distinct();
+
+                foreach (var catalogId in catalogIds)
+                {
+                    CopyLicenseIfAvailable(catalogId, tmpFolderPath);
+                }
+
+                // get data writer controller
+                var resourceLocator = new Uri(tmpFolderPath, UriKind.Absolute);
+                controller = await _dataControllerService.GetDataWriterControllerAsync(resourceLocator, exportParameters, cancellationToken);
+            }
+
+            // write data files
+            try
+            {
+                var exportContext = new ExportContext(samplePeriod, catalogItemRequests, readDataHandler, exportParameters);
+                await CreateFilesAsync(exportContext, controller, cancellationToken);
+            }
+            finally
+            {
+                controller?.Dispose();
+            }
+
+            if (exportParameters.Type is not null)
+            {
+                // write zip archive
+                zipFileName = $"{Guid.NewGuid()}.zip";
+                var zipArchiveStream = _databaseService.WriteArtifact(zipFileName);
+                using var zipArchive = new ZipArchive(zipArchiveStream, ZipArchiveMode.Create);
+                WriteZipArchiveEntries(zipArchive, tmpFolderPath, cancellationToken);
+            }
+
+            return zipFileName;
         }
         finally
         {
-            controller?.Dispose();
+            if (tmpFolderCreated)
+                CleanUp(tmpFolderPath);
         }
-
-        if (exportParameters.Type is not null)
-        {
-            // write zip archive
-            zipFileName = $"{Guid.NewGuid()}.zip";
-            var zipArchiveStream = _databaseService.WriteArtifact(zipFileName);
-            using var zipArchive = new ZipArchive(zipArchiveStream, ZipArchiveMode.Create);
-            WriteZipArchiveEntries(zipArchive, tmpFolderPath, cancellationToken);
-        }
-
-        return zipFileName;
     }
 
     private void CopyLicenseIfAvailable(string catalogId, string targetFolder)
@@ -708,98 +723,144 @@ internal class DataService(
         /* reading groups */
         var catalogItemRequestPipeReaders = new List<CatalogItemRequestPipeReader>();
         var readingGroups = new List<DataReadingGroup>();
-
-        foreach (var group in exportContext.CatalogItemRequests.GroupBy(request => request.Container))
-        {
-            var registration = group.Key.Pipeline;
-            var controller = await _dataControllerService.GetDataSourceControllerAsync(registration, cancellationToken);
-            var catalogItemRequestPipeWriters = new List<CatalogItemRequestPipeWriter>();
-
-            foreach (var catalogItemRequest in group)
-            {
-                var pipe = new Pipe();
-                catalogItemRequestPipeWriters.Add(new CatalogItemRequestPipeWriter(catalogItemRequest, pipe.Writer));
-                catalogItemRequestPipeReaders.Add(new CatalogItemRequestPipeReader(catalogItemRequest, pipe.Reader));
-            }
-
-            readingGroups.Add(new DataReadingGroup(controller, catalogItemRequestPipeWriters.ToArray()));
-        }
-
-        /* cancellation */
-        var cts = new CancellationTokenSource();
-        cancellationToken.Register(cts.Cancel);
-
-        /* read */
-        var logger = _loggerFactory.CreateLogger<DataSourceController>();
-
-        var reading = DataSourceController.ReadAsync(
-            exportParameters.Begin,
-            exportParameters.End,
-            exportContext.SamplePeriod,
-            exportParameters.Precision,
-            readingGroups.ToArray(),
-            exportContext.ReadDataHandler,
-            _memoryTracker,
-            ReadProgress,
-            logger,
-            cts.Token);
-
-        /* write */
-        Task writing;
-
-        /* There is not data writer, so just advance through the pipe. */
-        if (dataWriterController is null)
-        {
-            var writingTasks = catalogItemRequestPipeReaders.Select(current =>
-            {
-                return Task.Run(async () =>
-                {
-                    while (true)
-                    {
-                        var result = await current.DataReader.ReadAsync(cts.Token);
-
-                        if (result.IsCompleted)
-                            return;
-
-                        else
-                            current.DataReader.AdvanceTo(result.Buffer.End);
-                    }
-                }, cts.Token);
-            });
-
-            writing = Task.WhenAll(writingTasks);
-        }
-
-        /* Normal operation. */
-        else
-        {
-            var singleFile = exportParameters.FilePeriod == default;
-
-            var filePeriod = singleFile
-                ? exportParameters.End - exportParameters.Begin
-                : exportParameters.FilePeriod;
-
-            writing = dataWriterController.WriteAsync(
-                exportParameters.Begin,
-                exportParameters.End,
-                exportContext.SamplePeriod,
-                filePeriod,
-                catalogItemRequestPipeReaders.ToArray(),
-                WriteProgress,
-                cts.Token
-            );
-        }
-
-        var tasks = new List<Task>() { reading, writing };
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
-            await NexusUtilities.WhenAllFailFastAsync(tasks, cts.Token);
+            foreach (var group in exportContext.CatalogItemRequests.GroupBy(request => request.Container))
+            {
+                var registration = group.Key.Pipeline;
+                var controller = await _dataControllerService.GetDataSourceControllerAsync(registration, cancellationToken);
+                var catalogItemRequestPipeWriters = new List<CatalogItemRequestPipeWriter>();
+                var controllerAdded = false;
+
+                try
+                {
+                    foreach (var catalogItemRequest in group)
+                    {
+                        var pipe = new Pipe();
+                        catalogItemRequestPipeWriters.Add(new CatalogItemRequestPipeWriter(catalogItemRequest, pipe.Writer));
+                        catalogItemRequestPipeReaders.Add(new CatalogItemRequestPipeReader(catalogItemRequest, pipe.Reader));
+                    }
+
+                    readingGroups.Add(new DataReadingGroup(controller, catalogItemRequestPipeWriters.ToArray()));
+                    controllerAdded = true;
+                }
+                finally
+                {
+                    if (!controllerAdded)
+                    {
+                        try
+                        {
+                            controller.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Disposing failed export data controller failed");
+                        }
+                    }
+                }
+            }
+
+            /* read */
+            var logger = _loggerFactory.CreateLogger<DataSourceController>();
+
+            var reading = DataSourceController.ReadAsync(
+                exportParameters.Begin,
+                exportParameters.End,
+                exportContext.SamplePeriod,
+                exportParameters.Precision,
+                readingGroups.ToArray(),
+                exportContext.ReadDataHandler,
+                _memoryTracker,
+                ReadProgress,
+                logger,
+                cts.Token);
+
+            /* write */
+            Task writing;
+
+            /* There is not data writer, so just advance through the pipe. */
+            if (dataWriterController is null)
+            {
+                var writingTasks = catalogItemRequestPipeReaders.Select(current =>
+                {
+                    return Task.Run(async () =>
+                    {
+                        while (true)
+                        {
+                            var result = await current.DataReader.ReadAsync(cts.Token);
+
+                            if (result.IsCompleted)
+                                return;
+
+                            else
+                                current.DataReader.AdvanceTo(result.Buffer.End);
+                        }
+                    }, cts.Token);
+                });
+
+                writing = Task.WhenAll(writingTasks);
+            }
+
+            /* Normal operation. */
+            else
+            {
+                var singleFile = exportParameters.FilePeriod == default;
+
+                var filePeriod = singleFile
+                    ? exportParameters.End - exportParameters.Begin
+                    : exportParameters.FilePeriod;
+
+                writing = dataWriterController.WriteAsync(
+                    exportParameters.Begin,
+                    exportParameters.End,
+                    exportContext.SamplePeriod,
+                    filePeriod,
+                    catalogItemRequestPipeReaders.ToArray(),
+                    WriteProgress,
+                    cts.Token
+                );
+            }
+
+            var tasks = new List<Task>() { reading, writing };
+
+            try
+            {
+                await NexusUtilities.WhenAllFailFastAsync(tasks, cts.Token);
+            }
+            catch
+            {
+                await cts.CancelAsync().ConfigureAwait(false);
+                throw;
+            }
         }
-        catch
+
+        finally
         {
-            await cts.CancelAsync();
-            throw;
+            foreach (var readingGroup in readingGroups)
+            {
+                try
+                {
+                    readingGroup.Controller.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Disposing export data controller failed");
+                }
+            }
+
+            foreach (var reader in catalogItemRequestPipeReaders)
+            {
+                try
+                {
+                    await reader.DataReader.CompleteAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Completing export data reader failed");
+                }
+            }
         }
     }
 
@@ -807,34 +868,33 @@ internal class DataService(
     {
         ((IProgress<double>)WriteProgress).Report(0);
 
-        try
+        // write zip archive entries
+        var filePaths = Directory.GetFiles(sourceFolderPath, "*", SearchOption.AllDirectories);
+        var fileCount = filePaths.Length;
+        var currentCount = 0;
+
+        foreach (var filePath in filePaths)
         {
-            // write zip archive entries
-            var filePaths = Directory.GetFiles(sourceFolderPath, "*", SearchOption.AllDirectories);
-            var fileCount = filePaths.Length;
-            var currentCount = 0;
+            cancellationToken.ThrowIfCancellationRequested();
 
-            foreach (var filePath in filePaths)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
+            _logger.LogTrace("Write content of {FilePath} to the ZIP archive", filePath);
 
-                _logger.LogTrace("Write content of {FilePath} to the ZIP archive", filePath);
+            var zipArchiveEntry = zipArchive.CreateEntry(Path.GetFileName(filePath), CompressionLevel.Optimal);
 
-                var zipArchiveEntry = zipArchive.CreateEntry(Path.GetFileName(filePath), CompressionLevel.Optimal);
+            using var fileStream = File.Open(filePath, FileMode.Open, FileAccess.Read);
+            using var zipArchiveEntryStream = zipArchiveEntry.Open();
 
-                using var fileStream = File.Open(filePath, FileMode.Open, FileAccess.Read);
-                using var zipArchiveEntryStream = zipArchiveEntry.Open();
+            fileStream.CopyTo(zipArchiveEntryStream);
 
-                fileStream.CopyTo(zipArchiveEntryStream);
-
-                currentCount++;
-                ((IProgress<double>)WriteProgress).Report(currentCount / (double)fileCount);
-            }
+            currentCount++;
+            ((IProgress<double>)WriteProgress).Report(currentCount / (double)fileCount);
         }
-        finally
-        {
-            CleanUp(sourceFolderPath);
-        }
+    }
+
+    internal static void ValidatePrecision(Precision precision)
+    {
+        if (precision is not Precision.Float32 and not Precision.Float64)
+            throw new ValidationException("The precision value is invalid.");
     }
 
     private static void CleanUp(string directoryPath)
