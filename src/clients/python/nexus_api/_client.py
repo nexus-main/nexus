@@ -41,6 +41,11 @@ class NexusClient:
     """A client for the Nexus system."""
     
     ___configuration_header_key: str = "Nexus-Configuration"
+    ___batch_stream_protocol_version: int = 1
+    ___batch_stream_data_frame_type: int = 1
+    ___batch_stream_error_frame_type: int = 2
+    ___batch_stream_end_frame_type: int = 3
+    ___batch_stream_max_error_message_length: int = 64 * 1024
     ___authorization_header_key: str = "Authorization"
 
     ___token: Optional[str]
@@ -279,53 +284,103 @@ class NexusClient:
         precision: Precision,
         report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview]:
         array_type = "f" if precision == Precision.FLOAT32 else "d"
+        precision_size = precision.value
 
         buffers = [bytearray(length) for length in expected_lengths]
         byte_views = [memoryview(buffer).cast("B") for buffer in buffers]
         offsets = [0] * len(expected_lengths)
         pending = bytearray()
-        resource_index: Optional[int] = None
-        payload_length = 0
+        has_version = False
+        has_end_frame = False
 
         for data in response.iter_bytes():
             pending.extend(data)
 
             while True:
-                if resource_index is None:
-                    if len(pending) < 8:
+                if not has_version:
+                    if len(pending) < 1:
                         break
 
-                    current_index, payload_length = struct.unpack_from("<ii", pending)
-                    del pending[:8]
+                    version = pending[0]
+                    del pending[:1]
 
-                    if current_index < 0 or current_index >= len(byte_views):
-                        raise Exception("The batch stream contains an invalid resource index.")
+                    if version != self.___batch_stream_protocol_version:
+                        raise Exception(f"The batch stream uses an unsupported protocol version: {version}.")
 
-                    if payload_length < 0:
-                        raise Exception("The batch stream contains an invalid payload length.")
+                    has_version = True
 
-                    if offsets[current_index] > expected_lengths[current_index] - payload_length:
-                        raise Exception("The batch stream contains more data than expected.")
-
-                    resource_index = current_index
-
-                if len(pending) < payload_length:
+                if len(pending) < 1:
                     break
 
-                current_index = cast(int, resource_index)
+                frame_type = pending[0]
+
+                if frame_type == self.___batch_stream_end_frame_type:
+                    del pending[:1]
+
+                    if pending:
+                        raise Exception("The batch stream contains data after the end frame.")
+
+                    has_end_frame = True
+                    break
+
+                if frame_type == self.___batch_stream_error_frame_type:
+                    if len(pending) < 5:
+                        break
+
+                    message_length = struct.unpack_from("<i", pending, 1)[0]
+
+                    if message_length < 0 or message_length > self.___batch_stream_max_error_message_length:
+                        raise Exception("The batch stream contains an invalid error message length.")
+
+                    if len(pending) < 5 + message_length:
+                        break
+
+                    message = bytes(pending[5:5 + message_length]).decode("utf-8")
+                    raise NexusException("N02", message)
+
+                if frame_type != self.___batch_stream_data_frame_type:
+                    raise Exception(f"The batch stream contains an unknown frame type: {frame_type}.")
+
+                if len(pending) < 6:
+                    break
+
+                current_index = pending[1]
+                payload_length = struct.unpack_from("<i", pending, 2)[0]
+
+                if current_index >= len(byte_views):
+                    raise Exception("The batch stream contains an invalid resource index.")
+
+                if payload_length < 0:
+                    raise Exception("The batch stream contains an invalid payload length.")
+
+                if payload_length % precision_size != 0:
+                    raise Exception("The batch stream contains an unaligned payload length.")
+
+                if offsets[current_index] > expected_lengths[current_index] - payload_length:
+                    raise Exception("The batch stream contains more data than expected.")
+
+                if len(pending) < 6 + payload_length:
+                    break
+
                 offset = offsets[current_index]
-                byte_views[current_index][offset:offset + payload_length] = pending[:payload_length]
-                del pending[:payload_length]
+                byte_views[current_index][offset:offset + payload_length] = pending[6:6 + payload_length]
+                del pending[:6 + payload_length]
                 offsets[current_index] += payload_length
 
                 if report_progress is not None:
                     report_progress(payload_length)
 
-                resource_index = None
-                payload_length = 0
+            if has_end_frame:
+                break
 
-        if pending or resource_index is not None:
+        if not has_version:
+            raise Exception("The batch stream ended before the protocol version was received.")
+
+        if pending and not has_end_frame:
             raise Exception("The batch stream ended in the middle of a frame.")
+
+        if not has_end_frame:
+            raise Exception("The batch stream ended before the end frame was received.")
 
         if offsets != expected_lengths:
             raise Exception("The batch stream ended before all data was received.")
@@ -460,6 +515,11 @@ class NexusAsyncClient:
     """A client for the Nexus system."""
     
     ___configuration_header_key: str = "Nexus-Configuration"
+    ___batch_stream_protocol_version: int = 1
+    ___batch_stream_data_frame_type: int = 1
+    ___batch_stream_error_frame_type: int = 2
+    ___batch_stream_end_frame_type: int = 3
+    ___batch_stream_max_error_message_length: int = 64 * 1024
     ___authorization_header_key: str = "Authorization"
 
     ___token: Optional[str]
@@ -698,53 +758,103 @@ class NexusAsyncClient:
         precision: Precision,
         report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview]:
         array_type = "f" if precision == Precision.FLOAT32 else "d"
+        precision_size = precision.value
 
         buffers = [bytearray(length) for length in expected_lengths]
         byte_views = [memoryview(buffer).cast("B") for buffer in buffers]
         offsets = [0] * len(expected_lengths)
         pending = bytearray()
-        resource_index: Optional[int] = None
-        payload_length = 0
+        has_version = False
+        has_end_frame = False
 
         async for data in response.aiter_bytes():
             pending.extend(data)
 
             while True:
-                if resource_index is None:
-                    if len(pending) < 8:
+                if not has_version:
+                    if len(pending) < 1:
                         break
 
-                    current_index, payload_length = struct.unpack_from("<ii", pending)
-                    del pending[:8]
+                    version = pending[0]
+                    del pending[:1]
 
-                    if current_index < 0 or current_index >= len(byte_views):
-                        raise Exception("The batch stream contains an invalid resource index.")
+                    if version != self.___batch_stream_protocol_version:
+                        raise Exception(f"The batch stream uses an unsupported protocol version: {version}.")
 
-                    if payload_length < 0:
-                        raise Exception("The batch stream contains an invalid payload length.")
+                    has_version = True
 
-                    if offsets[current_index] > expected_lengths[current_index] - payload_length:
-                        raise Exception("The batch stream contains more data than expected.")
-
-                    resource_index = current_index
-
-                if len(pending) < payload_length:
+                if len(pending) < 1:
                     break
 
-                current_index = cast(int, resource_index)
+                frame_type = pending[0]
+
+                if frame_type == self.___batch_stream_end_frame_type:
+                    del pending[:1]
+
+                    if pending:
+                        raise Exception("The batch stream contains data after the end frame.")
+
+                    has_end_frame = True
+                    break
+
+                if frame_type == self.___batch_stream_error_frame_type:
+                    if len(pending) < 5:
+                        break
+
+                    message_length = struct.unpack_from("<i", pending, 1)[0]
+
+                    if message_length < 0 or message_length > self.___batch_stream_max_error_message_length:
+                        raise Exception("The batch stream contains an invalid error message length.")
+
+                    if len(pending) < 5 + message_length:
+                        break
+
+                    message = bytes(pending[5:5 + message_length]).decode("utf-8")
+                    raise NexusException("N02", message)
+
+                if frame_type != self.___batch_stream_data_frame_type:
+                    raise Exception(f"The batch stream contains an unknown frame type: {frame_type}.")
+
+                if len(pending) < 6:
+                    break
+
+                current_index = pending[1]
+                payload_length = struct.unpack_from("<i", pending, 2)[0]
+
+                if current_index >= len(byte_views):
+                    raise Exception("The batch stream contains an invalid resource index.")
+
+                if payload_length < 0:
+                    raise Exception("The batch stream contains an invalid payload length.")
+
+                if payload_length % precision_size != 0:
+                    raise Exception("The batch stream contains an unaligned payload length.")
+
+                if offsets[current_index] > expected_lengths[current_index] - payload_length:
+                    raise Exception("The batch stream contains more data than expected.")
+
+                if len(pending) < 6 + payload_length:
+                    break
+
                 offset = offsets[current_index]
-                byte_views[current_index][offset:offset + payload_length] = pending[:payload_length]
-                del pending[:payload_length]
+                byte_views[current_index][offset:offset + payload_length] = pending[6:6 + payload_length]
+                del pending[:6 + payload_length]
                 offsets[current_index] += payload_length
 
                 if report_progress is not None:
                     report_progress(payload_length)
 
-                resource_index = None
-                payload_length = 0
+            if has_end_frame:
+                break
 
-        if pending or resource_index is not None:
+        if not has_version:
+            raise Exception("The batch stream ended before the protocol version was received.")
+
+        if pending and not has_end_frame:
             raise Exception("The batch stream ended in the middle of a frame.")
+
+        if not has_end_frame:
+            raise Exception("The batch stream ended before the end frame was received.")
 
         if offsets != expected_lengths:
             raise Exception("The batch stream ended before all data was received.")

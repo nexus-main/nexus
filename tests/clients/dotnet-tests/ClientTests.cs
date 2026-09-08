@@ -16,6 +16,10 @@ namespace Nexus.Api.Tests;
 public class ClientTests
 {
     public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
+    private const byte BatchStreamProtocolVersion = 1;
+    private const byte BatchStreamDataFrameType = 1;
+    private const byte BatchStreamErrorFrameType = 2;
+    private const byte BatchStreamEndFrameType = 3;
 
     [Fact]
     public async Task CanAddConfiguration()
@@ -93,7 +97,7 @@ public class ClientTests
         var paths = new[] { "/A/B/C", "/A/B/D" };
         var requests = new List<HttpRequestMessage>();
         var catalogItems = paths.ToDictionary(path => path, path => CreateCatalogItemMap(path)[path]);
-        var content = Frame(1, 3, 4).Concat(Frame(0, 1, 2)).ToArray();
+        var content = Stream(Frame(1, 3, 4), Frame(0, 1, 2));
         var client = new NexusClient(CreateHttpClient((request, _) =>
         {
             requests.Add(request);
@@ -117,7 +121,7 @@ public class ClientTests
         var client = new NexusClient(CreateHttpClient((request, _) =>
             request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
                 ? JsonResponse(catalogItems, CreateJsonOptions())
-                : PinningBinaryResponse(Frame(0, 1))));
+                : PinningBinaryResponse(Stream(Frame(0, 1)))));
 
         var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(1), [path]);
 
@@ -129,7 +133,7 @@ public class ClientTests
     {
         var path = "/A/B/C";
         var catalogItems = CreateCatalogItemMap(path);
-        var invalidFrame = Frame(1, 1);
+        var invalidFrame = Stream(Frame(1, 1));
         var client = new NexusClient(CreateHttpClient((request, _) =>
             request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
                 ? JsonResponse(catalogItems, CreateJsonOptions())
@@ -144,7 +148,8 @@ public class ClientTests
     [Fact]
     public async Task RejectsTruncatedBatchFrameHeader()
     {
-        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync([0]));
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(
+            [BatchStreamProtocolVersion, BatchStreamDataFrameType, 0]));
 
         Assert.Contains("middle of a frame", exception.Message);
     }
@@ -152,7 +157,8 @@ public class ClientTests
     [Fact]
     public async Task RejectsTruncatedBatchFramePayload()
     {
-        var content = Header(resourceIndex: 0, payloadLength: sizeof(float))
+        var content = new[] { BatchStreamProtocolVersion }
+            .Concat(Header(resourceIndex: 0, payloadLength: sizeof(float)))
             .Concat(new byte[] { 0, 0 })
             .ToArray();
 
@@ -165,10 +171,21 @@ public class ClientTests
     public async Task RejectsIncompleteBatchStream()
     {
         var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(
-            Frame(0, 1),
+            Stream(includeEndFrame: false, Frame(0, 1)),
             end: DateTime.UnixEpoch.AddSeconds(2)));
 
-        Assert.Contains("before all data was received", exception.Message);
+        Assert.Contains("before the end frame", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsBatchStreamErrorFrame()
+    {
+        var exception = await Assert.ThrowsAsync<NexusException>(() => LoadBatchAsync(
+            Stream(includeEndFrame: false, ErrorFrame("producer failed")),
+            end: DateTime.UnixEpoch.AddSeconds(2)));
+
+        Assert.Equal("02", exception.StatusCode);
+        Assert.Contains("producer failed", exception.Message);
     }
 
     [Fact]
@@ -179,7 +196,7 @@ public class ClientTests
         var client = new NexusClient(CreateHttpClient((request, _) =>
             request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
                 ? JsonResponse(CreateCatalogItemMap(path), CreateJsonOptions())
-                : BinaryResponse(Frame(0, 1, 2))));
+                : BinaryResponse(Stream(Frame(0, 1, 2)))));
 
         var result = await client.LoadAsync<float>(
             DateTime.UnixEpoch,
@@ -268,22 +285,48 @@ public class ClientTests
 
     private static byte[] Header(int resourceIndex, int payloadLength)
     {
-        var result = new byte[8];
-        BinaryPrimitives.WriteInt32LittleEndian(result, resourceIndex);
-        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(4), payloadLength);
+        var result = new byte[6];
+        result[0] = BatchStreamDataFrameType;
+        result[1] = (byte)resourceIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(2), payloadLength);
         return result;
     }
 
     private static byte[] Frame(int resourceIndex, params float[] values)
     {
-        var result = new byte[8 + values.Length * sizeof(float)];
-        BinaryPrimitives.WriteInt32LittleEndian(result, resourceIndex);
-        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(4), result.Length - 8);
+        var result = new byte[6 + values.Length * sizeof(float)];
+        result[0] = BatchStreamDataFrameType;
+        result[1] = (byte)resourceIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(2), result.Length - 6);
 
         for (var index = 0; index < values.Length; index++)
-            BinaryPrimitives.WriteSingleLittleEndian(result.AsSpan(8 + index * sizeof(float)), values[index]);
+            BinaryPrimitives.WriteSingleLittleEndian(result.AsSpan(6 + index * sizeof(float)), values[index]);
 
         return result;
+    }
+
+    private static byte[] ErrorFrame(string message)
+    {
+        var messageBytes = Encoding.UTF8.GetBytes(message);
+        var result = new byte[5 + messageBytes.Length];
+        result[0] = BatchStreamErrorFrameType;
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(1), messageBytes.Length);
+        messageBytes.CopyTo(result.AsSpan(5));
+        return result;
+    }
+
+    private static byte[] Stream(params byte[][] frames)
+    {
+        return Stream(includeEndFrame: true, frames);
+    }
+
+    private static byte[] Stream(bool includeEndFrame, params byte[][] frames)
+    {
+        return new[] { new[] { BatchStreamProtocolVersion } }
+            .Concat(frames)
+            .Concat(includeEndFrame ? new[] { new[] { BatchStreamEndFrameType } } : [])
+            .SelectMany(current => current)
+            .ToArray();
     }
 
     private sealed class PinningReadStream(byte[] content) : Stream

@@ -2,8 +2,6 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Net;
-using System.Buffers;
-using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Nexus.Api;
@@ -13,7 +11,6 @@ namespace Nexus.UI.Core;
 
 public class NexusDemoClient : INexusClient
 {
-    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
     private readonly V1 _v1 = new();
     private readonly V2 _v2 = new();
 
@@ -85,65 +82,34 @@ public class NexusDemoClient : INexusClient
         CancellationToken cancellationToken = default)
         where T : struct
     {
-        var precision = typeof(T) == typeof(double) ? Api.V2.Precision.Float64
-            : typeof(T) == typeof(float) ? Api.V2.Precision.Float32
-            : throw new NotSupportedException($"The type {typeof(T)} is not supported.");
+        if (typeof(T) != typeof(double) && typeof(T) != typeof(float))
+            throw new NotSupportedException($"The type {typeof(T)} is not supported.");
 
         var resourcePathList = resourcePaths.ToList();
         var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken);
-        using var response = await V2.Data.GetStreamAsync(
-            new Api.V2.BatchStreamRequest(begin, end, resourcePathList, precision), cancellationToken);
-        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var precisionSize = (int)precision;
-        var maxChunkLength = Math.Max(1, 16 * 1024 * 1024 / Marshal.SizeOf<T>());
-        var values = resourcePathList.Select(resourcePath =>
-        {
-            var requiredLength = checked((int)((end - begin).Ticks / catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks));
-            var chunkLength = Math.Min(maxChunkLength, requiredLength);
-            var memory = bufferProvider?.Invoke(resourcePath, chunkLength, requiredLength) ?? new T[requiredLength];
-
-            if (memory.Length < chunkLength)
-                throw new ArgumentException($"The buffer provided for resource path '{resourcePath}' is too small. Required length: {chunkLength}. Provided length: {memory.Length}.", nameof(bufferProvider));
-
-            return memory[..chunkLength];
-        }).ToArray();
-        var offsets = new int[values.Length];
-        var header = new byte[8];
         var result = new Dictionary<string, DataResponse<T>>();
 
-        while (await stream.ReadAsync(header.AsMemory(0, 1), cancellationToken) != 0)
+        foreach (var resourcePath in resourcePathList)
         {
-            await stream.ReadExactlyAsync(header.AsMemory(1), cancellationToken);
-            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(header);
-            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
+            cancellationToken.ThrowIfCancellationRequested();
 
-            if (resourceIndex < 0 || resourceIndex >= values.Length ||
-                payloadLength < 0 || payloadLength % precisionSize != 0 ||
-                offsets[resourceIndex] > values[resourceIndex].Length * precisionSize - payloadLength)
-                throw new InvalidDataException("The demo batch stream is invalid.");
-
-            using var manager = new CastMemoryManager<T, byte>(values[resourceIndex]);
-            var target = manager.Memory.Slice(offsets[resourceIndex], payloadLength);
-            await stream.ReadExactlyAsync(target, cancellationToken);
-
-            offsets[resourceIndex] += payloadLength;
-        }
-
-        if (!offsets.Select((offset, index) => offset == values[index].Length * precisionSize).All(value => value))
-            throw new InvalidDataException("The demo batch stream ended early.");
-
-        for (var i = 0; i < resourcePathList.Count; i++)
-        {
-            var resourcePath = resourcePathList[i];
             var catalogItem = catalogItemMap[resourcePath];
             var resource = catalogItem.Resource;
+            var requiredLength = checked((int)((end - begin).Ticks / catalogItem.Representation.SamplePeriod.Ticks));
+            var values = bufferProvider?.Invoke(resourcePath, requiredLength, requiredLength) ?? new T[requiredLength];
+
+            if (values.Length < requiredLength)
+                throw new ArgumentException($"The buffer provided for resource path '{resourcePath}' is too small. Required length: {requiredLength}. Provided length: {values.Length}.", nameof(bufferProvider));
+
+            FillDemoValues(values[..requiredLength], resourcePath);
+
             result[resourcePath] = new DataResponse<T>(
                 catalogItem,
                 resource.Id,
                 GetStringProperty(resource, "unit"),
                 GetStringProperty(resource, "description"),
                 catalogItem.Representation.SamplePeriod,
-                bufferProvider is null ? values[i] : Memory<T>.Empty);
+                bufferProvider is null ? values[..requiredLength] : Memory<T>.Empty);
         }
 
         onProgress?.Invoke(1);
@@ -157,6 +123,28 @@ public class NexusDemoClient : INexusClient
                 value.ValueKind == JsonValueKind.String
                     ? value.GetString()
                     : null;
+        }
+
+        static void FillDemoValues(Memory<T> target, string resourcePath)
+        {
+            var offset = resourcePath.Contains("temperature") ? 7 : 12;
+            var factor = resourcePath.Contains("temperature") ? 0.3 : 3;
+            var random = new Random();
+
+            if (typeof(T) == typeof(double))
+            {
+                var values = MemoryMarshal.Cast<T, double>(target.Span);
+
+                for (var index = 0; index < values.Length; index++)
+                    values[index] = offset + random.NextDouble() * factor;
+            }
+            else
+            {
+                var values = MemoryMarshal.Cast<T, float>(target.Span);
+
+                for (var index = 0; index < values.Length; index++)
+                    values[index] = (float)(offset + random.NextDouble() * factor);
+            }
         }
     }
 }
@@ -464,50 +452,14 @@ public class DataDemoClient : IDataClient
 
 public class DataV2DemoClient : Api.V2.IDataClient
 {
-    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
     public HttpResponseMessage GetStream(Api.V2.BatchStreamRequest request)
     {
-        return GetStreamAsync(request).GetAwaiter().GetResult();
+        throw new NotImplementedException();
     }
 
     public Task<HttpResponseMessage> GetStreamAsync(Api.V2.BatchStreamRequest request, CancellationToken cancellationToken = default)
     {
-        using var stream = new MemoryStream();
-        var header = new byte[8];
-        var precisionSize = (int)request.Precision;
-
-        for (var resourceIndex = 0; resourceIndex < request.ResourcePaths.Count; resourceIndex++)
-        {
-            var resourcePath = request.ResourcePaths[resourceIndex];
-            var length = checked((int)((request.End - request.Begin).Ticks / SamplePeriod.Ticks));
-            var data = new byte[length * precisionSize];
-            var offset = resourcePath.Contains("temperature") ? 7 : 12;
-            var factor = resourcePath.Contains("temperature") ? 0.3 : 3;
-            var random = new Random();
-
-            if (request.Precision == Api.V2.Precision.Float64)
-            {
-                var doubleData = MemoryMarshal.Cast<byte, double>(data);
-                for (var index = 0; index < length; index++)
-                    doubleData[index] = offset + random.NextDouble() * factor;
-            }
-            else
-            {
-                var floatData = MemoryMarshal.Cast<byte, float>(data);
-                for (var index = 0; index < length; index++)
-                    floatData[index] = (float)(offset + random.NextDouble() * factor);
-            }
-
-            BinaryPrimitives.WriteInt32LittleEndian(header, resourceIndex);
-            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), data.Length);
-            stream.Write(header);
-            stream.Write(data);
-        }
-
-        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new ByteArrayContent(stream.ToArray())
-        });
+        throw new NotImplementedException();
     }
 }
 

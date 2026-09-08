@@ -15,12 +15,18 @@ using System.IO.Compression;
 using System.IO.Pipelines;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using System.Text;
 using Xunit;
 
 namespace Services;
 
 public class DataServiceTests
 {
+    private const byte BatchStreamProtocolVersion = 1;
+    private const byte BatchStreamDataFrameType = 1;
+    private const byte BatchStreamErrorFrameType = 2;
+    private const byte BatchStreamEndFrameType = 3;
+
     delegate void GobbleReturns(string catalogId, string searchPattern, EnumerationOptions enumerationOptions, out Stream attachment);
 
     [Fact]
@@ -471,13 +477,10 @@ public class DataServiceTests
         var frames = new Dictionary<int, float>();
         var bytes = sink.ToArray();
 
-        for (var offset = 0; offset < bytes.Length; offset += 12)
+        foreach (var frame in ReadBatchFrames(bytes))
         {
-            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
-            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 4));
-
-            Assert.Equal(sizeof(float), payloadLength);
-            frames.Add(resourceIndex, BitConverter.ToSingle(bytes, offset + 8));
+            Assert.Equal(sizeof(float), frame.PayloadLength);
+            frames.Add(frame.ResourceIndex, BitConverter.ToSingle(frame.Payload));
         }
 
         Assert.Equal(2, frames.Count);
@@ -522,10 +525,13 @@ public class DataServiceTests
             CancellationToken.None);
 
         await resource1Written.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var firstHeader = await ReadExactAsync(stream, 8).WaitAsync(TimeSpan.FromSeconds(5));
+        var protocolVersion = await ReadExactAsync(stream, 1).WaitAsync(TimeSpan.FromSeconds(5));
+        var firstHeader = await ReadExactAsync(stream, 6).WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(firstHeader.AsSpan(0, 4)));
-        Assert.Equal(payloadLength, BinaryPrimitives.ReadInt32LittleEndian(firstHeader.AsSpan(4, 4)));
+        Assert.Equal(BatchStreamProtocolVersion, protocolVersion[0]);
+        Assert.Equal(BatchStreamDataFrameType, firstHeader[0]);
+        Assert.Equal(1, firstHeader[1]);
+        Assert.Equal(payloadLength, BinaryPrimitives.ReadInt32LittleEndian(firstHeader.AsSpan(2, 4)));
 
         await DiscardExactAsync(stream, payloadLength).WaitAsync(TimeSpan.FromSeconds(5));
         writeResource0.SetResult();
@@ -533,7 +539,7 @@ public class DataServiceTests
         var remaining = new MemoryStream();
         await stream.CopyToAsync(remaining).WaitAsync(TimeSpan.FromSeconds(5));
 
-        var frames = ReadBatchFrames(remaining.ToArray());
+        var frames = ReadBatchFrames(remaining.ToArray(), includesProtocolVersion: false);
         var frame = Assert.Single(frames);
 
         Assert.Equal(0, frame.ResourceIndex);
@@ -618,10 +624,10 @@ public class DataServiceTests
             new BatchStreamRequest(begin, end, ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"], Precision.Float32),
             CancellationToken.None);
 
-        var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
-            stream.CopyToAsync(Stream.Null).WaitAsync(TimeSpan.FromSeconds(5)));
+        var sink = new MemoryStream();
+        await stream.CopyToAsync(sink).WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Contains("producer failed", exception.ToString(), StringComparison.Ordinal);
+        Assert.Contains("producer failed", ReadBatchErrorMessage(sink.ToArray()), StringComparison.Ordinal);
         Mock.Get(streamingController).Verify(current => current.Dispose(), Times.Once);
     }
 
@@ -749,20 +755,62 @@ public class DataServiceTests
         }
     }
 
-    private static List<(int ResourceIndex, int PayloadLength, byte[] Payload)> ReadBatchFrames(byte[] bytes)
+    private static List<(int ResourceIndex, int PayloadLength, byte[] Payload)> ReadBatchFrames(
+        byte[] bytes,
+        bool includesProtocolVersion = true)
     {
         var frames = new List<(int ResourceIndex, int PayloadLength, byte[] Payload)>();
+        var offset = 0;
 
-        for (var offset = 0; offset < bytes.Length;)
+        if (includesProtocolVersion)
         {
-            var resourceIndex = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
-            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 4));
-            var payload = bytes.AsSpan(offset + 8, payloadLength).ToArray();
+            Assert.NotEmpty(bytes);
+            Assert.Equal(BatchStreamProtocolVersion, bytes[0]);
+            offset = 1;
+        }
+
+        while (offset < bytes.Length)
+        {
+            var frameType = bytes[offset++];
+
+            if (frameType == BatchStreamEndFrameType)
+            {
+                Assert.Equal(bytes.Length, offset);
+                break;
+            }
+
+            Assert.Equal(BatchStreamDataFrameType, frameType);
+            var resourceIndex = bytes[offset];
+            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 1));
+            var payload = bytes.AsSpan(offset + 5, payloadLength).ToArray();
 
             frames.Add((resourceIndex, payloadLength, payload));
-            offset += 8 + payloadLength;
+            offset += 5 + payloadLength;
         }
 
         return frames;
+    }
+
+    private static string ReadBatchErrorMessage(byte[] bytes)
+    {
+        Assert.NotEmpty(bytes);
+        Assert.Equal(BatchStreamProtocolVersion, bytes[0]);
+
+        for (var offset = 1; offset < bytes.Length;)
+        {
+            var frameType = bytes[offset++];
+
+            if (frameType == BatchStreamErrorFrameType)
+            {
+                var messageLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
+                return Encoding.UTF8.GetString(bytes.AsSpan(offset + 4, messageLength));
+            }
+
+            Assert.Equal(BatchStreamDataFrameType, frameType);
+            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 1));
+            offset += 5 + payloadLength;
+        }
+
+        throw new InvalidOperationException("The batch stream did not contain an error frame.");
     }
 }

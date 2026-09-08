@@ -6,6 +6,7 @@ using System.Buffers.Binary;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Security.Claims;
+using System.Text;
 using Nexus.Core;
 using Nexus.Core.V2;
 using Nexus.DataModel;
@@ -54,6 +55,10 @@ internal class DataService(
     ILoggerFactory loggerFactory
 ) : IDataService
 {
+    private const byte BatchStreamProtocolVersion = 1;
+    private const int MaximumBatchStreamPayloadLength = 4 * 1024 * 1024;
+    private const int MaximumBatchStreamErrorMessageLength = 64 * 1024;
+
     private readonly AppState _appState = appState;
     private readonly IMemoryTracker _memoryTracker = memoryTracker;
     private readonly ClaimsPrincipal _user = user;
@@ -215,9 +220,10 @@ internal class DataService(
                 _loggerFactory.CreateLogger<DataSourceController>(),
                 cts.Token);
 
-            var outputWriting = DirectMuxWriteBatchFramesAsync(dataReaders, outputPipe.Writer, cts.Token);
+            var outputState = new BatchStreamOutputState();
+            var outputWriting = DirectMuxWriteBatchFramesAsync(dataReaders, outputPipe.Writer, outputState, reading, cts.Token);
 
-            _ = CompleteAndLogAsync(reading, outputWriting, readingGroups, dataReaders, outputPipe.Writer, cts);
+            _ = CompleteAndLogAsync(reading, outputWriting, readingGroups, dataReaders, outputPipe.Writer, outputState, cts);
             return outputPipe.Reader.AsStream();
         }
         catch
@@ -270,9 +276,10 @@ internal class DataService(
         static async Task DirectMuxWriteBatchFramesAsync(
             IReadOnlyList<(int Index, PipeReader Reader)> readers,
             PipeWriter output,
+            BatchStreamOutputState outputState,
+            Task reading,
             CancellationToken cancellationToken)
         {
-            const int maximumPayloadLength = 4 * 1024 * 1024;
             const int flushThreshold = 4 * 1024 * 1024;
             var readerStates = readers
                 .Select(current => new BatchStreamReaderState(current.Index, current.Reader, cancellationToken))
@@ -284,16 +291,42 @@ internal class DataService(
                 pendingReads.Add(readerState.PendingRead!);
 
             var unflushedBytes = 0L;
+            var readingCompleted = false;
 
             try
             {
+                output.GetSpan(1)[0] = BatchStreamProtocolVersion;
+                output.Advance(1);
+                outputState.ProtocolVersionWritten = true;
+                unflushedBytes = 1;
+
                 while (activeReaderStates.Count > 0)
                 {
                     var readerStateIndex = GetCompletedReaderStateIndex(pendingReads);
 
                     if (readerStateIndex == -1)
                     {
-                        var completedRead = await Task.WhenAny(pendingReads).ConfigureAwait(false);
+                        Task<ReadResult> completedRead;
+
+                        if (readingCompleted)
+                        {
+                            completedRead = await Task.WhenAny(pendingReads).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            var completedReadTask = Task.WhenAny(pendingReads);
+                            var completedTask = await Task.WhenAny(completedReadTask, reading).ConfigureAwait(false);
+
+                            if (completedTask == reading)
+                            {
+                                await reading.ConfigureAwait(false);
+                                readingCompleted = true;
+                                continue;
+                            }
+
+                            completedRead = await completedReadTask.ConfigureAwait(false);
+                        }
+
                         readerStateIndex = pendingReads.IndexOf(completedRead);
                     }
 
@@ -311,15 +344,16 @@ internal class DataService(
 
                             while (!remaining.IsEmpty)
                             {
-                                var payload = remaining[..Math.Min(remaining.Length, maximumPayloadLength)];
-                                var header = output.GetSpan(8);
-                                BinaryPrimitives.WriteInt32LittleEndian(header, readerState.Index);
-                                BinaryPrimitives.WriteInt32LittleEndian(header[4..], payload.Length);
-                                output.Advance(8);
+                                var payload = remaining[..Math.Min(remaining.Length, MaximumBatchStreamPayloadLength)];
+                                var header = output.GetSpan(6);
+                                header[0] = (byte)BatchStreamFrameType.Data;
+                                header[1] = (byte)readerState.Index;
+                                BinaryPrimitives.WriteInt32LittleEndian(header[2..], payload.Length);
+                                output.Advance(6);
                                 payload.CopyTo(output.GetMemory(payload.Length));
                                 output.Advance(payload.Length);
 
-                                unflushedBytes += 8 + payload.Length;
+                                unflushedBytes += 6 + payload.Length;
 
                                 if (unflushedBytes >= flushThreshold)
                                     shouldFlush = true;
@@ -351,18 +385,37 @@ internal class DataService(
 
                 if (unflushedBytes > 0)
                     await FlushAsync().ConfigureAwait(false);
+
+                await reading.ConfigureAwait(false);
+
+                WriteEndFrame(output);
+                unflushedBytes = 1;
+                await FlushWithCancellationAsync(CancellationToken.None).ConfigureAwait(false);
+                outputState.FinalFrameWritten = true;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                WriteErrorFrame(output, ex);
+                unflushedBytes = 5 + Encoding.UTF8.GetByteCount(GetBatchStreamErrorMessage(ex));
+                await FlushWithCancellationAsync(CancellationToken.None).ConfigureAwait(false);
+                outputState.FinalFrameWritten = true;
             }
             finally
             {
                 await CancelAndObservePendingReadsAsync(readerStates).ConfigureAwait(false);
             }
 
-            async Task FlushAsync()
+            Task FlushAsync()
             {
-                var flushResult = await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+                return FlushWithCancellationAsync(cancellationToken);
+            }
+
+            async Task FlushWithCancellationAsync(CancellationToken flushCancellationToken)
+            {
+                var flushResult = await output.FlushAsync(flushCancellationToken).ConfigureAwait(false);
 
                 if (flushResult.IsCanceled)
-                    throw new OperationCanceledException(cancellationToken);
+                    throw new OperationCanceledException(flushCancellationToken);
 
                 if (flushResult.IsCompleted)
                     throw new IOException("The batch output pipe completed before all data was written.");
@@ -412,17 +465,75 @@ internal class DataService(
             }
         }
 
+        static string GetBatchStreamErrorMessage(Exception exception)
+        {
+            var message = exception.Message;
+
+            if (string.IsNullOrWhiteSpace(message))
+                message = "The batch stream failed.";
+
+            if (Encoding.UTF8.GetByteCount(message) <= MaximumBatchStreamErrorMessageLength)
+                return message;
+
+            while (Encoding.UTF8.GetByteCount(message) > MaximumBatchStreamErrorMessageLength)
+                message = message[..(message.Length - 1)];
+
+            return message;
+        }
+
+        static void WriteErrorFrame(PipeWriter output, Exception exception)
+        {
+            var messageBytes = Encoding.UTF8.GetBytes(GetBatchStreamErrorMessage(exception));
+            var header = output.GetSpan(5);
+            header[0] = (byte)BatchStreamFrameType.Error;
+            BinaryPrimitives.WriteInt32LittleEndian(header[1..], messageBytes.Length);
+            output.Advance(5);
+            messageBytes.CopyTo(output.GetSpan(messageBytes.Length));
+            output.Advance(messageBytes.Length);
+        }
+
+        static void WriteEndFrame(PipeWriter output)
+        {
+            output.GetSpan(1)[0] = (byte)BatchStreamFrameType.End;
+            output.Advance(1);
+        }
+
+        static async Task WriteAndFlushErrorFrameAsync(
+            PipeWriter output,
+            BatchStreamOutputState outputState,
+            Exception exception)
+        {
+            if (!outputState.ProtocolVersionWritten)
+            {
+                output.GetSpan(1)[0] = BatchStreamProtocolVersion;
+                output.Advance(1);
+                outputState.ProtocolVersionWritten = true;
+            }
+
+            WriteErrorFrame(output, exception);
+            var flushResult = await output.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+
+            if (flushResult.IsCanceled)
+                throw new OperationCanceledException();
+
+            if (flushResult.IsCompleted)
+                throw new IOException("The batch output pipe completed before the error frame was written.");
+
+            outputState.FinalFrameWritten = true;
+        }
+
         async Task CompleteAndLogAsync(
             Task reading,
             Task outputWriting,
             List<DataReadingGroup> groups,
             List<(int Index, PipeReader Reader)> readers,
             PipeWriter output,
+            BatchStreamOutputState outputState,
             CancellationTokenSource cts)
         {
             try
             {
-                await CompleteAsync(reading, outputWriting, groups, readers, output, cts).ConfigureAwait(false);
+                await CompleteAsync(reading, outputWriting, groups, readers, output, outputState, cts).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -436,24 +547,32 @@ internal class DataService(
             List<DataReadingGroup> groups,
             List<(int Index, PipeReader Reader)> readers,
             PipeWriter output,
+            BatchStreamOutputState outputState,
             CancellationTokenSource cts)
         {
             Exception? error = null;
 
             try
             {
-                var firstCompleted = await Task.WhenAny(reading, outputWriting).ConfigureAwait(false);
-
-                if (firstCompleted == outputWriting)
-                    await outputWriting.ConfigureAwait(false);
-
-                await reading.ConfigureAwait(false);
                 await outputWriting.ConfigureAwait(false);
+                await reading.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 error = ex;
                 await cts.CancelAsync().ConfigureAwait(false);
+
+                if (!outputState.FinalFrameWritten)
+                {
+                    try
+                    {
+                        await WriteAndFlushErrorFrameAsync(output, outputState, ex).ConfigureAwait(false);
+                        error = null;
+                    }
+                    catch
+                    {
+                    }
+                }
 
                 foreach (var writer in groups.SelectMany(group => group.CatalogItemRequestPipeWriters))
                 {
@@ -476,9 +595,23 @@ internal class DataService(
             }
             finally
             {
-                await CleanupBatchStreamAsync(groups, readers, output, cts, error, _logger).ConfigureAwait(false);
+                await CleanupBatchStreamAsync(groups, readers, output, cts, outputState.FinalFrameWritten ? null : error, _logger).ConfigureAwait(false);
             }
         }
+    }
+
+    private enum BatchStreamFrameType : byte
+    {
+        Data = 1,
+        Error = 2,
+        End = 3
+    }
+
+    private sealed class BatchStreamOutputState
+    {
+        public bool ProtocolVersionWritten { get; set; }
+
+        public bool FinalFrameWritten { get; set; }
     }
 
     private sealed class BatchStreamReaderState
