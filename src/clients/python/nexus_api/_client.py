@@ -277,7 +277,7 @@ class NexusClient:
         response: Response,
         expected_lengths: list[int],
         precision: Precision,
-        report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview[float]]:
+        report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview]:
         array_type = "f" if precision == Precision.FLOAT32 else "d"
 
         buffers = [bytearray(length) for length in expected_lengths]
@@ -330,7 +330,7 @@ class NexusClient:
         if offsets != expected_lengths:
             raise Exception("The batch stream ended before all data was received.")
 
-        return [memoryview(buffer).cast(array_type) for buffer in buffers]
+        return [cast(memoryview, memoryview(buffer).cast(array_type)) for buffer in buffers]
 
     def export(
         self,
@@ -696,7 +696,7 @@ class NexusAsyncClient:
         response: Response,
         expected_lengths: list[int],
         precision: Precision,
-        report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview[float]]:
+        report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview]:
         array_type = "f" if precision == Precision.FLOAT32 else "d"
 
         buffers = [bytearray(length) for length in expected_lengths]
@@ -749,7 +749,7 @@ class NexusAsyncClient:
         if offsets != expected_lengths:
             raise Exception("The batch stream ended before all data was received.")
 
-        return [memoryview(buffer).cast(array_type) for buffer in buffers]
+        return [cast(memoryview, memoryview(buffer).cast(array_type)) for buffer in buffers]
 
     async def export(
         self,
@@ -892,5 +892,5 @@ class DataResponse:
     sample_period: timedelta
     """The sample period."""
 
-    values: memoryview[float]
+    values: memoryview
     """The data."""
