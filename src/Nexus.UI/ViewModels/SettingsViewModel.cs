@@ -172,9 +172,6 @@ public class SettingsViewModel : INotifyPropertyChanged
                 SelectedCatalogItems.Sum(item => item.Kinds.Count) <= Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT &&
                 SelectedCatalogItems.All(item => item.IsValid(SamplePeriod));
 
-            if (!canVisualize && _appState.ViewState == ViewState.Data)
-                _appState.ViewState = ViewState.Normal;
-
             return canVisualize;
         }
     }
@@ -189,6 +186,14 @@ public class SettingsViewModel : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanVisualize)));
         VisualizeByteCountChanged();
+    }
+
+    public void CanVisualizeSelectionChanged()
+    {
+        if (!CanVisualize && _appState.ViewState == ViewState.Data)
+            _appState.ViewState = ViewState.Normal;
+
+        CanVisualizeChanged();
     }
 
     public void SizeLimitExceededChanged()
@@ -208,6 +213,9 @@ public class SettingsViewModel : INotifyPropertyChanged
 
     private long GetByteCount(Precision precision)
     {
+        if (Begin >= End)
+            return 0;
+
         var elementCount = Utilities.GetElementCount(
             _appState.Settings.Begin,
             _appState.Settings.End,
@@ -274,7 +282,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         _selectedCatalogItems = selectedCatalogItems;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedCatalogItems)));
         CanExportChanged();
-        CanVisualizeChanged();
+        CanVisualizeSelectionChanged();
     }
 
     public void ToggleCatalogItemSelection(CatalogItemSelectionViewModel selection)
@@ -297,7 +305,7 @@ public class SettingsViewModel : INotifyPropertyChanged
 
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedCatalogItems)));
         CanExportChanged();
-        CanVisualizeChanged();
+        CanVisualizeSelectionChanged();
     }
 
     private CatalogItemSelectionViewModel? TryFindSelectedCatalogItem(
