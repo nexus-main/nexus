@@ -212,7 +212,7 @@ public class ClientTests
         Assert.Equal(path, call.ResourcePath);
         Assert.Equal(2, call.ChunkLength);
         Assert.Equal(2, call.RemainingLength);
-        Assert.Empty(result[path].Values.ToArray());
+        Assert.Equal("C", result[path].Name);
     }
 
     private static HttpClient CreateHttpClient(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> handler)

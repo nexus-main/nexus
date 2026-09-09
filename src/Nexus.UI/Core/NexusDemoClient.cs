@@ -66,18 +66,39 @@ public class NexusDemoClient : INexusClient
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        Func<string, int, long, Memory<T>>? bufferProvider = default,
         Action<double>? onProgress = default)
         where T : struct
     {
-        return LoadAsync<T>(begin, end, resourcePaths, bufferProvider, onProgress).GetAwaiter().GetResult();
+        throw new NotImplementedException();
+    }
+
+    public IReadOnlyDictionary<string, ResourceInfo> Load<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>> bufferProvider,
+        Action<double>? onProgress = default)
+        where T : struct
+    {
+        throw new NotImplementedException();
     }
 
     public async Task<IReadOnlyDictionary<string, DataResponse<T>>> LoadAsync<T>(
         DateTime begin,
         DateTime end,
         IEnumerable<string> resourcePaths,
-        Func<string, int, long, Memory<T>>? bufferProvider = default,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<IReadOnlyDictionary<string, ResourceInfo>> LoadAsync<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>> bufferProvider,
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
         where T : struct
@@ -87,7 +108,7 @@ public class NexusDemoClient : INexusClient
 
         var resourcePathList = resourcePaths.ToList();
         var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken);
-        var result = new Dictionary<string, DataResponse<T>>();
+        var resourceInfoMap = new Dictionary<string, ResourceInfo>();
 
         foreach (var resourcePath in resourcePathList)
         {
@@ -96,25 +117,24 @@ public class NexusDemoClient : INexusClient
             var catalogItem = catalogItemMap[resourcePath];
             var resource = catalogItem.Resource;
             var requiredLength = checked((int)((end - begin).Ticks / catalogItem.Representation.SamplePeriod.Ticks));
-            var values = bufferProvider?.Invoke(resourcePath, requiredLength, requiredLength) ?? new T[requiredLength];
+            var values = bufferProvider(resourcePath, requiredLength, requiredLength);
 
             if (values.Length < requiredLength)
                 throw new ArgumentException($"The buffer provided for resource path '{resourcePath}' is too small. Required length: {requiredLength}. Provided length: {values.Length}.", nameof(bufferProvider));
 
             FillDemoValues(values[..requiredLength], resourcePath);
 
-            result[resourcePath] = new DataResponse<T>(
+            resourceInfoMap[resourcePath] = new ResourceInfo(
                 catalogItem,
                 resource.Id,
                 GetStringProperty(resource, "unit"),
                 GetStringProperty(resource, "description"),
-                catalogItem.Representation.SamplePeriod,
-                bufferProvider is null ? values[..requiredLength] : Memory<T>.Empty);
+                catalogItem.Representation.SamplePeriod);
         }
 
         onProgress?.Invoke(1);
 
-        return result;
+        return resourceInfoMap;
 
         static string? GetStringProperty(Resource resource, string name)
         {
