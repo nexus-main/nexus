@@ -1,7 +1,6 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Nexus.Api;
@@ -437,8 +436,6 @@ We hope you enjoy it!
 
 public class DataDemoClient : IDataClient
 {
-    private static readonly TimeSpan SamplePeriod = TimeSpan.FromMinutes(1);
-
     public HttpResponseMessage GetStream(string resourcePath, DateTime begin, DateTime end)
     {
         throw new NotImplementedException();
@@ -446,32 +443,7 @@ public class DataDemoClient : IDataClient
 
     public Task<HttpResponseMessage> GetStreamAsync(string resourcePath, DateTime begin, DateTime end, CancellationToken cancellationToken = default)
     {
-        var offset = resourcePath.Contains("temperature")
-            ? 7
-            : 12;
-
-        var factor = resourcePath.Contains("temperature")
-            ? 0.3
-            : 3;
-
-        var random = new Random();
-        var length = (end - begin).Ticks / SamplePeriod.Ticks;
-        var data = new byte[length * 8];
-        var doubleData = MemoryMarshal.Cast<byte, double>(data);
-
-        for (int i = 0; i < length; i++)
-        {
-            doubleData[i] = offset + random.NextDouble() * factor;
-        }
-
-        var content = new ByteArrayContent(data);
-
-        var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = content,
-        };
-
-        return Task.FromResult(responseMessage);
+        throw new NotImplementedException();
     }
 }
 
