@@ -172,6 +172,14 @@ public class ClientTests
     }
 
     [Fact]
+    public async Task RejectsOutOfOrderArrowStream()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(ArrowStream((0, 1, [1f]))));
+
+        Assert.Contains("out-of-order", exception.Message);
+    }
+
+    [Fact]
     public async Task LoadAsyncUsesChunkAwareProviderArguments()
     {
         var path = "/A/B/C";
