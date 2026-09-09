@@ -730,8 +730,8 @@ internal class DataSourceController(
     }
 
     private async Task ReadResampledAsync(
-       DateTime begin,
-       DateTime end,
+        DateTime begin,
+        DateTime end,
         ReadUnit readUnit,
         ReadDataHandler readDataHandler,
         int targetByteCount,
