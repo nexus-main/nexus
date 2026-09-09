@@ -57,7 +57,7 @@ class DataClient:
 
     def get_stream(self, request: BatchStreamRequest) -> Response:
         """
-        Streams multiple resources in a framed binary response.
+        Streams multiple resources in an Apache Arrow IPC response.
 
         Args:
         """
@@ -129,7 +129,7 @@ class DataAsyncClient:
 
     def get_stream(self, request: BatchStreamRequest) -> Awaitable[Response]:
         """
-        Streams multiple resources in a framed binary response.
+        Streams multiple resources in an Apache Arrow IPC response.
 
         Args:
         """

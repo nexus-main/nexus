@@ -1,8 +1,11 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apache.Arrow;
+using Apache.Arrow.Ipc;
+using Apache.Arrow.Types;
 using System.Net;
-using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,10 +19,6 @@ namespace Nexus.Api.Tests;
 public class ClientTests
 {
     public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
-    private const byte BatchStreamProtocolVersion = 1;
-    private const byte BatchStreamDataFrameType = 1;
-    private const byte BatchStreamErrorFrameType = 2;
-    private const byte BatchStreamEndFrameType = 3;
 
     [Fact]
     public async Task CanAddConfiguration()
@@ -92,18 +91,18 @@ public class ClientTests
     }
 
     [Fact]
-    public async Task CanLoadInterleavedFrames()
+    public async Task CanLoadInterleavedArrowRows()
     {
         var paths = new[] { "/A/B/C", "/A/B/D" };
         var requests = new List<HttpRequestMessage>();
         var catalogItems = paths.ToDictionary(path => path, path => CreateCatalogItemMap(path)[path]);
-        var content = Stream(Frame(1, 3, 4), Frame(0, 1, 2));
+        var content = ArrowStream((1, 0, [3f, 4f]), (0, 0, [1f, 2f]));
         var client = new NexusClient(CreateHttpClient((request, _) =>
         {
             requests.Add(request);
             return request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
                 ? JsonResponse(catalogItems, CreateJsonOptions())
-                : BinaryResponse(content);
+                : ArrowResponse(content);
         }));
 
         var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(2), paths);
@@ -121,7 +120,7 @@ public class ClientTests
         var client = new NexusClient(CreateHttpClient((request, _) =>
             request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
                 ? JsonResponse(catalogItems, CreateJsonOptions())
-                : PinningBinaryResponse(Stream(Frame(0, 1)))));
+                : PinningArrowResponse(ArrowStream((0, 0, [1f])))));
 
         var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(1), [path]);
 
@@ -129,15 +128,15 @@ public class ClientTests
     }
 
     [Fact]
-    public async Task RejectsInvalidBatchFrame()
+    public async Task RejectsInvalidArrowResourceIndex()
     {
         var path = "/A/B/C";
         var catalogItems = CreateCatalogItemMap(path);
-        var invalidFrame = Stream(Frame(1, 1));
+        var invalidResourceIndex = ArrowStream((1, 0, [1f]));
         var client = new NexusClient(CreateHttpClient((request, _) =>
             request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
                 ? JsonResponse(catalogItems, CreateJsonOptions())
-                : BinaryResponse(invalidFrame)));
+                : ArrowResponse(invalidResourceIndex)));
 
         await Assert.ThrowsAsync<Exception>(() => client.LoadAsync<float>(
             DateTime.UnixEpoch,
@@ -146,46 +145,30 @@ public class ClientTests
     }
 
     [Fact]
-    public async Task RejectsTruncatedBatchFrameHeader()
+    public async Task RejectsInvalidArrowStream()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync([1, 2, 3]));
+
+        Assert.Contains("failed or ended unexpectedly", exception.Message);
+        Assert.NotNull(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task RejectsInvalidArrowSchema()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(InvalidSchemaArrowStream()));
+
+        Assert.Contains("schema is invalid", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsIncompleteArrowStream()
     {
         var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(
-            [BatchStreamProtocolVersion, BatchStreamDataFrameType, 0]));
-
-        Assert.Contains("middle of a frame", exception.Message);
-    }
-
-    [Fact]
-    public async Task RejectsTruncatedBatchFramePayload()
-    {
-        var content = new[] { BatchStreamProtocolVersion }
-            .Concat(Header(resourceIndex: 0, payloadLength: sizeof(float)))
-            .Concat(new byte[] { 0, 0 })
-            .ToArray();
-
-        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(content));
-
-        Assert.Contains("middle of a frame", exception.Message);
-    }
-
-    [Fact]
-    public async Task RejectsIncompleteBatchStream()
-    {
-        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(
-            Stream(includeEndFrame: false, Frame(0, 1)),
+            ArrowStream((0, 0, [1f])),
             end: DateTime.UnixEpoch.AddSeconds(2)));
 
-        Assert.Contains("before the end frame", exception.Message);
-    }
-
-    [Fact]
-    public async Task RejectsBatchStreamErrorFrame()
-    {
-        var exception = await Assert.ThrowsAsync<NexusException>(() => LoadBatchAsync(
-            Stream(includeEndFrame: false, ErrorFrame("producer failed")),
-            end: DateTime.UnixEpoch.AddSeconds(2)));
-
-        Assert.Equal("02", exception.StatusCode);
-        Assert.Contains("producer failed", exception.Message);
+        Assert.Contains("before all data", exception.Message);
     }
 
     [Fact]
@@ -196,7 +179,7 @@ public class ClientTests
         var client = new NexusClient(CreateHttpClient((request, _) =>
             request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
                 ? JsonResponse(CreateCatalogItemMap(path), CreateJsonOptions())
-                : BinaryResponse(Stream(Frame(0, 1, 2)))));
+                : ArrowResponse(ArrowStream((0, 0, [1f, 2f])))));
 
         var result = await client.LoadAsync<float>(
             DateTime.UnixEpoch,
@@ -261,12 +244,12 @@ public class ClientTests
         };
     }
 
-    private static HttpResponseMessage BinaryResponse(byte[] value)
+    private static HttpResponseMessage ArrowResponse(byte[] value)
     {
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(value) };
     }
 
-    private static HttpResponseMessage PinningBinaryResponse(byte[] value)
+    private static HttpResponseMessage PinningArrowResponse(byte[] value)
     {
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PinningReadStream(value)) };
     }
@@ -278,55 +261,62 @@ public class ClientTests
         var client = new NexusClient(CreateHttpClient((request, _) =>
             request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
                 ? JsonResponse(catalogItems, CreateJsonOptions())
-                : BinaryResponse(content)));
+                : ArrowResponse(content)));
 
         return client.LoadAsync<float>(DateTime.UnixEpoch, end ?? DateTime.UnixEpoch.AddSeconds(1), [path]);
     }
 
-    private static byte[] Header(int resourceIndex, int payloadLength)
+    private static byte[] ArrowStream(params (int ResourceIndex, long Offset, float[] Values)[] rows)
     {
-        var result = new byte[6];
-        result[0] = BatchStreamDataFrameType;
-        result[1] = (byte)resourceIndex;
-        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(2), payloadLength);
-        return result;
+        var fields = new[]
+        {
+            new Field("resourceIndex", new Int32Type(), nullable: false, metadata: []),
+            new Field("offset", new Int64Type(), nullable: false, metadata: []),
+            new Field("values", new ListType(new FloatType()), nullable: false, metadata: [])
+        };
+        var schema = new Schema(fields, metadata: []);
+        using var stream = new MemoryStream();
+        using var writer = new ArrowStreamWriter(stream, schema);
+
+        writer.WriteStart();
+
+        foreach (var row in rows)
+        {
+            var resourceIndexArray = new Int32Array.Builder().Append(row.ResourceIndex).Build(default);
+            var offsetArray = new Int64Array.Builder().Append(row.Offset).Build(default);
+            var offsetsBuffer = new ArrowBuffer(MemoryMarshal.AsBytes(new[] { 0, row.Values.Length }.AsSpan()).ToArray());
+            var valuesBuffer = new ArrowBuffer(MemoryMarshal.AsBytes(row.Values.AsSpan()).ToArray());
+            var valuesArray = new FloatArray(valuesBuffer, ArrowBuffer.Empty, row.Values.Length, nullCount: 0, offset: 0);
+            var listArray = new ListArray(new ListType(new FloatType()), 1, offsetsBuffer, valuesArray, ArrowBuffer.Empty, 0, 0);
+            using var recordBatch = new RecordBatch(schema, [resourceIndexArray, offsetArray, listArray], 1);
+
+            writer.WriteRecordBatch(recordBatch);
+        }
+
+        writer.WriteEnd();
+        return stream.ToArray();
     }
 
-    private static byte[] Frame(int resourceIndex, params float[] values)
+    private static byte[] InvalidSchemaArrowStream()
     {
-        var result = new byte[6 + values.Length * sizeof(float)];
-        result[0] = BatchStreamDataFrameType;
-        result[1] = (byte)resourceIndex;
-        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(2), result.Length - 6);
+        var schema = new Schema([
+            new Field("resource", new Int32Type(), nullable: false, metadata: []),
+            new Field("offset", new Int64Type(), nullable: false, metadata: []),
+            new Field("values", new ListType(new FloatType()), nullable: false, metadata: [])], metadata: []);
+        var resourceIndexArray = new Int32Array.Builder().Append(0).Build(default);
+        var offsetArray = new Int64Array.Builder().Append(0).Build(default);
+        var offsetsBuffer = new ArrowBuffer(MemoryMarshal.AsBytes(new[] { 0, 1 }.AsSpan()).ToArray());
+        var valuesBuffer = new ArrowBuffer(MemoryMarshal.AsBytes(new[] { 1f }.AsSpan()).ToArray());
+        var valuesArray = new FloatArray(valuesBuffer, ArrowBuffer.Empty, 1, nullCount: 0, offset: 0);
+        var listArray = new ListArray(new ListType(new FloatType()), 1, offsetsBuffer, valuesArray, ArrowBuffer.Empty, 0, 0);
+        using var recordBatch = new RecordBatch(schema, [resourceIndexArray, offsetArray, listArray], 1);
+        using var stream = new MemoryStream();
+        using var writer = new ArrowStreamWriter(stream, schema);
 
-        for (var index = 0; index < values.Length; index++)
-            BinaryPrimitives.WriteSingleLittleEndian(result.AsSpan(6 + index * sizeof(float)), values[index]);
-
-        return result;
-    }
-
-    private static byte[] ErrorFrame(string message)
-    {
-        var messageBytes = Encoding.UTF8.GetBytes(message);
-        var result = new byte[5 + messageBytes.Length];
-        result[0] = BatchStreamErrorFrameType;
-        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(1), messageBytes.Length);
-        messageBytes.CopyTo(result.AsSpan(5));
-        return result;
-    }
-
-    private static byte[] Stream(params byte[][] frames)
-    {
-        return Stream(includeEndFrame: true, frames);
-    }
-
-    private static byte[] Stream(bool includeEndFrame, params byte[][] frames)
-    {
-        return new[] { new[] { BatchStreamProtocolVersion } }
-            .Concat(frames)
-            .Concat(includeEndFrame ? new[] { new[] { BatchStreamEndFrameType } } : [])
-            .SelectMany(current => current)
-            .ToArray();
+        writer.WriteStart();
+        writer.WriteRecordBatch(recordBatch);
+        writer.WriteEnd();
+        return stream.ToArray();
     }
 
     private sealed class PinningReadStream(byte[] content) : Stream

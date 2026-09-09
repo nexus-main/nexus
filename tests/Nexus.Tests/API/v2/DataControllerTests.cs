@@ -31,7 +31,7 @@ public class DataControllerTests
         var result = Assert.IsType<FileStreamResult>(actual);
 
         Assert.Same(expected, result.FileStream);
-        Assert.Equal("application/octet-stream", result.ContentType);
+        Assert.Equal("application/vnd.apache.arrow.stream", result.ContentType);
     }
 
     [Fact]
