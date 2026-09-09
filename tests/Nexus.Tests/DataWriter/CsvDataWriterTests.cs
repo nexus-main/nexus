@@ -31,12 +31,12 @@ public class CsvDataWriterTests(DataWriterFixture fixture)
 
         var context = new DataWriterContext(
             ResourceLocator: new Uri(targetFolder),
+            Precision: Precision.Float32,
             RequestConfiguration: new Dictionary<string, JsonElement>
             {
                 ["row-index-format"] = JsonSerializer.SerializeToElement(rowIndexFormat),
                 ["significant-figures"] = JsonSerializer.SerializeToElement("7")
-            },
-            Precision: Precision.Float32);
+            });
 
         await dataWriter.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 

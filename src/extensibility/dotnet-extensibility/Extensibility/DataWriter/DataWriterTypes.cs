@@ -10,12 +10,12 @@ namespace Nexus.Extensibility;
 /// The starter package for a data writer.
 /// </summary>
 /// <param name="ResourceLocator">The resource locator.</param>
-/// <param name="RequestConfiguration">The writer configuration.</param>
 /// <param name="Precision">The floating point precision used for written sample values.</param>
+/// <param name="RequestConfiguration">The writer configuration.</param>
 public record DataWriterContext(
     Uri ResourceLocator,
-    IReadOnlyDictionary<string, JsonElement>? RequestConfiguration,
-    Precision Precision);
+    Precision Precision,
+    IReadOnlyDictionary<string, JsonElement>? RequestConfiguration);
 
 /// <summary>
 /// A write request.

@@ -50,8 +50,8 @@ internal class DataWriterController(
     {
         var context = new DataWriterContext(
             ResourceLocator: ResourceLocator,
-            RequestConfiguration: RequestConfiguration,
-            Precision: Precision
+            Precision: Precision,
+            RequestConfiguration: RequestConfiguration
         );
 
         await DataWriter.SetContextAsync(context, logger, cancellationToken);
