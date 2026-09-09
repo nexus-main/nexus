@@ -30,7 +30,7 @@ public record CatalogTimeRange(
 );
 
 /// <summary>
-/// A runtime read request created by Nexus or a compatible host.
+/// A read request.
 /// </summary>
 /// <remarks>
 /// This type carries runtime buffers and completion callbacks and is not a serialization contract.
