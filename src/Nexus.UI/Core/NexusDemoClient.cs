@@ -107,7 +107,7 @@ public class NexusDemoClient : INexusClient
             throw new NotSupportedException($"The type {typeof(T)} is not supported.");
 
         var resourcePathList = resourcePaths.ToList();
-        var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken);
+        var catalogItemMap = await CatalogsDemoClient.SearchDemoCatalogItemsAsync(resourcePathList, cancellationToken);
         var resourceInfoMap = new Dictionary<string, ResourceInfo>();
 
         foreach (var resourcePath in resourcePathList)
@@ -215,7 +215,7 @@ public class CatalogsDemoClient : ICatalogsClient
 
     public ResourceCatalog Get(string catalogId)
     {
-        return GetAsync(catalogId).GetAwaiter().GetResult();
+        throw new NotImplementedException();
     }
 
     public Task<ResourceCatalog> GetAsync(string catalogId, CancellationToken cancellationToken = default)
@@ -391,7 +391,17 @@ We hope you enjoy it!
 
     public IReadOnlyDictionary<string, CatalogItem> SearchCatalogItems(IReadOnlyList<string> resourcePaths)
     {
-        var catalog = Get("/SAMPLE/LOCAL");
+        throw new NotImplementedException();
+    }
+
+    public Task<IReadOnlyDictionary<string, CatalogItem>> SearchCatalogItemsAsync(IReadOnlyList<string> resourcePaths, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    internal static async Task<IReadOnlyDictionary<string, CatalogItem>> SearchDemoCatalogItemsAsync(IReadOnlyList<string> resourcePaths, CancellationToken cancellationToken = default)
+    {
+        var catalog = await new CatalogsDemoClient().GetAsync("/SAMPLE/LOCAL", cancellationToken);
 
         return resourcePaths.ToDictionary(
             resourcePath => resourcePath,
@@ -402,11 +412,6 @@ We hope you enjoy it!
                 var representation = resource.Representations!.Single(current => current.SamplePeriod == TimeSpan.FromMinutes(1));
                 return new CatalogItem(catalog, resource, representation, Parameters: null);
             });
-    }
-
-    public Task<IReadOnlyDictionary<string, CatalogItem>> SearchCatalogItemsAsync(IReadOnlyList<string> resourcePaths, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(SearchCatalogItems(resourcePaths));
     }
 
     public HttpResponseMessage SetMetadata(string catalogId, CatalogMetadata metadata)
