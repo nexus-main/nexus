@@ -598,7 +598,7 @@ public class NexusClient : INexusClient, IDisposable
 
         while (true)
         {
-            var recordBatch = await ReadNextRecordBatchAsync().ConfigureAwait(false);
+            using var recordBatch = await ReadNextRecordBatchAsync().ConfigureAwait(false);
 
             if (recordBatch is null)
                 break;
