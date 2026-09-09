@@ -1,7 +1,8 @@
 #nullable enable
 
-using System.Buffers;
-using System.Buffers.Binary;
+using Apache.Arrow;
+using Apache.Arrow.Ipc;
+using Apache.Arrow.Types;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
@@ -172,11 +173,6 @@ public interface INexusClient
 public class NexusClient : INexusClient, IDisposable
 {
     private const string ConfigurationHeaderKey = "Nexus-Configuration";
-    private const byte BatchStreamProtocolVersion = 1;
-    private const byte BatchStreamDataFrameType = 1;
-    private const byte BatchStreamErrorFrameType = 2;
-    private const byte BatchStreamEndFrameType = 3;
-    private const int MaximumBatchStreamErrorMessageLength = 64 * 1024;
     private const string AuthorizationHeaderKey = "Authorization";
 
     private string? __token;
@@ -595,100 +591,74 @@ public class NexusClient : INexusClient, IDisposable
             }
         }
 
-        var prefix = new byte[1];
-        var header = new byte[5];
         Stream stream = useAsync
             ? await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false)
             : responseMessage.Content.ReadAsStream(cancellationToken);
-
-        await ReadExactlyAsync(prefix).ConfigureAwait(false);
-
-        if (prefix[0] != BatchStreamProtocolVersion)
-            throw new Exception($"The batch stream uses an unsupported protocol version: {prefix[0]}.");
+        using var reader = new ArrowStreamReader(stream);
 
         while (true)
         {
-            var bytesRead = await ReadAsync(prefix).ConfigureAwait(false);
+            using var recordBatch = await ReadNextRecordBatchAsync().ConfigureAwait(false);
 
-            if (bytesRead == 0)
-                throw new Exception("The batch stream ended before the end frame was received.");
-
-            var frameType = prefix[0];
-
-            if (frameType == BatchStreamEndFrameType)
-            {
-                if (await ReadAsync(prefix).ConfigureAwait(false) != 0)
-                    throw new Exception("The batch stream contains data after the end frame.");
-
+            if (recordBatch is null)
                 break;
-            }
 
-            if (frameType == BatchStreamErrorFrameType)
+            var (resourceIndexArray, offsetArray, valuesArray) = GetArrowArrays(recordBatch);
+
+            for (var rowIndex = 0; rowIndex < recordBatch.Length; rowIndex++)
             {
-                await ReadExactlyAsync(header.AsMemory(0, 4)).ConfigureAwait(false);
-                var messageLength = BinaryPrimitives.ReadInt32LittleEndian(header);
+                var resourceIndex = resourceIndexArray.GetValue(rowIndex) ?? throw new Exception("The Arrow stream contains a null resource index.");
+                var offset = offsetArray.GetValue(rowIndex) ?? throw new Exception("The Arrow stream contains a null offset.");
+                var valueOffset = valuesArray.ValueOffsets[rowIndex];
+                var valueLength = valuesArray.ValueOffsets[rowIndex + 1] - valueOffset;
+                var payloadLength = checked(valueLength * elementSize);
 
-                if (messageLength < 0 || messageLength > MaximumBatchStreamErrorMessageLength)
-                    throw new Exception("The batch stream contains an invalid error message length.");
+                if ((uint)resourceIndex >= (uint)values.Length)
+                    throw new Exception("The Arrow stream contains an invalid resource index.");
 
-                var messageBuffer = new byte[messageLength];
-                await ReadExactlyAsync(messageBuffer).ConfigureAwait(false);
+                if (offset < 0)
+                    throw new Exception("The Arrow stream contains an invalid offset.");
 
-                throw new NexusException("02", Encoding.UTF8.GetString(messageBuffer));
-            }
+                if (offset != offsets[resourceIndex] / elementSize)
+                    throw new Exception("The Arrow stream contains out-of-order data.");
 
-            if (frameType != BatchStreamDataFrameType)
-                throw new Exception($"The batch stream contains an unknown frame type: {frameType}.");
+                if (offsets[resourceIndex] > expectedLengths[resourceIndex] - payloadLength)
+                    throw new Exception("The Arrow stream contains more data than expected.");
 
-            await ReadExactlyAsync(header).ConfigureAwait(false);
+                var remainingValueOffset = valueOffset;
+                var remainingValueLength = valueLength;
 
-            var resourceIndex = header[0];
-            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(1));
-
-            if (resourceIndex >= values.Length)
-                throw new Exception("The batch stream contains an invalid resource index.");
-
-            if (payloadLength < 0)
-                throw new Exception("The batch stream contains an invalid payload length.");
-
-            if (payloadLength % elementSize != 0)
-                throw new Exception("The batch stream contains an unaligned payload length.");
-
-            if (offsets[resourceIndex] > expectedLengths[resourceIndex] - payloadLength)
-                throw new Exception("The batch stream contains more data than expected.");
-
-            var remainingPayloadLength = payloadLength;
-
-            while (remainingPayloadLength > 0)
-            {
-                if (chunkOffsets[resourceIndex] == chunkLengths[resourceIndex])
+                while (remainingValueLength > 0)
                 {
-                    var remainingLength = (expectedLengths[resourceIndex] - offsets[resourceIndex]) / elementSize;
-                    RentNextChunk(resourceIndex, remainingLength);
+                    if (chunkOffsets[resourceIndex] == chunkLengths[resourceIndex])
+                    {
+                        var remainingLength = (expectedLengths[resourceIndex] - offsets[resourceIndex]) / elementSize;
+                        RentNextChunk(resourceIndex, remainingLength);
+                    }
+
+                    var count = Math.Min(remainingValueLength, (chunkLengths[resourceIndex] - chunkOffsets[resourceIndex]) / elementSize);
+                    var target = chunks[resourceIndex].Slice(chunkOffsets[resourceIndex] / elementSize, count);
+                    CopyArrowValues(valuesArray, remainingValueOffset, count, target);
+
+                    var bytesCopied = checked(count * elementSize);
+                    chunkOffsets[resourceIndex] += bytesCopied;
+                    offsets[resourceIndex] += bytesCopied;
+                    remainingValueOffset += count;
+                    remainingValueLength -= count;
+                    reportProgress?.Invoke(bytesCopied);
                 }
-
-                var count = Math.Min(remainingPayloadLength, chunkLengths[resourceIndex] - chunkOffsets[resourceIndex]);
-
-                using var manager = new CastMemoryManager<T, byte>(chunks[resourceIndex]);
-                var target = manager.Memory.Slice(chunkOffsets[resourceIndex], count);
-                await ReadExactlyAsync(target).ConfigureAwait(false);
-
-                chunkOffsets[resourceIndex] += count;
-                offsets[resourceIndex] += count;
-                remainingPayloadLength -= count;
-                reportProgress?.Invoke(count);
             }
         }
 
         if (!offsets.SequenceEqual(expectedLengths))
-            throw new Exception("The batch stream ended before all data was received.");
+            throw new Exception("The Arrow stream ended before all data was received.");
 
         return values;
 
         void RentNextChunk(int index, long remainingLength)
         {
             if (bufferProvider is null)
-                throw new Exception("The batch stream contains more chunk data than expected.");
+                throw new Exception("The Arrow stream contains more chunk data than expected.");
 
             var chunkLength = checked((int)Math.Min(maxChunkLength, remainingLength));
             var memory = bufferProvider(resourcePaths[index], chunkLength, remainingLength);
@@ -701,23 +671,100 @@ public class NexusClient : INexusClient, IDisposable
             chunkLengths[index] = checked(chunkLength * elementSize);
         }
 
-        ValueTask<int> ReadAsync(Memory<byte> buffer)
+        async Task<RecordBatch?> ReadNextRecordBatchAsync()
         {
-            return useAsync
-                ? stream.ReadAsync(buffer, cancellationToken)
-                : ValueTask.FromResult(stream.Read(buffer.Span));
+            try
+            {
+                return useAsync
+                    ? await reader.ReadNextRecordBatchAsync(cancellationToken).AsTask()!.ConfigureAwait(false)
+                    : reader.ReadNextRecordBatch();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new Exception("The Arrow data stream failed or ended unexpectedly.", ex);
+            }
         }
 
-        async Task ReadExactlyAsync(Memory<byte> buffer)
+        static (Int32Array ResourceIndexArray, Int64Array OffsetArray, ListArray ValuesArray) GetArrowArrays(RecordBatch recordBatch)
         {
-            while (!buffer.IsEmpty)
+            var fields = recordBatch.Schema.FieldsList;
+
+            if (fields.Count != 3 ||
+                fields[0].Name != "resourceIndex" || fields[0].DataType is not Int32Type ||
+                fields[1].Name != "offset" || fields[1].DataType is not Int64Type ||
+                fields[2].Name != "values" || fields[2].DataType is not ListType listType)
+                throw new Exception("The Arrow stream schema is invalid.");
+
+            if (typeof(T) == typeof(float))
             {
-                var bytesRead = await ReadAsync(buffer).ConfigureAwait(false);
+                if (listType.ValueDataType is not FloatType)
+                    throw new Exception("The Arrow stream value type does not match the requested precision.");
+            }
+            else if (typeof(T) == typeof(double))
+            {
+                if (listType.ValueDataType is not DoubleType)
+                    throw new Exception("The Arrow stream value type does not match the requested precision.");
+            }
+            else
+            {
+                throw new Exception("The Arrow stream value type does not match the requested precision.");
+            }
 
-                if (bytesRead == 0)
-                    throw new Exception("The batch stream ended in the middle of a frame.");
+            Int32Array? resourceIndexArray = null;
+            Int64Array? offsetArray = null;
+            ListArray? valuesArray = null;
+            var columnIndex = 0;
 
-                buffer = buffer[bytesRead..];
+            foreach (var array in recordBatch.Arrays)
+            {
+                switch (columnIndex)
+                {
+                    case 0 when array is Int32Array current:
+                        resourceIndexArray = current;
+                        break;
+                    case 1 when array is Int64Array current:
+                        offsetArray = current;
+                        break;
+                    case 2 when array is ListArray current:
+                        valuesArray = current;
+                        break;
+                    default:
+                        throw new Exception("The Arrow stream schema is invalid.");
+                }
+
+                columnIndex++;
+            }
+
+            if (columnIndex != 3 || resourceIndexArray is null || offsetArray is null || valuesArray is null)
+                throw new Exception("The Arrow stream schema is invalid.");
+
+            return (resourceIndexArray, offsetArray, valuesArray);
+        }
+
+        static void CopyArrowValues(ListArray valuesArray, int offset, int length, Memory<T> target)
+        {
+            var valueData = valuesArray.Data.Children.Length == 1
+                ? valuesArray.Data.Children[0]
+                : throw new Exception("The Arrow stream values column is invalid.");
+            var valueBuffer = valueData.Buffers.Length > 1
+                ? valueData.Buffers[1]
+                : throw new Exception("The Arrow stream values column is invalid.");
+
+            if (typeof(T) == typeof(float))
+            {
+                var targetSpan = MemoryMarshal.Cast<T, float>(target.Span);
+                var sourceSpan = MemoryMarshal.Cast<byte, float>(valueBuffer.Span);
+                sourceSpan.Slice(offset, length).CopyTo(targetSpan);
+            }
+            else if (typeof(T) == typeof(double))
+            {
+                var targetSpan = MemoryMarshal.Cast<T, double>(target.Span);
+                var sourceSpan = MemoryMarshal.Cast<byte, double>(valueBuffer.Span);
+                sourceSpan.Slice(offset, length).CopyTo(targetSpan);
+            }
+            else
+            {
+                throw new Exception("The Arrow stream value type does not match the requested precision.");
             }
         }
     }
@@ -1063,38 +1110,6 @@ internal sealed record LoadResult<T>(
     IReadOnlyDictionary<string, ResourceInfo> ResourceInfoMap,
     Memory<T>[] Values) where T : struct;
 
-internal sealed class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
-    where TFrom : struct
-    where TTo : struct
-{
-    private readonly Memory<TFrom> _values;
-    private MemoryHandle _handle;
-
-    public CastMemoryManager(Memory<TFrom> values) => _values = values;
-
-    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_values.Span);
-
-    protected override void Dispose(bool disposing)
-    {
-        //
-    }
-
-    public override unsafe MemoryHandle Pin(int elementIndex = 0)
-    {
-        if ((uint)elementIndex > (uint)(_values.Length * Unsafe.SizeOf<TFrom>()))
-            throw new ArgumentOutOfRangeException(nameof(elementIndex));
-
-        _handle = _values.Pin();
-        var pointer = (byte*)_handle.Pointer + elementIndex;
-
-        return new MemoryHandle(pointer, pinnable: this);
-    }
-
-    public override void Unpin()
-    {
-        _handle.Dispose();
-    }
-}
 }
 
 namespace Nexus.Api.V1
@@ -3608,13 +3623,13 @@ public class V2 : IV2
 public interface IDataClient
 {
     /// <summary>
-    /// Streams multiple resources in a framed binary response.
+    /// Streams multiple resources in an Apache Arrow IPC response.
     /// </summary>
     /// <param name="request">The batch stream request.</param>
     HttpResponseMessage GetStream(BatchStreamRequest request);
 
     /// <summary>
-    /// Streams multiple resources in a framed binary response.
+    /// Streams multiple resources in an Apache Arrow IPC response.
     /// </summary>
     /// <param name="request">The batch stream request.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
@@ -3639,7 +3654,7 @@ public class DataClient : IDataClient
         __urlBuilder.Append("/api/v2/data");
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/vnd.apache.arrow.stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
@@ -3649,7 +3664,7 @@ public class DataClient : IDataClient
         __urlBuilder.Append("/api/v2/data");
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/vnd.apache.arrow.stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
     }
 
 }

@@ -22,13 +22,13 @@ internal class DataController(
     private readonly IDataService _dataService = dataService;
 
     /// <summary>
-    /// Streams multiple resources in a framed binary response.
+    /// Streams multiple resources in an Apache Arrow IPC response.
     /// </summary>
     /// <param name="request">The batch stream request.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The framed data stream.</returns>
+    /// <returns>The Arrow IPC data stream.</returns>
     [HttpPost]
-    [Produces("application/octet-stream")]
+    [Produces("application/vnd.apache.arrow.stream")]
     [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
@@ -40,7 +40,7 @@ internal class DataController(
         try
         {
             var stream = await _dataService.ReadBatchAsStreamAsync(request, cancellationToken);
-            return File(stream, "application/octet-stream", "data.bin");
+            return File(stream, "application/vnd.apache.arrow.stream", "data.arrows");
         }
         catch (ValidationException ex)
         {

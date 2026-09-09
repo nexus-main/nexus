@@ -57,14 +57,14 @@ class DataClient:
 
     def get_stream(self, request: BatchStreamRequest) -> Response:
         """
-        Streams multiple resources in a framed binary response.
+        Streams multiple resources in an Apache Arrow IPC response.
 
         Args:
         """
 
         __url = "/api/v2/data"
 
-        return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___invoke(Response, "POST", __url, "application/vnd.apache.arrow.stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
 
 
 class JobsClient:
@@ -129,14 +129,14 @@ class DataAsyncClient:
 
     def get_stream(self, request: BatchStreamRequest) -> Awaitable[Response]:
         """
-        Streams multiple resources in a framed binary response.
+        Streams multiple resources in an Apache Arrow IPC response.
 
         Args:
         """
 
         __url = "/api/v2/data"
 
-        return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___invoke(Response, "POST", __url, "application/vnd.apache.arrow.stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
 
 
 class JobsAsyncClient:

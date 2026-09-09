@@ -17,7 +17,7 @@
         "tags": [
           "Data"
         ],
-        "summary": "Streams multiple resources in a framed binary response.",
+        "summary": "Streams multiple resources in an Apache Arrow IPC response.",
         "operationId": "Data_GetStream",
         "requestBody": {
           "x-name": "request",
@@ -34,9 +34,9 @@
         },
         "responses": {
           "200": {
-            "description": "The framed data stream.",
+            "description": "The Arrow IPC data stream.",
             "content": {
-              "application/octet-stream": {
+              "application/vnd.apache.arrow.stream": {
                 "schema": {
                   "type": "string",
                   "format": "binary"

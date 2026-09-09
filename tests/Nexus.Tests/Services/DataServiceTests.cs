@@ -1,6 +1,8 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apache.Arrow;
+using Apache.Arrow.Ipc;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Nexus.Core;
@@ -10,23 +12,17 @@ using Nexus.DataModel;
 using ExportParameters = Nexus.Core.V2.ExportParameters;
 using Nexus.Extensibility;
 using Nexus.Services;
-using System.Buffers.Binary;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.ComponentModel.DataAnnotations;
+using System.Runtime.InteropServices;
 using System.Security.Claims;
-using System.Text;
 using Xunit;
 
 namespace Services;
 
 public class DataServiceTests
 {
-    private const byte BatchStreamProtocolVersion = 1;
-    private const byte BatchStreamDataFrameType = 1;
-    private const byte BatchStreamErrorFrameType = 2;
-    private const byte BatchStreamEndFrameType = 3;
-
     delegate void GobbleReturns(string catalogId, string searchPattern, EnumerationOptions enumerationOptions, out Stream attachment);
 
     [Fact]
@@ -354,7 +350,7 @@ public class DataServiceTests
     }
 
     [Fact]
-    public async Task StreamsMultipleResourcesAsFramedBatchOutput()
+    public async Task StreamsMultipleResourcesAsArrowOutput()
     {
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = begin + TimeSpan.FromSeconds(1);
@@ -474,24 +470,17 @@ public class DataServiceTests
         var sink = new MemoryStream();
         await stream.CopyToAsync(sink).WaitAsync(TimeSpan.FromSeconds(5));
 
-        var frames = new Dictionary<int, float>();
-        var bytes = sink.ToArray();
+        var rows = await ReadArrowRowsAsync(sink.ToArray());
 
-        foreach (var frame in ReadBatchFrames(bytes))
-        {
-            Assert.Equal(sizeof(float), frame.PayloadLength);
-            frames.Add(frame.ResourceIndex, BitConverter.ToSingle(frame.Payload));
-        }
-
-        Assert.Equal(2, frames.Count);
-        Assert.Equal(1f, frames[0]);
-        Assert.Equal(2f, frames[1]);
+        Assert.Equal(2, rows.Count);
+        Assert.Equal([1f], rows.Single(row => row.ResourceIndex == 0).Values);
+        Assert.Equal([2f], rows.Single(row => row.ResourceIndex == 1).Values);
     }
 
     [Fact]
     public async Task StreamsReadyResourceBeforeLaterResource()
     {
-        const int payloadLength = 4 * 1024 * 1024;
+        const int valueCount = 1024;
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = begin + TimeSpan.FromSeconds(1);
         var samplePeriod = TimeSpan.FromSeconds(1);
@@ -512,7 +501,7 @@ public class DataServiceTests
             .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
                 async (_, _, _, _, writers, _, progress, cancellationToken) =>
                 {
-                    await WriteRepeatedByteAsync(writers[1].DataWriter, 2, payloadLength, cancellationToken);
+                    await WriteRepeatedFloatAsync(writers[1].DataWriter, 2, valueCount, cancellationToken);
                     resource1Written.SetResult();
                     await writeResource0.Task.WaitAsync(cancellationToken);
                     await writers[0].DataWriter.WriteAsync(BitConverter.GetBytes(1f), cancellationToken);
@@ -525,33 +514,28 @@ public class DataServiceTests
             CancellationToken.None);
 
         await resource1Written.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var protocolVersion = await ReadExactAsync(stream, 1).WaitAsync(TimeSpan.FromSeconds(5));
-        var firstHeader = await ReadExactAsync(stream, 6).WaitAsync(TimeSpan.FromSeconds(5));
+        using var reader = new ArrowStreamReader(stream);
+        var firstBatch = await reader.ReadNextRecordBatchAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        var firstRow = Assert.Single(ReadArrowRows(firstBatch));
 
-        Assert.Equal(BatchStreamProtocolVersion, protocolVersion[0]);
-        Assert.Equal(BatchStreamDataFrameType, firstHeader[0]);
-        Assert.Equal(1, firstHeader[1]);
-        Assert.Equal(payloadLength, BinaryPrimitives.ReadInt32LittleEndian(firstHeader.AsSpan(2, 4)));
+        Assert.Equal(1, firstRow.ResourceIndex);
+        Assert.Equal(0, firstRow.Offset);
+        Assert.Equal(valueCount, firstRow.Values.Length);
+        Assert.All(firstRow.Values, value => Assert.Equal(2f, value));
 
-        await DiscardExactAsync(stream, payloadLength).WaitAsync(TimeSpan.FromSeconds(5));
         writeResource0.SetResult();
 
-        var remaining = new MemoryStream();
-        await stream.CopyToAsync(remaining).WaitAsync(TimeSpan.FromSeconds(5));
+        var remainingRows = await ReadRemainingArrowRowsAsync(reader);
+        var remainingRow = Assert.Single(remainingRows);
 
-        var frames = ReadBatchFrames(remaining.ToArray(), includesProtocolVersion: false);
-        var frame = Assert.Single(frames);
-
-        Assert.Equal(0, frame.ResourceIndex);
-        Assert.Equal(sizeof(float), frame.PayloadLength);
-        Assert.Equal(1f, BitConverter.ToSingle(frame.Payload));
+        Assert.Equal(0, remainingRow.ResourceIndex);
+        Assert.Equal([1f], remainingRow.Values);
     }
 
     [Fact]
-    public async Task SplitsLargeBatchPayloadsIntoBoundedFrames()
+    public async Task StreamsLargeBatchPayloadAsArrowRows()
     {
-        const int maximumPayloadLength = 4 * 1024 * 1024;
-        const int payloadLength = maximumPayloadLength + sizeof(float);
+        const int valueCount = 1024 * 1024 + 1;
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = begin + TimeSpan.FromSeconds(1);
         var samplePeriod = TimeSpan.FromSeconds(1);
@@ -570,7 +554,7 @@ public class DataServiceTests
             .Returns<DateTime, DateTime, TimeSpan, Precision, CatalogItemRequestPipeWriter[], ReadDataHandler, IProgress<double>, CancellationToken>(
                 async (_, _, _, _, writers, _, progress, cancellationToken) =>
                 {
-                    await WriteRepeatedByteAsync(writers[0].DataWriter, 7, payloadLength, cancellationToken);
+                    await WriteRepeatedFloatAsync(writers[0].DataWriter, 7, valueCount, cancellationToken);
                     progress.Report(1);
                 });
 
@@ -582,16 +566,15 @@ public class DataServiceTests
         var sink = new MemoryStream();
         await stream.CopyToAsync(sink).WaitAsync(TimeSpan.FromSeconds(5));
 
-        var frames = ReadBatchFrames(sink.ToArray());
+        var rows = await ReadArrowRowsAsync(sink.ToArray());
 
-        Assert.True(frames.Count >= 2);
-        Assert.All(frames, frame =>
+        Assert.NotEmpty(rows);
+        Assert.All(rows, row =>
         {
-            Assert.Equal(0, frame.ResourceIndex);
-            Assert.InRange(frame.PayloadLength, 1, maximumPayloadLength);
-            Assert.All(frame.Payload, value => Assert.Equal(7, value));
+            Assert.Equal(0, row.ResourceIndex);
+            Assert.All(row.Values, value => Assert.Equal(7f, value));
         });
-        Assert.Equal(payloadLength, frames.Sum(frame => frame.PayloadLength));
+        Assert.Equal(valueCount, rows.Sum(row => row.Values.Length));
     }
 
     [Fact]
@@ -625,9 +608,9 @@ public class DataServiceTests
             CancellationToken.None);
 
         var sink = new MemoryStream();
-        await stream.CopyToAsync(sink).WaitAsync(TimeSpan.FromSeconds(5));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => stream.CopyToAsync(sink).WaitAsync(TimeSpan.FromSeconds(5)));
 
-        Assert.Contains("producer failed", ReadBatchErrorMessage(sink.ToArray()), StringComparison.Ordinal);
+        Assert.Contains("producer failed", exception.Message, StringComparison.Ordinal);
         Mock.Get(streamingController).Verify(current => current.Dispose(), Times.Once);
     }
 
@@ -724,93 +707,65 @@ public class DataServiceTests
             loggerFactory);
     }
 
-    private static async Task WriteRepeatedByteAsync(PipeWriter writer, byte value, int byteCount, CancellationToken cancellationToken)
+    private static async Task WriteRepeatedFloatAsync(PipeWriter writer, float value, int valueCount, CancellationToken cancellationToken)
     {
-        var span = writer.GetSpan(byteCount);
-        span[..byteCount].Fill(value);
-        writer.Advance(byteCount);
+        var memory = writer.GetMemory(valueCount * sizeof(float));
+        var values = MemoryMarshal.Cast<byte, float>(memory.Span[..(valueCount * sizeof(float))]);
+        values.Fill(value);
+        writer.Advance(valueCount * sizeof(float));
         await writer.FlushAsync(cancellationToken);
     }
 
-    private static async Task<byte[]> ReadExactAsync(Stream stream, int byteCount)
+    private static async Task<List<(int ResourceIndex, long Offset, float[] Values)>> ReadArrowRowsAsync(byte[] bytes)
     {
-        var bytes = new byte[byteCount];
-        await stream.ReadExactlyAsync(bytes);
-        return bytes;
+        using var stream = new MemoryStream(bytes);
+        using var reader = new ArrowStreamReader(stream);
+
+        return await ReadRemainingArrowRowsAsync(reader);
     }
 
-    private static async Task DiscardExactAsync(Stream stream, int byteCount)
+    private static async Task<List<(int ResourceIndex, long Offset, float[] Values)>> ReadRemainingArrowRowsAsync(ArrowStreamReader reader)
     {
-        var buffer = new byte[Math.Min(byteCount, 81920)];
-        var remaining = byteCount;
+        var rows = new List<(int ResourceIndex, long Offset, float[] Values)>();
 
-        while (remaining > 0)
+        while (true)
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(0, Math.Min(buffer.Length, remaining)));
+            var recordBatch = await reader.ReadNextRecordBatchAsync();
 
-            if (read == 0)
-                throw new EndOfStreamException();
+            if (recordBatch is null)
+                return rows;
 
-            remaining -= read;
+            rows.AddRange(ReadArrowRows(recordBatch));
         }
     }
 
-    private static List<(int ResourceIndex, int PayloadLength, byte[] Payload)> ReadBatchFrames(
-        byte[] bytes,
-        bool includesProtocolVersion = true)
+    private static List<(int ResourceIndex, long Offset, float[] Values)> ReadArrowRows(RecordBatch recordBatch)
     {
-        var frames = new List<(int ResourceIndex, int PayloadLength, byte[] Payload)>();
-        var offset = 0;
+        var arrays = recordBatch.Arrays.ToArray();
+        var resourceIndexes = Assert.IsType<Int32Array>(arrays[0]);
+        var offsets = Assert.IsType<Int64Array>(arrays[1]);
+        var valueLists = Assert.IsType<ListArray>(arrays[2]);
+        Assert.IsType<FloatArray>(valueLists.Values);
+        var valueData = Assert.Single(valueLists.Data.Children);
+        Assert.True(valueData.Buffers.Length > 1, "The Arrow stream values column is invalid.");
+        var sourceValues = MemoryMarshal.Cast<byte, float>(valueData.Buffers[1].Span);
+        var rows = new List<(int ResourceIndex, long Offset, float[] Values)>();
 
-        if (includesProtocolVersion)
+        for (var index = 0; index < recordBatch.Length; index++)
         {
-            Assert.NotEmpty(bytes);
-            Assert.Equal(BatchStreamProtocolVersion, bytes[0]);
-            offset = 1;
+            var valueOffset = valueLists.ValueOffsets[index];
+            var valueLength = valueLists.ValueOffsets[index + 1] - valueOffset;
+            var rowValues = new float[valueLength];
+
+            for (var valueIndex = 0; valueIndex < valueLength; valueIndex++)
+                rowValues[valueIndex] = sourceValues[valueOffset + valueIndex];
+
+            rows.Add((
+                resourceIndexes.GetValue(index)!.Value,
+                offsets.GetValue(index)!.Value,
+                rowValues));
         }
 
-        while (offset < bytes.Length)
-        {
-            var frameType = bytes[offset++];
-
-            if (frameType == BatchStreamEndFrameType)
-            {
-                Assert.Equal(bytes.Length, offset);
-                break;
-            }
-
-            Assert.Equal(BatchStreamDataFrameType, frameType);
-            var resourceIndex = bytes[offset];
-            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 1));
-            var payload = bytes.AsSpan(offset + 5, payloadLength).ToArray();
-
-            frames.Add((resourceIndex, payloadLength, payload));
-            offset += 5 + payloadLength;
-        }
-
-        return frames;
-    }
-
-    private static string ReadBatchErrorMessage(byte[] bytes)
-    {
-        Assert.NotEmpty(bytes);
-        Assert.Equal(BatchStreamProtocolVersion, bytes[0]);
-
-        for (var offset = 1; offset < bytes.Length;)
-        {
-            var frameType = bytes[offset++];
-
-            if (frameType == BatchStreamErrorFrameType)
-            {
-                var messageLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
-                return Encoding.UTF8.GetString(bytes.AsSpan(offset + 4, messageLength));
-            }
-
-            Assert.Equal(BatchStreamDataFrameType, frameType);
-            var payloadLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 1));
-            offset += 5 + payloadLength;
-        }
-
-        throw new InvalidOperationException("The batch stream did not contain an error frame.");
+        return rows;
     }
 }
