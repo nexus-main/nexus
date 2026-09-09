@@ -47,7 +47,7 @@ The harness exercises the real server data pipeline in-process — no HTTP round
 - Real `Sample` data source (auto-registered by `CatalogManager`)
 - Mocked: `IExtensionHive<IDataSource>` (returns `typeof(Sample)`), `IHttpContextAccessor` (null context), `IMemoryTracker` (always grants), `IDBService` (for user pipeline enumeration)
 
-Resources read: `/SAMPLE/LOCAL/T1/1_s` and `/SAMPLE/LOCAL/V1/1_s` (both FLOAT32, 1 s sample period).
+Resources read: `/SAMPLE/LOCAL/T1/1_s` and `/SAMPLE/LOCAL/V1/1_s` (both Float32, 1 s sample period).
 
 ## DO NOT use the VS Code launcher
 

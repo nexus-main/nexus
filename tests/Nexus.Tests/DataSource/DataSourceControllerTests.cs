@@ -314,7 +314,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var end = new DateTime(2020, 01, 01, 0, 0, 2, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
 
-        var representation = new Representation(NexusDataType.FLOAT64, TimeSpan.FromSeconds(1), parameters: default, RepresentationKind.Original);
+        var representation = new Representation(NexusDataType.Float64, TimeSpan.FromSeconds(1), parameters: default, RepresentationKind.Original);
 
         var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
         var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
@@ -462,7 +462,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromTicks(1);
         var end = begin + samplePeriod * elementCount;
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
         var resource = new ResourceBuilder("A").AddRepresentation(representation).Build();
         var catalog = new ResourceCatalogBuilder("/C1").AddResource(resource).Build()
             .EnsureAndSanitizeMandatoryProperties(0, []);
@@ -526,7 +526,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
         var end = begin + samplePeriod * 4;
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
 
         var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
         var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
@@ -640,7 +640,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
         var end = begin + samplePeriod;
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
         var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
         var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
         var catalog = new ResourceCatalogBuilder("/C1")
@@ -739,7 +739,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
         var end = begin + samplePeriod * 4;
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
         var resource1 = new ResourceBuilder("A").AddRepresentation(representation).Build();
         var resource2 = new ResourceBuilder("B").AddRepresentation(representation).Build();
         var resource3 = new ResourceBuilder("C").AddRepresentation(representation).Build();
@@ -861,7 +861,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
         var end = begin + samplePeriod;
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
         var resource = new ResourceBuilder("A").AddRepresentation(representation).Build();
         var catalog = new ResourceCatalogBuilder("/C1")
             .AddResource(resource)
@@ -911,7 +911,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var begin = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromSeconds(1);
         var end = begin + samplePeriod * 2;
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
         var resource = new ResourceBuilder("A").AddRepresentation(representation).Build();
         var catalog = new ResourceCatalogBuilder("/C1")
             .AddResource(resource)
@@ -1021,7 +1021,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var item = baseItem with
         {
             Representation = new Representation(
-                NexusDataType.FLOAT64,
+                NexusDataType.Float64,
                 TimeSpan.FromMilliseconds(100),
                 parameters: default,
                 RepresentationKind.Resampled)
@@ -1029,31 +1029,25 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
         var catalogItemRequest = new CatalogItemRequest(item, baseItem, default!);
 
-        var memoryTracker = Mock.Of<IMemoryTracker>();
-
-        Mock.Get(memoryTracker)
-            .Setup(memoryTracker => memoryTracker.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AllocationRegistration(memoryTracker, actualByteCount: 20000));
-
         // Act
-        await controller.ReadSingleAsync(
+        await controller.ReadAsync(
             begin,
             end,
-            catalogItemRequest,
-            pipe.Writer,
+            item.Representation.SamplePeriod,
+            Precision.Float32,
+            [new CatalogItemRequestPipeWriter(catalogItemRequest, pipe.Writer)],
             default!,
-            memoryTracker,
             new Progress<double>(),
-            NullLogger<DataSourceController>.Instance,
             CancellationToken.None);
 
         // Assert
         processingService
             .Verify(processingService => processingService.Resample(
-               NexusDataType.FLOAT32,
+               NexusDataType.Float32,
                It.IsAny<ReadOnlyMemory<byte>>(),
                It.IsAny<ReadOnlyMemory<byte>>(),
-               It.IsAny<Memory<double>>(),
+               It.IsAny<Memory<byte>>(),
+               Precision.Float32,
                10,
                2), Times.Exactly(1));
     }
@@ -1069,9 +1063,9 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var end = new DateTime(2020, 01, 03, 1, 0, 0, DateTimeKind.Utc);
         var samplePeriod = TimeSpan.FromHours(1);
 
-        var representationBase1 = new Representation(NexusDataType.INT32, TimeSpan.FromMinutes(30), parameters: default, RepresentationKind.Original);
-        var representation1 = new Representation(NexusDataType.INT32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Mean);
-        var representation2 = new Representation(NexusDataType.INT32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Original);
+        var representationBase1 = new Representation(NexusDataType.Int32, TimeSpan.FromMinutes(30), parameters: default, RepresentationKind.Original);
+        var representation1 = new Representation(NexusDataType.Int32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Mean);
+        var representation2 = new Representation(NexusDataType.Int32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Original);
 
         var resource1 = new ResourceBuilder("id1")
             .AddRepresentation(representationBase1)
@@ -1174,7 +1168,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
             .Callback<NexusDataType, RepresentationKind, Memory<byte>, ReadOnlyMemory<byte>, Memory<double>, int>(
             (dataType, kind, data, status, targetBuffer, blockSize) =>
             {
-                Assert.Equal(NexusDataType.INT32, dataType);
+                Assert.Equal(NexusDataType.Int32, dataType);
                 Assert.Equal(RepresentationKind.Mean, kind);
                 Assert.Equal(8, data.Length);
                 Assert.Equal(2, status.Length);

@@ -15,34 +15,34 @@ internal static class BufferUtilities
     {
         switch (dataType)
         {
-            case NexusDataType.FLOAT64:
+            case NexusDataType.Float64:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, double>(), status, target); break;
 
-            case NexusDataType.FLOAT32:
+            case NexusDataType.Float32:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, float>(), status, target); break;
 
-            case NexusDataType.INT32:
+            case NexusDataType.Int32:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, int>(), status, target); break;
 
-            case NexusDataType.UINT32:
+            case NexusDataType.UInt32:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, uint>(), status, target); break;
 
-            case NexusDataType.INT16:
+            case NexusDataType.Int16:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, short>(), status, target); break;
 
-            case NexusDataType.UINT16:
+            case NexusDataType.UInt16:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, ushort>(), status, target); break;
 
-            case NexusDataType.UINT8:
+            case NexusDataType.UInt8:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, byte>(), status, target); break;
 
-            case NexusDataType.INT8:
+            case NexusDataType.Int8:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, sbyte>(), status, target); break;
 
-            case NexusDataType.INT64:
+            case NexusDataType.Int64:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, long>(), status, target); break;
 
-            case NexusDataType.UINT64:
+            case NexusDataType.UInt64:
                 ApplyRepresentationStatusFloat32(data.Cast<byte, ulong>(), status, target); break;
 
             default:
@@ -54,34 +54,34 @@ internal static class BufferUtilities
     {
         switch (dataType)
         {
-            case NexusDataType.FLOAT64:
+            case NexusDataType.Float64:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, double>(), status, target); break;
 
-            case NexusDataType.FLOAT32:
+            case NexusDataType.Float32:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, float>(), status, target); break;
 
-            case NexusDataType.INT32:
+            case NexusDataType.Int32:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, int>(), status, target); break;
 
-            case NexusDataType.UINT32:
+            case NexusDataType.UInt32:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, uint>(), status, target); break;
 
-            case NexusDataType.INT16:
+            case NexusDataType.Int16:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, short>(), status, target); break;
 
-            case NexusDataType.UINT16:
+            case NexusDataType.UInt16:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, ushort>(), status, target); break;
 
-            case NexusDataType.UINT8:
+            case NexusDataType.UInt8:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, byte>(), status, target); break;
 
-            case NexusDataType.INT8:
+            case NexusDataType.Int8:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, sbyte>(), status, target); break;
 
-            case NexusDataType.INT64:
+            case NexusDataType.Int64:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, long>(), status, target); break;
 
-            case NexusDataType.UINT64:
+            case NexusDataType.UInt64:
                 ApplyRepresentationStatusFloat64(data.Cast<byte, ulong>(), status, target); break;
 
             default:

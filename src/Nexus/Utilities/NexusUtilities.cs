@@ -131,16 +131,16 @@ internal static partial class NexusUtilities
     {
         return dataType switch
         {
-            NexusDataType.UINT8 => typeof(byte),
-            NexusDataType.INT8 => typeof(sbyte),
-            NexusDataType.UINT16 => typeof(ushort),
-            NexusDataType.INT16 => typeof(short),
-            NexusDataType.UINT32 => typeof(uint),
-            NexusDataType.INT32 => typeof(int),
-            NexusDataType.UINT64 => typeof(ulong),
-            NexusDataType.INT64 => typeof(long),
-            NexusDataType.FLOAT32 => typeof(float),
-            NexusDataType.FLOAT64 => typeof(double),
+            NexusDataType.UInt8 => typeof(byte),
+            NexusDataType.Int8 => typeof(sbyte),
+            NexusDataType.UInt16 => typeof(ushort),
+            NexusDataType.Int16 => typeof(short),
+            NexusDataType.UInt32 => typeof(uint),
+            NexusDataType.Int32 => typeof(int),
+            NexusDataType.UInt64 => typeof(ulong),
+            NexusDataType.Int64 => typeof(long),
+            NexusDataType.Float32 => typeof(float),
+            NexusDataType.Float64 => typeof(double),
             _ => throw new NotSupportedException($"The specified data type {dataType} is not supported.")
         };
     }

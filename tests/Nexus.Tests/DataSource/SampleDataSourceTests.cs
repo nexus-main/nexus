@@ -38,7 +38,7 @@ public class SampleDataSourceTests
         var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2" };
         var expectedUnits = new List<string>() { "°C", "m/s", default!, default! };
         var expectedGroups = new List<string>() { "Group 1", "Group 1", "Group 2", "Group 2" };
-        var expectedDataTypes = new List<NexusDataType>() { NexusDataType.FLOAT32, NexusDataType.FLOAT32, NexusDataType.FLOAT64, NexusDataType.FLOAT64 };
+        var expectedDataTypes = new List<NexusDataType>() { NexusDataType.Float32, NexusDataType.Float32, NexusDataType.Float64, NexusDataType.Float64 };
 
         Assert.True(expectedIds.SequenceEqual(actualIds));
         Assert.True(expectedUnits.SequenceEqual(actualUnits));

@@ -3310,54 +3310,54 @@ public record Representation(NexusDataType DataType, TimeSpan SamplePeriod, IRea
 public enum NexusDataType
 {
     /// <summary>
-    /// UINT8
+    /// UInt8
     /// </summary>
-    UINT8,
+    UInt8,
 
     /// <summary>
-    /// UINT16
+    /// UInt16
     /// </summary>
-    UINT16,
+    UInt16,
 
     /// <summary>
-    /// UINT32
+    /// UInt32
     /// </summary>
-    UINT32,
+    UInt32,
 
     /// <summary>
-    /// UINT64
+    /// UInt64
     /// </summary>
-    UINT64,
+    UInt64,
 
     /// <summary>
-    /// INT8
+    /// Int8
     /// </summary>
-    INT8,
+    Int8,
 
     /// <summary>
-    /// INT16
+    /// Int16
     /// </summary>
-    INT16,
+    Int16,
 
     /// <summary>
-    /// INT32
+    /// Int32
     /// </summary>
-    INT32,
+    Int32,
 
     /// <summary>
-    /// INT64
+    /// Int64
     /// </summary>
-    INT64,
+    Int64,
 
     /// <summary>
-    /// FLOAT32
+    /// Float32
     /// </summary>
-    FLOAT32,
+    Float32,
 
     /// <summary>
-    /// FLOAT64
+    /// Float64
     /// </summary>
-    FLOAT64
+    Float64
 }
 
 

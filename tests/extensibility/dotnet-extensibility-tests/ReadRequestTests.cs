@@ -57,7 +57,7 @@ public class ReadRequestTests
 
     private static ReadRequest CreateRequest(Func<CancellationToken, Task>? onCompleted = null)
     {
-        var item = new CatalogItem(new ResourceCatalog("/A"), new Resource("B"), new Representation(NexusDataType.FLOAT64, TimeSpan.FromSeconds(1)), null);
+        var item = new CatalogItem(new ResourceCatalog("/A"), new Resource("B"), new Representation(NexusDataType.Float64, TimeSpan.FromSeconds(1)), null);
         return new ReadRequest(
             "B",
             item,

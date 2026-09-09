@@ -742,25 +742,10 @@ internal class DataSourceController(
         var baseItem = readUnit.CatalogItemRequest.BaseItem!;
         var samplePeriod = item.Representation.SamplePeriod;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
-        var targetElementCount = targetByteCount / (int)readUnit.Precision;
 
         /* target buffer */
-        Memory<double> targetBuffer;
-        IMemoryOwner<double>? poolBuffer = null;
-
-        if (readUnit.Precision == Precision.Float64)
-        {
-            var buffer = readUnit.DataWriter
-               .GetMemory(targetByteCount)[..targetByteCount];
-
-            targetBuffer = new CastMemoryManager<byte, double>(buffer).Memory;
-        }
-
-        else
-        {
-            poolBuffer = MemoryPool<double>.Shared.Rent(targetElementCount);
-            targetBuffer = poolBuffer.Memory[..targetElementCount];
-        }
+        var targetBuffer = readUnit.DataWriter
+            .GetMemory(targetByteCount)[..targetByteCount];
 
         /* Calculate rounded begin and end values.
          *
@@ -824,6 +809,7 @@ internal class DataSourceController(
                 readRequest.Data,
                 readRequest.Status,
                 targetBuffer,
+                readUnit.Precision,
                 blockSize,
                 offset);
         }
@@ -835,29 +821,31 @@ internal class DataSourceController(
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
 
-            targetBuffer.Span.Fill(double.NaN);
+            FillNaN(targetBuffer, readUnit.Precision);
         }
         finally
         {
-            /* convert double buffer to Float32 pipe bytes if needed */
-            if (readUnit.Precision == Precision.Float32)
-            {
-                var buffer = readUnit.DataWriter
-                   .GetMemory(targetByteCount)[..targetByteCount];
-
-                var sourceSpan = targetBuffer.Span;
-                var targetSpan = MemoryMarshal.Cast<byte, float>(buffer.Span);
-
-                for (int i = 0; i < targetElementCount; i++)
-                    targetSpan[i] = (float)sourceSpan[i];
-            }
-
             /* update progress */
             _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
             readUnit.DataWriter.Advance(targetByteCount);
             await readUnit.DataWriter.FlushAsync(cancellationToken);
+        }
+    }
 
-            poolBuffer?.Dispose();
+    private static void FillNaN(Memory<byte> buffer, Precision precision)
+    {
+        switch (precision)
+        {
+            case Precision.Float32:
+                MemoryMarshal.Cast<byte, float>(buffer.Span).Fill(float.NaN);
+                break;
+
+            case Precision.Float64:
+                MemoryMarshal.Cast<byte, double>(buffer.Span).Fill(double.NaN);
+                break;
+
+            default:
+                throw new NotSupportedException($"The precision {precision} is not supported.");
         }
     }
 

@@ -248,7 +248,7 @@ public class ClientTests
             [resourcePath] = new CatalogItem(
                 new ResourceCatalog("my-catalog", default, default),
                 new Resource(resourcePath.Split('/')[^1], default, default),
-                new Representation(NexusDataType.FLOAT64, TimeSpan.FromSeconds(1), default),
+                new Representation(NexusDataType.Float64, TimeSpan.FromSeconds(1), default),
                 default)
         };
     }

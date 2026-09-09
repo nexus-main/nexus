@@ -261,7 +261,7 @@ public class UtilitiesTests
         var expected = new double[] { 1, double.NaN, 3, double.NaN, 5, double.NaN, 7, double.NaN };
 
         // Act
-        BufferUtilities.ApplyRepresentationStatusFloat64ByDataType(NexusDataType.INT32, data, status, actual);
+        BufferUtilities.ApplyRepresentationStatusFloat64ByDataType(NexusDataType.Int32, data, status, actual);
 
         // Assert
         Assert.True(expected.SequenceEqual(actual));
@@ -277,7 +277,7 @@ public class UtilitiesTests
         var expected = new float[] { 1, float.NaN, 3, float.NaN, 5, float.NaN, 7, float.NaN };
 
         // Act
-        BufferUtilities.ApplyRepresentationStatusFloat32ByDataType(NexusDataType.INT32, data, status, actual);
+        BufferUtilities.ApplyRepresentationStatusFloat32ByDataType(NexusDataType.Int32, data, status, actual);
 
         // Assert
         Assert.True(expected.SequenceEqual(actual));
@@ -352,7 +352,7 @@ public class UtilitiesTests
     {
         var data = new byte[] { 0, 1, 127, 128, 255, 0, 100, 200 };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.UINT8, data, status);
+        VerifyAll(NexusDataType.UInt8, data, status);
     }
 
     [Fact]
@@ -360,7 +360,7 @@ public class UtilitiesTests
     {
         var data = new sbyte[] { -128, -1, 0, 1, 127, -127, 100, -100 };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.INT8, data, status);
+        VerifyAll(NexusDataType.Int8, data, status);
     }
 
     [Fact]
@@ -368,7 +368,7 @@ public class UtilitiesTests
     {
         var data = new ushort[] { 0, 1, 32767, 32768, 65535, 100, 200, 300 };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.UINT16, data, status);
+        VerifyAll(NexusDataType.UInt16, data, status);
     }
 
     [Fact]
@@ -376,7 +376,7 @@ public class UtilitiesTests
     {
         var data = new short[] { -32768, -1, 0, 1, 32767, -100, 100, 200 };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.INT16, data, status);
+        VerifyAll(NexusDataType.Int16, data, status);
     }
 
     [Fact]
@@ -384,7 +384,7 @@ public class UtilitiesTests
     {
         var data = new uint[] { 0u, 1u, 2147483647u, 2147483648u, 4294967295u, 100u, 2164260993u, 300u };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.UINT32, data, status);
+        VerifyAll(NexusDataType.UInt32, data, status);
     }
 
     [Fact]
@@ -392,7 +392,7 @@ public class UtilitiesTests
     {
         var data = new int[] { -2147483648, -1, 0, 1, 2147483647, -100, 100, 200 };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.INT32, data, status);
+        VerifyAll(NexusDataType.Int32, data, status);
     }
 
     [Fact]
@@ -400,7 +400,7 @@ public class UtilitiesTests
     {
         var data = new ulong[] { 0ul, 1ul, 9223372036854775807ul, 9223372036854775808ul, 18446744073709551615ul, 100ul, 200ul, 300ul };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.UINT64, data, status);
+        VerifyAll(NexusDataType.UInt64, data, status);
     }
 
     [Fact]
@@ -408,7 +408,7 @@ public class UtilitiesTests
     {
         var data = new long[] { -9223372036854775808L, -1L, 0L, 1L, 9223372036854775807L, -100L, 100L, 200L };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.INT64, data, status);
+        VerifyAll(NexusDataType.Int64, data, status);
     }
 
     [Fact]
@@ -416,7 +416,7 @@ public class UtilitiesTests
     {
         var data = new float[] { -1.5f, 0f, 1.5f, -3.14f, 3.14f, 100.5f, -100.5f, 200.25f };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.FLOAT32, data, status);
+        VerifyAll(NexusDataType.Float32, data, status);
     }
 
     [Fact]
@@ -424,7 +424,7 @@ public class UtilitiesTests
     {
         var data = new double[] { -1.5, 0.0, 1.5, -3.14, 3.14, 100.5, -100.5, 200.25 };
         var status = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0 };
-        VerifyAll(NexusDataType.FLOAT64, data, status);
+        VerifyAll(NexusDataType.Float64, data, status);
     }
 
     [Fact]
@@ -446,10 +446,10 @@ public class UtilitiesTests
             status[i] = (byte)((i & 1) == 0 ? 1 : 0);
         }
 
-        VerifyAll(NexusDataType.INT32, intData, status);
-        VerifyAll(NexusDataType.UINT32, uintData, status);
-        VerifyAll(NexusDataType.INT64, longData, status);
-        VerifyAll(NexusDataType.UINT64, ulongData, status);
+        VerifyAll(NexusDataType.Int32, intData, status);
+        VerifyAll(NexusDataType.UInt32, uintData, status);
+        VerifyAll(NexusDataType.Int64, longData, status);
+        VerifyAll(NexusDataType.UInt64, ulongData, status);
     }
 
     [Fact]
@@ -457,7 +457,7 @@ public class UtilitiesTests
     {
         var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
         var status = new byte[] { 1, 1, 1, 1, 1, 1, 1, 1 };
-        VerifyAll(NexusDataType.INT32, data, status);
+        VerifyAll(NexusDataType.Int32, data, status);
     }
 
     [Fact]
@@ -465,7 +465,7 @@ public class UtilitiesTests
     {
         var data = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
         var status = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 };
-        VerifyAll(NexusDataType.INT32, data, status);
+        VerifyAll(NexusDataType.Int32, data, status);
     }
 
     [Fact]
@@ -473,7 +473,7 @@ public class UtilitiesTests
     {
         var data = new int[] { 1, 2, 3 };
         var status = new byte[] { 1, 0, 1 };
-        VerifyAll(NexusDataType.INT32, data, status);
+        VerifyAll(NexusDataType.Int32, data, status);
     }
 
     [Fact]
@@ -481,7 +481,7 @@ public class UtilitiesTests
     {
         var data = Array.Empty<int>();
         var status = Array.Empty<byte>();
-        VerifyAll(NexusDataType.INT32, data, status);
+        VerifyAll(NexusDataType.Int32, data, status);
     }
 
     [Fact]

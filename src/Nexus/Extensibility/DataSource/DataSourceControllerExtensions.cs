@@ -28,7 +28,7 @@ internal static class DataSourceControllerExtensions
         DataSourceController.ValidateParameters(begin, end, samplePeriod);
 
         var elementCount = ExtensibilityUtilities.CalculateElementCountLong(begin, end, samplePeriod);
-        var totalLength = elementCount * NexusUtilities.SizeOf(NexusDataType.FLOAT64);
+        var totalLength = elementCount * NexusUtilities.SizeOf(NexusDataType.Float64);
         var pipe = new Pipe();
         var stream = new DataSourceDoubleStream(totalLength, pipe.Reader);
 

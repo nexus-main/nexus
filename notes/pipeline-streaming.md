@@ -1,6 +1,6 @@
 # Pipeline Streaming
 
-Nexus uses `System.IO.Pipelines` between data sources and HTTP responses. The path is not strictly zero-copy because source values are converted to `FLOAT64`, but pipes provide bounded buffering and asynchronous back-pressure.
+Nexus uses `System.IO.Pipelines` between data sources and HTTP responses. The path is not strictly zero-copy because source values are converted to `Float64`, but pipes provide bounded buffering and asynchronous back-pressure.
 
 # HTTP Paths
 
@@ -23,11 +23,11 @@ POST /api/v2/data
   -> framed response stream
 ```
 
-Each frame has an eight-byte little-endian header containing the resource index and payload length, followed by at most 4 MiB of `FLOAT64` data. Resource indices correspond to request order. EOF indicates success.
+Each frame has an eight-byte little-endian header containing the resource index and payload length, followed by at most 4 MiB of `Float64` data. Resource indices correspond to request order. EOF indicates success.
 
 # Source Completion
 
-`DataSourceController.ReadOriginalAsync` creates a `ReadRequest` for each resource. A source calls `await request.CompleteAsync()` after filling its data and status buffers. The completion callback converts the values to `FLOAT64`, applies status flags, and flushes that resource into its pipe immediately.
+`DataSourceController.ReadOriginalAsync` creates a `ReadRequest` for each resource. A source calls `await request.CompleteAsync()` after filling its data and status buffers. The completion callback converts the values to `Float64`, applies status flags, and flushes that resource into its pipe immediately.
 
 Sources that do not call `CompleteAsync()` remain supported. Nexus calls it after `IDataSource.ReadAsync` returns. Completion is idempotent, so a request is never flushed twice.
 

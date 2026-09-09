@@ -147,13 +147,13 @@ public class DataServiceTests
             .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minium, maximum, _) => new AllocationRegistration(memoryTracker, actualByteCount: maximum));
 
         // catalog items
-        var representation1 = new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: samplePeriod);
+        var representation1 = new Representation(dataType: NexusDataType.Float32, samplePeriod: samplePeriod);
         var resource1 = new Resource(id: "Resource1");
         var catalog1 = new ResourceCatalog(id: "/A/B/C");
         var catalogItem1 = new CatalogItem(catalog1, resource1, representation1, Parameters: default);
         var catalogContainer1 = new CatalogContainer(new CatalogRegistration(catalog1.Id, string.Empty), default, default, pipeline1, default!, default!, default!, default!, default!);
 
-        var representation2 = new Representation(dataType: NexusDataType.FLOAT32, samplePeriod: samplePeriod);
+        var representation2 = new Representation(dataType: NexusDataType.Float32, samplePeriod: samplePeriod);
         var resource2 = new Resource(id: "Resource2");
         var catalog2 = new ResourceCatalog(id: "/F/G/H");
         var catalogItem2 = new CatalogItem(catalog2, resource2, representation2, Parameters: default);
@@ -226,7 +226,7 @@ public class DataServiceTests
         var samplePeriod = TimeSpan.FromSeconds(1);
         var registration = new DataSourceRegistration(Type: "A", new Uri("a", UriKind.Relative), default, default);
         var pipeline = new DataSourcePipeline([registration]);
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
         var resource = new ResourceBuilder("T1").AddRepresentation(representation).Build();
         var catalog = new ResourceCatalogBuilder("/A/B/C").AddResource(resource).Build();
         catalog = catalog.EnsureAndSanitizeMandatoryProperties(0, []);
@@ -361,7 +361,7 @@ public class DataServiceTests
         var samplePeriod = TimeSpan.FromSeconds(1);
         var registration = new DataSourceRegistration(Type: "A", new Uri("a", UriKind.Relative), default, default);
         var pipeline = new DataSourcePipeline([registration]);
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
         var resource1 = new ResourceBuilder("T1").AddRepresentation(representation).Build();
         var resource2 = new ResourceBuilder("T2").AddRepresentation(representation).Build();
         var catalog = new ResourceCatalogBuilder("/A/B/C")
@@ -640,7 +640,7 @@ public class DataServiceTests
     {
         var registration = new DataSourceRegistration(Type: "A", new Uri("a", UriKind.Relative), default, default);
         var pipeline = new DataSourcePipeline([registration]);
-        var representation = new Representation(NexusDataType.FLOAT64, samplePeriod);
+        var representation = new Representation(NexusDataType.Float64, samplePeriod);
         var catalogBuilder = new ResourceCatalogBuilder("/A/B/C");
 
         foreach (var resourceId in resourceIds)

@@ -69,12 +69,12 @@ public class DataModelTests(DataModelFixture fixture)
 
         if (isValid)
             _ = new Representation(
-                dataType: NexusDataType.FLOAT64,
+                dataType: NexusDataType.Float64,
                 samplePeriod: samplePeriod);
 
         else
             Assert.Throws<ArgumentException>(() => new Representation(
-                dataType: NexusDataType.FLOAT64,
+                dataType: NexusDataType.Float64,
                 samplePeriod: samplePeriod));
     }
 
@@ -87,21 +87,21 @@ public class DataModelTests(DataModelFixture fixture)
 
         if (isValid)
             _ = new Representation(
-                dataType: NexusDataType.FLOAT64,
+                dataType: NexusDataType.Float64,
                 samplePeriod: TimeSpan.FromSeconds(1),
                 parameters: default,
                 kind: kind);
 
         else
             Assert.Throws<ArgumentException>(() => new Representation(
-                dataType: NexusDataType.FLOAT64,
+                dataType: NexusDataType.Float64,
                 samplePeriod: TimeSpan.FromSeconds(1),
                 parameters: default,
                 kind: kind));
     }
 
     [Theory]
-    [InlineData(NexusDataType.FLOAT32, true)]
+    [InlineData(NexusDataType.Float32, true)]
     [InlineData((NexusDataType)0, false)]
     [InlineData((NexusDataType)9999, false)]
     public void CanValidateRepresentationDataType(NexusDataType dataType, bool isValid)
@@ -125,7 +125,7 @@ public class DataModelTests(DataModelFixture fixture)
         var samplePeriod = TimeSpan.Parse(samplePeriodString);
 
         var representation = new Representation(
-            dataType: NexusDataType.FLOAT32,
+            dataType: NexusDataType.Float32,
             samplePeriod: samplePeriod,
             parameters: default,
             kind: kind);
@@ -217,16 +217,16 @@ public class DataModelTests(DataModelFixture fixture)
             id: "myresource",
             representations: new List<Representation>()
             {
-                new(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(1))
+                new(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1))
             });
 
         var resource2 = new Resource(
             id: "myresource",
             representations: new List<Representation>()
             {
-                new(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)),
-                new(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(2)),
-                new(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(3))
+                new(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromSeconds(1)),
+                new(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(2)),
+                new(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(3))
             });
 
         // Act
@@ -254,7 +254,7 @@ public class DataModelTests(DataModelFixture fixture)
     public void CanFindCatalogItem()
     {
         var representation = new Representation(
-            dataType: NexusDataType.FLOAT32,
+            dataType: NexusDataType.Float32,
             samplePeriod: TimeSpan.FromSeconds(1));
 
         var resource = new Resource(id: "Resource1", representations: new List<Representation>() { representation });
@@ -275,7 +275,7 @@ public class DataModelTests(DataModelFixture fixture)
     public void CanTryFindCatalogItem()
     {
         var representation = new Representation(
-            dataType: NexusDataType.FLOAT32,
+            dataType: NexusDataType.Float32,
             samplePeriod: TimeSpan.FromSeconds(1));
 
         var resource = new Resource(id: "Resource1", representations: new List<Representation>() { representation });
@@ -302,7 +302,7 @@ public class DataModelTests(DataModelFixture fixture)
     public void ThrowsForInvalidResourcePath(string resourcePath)
     {
         var representation = new Representation(
-           dataType: NexusDataType.FLOAT32,
+           dataType: NexusDataType.Float32,
            samplePeriod: TimeSpan.FromSeconds(1),
            kind: RepresentationKind.Original,
            parameters: default);

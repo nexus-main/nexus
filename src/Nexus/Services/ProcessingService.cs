@@ -18,7 +18,8 @@ internal interface IProcessingService
         NexusDataType dataType,
         ReadOnlyMemory<byte> data,
         ReadOnlyMemory<byte> status,
-        Memory<double> targetBuffer,
+        Memory<byte> targetBuffer,
+        Precision precision,
         int blockSize,
         int offset);
 
@@ -37,6 +38,57 @@ internal class ProcessingService(IOptions<DataOptions> dataOptions)
     private readonly double _nanThreshold = dataOptions.Value.AggregationNaNThreshold;
 
     public void Resample(
+        NexusDataType dataType,
+        ReadOnlyMemory<byte> data,
+        ReadOnlyMemory<byte> status,
+        Memory<byte> targetBuffer,
+        Precision precision,
+        int blockSize,
+        int offset)
+    {
+        switch (precision)
+        {
+            case Precision.Float32:
+                ResampleFloat32(dataType, data, status, targetBuffer.Cast<byte, float>(), blockSize, offset);
+                break;
+
+            case Precision.Float64:
+                ResampleFloat64(dataType, data, status, targetBuffer.Cast<byte, double>(), blockSize, offset);
+                break;
+
+            default:
+                throw new NotSupportedException($"The precision {precision} is not supported.");
+        }
+    }
+
+    private static void ResampleFloat32(
+        NexusDataType dataType,
+        ReadOnlyMemory<byte> data,
+        ReadOnlyMemory<byte> status,
+        Memory<float> targetBuffer,
+        int blockSize,
+        int offset)
+    {
+        using var memoryOwner = MemoryPool<float>.Shared.Rent(status.Length);
+        var floatData = memoryOwner.Memory[..status.Length];
+
+        BufferUtilities.ApplyRepresentationStatusFloat32ByDataType(
+            dataType,
+            data,
+            status,
+            target: floatData);
+
+        var sourceBufferSpan = floatData.Span;
+        var targetBufferSpan = targetBuffer.Span;
+        var length = targetBuffer.Length;
+
+        for (int i = 0; i < length; i++)
+        {
+            targetBufferSpan[i] = sourceBufferSpan[(i + offset) / blockSize];
+        }
+    }
+
+    private static void ResampleFloat64(
         NexusDataType dataType,
         ReadOnlyMemory<byte> data,
         ReadOnlyMemory<byte> status,

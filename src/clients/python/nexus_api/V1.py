@@ -1872,34 +1872,34 @@ class NexusDataType(Enum):
     """Specifies the Nexus data type."""
 
     UINT8 = "UINT8"
-    """UINT8"""
+    """UInt8"""
 
     UINT16 = "UINT16"
-    """UINT16"""
+    """UInt16"""
 
     UINT32 = "UINT32"
-    """UINT32"""
+    """UInt32"""
 
     UINT64 = "UINT64"
-    """UINT64"""
+    """UInt64"""
 
     INT8 = "INT8"
-    """INT8"""
+    """Int8"""
 
     INT16 = "INT16"
-    """INT16"""
+    """Int16"""
 
     INT32 = "INT32"
-    """INT32"""
+    """Int32"""
 
     INT64 = "INT64"
-    """INT64"""
+    """Int64"""
 
     FLOAT32 = "FLOAT32"
-    """FLOAT32"""
+    """Float32"""
 
     FLOAT64 = "FLOAT64"
-    """FLOAT64"""
+    """Float64"""
 
 
 @dataclass(frozen=True)

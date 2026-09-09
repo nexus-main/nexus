@@ -231,7 +231,7 @@ public class CatalogsDemoClient : ICatalogsClient
             var resource1 = new Resource(
                 Id: "temperature",
                 Properties: properties1,
-                Representations: new List<Representation>() { new(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
+                Representations: new List<Representation>() { new(NexusDataType.Float64, TimeSpan.FromMinutes(1), default) }
             );
 
             var properties2 = new Dictionary<string, JsonElement>()
@@ -244,7 +244,7 @@ public class CatalogsDemoClient : ICatalogsClient
             var resource2 = new Resource(
                 Id: "wind_speed",
                 Properties: properties2,
-                Representations: new List<Representation>() { new(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
+                Representations: new List<Representation>() { new(NexusDataType.Float64, TimeSpan.FromMinutes(1), default) }
             );
 
             var resources = new List<Resource>() { resource1, resource2 };
