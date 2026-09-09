@@ -521,7 +521,20 @@
                 beginChunkedSeriesAsync(chartId, id, version, length));
         },
         appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
-            appendChunkedSeriesImpl(chartId, token, offset, dataReference, dataLength);
+            const epoch = getLifecycleEpoch(chartId);
+            try {
+                appendChunkedSeriesImpl(chartId, token, offset, dataReference, dataLength);
+            } catch (error) {
+                if (!isCancellationError(error)) {
+                    reportRuntimeFailure(
+                        chartId,
+                        epoch,
+                        'WebGPU upload failed',
+                        `${error?.message ?? error} Retry the chart to recreate its GPU resources.`);
+                }
+
+                throw error;
+            }
         },
         processChunkedSeriesUpload(chartId, token, offset, count) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
