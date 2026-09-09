@@ -36,7 +36,7 @@
           "200": {
             "description": "The Arrow IPC data stream.",
             "content": {
-              "application/octet-stream": {
+              "application/vnd.apache.arrow.stream": {
                 "schema": {
                   "type": "string",
                   "format": "binary"

@@ -540,7 +540,7 @@ internal class DataService(
             }
             finally
             {
-                await CleanupBatchStreamAsync(groups, readers, output, cts, error, _logger).ConfigureAwait(false);
+                await CleanupArrowStreamAsync(groups, readers, output, cts, error, _logger).ConfigureAwait(false);
             }
         }
     }
@@ -575,7 +575,7 @@ internal class DataService(
         }
     }
 
-    internal static async Task CleanupBatchStreamAsync(
+    internal static async Task CleanupArrowStreamAsync(
         IReadOnlyList<DataReadingGroup> groups,
         IReadOnlyList<(int Index, PipeReader Reader)> readers,
         PipeWriter output,
@@ -613,7 +613,7 @@ internal class DataService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Completing batch output pipe failed");
+            logger.LogError(ex, "Completing Arrow output pipe failed");
         }
 
         try
@@ -622,7 +622,7 @@ internal class DataService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Disposing batch stream cancellation source failed");
+            logger.LogError(ex, "Disposing Arrow stream cancellation source failed");
         }
     }
 
