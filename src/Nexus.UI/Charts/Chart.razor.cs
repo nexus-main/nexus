@@ -547,10 +547,8 @@ public partial class Chart : IDisposable
                 "nexus.chartWebGpu.beginChunkedSeries", _chartId, series.Id, dataVersion, length);
 
             const int chunkLength = 4 * 1024 * 1024;
-            byte[]? fallbackBytes = null;
-            var canUseMemoryViewUpload = true;
 
-            for (var offset = 0L; offset < length; offset += chunkLength)
+            for (var offset = 0L; offset < length;)
             {
                 if (_disposed || webGpuGeneration != _webGpuGeneration)
                     return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
@@ -560,48 +558,20 @@ public partial class Chart : IDisposable
                 if (!await series.Source.WaitForRangeAsync(offset, count).ConfigureAwait(false))
                     return new SeriesRange(series.Id, dataVersion, length, false, 0, 0);
 
-                if (canUseMemoryViewUpload && series.Source.TryGetContiguousArraySegment(offset, count, out var segment))
-                {
-                    var uploadedWithMemoryView = false;
+                if (!series.Source.TryGetNextContiguousArraySegment(offset, count, out var segment))
+                    throw new InvalidOperationException($"Series '{series.Id}' data is not backed by a contiguous array segment.");
 
-                    try
-                    {
-                        ChartWebGpuMemoryViewInterop.AppendChunkedSeriesMemoryView(
-                            _chartId,
-                            uploadToken.Value,
-                            offset,
-                            MemoryMarshal.AsBytes(segment.AsSpan()),
-                            count * sizeof(float));
+                ChartWebGpuMemoryViewInterop.AppendChunkedSeries(
+                    _chartId,
+                    uploadToken.Value,
+                    offset,
+                    MemoryMarshal.AsBytes(segment.AsSpan()),
+                    segment.Count * sizeof(float));
 
-                        uploadedWithMemoryView = true;
-                    }
-                    catch (JSException)
-                    {
-                        canUseMemoryViewUpload = false;
-                    }
+                await JSRuntime.InvokeVoidAsync(
+                    "nexus.chartWebGpu.processChunkedSeriesUpload", _chartId, uploadToken.Value, offset, segment.Count);
 
-                    if (uploadedWithMemoryView)
-                    {
-                        await JSRuntime.InvokeVoidAsync(
-                            "nexus.chartWebGpu.processChunkedSeriesUpload", _chartId, uploadToken.Value, offset, count);
-                    }
-                    else
-                    {
-                        fallbackBytes ??= GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
-                        series.Source.CopyBytesTo(offset, fallbackBytes.AsSpan(0, count * sizeof(float)));
-
-                        await JSRuntime.InvokeVoidAsync(
-                            "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, fallbackBytes, count * sizeof(float));
-                    }
-                }
-                else
-                {
-                    fallbackBytes ??= GC.AllocateUninitializedArray<byte>(chunkLength * sizeof(float));
-                    series.Source.CopyBytesTo(offset, fallbackBytes.AsSpan(0, count * sizeof(float)));
-
-                    await JSRuntime.InvokeVoidAsync(
-                        "nexus.chartWebGpu.appendChunkedSeries", _chartId, uploadToken.Value, offset, fallbackBytes, count * sizeof(float));
-                }
+                offset += segment.Count;
             }
 
             if (_disposed || webGpuGeneration != _webGpuGeneration)

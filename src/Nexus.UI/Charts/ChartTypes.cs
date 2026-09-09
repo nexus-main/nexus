@@ -176,18 +176,18 @@ internal sealed class LineSeriesSource
         CopyTo(offset, MemoryMarshal.Cast<byte, float>(destination));
     }
 
-    internal bool TryGetContiguousArraySegment(long offset, int count, out ArraySegment<float> segment)
+    internal bool TryGetNextContiguousArraySegment(long offset, int maximumCount, out ArraySegment<float> segment)
     {
         if (offset < 0)
             throw new ArgumentOutOfRangeException(nameof(offset));
 
-        if (count < 0)
-            throw new ArgumentOutOfRangeException(nameof(count));
+        if (maximumCount < 0)
+            throw new ArgumentOutOfRangeException(nameof(maximumCount));
 
         lock (_gate)
         {
-            if (offset + count > _availableLength)
-                throw new ArgumentOutOfRangeException(nameof(count));
+            if (offset > _availableLength)
+                throw new ArgumentOutOfRangeException(nameof(offset));
 
             var relativeOffset = offset;
 
@@ -199,8 +199,9 @@ internal sealed class LineSeriesSource
                     continue;
                 }
 
-                if (relativeOffset + count <= chunk.Length && MemoryMarshal.TryGetArray(chunk, out var chunkSegment))
+                if (MemoryMarshal.TryGetArray(chunk, out var chunkSegment))
                 {
+                    var count = Math.Min(maximumCount, chunk.Length - checked((int)relativeOffset));
                     segment = new ArraySegment<float>(
                         chunkSegment.Array!,
                         chunkSegment.Offset + (int)relativeOffset,

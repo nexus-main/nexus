@@ -482,7 +482,7 @@
         return new Float32Array(bytes.buffer, bytes.byteOffset, actualByteLength / Float32Array.BYTES_PER_ELEMENT);
     }
 
-    function appendChunkedSeriesMemoryView(chartId, token, offset, dataReference, dataLength) {
+    function appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
         const instance = instances.get(chartId);
         const upload = instance?.chunkedUploadSessions.get(token);
         if (!upload)
@@ -513,30 +513,6 @@
         if (instances.get(chartId) !== instance || instance.chunkedUploadSessions.get(token) !== upload)
             throw ns.cancellationError(`Chunked series upload ${token} was superseded`);
 
-        if (range.hasValue) {
-            upload.rangeMinimum = upload.rangeHasValue ? Math.min(upload.rangeMinimum, range.minimum) : range.minimum;
-            upload.rangeMaximum = upload.rangeHasValue ? Math.max(upload.rangeMaximum, range.maximum) : range.maximum;
-            upload.rangeHasValue = true;
-        }
-
-        upload.writtenLength += count;
-    }
-
-    async function appendChunkedSeriesAsync(chartId, token, offset, dataReference, dataLength) {
-        const instance = await getInstance(chartId);
-        const upload = instance?.chunkedUploadSessions.get(token);
-        if (!upload)
-            throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
-        const values = await readFloatDataReferenceAsync(dataReference, dataLength);
-        const count = values.length;
-        if (offset !== upload.writtenLength || offset + count > upload.length)
-            throw new Error(`Chunked series upload ${token} expected sample offset ${upload.writtenLength}, received ${offset}`);
-
-        const range = await processOverviewChunkAsync(
-            instance, upload.transientBuffer, upload.paramsBuffer,
-            upload.bindGroup, offset, values, count);
-        if (instances.get(chartId) !== instance || instance.chunkedUploadSessions.get(token) !== upload)
-            throw ns.cancellationError(`Chunked series upload ${token} was superseded`);
         if (range.hasValue) {
             upload.rangeMinimum = upload.rangeHasValue ? Math.min(upload.rangeMinimum, range.minimum) : range.minimum;
             upload.rangeMaximum = upload.rangeHasValue ? Math.max(upload.rangeMaximum, range.maximum) : range.maximum;
@@ -894,8 +870,8 @@
     Object.assign(ns, {
         getSyntheticWorker, cancelWorkerRequest, getSeriesKey, destroySeriesBuffer, destroyRawChunk,
         evictRawChunks, removeRawSeries, cancelGeneration, synchronizeSeries, generateSyntheticSeriesAsync,
-        destroyChunkedUpload, beginChunkedSeriesAsync, appendChunkedSeriesAsync,
-        appendChunkedSeriesMemoryView, processChunkedSeriesUploadAsync,
+        destroyChunkedUpload, beginChunkedSeriesAsync,
+        appendChunkedSeries, processChunkedSeriesUploadAsync,
         completeChunkedSeriesAsync, abortChunkedSeries, provideSeriesChunkAsync,
         getSeriesBuffer, getPreviewRenderKey, calculateSeriesRangeAsync, rawChunkKey, requestRawChunk,
         rerenderLastPayloads, getRawRenderItems,

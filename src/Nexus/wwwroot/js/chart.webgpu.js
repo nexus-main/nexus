@@ -7,8 +7,8 @@
         reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, getSyntheticWorker, evictRawChunks,
         createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
         synchronizeSeries,
-        generateSyntheticSeriesAsync, beginChunkedSeriesAsync, appendChunkedSeriesAsync,
-        appendChunkedSeriesMemoryView: appendChunkedSeriesMemoryViewImpl,
+        generateSyntheticSeriesAsync, beginChunkedSeriesAsync,
+        appendChunkedSeries: appendChunkedSeriesImpl,
         processChunkedSeriesUploadAsync,
         completeChunkedSeriesAsync, abortChunkedSeries, provideSeriesChunkAsync,
         getSeriesBuffer, getPreviewRenderKey, getRawRenderItems,
@@ -520,11 +520,7 @@
                 beginChunkedSeriesAsync(chartId, id, version, length));
         },
         appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
-            return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
-                appendChunkedSeriesAsync(chartId, token, offset, dataReference, dataLength));
-        },
-        appendChunkedSeriesMemoryView(chartId, token, offset, dataReference, dataLength) {
-            appendChunkedSeriesMemoryViewImpl(chartId, token, offset, dataReference, dataLength);
+            appendChunkedSeriesImpl(chartId, token, offset, dataReference, dataLength);
         },
         processChunkedSeriesUpload(chartId, token, offset, count) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>

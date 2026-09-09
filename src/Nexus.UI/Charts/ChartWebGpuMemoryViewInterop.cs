@@ -7,8 +7,8 @@ namespace Nexus.UI.Charts;
 
 internal static partial class ChartWebGpuMemoryViewInterop
 {
-    [JSImport("globalThis.nexus.chartWebGpu.appendChunkedSeriesMemoryView")]
-    internal static partial void AppendChunkedSeriesMemoryView(
+    [JSImport("globalThis.nexus.chartWebGpu.appendChunkedSeries")]
+    internal static partial void AppendChunkedSeries(
         string chartId,
         [JSMarshalAs<JSType.Number>] long token,
         double offset,
