@@ -3,7 +3,6 @@
   <PropertyGroup>
     <AssemblyName>Nexus.Api</AssemblyName>
     <TargetFramework>$(TargetFrameworkVersion)</TargetFramework>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <PropertyGroup>
