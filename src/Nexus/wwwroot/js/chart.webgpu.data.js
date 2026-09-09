@@ -50,6 +50,41 @@
         instance.rawChunks.delete(key);
     }
 
+    function destroyRawRequest(instance, key, request) {
+        if (instance.rawRequests.get(key) === request)
+            instance.rawRequests.delete(key);
+
+        instance.workerCallbacks.delete(request.requestId);
+
+        if (request.reservationActive) {
+            instance.rawReservedBytes -= request.byteLength;
+            request.reservationActive = false;
+        }
+
+        ns.destroyTrackedBuffer(instance, request.buffer);
+    }
+
+    function completeRawRequest(instance, key, request, buffer, length) {
+        request.buffer = null;
+        const chunk = {
+            id: request.id,
+            buffer,
+            pointBuffer: buffer,
+            dataMode: 0,
+            decimations: new Map(),
+            offset: request.offset,
+            length,
+            byteLength: request.byteLength,
+            lastUsed: performance.now(),
+        };
+
+        instance.rawChunks.set(key, chunk);
+        destroyRawRequest(instance, key, request);
+        evictRawChunks(instance, 0);
+        request.resolve(chunk);
+        rerenderLastPayloads(instance);
+    }
+
     function evictRawChunks(instance, requiredBytes, protectedKeys = new Set(), budget = instance.cacheBudget) {
         const candidates = [...instance.rawChunks.entries()]
             .filter(([key]) => !protectedKeys.has(key))
@@ -71,9 +106,8 @@
         for (const [key, request] of instance.rawRequests) {
             if (request.id === id) {
                 cancelWorkerRequest(instance, request.requestId);
-                instance.rawReservedBytes -= request.byteLength;
                 request.reject(ns.cancellationError(`Raw chunk request superseded for series ${id}`));
-                instance.rawRequests.delete(key);
+                destroyRawRequest(instance, key, request);
             }
         }
 
@@ -700,18 +734,21 @@
             resolveRequest = resolve;
             rejectRequest = reject;
         });
-        const request = { id: source.id, requestId, promise, reject: rejectRequest, byteLength };
-        let reservationActive = true;
+        const buffer = source.synthetic
+            ? null
+            : ns.createTrackedBuffer(instance, {
+                size: byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            });
+        const request = {
+            id: source.id, requestId, promise, resolve: resolveRequest, reject: rejectRequest, byteLength,
+            buffer, offset, count, writtenLength: 0, reservationActive: true,
+        };
         instance.rawRequests.set(key, request);
         const callbacks = {
             byteLength,
             onerror: event => {
-                instance.rawRequests.delete(key);
-                instance.workerCallbacks.delete(requestId);
-                if (reservationActive) {
-                    instance.rawReservedBytes -= byteLength;
-                    reservationActive = false;
-                }
+                destroyRawRequest(instance, key, request);
                 rejectRequest(new Error(`Raw chunk ${chunkIndex} generation failed: ${event.message}`));
             },
             onmessage: event => {
@@ -723,36 +760,20 @@
                         throw ns.cancellationError(`Raw chunk request superseded for series ${source.id}`);
 
                     const values = event.data.values;
-                    instance.rawReservedBytes -= byteLength;
-                    reservationActive = false;
-                    const buffer = ns.createTrackedBuffer(instance, {
+                    const syntheticBuffer = ns.createTrackedBuffer(instance, {
                         size: values.byteLength,
                         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
                     });
-                    instance.device.queue.writeBuffer(buffer, 0, values);
-                    const chunk = {
-                        id: source.id, buffer, pointBuffer: buffer, dataMode: 0, decimations: new Map(),
-                        offset, length: values.length, byteLength: values.byteLength, lastUsed: performance.now(),
-                    };
-                    instance.rawChunks.set(key, chunk);
-                    instance.rawRequests.delete(key);
-                    instance.workerCallbacks.delete(requestId);
-                    evictRawChunks(instance, 0);
-                    resolveRequest(chunk);
-                    rerenderLastPayloads(instance);
+                    instance.device.queue.writeBuffer(syntheticBuffer, 0, values);
+                    completeRawRequest(instance, key, request, syntheticBuffer, values.length);
                 } catch (error) {
-                    instance.rawRequests.delete(key);
-                    instance.workerCallbacks.delete(requestId);
-                    if (reservationActive) {
-                        instance.rawReservedBytes -= byteLength;
-                        reservationActive = false;
-                    }
+                    destroyRawRequest(instance, key, request);
                     rejectRequest(error);
                 }
             },
         };
-        instance.workerCallbacks.set(requestId, callbacks);
         if (source.synthetic) {
+            instance.workerCallbacks.set(requestId, callbacks);
             getSyntheticWorker(instance).postMessage({ type: 'raw', requestId, offset, count, kind: source.kind });
         } else {
             const helper = dotNetHelpers.get(source.chartId);
@@ -765,22 +786,34 @@
         return promise;
     }
 
-    async function provideSeriesChunkAsync(chartId, requestId, dataReference, dataLength) {
+    function appendSeriesChunk(chartId, requestId, offset, dataReference, dataLength) {
         const instance = instances.get(chartId);
-        const callbacks = instance?.workerCallbacks.get(requestId);
-        if (!callbacks)
-            return;
+        const request = [...instance?.rawRequests.values() ?? []]
+            .find(item => item.requestId === requestId);
+        if (!request)
+            throw ns.cancellationError(`Raw chunk request ${requestId} is no longer active`);
 
-        const values = await readFloatDataReferenceAsync(dataReference, dataLength);
-        if (values.byteLength !== callbacks.byteLength)
-            throw new Error(`Raw chunk response ${requestId} has an unexpected byte length`);
+        const values = readFloatDataReferenceSync(dataReference, dataLength);
+        const byteOffset = offset * Float32Array.BYTES_PER_ELEMENT;
+        const byteLength = values.byteLength;
 
-        callbacks.onmessage({
-            data: {
-                requestId,
-                values,
-            },
-        });
+        if (!request.buffer)
+            throw new Error(`Raw chunk request ${requestId} has no destination buffer`);
+
+        if (offset !== request.writtenLength || offset + values.length > request.count)
+            throw new Error(`Raw chunk request ${requestId} expected sample offset ${request.writtenLength}, received ${offset}`);
+
+        instance.device.queue.writeBuffer(request.buffer, byteOffset, values);
+        request.writtenLength += values.length;
+
+        if (request.writtenLength === request.count) {
+            const key = [...instance.rawRequests.entries()]
+                .find(([, item]) => item === request)?.[0];
+            if (!key)
+                throw ns.cancellationError(`Raw chunk request ${requestId} was removed before completion`);
+
+            completeRawRequest(instance, key, request, request.buffer, request.count);
+        }
     }
 
     function rerenderLastPayloads(instance) {
@@ -872,7 +905,8 @@
         evictRawChunks, removeRawSeries, cancelGeneration, synchronizeSeries, generateSyntheticSeriesAsync,
         destroyChunkedUpload, beginChunkedSeriesAsync,
         appendChunkedSeries, processChunkedSeriesUploadAsync,
-        completeChunkedSeriesAsync, abortChunkedSeries, provideSeriesChunkAsync,
+        appendSeriesChunk,
+        completeChunkedSeriesAsync, abortChunkedSeries,
         getSeriesBuffer, getPreviewRenderKey, calculateSeriesRangeAsync, rawChunkKey, requestRawChunk,
         rerenderLastPayloads, getRawRenderItems,
     });

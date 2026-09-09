@@ -621,10 +621,20 @@ public partial class Chart : IDisposable
         if (!await series.Source.WaitForRangeAsync(offset, count).ConfigureAwait(false))
             throw new InvalidOperationException($"Raw data request for series '{seriesId}' is not available.");
 
-        var bytes = GC.AllocateUninitializedArray<byte>(count * sizeof(float));
-        series.Source.CopyBytesTo(offset, bytes);
+        for (var written = 0; written < count;)
+        {
+            if (!series.Source.TryGetNextContiguousArraySegment(offset + written, count - written, out var segment))
+                throw new InvalidOperationException($"Series '{series.Id}' data is not backed by a contiguous array segment.");
 
-        await JSRuntime.InvokeVoidAsync("nexus.chartWebGpu.provideSeriesChunk", _chartId, requestId, bytes, bytes.Length);
+            ChartWebGpuMemoryViewInterop.AppendSeriesChunk(
+                _chartId,
+                requestId,
+                written,
+                MemoryMarshal.AsBytes(segment.AsSpan()),
+                segment.Count * sizeof(float));
+
+            written += segment.Count;
+        }
     }
 
     private async Task<SeriesRange> GenerateSyntheticSeriesAsync(LineSeries series, int dataVersion, long length, int webGpuGeneration)

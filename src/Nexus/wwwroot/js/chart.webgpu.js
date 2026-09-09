@@ -10,7 +10,8 @@
         generateSyntheticSeriesAsync, beginChunkedSeriesAsync,
         appendChunkedSeries: appendChunkedSeriesImpl,
         processChunkedSeriesUploadAsync,
-        completeChunkedSeriesAsync, abortChunkedSeries, provideSeriesChunkAsync,
+        completeChunkedSeriesAsync, abortChunkedSeries,
+        appendSeriesChunk: appendSeriesChunkImpl,
         getSeriesBuffer, getPreviewRenderKey, getRawRenderItems,
         uniformBufferSize, fillVerticesPerSegment, lineVerticesPerSegment, decimationFactor,
         decimationBucketsPerPixel, maxDecimationBuckets, overviewBucketSize, reducedPointsPerBucket, rawChunkLength,
@@ -533,9 +534,8 @@
         abortChunkedSeries(chartId, token) {
             abortChunkedSeries(chartId, token);
         },
-        provideSeriesChunk(chartId, requestId, dataReference, dataLength) {
-            return runRuntimeOperation(chartId, 'WebGPU data loading failed', () =>
-                provideSeriesChunkAsync(chartId, requestId, dataReference, dataLength));
+        appendSeriesChunk(chartId, requestId, offset, dataReference, dataLength) {
+            appendSeriesChunkImpl(chartId, requestId, offset, dataReference, dataLength);
         },
         renderSeries(chartId, payload) {
             scheduleRender(chartId, payload)

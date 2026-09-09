@@ -134,48 +134,6 @@ internal sealed class LineSeriesSource
         }
     }
 
-    internal void CopyTo(long offset, Span<float> destination)
-    {
-        lock (_gate)
-        {
-            if (offset < 0 || offset > _availableLength - destination.Length)
-                throw new InvalidOperationException("The requested series data is not available.");
-
-            var chunkOffset = 0L;
-            var destinationOffset = 0;
-
-            foreach (var chunk in _chunks)
-            {
-                if (offset >= chunkOffset + chunk.Length)
-                {
-                    chunkOffset += chunk.Length;
-                    continue;
-                }
-
-                var sourceOffset = checked((int)(offset - chunkOffset));
-                var count = Math.Min(chunk.Length - sourceOffset, destination.Length - destinationOffset);
-                chunk.Span.Slice(sourceOffset, count).CopyTo(destination[destinationOffset..]);
-                destinationOffset += count;
-
-                if (destinationOffset == destination.Length)
-                    return;
-
-                offset += count;
-                chunkOffset += chunk.Length;
-            }
-        }
-
-        throw new InvalidOperationException("The requested series data is not available.");
-    }
-
-    internal void CopyBytesTo(long offset, Span<byte> destination)
-    {
-        if (destination.Length % sizeof(float) != 0)
-            throw new ArgumentException("The destination length must be a multiple of the float size.", nameof(destination));
-
-        CopyTo(offset, MemoryMarshal.Cast<byte, float>(destination));
-    }
-
     internal bool TryGetNextContiguousArraySegment(long offset, int maximumCount, out ArraySegment<float> segment)
     {
         if (offset < 0)

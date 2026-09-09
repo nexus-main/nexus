@@ -14,4 +14,12 @@ internal static partial class ChartWebGpuMemoryViewInterop
         double offset,
         [JSMarshalAs<JSType.MemoryView>] Span<byte> data,
         int byteLength);
+
+    [JSImport("globalThis.nexus.chartWebGpu.appendSeriesChunk")]
+    internal static partial void AppendSeriesChunk(
+        string chartId,
+        [JSMarshalAs<JSType.Number>] long requestId,
+        double offset,
+        [JSMarshalAs<JSType.MemoryView>] Span<byte> data,
+        int byteLength);
 }
