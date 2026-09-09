@@ -5,6 +5,8 @@ using System.ComponentModel;
 using Nexus.Api;
 using Nexus.Api.V1;
 using TaskStatus = Nexus.Api.V1.TaskStatus;
+using Job = Nexus.Api.V2.Job;
+using ExportParameters = Nexus.Api.V2.ExportParameters;
 
 namespace Nexus.UI.ViewModels;
 
@@ -40,7 +42,8 @@ public class JobViewModel : INotifyPropertyChanged
                 }
 
                 await Task.Delay(TimeSpan.FromMilliseconds(500));
-            };
+            }
+            ;
         });
     }
 

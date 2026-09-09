@@ -101,7 +101,7 @@ public class DataModelFixture
 
         // representations
         Representation0_V0 = new Representation(
-            dataType: NexusDataType.FLOAT32,
+            dataType: NexusDataType.Float32,
             samplePeriod: TimeSpan.FromMinutes(10));
 
         Representation0_V1 = Representation0_V0;
@@ -111,11 +111,11 @@ public class DataModelFixture
         Representation0_Vxor = Representation0_V0;
 
         Representation1_V0 = new Representation(
-           dataType: NexusDataType.FLOAT64,
+           dataType: NexusDataType.Float64,
            samplePeriod: TimeSpan.FromMinutes(20));
 
         Representation2_V0 = new Representation(
-           dataType: NexusDataType.UINT16,
+           dataType: NexusDataType.UInt16,
            samplePeriod: TimeSpan.FromMinutes(100));
     }
 

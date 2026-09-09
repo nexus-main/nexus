@@ -91,6 +91,9 @@ jobs:
         run: |
           dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi_new.json
           diff --strip-trailing-cr openapi.json openapi_new.json
+          diff --strip-trailing-cr openapi.v2.json openapi_new.v2.json
+          # Fail if generated clients changed, which means committed client sources are stale.
+          test -z "$(git status --porcelain -- src/clients/dotnet src/clients/python/nexus_api)"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

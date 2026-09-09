@@ -41,19 +41,19 @@ public partial class ChartTestPage
                 "Wind speed",
                 "m/s",
                 TimeSpan.FromMilliseconds(500),
-                []) { SyntheticKind = SyntheticSeriesKind.WindSpeed, SyntheticLength = pointCount },
+                ReadOnlyMemory<float>.Empty) { SyntheticKind = SyntheticSeriesKind.WindSpeed, SyntheticLength = pointCount },
 
             new(
                 "Temperature",
                 "°C",
                 TimeSpan.FromSeconds(1),
-                []) { SyntheticKind = SyntheticSeriesKind.Temperature, SyntheticLength = oneSecondPointCount },
+                ReadOnlyMemory<float>.Empty) { SyntheticKind = SyntheticSeriesKind.Temperature, SyntheticLength = oneSecondPointCount },
 
             new(
                 "Pressure",
                 "mbar",
                 TimeSpan.FromSeconds(1),
-                []) { SyntheticKind = SyntheticSeriesKind.Pressure, SyntheticLength = oneSecondPointCount }
+                ReadOnlyMemory<float>.Empty) { SyntheticKind = SyntheticSeriesKind.Pressure, SyntheticLength = oneSecondPointCount }
         };
 
         _lineSeriesData = new LineSeriesData(begin, end, lineSeries);

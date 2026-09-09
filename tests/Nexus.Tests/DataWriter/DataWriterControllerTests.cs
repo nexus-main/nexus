@@ -7,6 +7,7 @@ using Nexus.Core;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.IO.Pipelines;
+using System.Runtime.InteropServices;
 using Xunit;
 
 namespace DataWriter;
@@ -52,11 +53,11 @@ public class DataWriterControllerTests(DataWriterFixture fixture)
         var totalLength = (end - begin).Ticks / samplePeriod.Ticks;
 
         var expectedDatasets = pipes
-            .Select(pipe => Enumerable.Range(0, (int)totalLength).Select(value => random.NextDouble()).ToArray())
+            .Select(pipe => Enumerable.Range(0, (int)totalLength).Select(value => (float)random.NextDouble()).ToArray())
             .ToArray();
 
         var actualDatasets = pipes
-           .Select(pipe => Enumerable.Range(0, (int)totalLength).Select(value => 0.0).ToArray())
+           .Select(pipe => Enumerable.Range(0, (int)totalLength).Select(value => 0.0f).ToArray())
            .ToArray();
 
         // mock IDataWriter
@@ -90,7 +91,7 @@ public class DataWriterControllerTests(DataWriterFixture fixture)
 
                 foreach (var ((catalogItem, source), target) in requests.Zip(actualDatasets))
                 {
-                    source.Span.CopyTo(target.AsSpan(fileElementOffset + fileNo * fileLength));
+                    MemoryMarshal.Cast<byte, float>(source.Span).CopyTo(target.AsSpan(fileElementOffset + fileNo * fileLength));
                 }
             })
             .Returns(Task.CompletedTask);
@@ -102,6 +103,7 @@ public class DataWriterControllerTests(DataWriterFixture fixture)
             dataWriter,
             resourceLocator,
             default!,
+            Precision.Float32,
             NullLogger<DataWriterController>.Instance);
 
         await controller.InitializeAsync(default!, CancellationToken.None);
@@ -123,7 +125,7 @@ public class DataWriterControllerTests(DataWriterFixture fixture)
                     var buffer = dataset
                         .AsMemory()
                         .Slice(offset, currentChunk)
-                        .Cast<double, byte>();
+                        .Cast<float, byte>();
 
                     await pipe.Writer.WriteAsync(buffer);
                 }

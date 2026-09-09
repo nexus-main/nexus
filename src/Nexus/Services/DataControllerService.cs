@@ -7,6 +7,7 @@ using Apollo3zehn.PackageManagement.Services;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.V1;
+using V2 = Nexus.Core.V2;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 
@@ -20,7 +21,7 @@ internal interface IDataControllerService
 
     Task<IDataWriterController> GetDataWriterControllerAsync(
         Uri resourceLocator,
-        ExportParameters exportParameters,
+        V2.ExportParameters exportParameters,
         CancellationToken cancellationToken);
 }
 
@@ -69,12 +70,19 @@ internal class DataControllerService(
             pipeline,
             registration => new ConcurrentDictionary<string, ResourceCatalog>());
 
-        await controller.InitializeAsync(catalogCache, _loggerFactory, cancellationToken);
-
-        return controller;
+        try
+        {
+            await controller.InitializeAsync(catalogCache, _loggerFactory, cancellationToken);
+            return controller;
+        }
+        catch
+        {
+            controller.Dispose();
+            throw;
+        }
     }
 
-    public async Task<IDataWriterController> GetDataWriterControllerAsync(Uri resourceLocator, ExportParameters exportParameters, CancellationToken cancellationToken)
+    public async Task<IDataWriterController> GetDataWriterControllerAsync(Uri resourceLocator, V2.ExportParameters exportParameters, CancellationToken cancellationToken)
     {
         var logger1 = _loggerFactory.CreateLogger<DataWriterController>();
         var logger2 = _loggerFactory.CreateLogger($"{exportParameters.Type} - {resourceLocator}");
@@ -86,11 +94,19 @@ internal class DataControllerService(
             dataWriter,
             resourceLocator,
             requestConfiguration: requestConfiguration,
+            precision: exportParameters.Precision,
             logger1);
 
-        await controller.InitializeAsync(logger2, cancellationToken);
-
-        return controller;
+        try
+        {
+            await controller.InitializeAsync(logger2, cancellationToken);
+            return controller;
+        }
+        catch
+        {
+            controller.Dispose();
+            throw;
+        }
     }
 
     private IReadOnlyDictionary<string, JsonElement>? GetRequestConfiguration()

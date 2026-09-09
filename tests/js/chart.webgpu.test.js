@@ -274,11 +274,9 @@ test('invalid chunked uploads destroy partial buffers and fail the chart', async
     await settle();
 
     const token = await environment.api.beginChunkedSeries('chart', 'series', 1, 4);
-    const stream = bytes => ({ arrayBuffer: async () => Uint8Array.from(bytes).buffer });
-
     const upload = environment.hooks.instances.get('chart').chunkedUploadSessions.get(token);
-    await assert.rejects(
-        environment.api.appendChunkedSeries('chart', token, 1, stream([0, 0, 0, 0])),
+    assert.throws(
+        () => environment.api.appendChunkedSeries('chart', token, 1, new Float32Array([0])),
         /expected sample offset 0/);
     await settle();
 
@@ -347,11 +345,14 @@ test('raw chunks selected earlier in a frame remain pinned under later cache pre
     await settle();
     const instance = environment.hooks.instances.get('chart');
     const firstBuffer = createBuffer(12);
+    firstBuffer.__nexusByteLength = 12;
+    firstBuffer.__nexusDestroyed = false;
     const firstChunk = {
         id: 'first', buffer: firstBuffer, pointBuffer: firstBuffer, byteLength: 12,
         offset: 0, length: 3, lastUsed: 1, dataMode: 0, decimations: new Map(),
     };
     instance.rawChunks.set('first:1:0', firstChunk);
+    instance.ownedGpuBytes = 12;
     instance.cacheBudget = 12;
     instance.uploadGenerations.set('first', 1);
     instance.uploadGenerations.set('second', 1);
@@ -561,10 +562,11 @@ test('chunked series keeps only its overview resident', async () => {
     await settle();
     const length = 1024;
     const overviewBytes = Math.ceil(length / 256) * 3 * 2 * Float32Array.BYTES_PER_ELEMENT;
-    const stream = { arrayBuffer: async () => new Float32Array(length).buffer };
+    const values = new Float32Array(length);
 
     const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length);
-    await environment.api.appendChunkedSeries('chart', token, 0, stream);
+    environment.api.appendChunkedSeries('chart', token, 0, values);
+    await environment.api.processChunkedSeriesUpload('chart', token, 0, length);
     await environment.api.completeChunkedSeries('chart', token);
 
     const instance = environment.hooks.instances.get('chart');
@@ -572,6 +574,24 @@ test('chunked series keeps only its overview resident', async () => {
     assert.equal(source.chunked, true);
     assert.equal(source.buffer.size, overviewBytes);
     assert.equal(instance.ownedGpuBytes, overviewBytes);
+});
+
+test('chunked series accepts source-generated MemoryView spans synchronously', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const values = new Float32Array([1, 2, 3, 4]);
+    const memoryView = {
+        _unsafe_create_view() { return new Uint8Array(values.buffer); },
+    };
+
+    const token = await environment.api.beginChunkedSeries('chart', 'series', 0, values.length);
+    environment.api.appendChunkedSeries('chart', token, 0, memoryView, values.byteLength);
+    await environment.api.processChunkedSeriesUpload('chart', token, 0, values.length);
+    await environment.api.completeChunkedSeries('chart', token);
+
+    const instance = environment.hooks.instances.get('chart');
+    assert.equal(instance.seriesBuffers.has(`series:0:${values.length}`), true);
 });
 
 test('chunked series requests raw detail from its .NET provider', async () => {
@@ -599,9 +619,7 @@ test('chunked series requests raw detail from its .NET provider', async () => {
     assert.equal(calls[0][0], 'ProvideSeriesChunk');
     assert.deepEqual(calls[0].slice(1, 4), ['series', 0, 3]);
     const requestId = calls[0][4];
-    await environment.api.provideSeriesChunk('chart', requestId, {
-        arrayBuffer: async () => new Float32Array([1, 2, 3]).buffer,
-    });
+    environment.api.appendSeriesChunk('chart', requestId, 0, new Float32Array([1, 2, 3]));
     assert.equal(instance.rawChunks.get('series:0:0').length, 3);
 });
 

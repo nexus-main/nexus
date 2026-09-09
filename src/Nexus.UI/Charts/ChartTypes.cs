@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using SkiaSharp;
+using System.Runtime.InteropServices;
 
 namespace Nexus.UI.Charts;
 
@@ -20,12 +21,12 @@ public record LineSeriesData(
 
 public sealed class LineSeries
 {
-    public LineSeries(string name, string unit, TimeSpan samplePeriod, double[] data)
-        : this(name, unit, samplePeriod, LineSeriesSource.FromArray(data))
+    public LineSeries(string name, string unit, TimeSpan samplePeriod, ReadOnlyMemory<float> data)
+        : this(name, unit, samplePeriod, new LineSeriesSource(data))
     {
     }
 
-    private LineSeries(string name, string unit, TimeSpan samplePeriod, LineSeriesSource source)
+    internal LineSeries(string name, string unit, TimeSpan samplePeriod, LineSeriesSource source)
     {
         Name = name;
         Unit = unit;
@@ -41,39 +42,170 @@ public sealed class LineSeries
     internal string Id { get; } = Guid.NewGuid().ToString();
     internal SKColor Color { get; set; }
     internal SyntheticSeriesKind? SyntheticKind { get; init; }
-    internal int SyntheticLength { get; init; }
+    internal long SyntheticLength { get; init; }
 }
 
 internal sealed class LineSeriesSource
 {
-    private LineSeriesSource(double[] values)
+    private readonly object _gate = new();
+    private readonly List<ReadOnlyMemory<float>> _chunks = [];
+    private TaskCompletionSource _changed = CreateCompletionSource();
+    private bool _completed;
+    private long _availableLength;
+    private int _version;
+
+    public LineSeriesSource(ReadOnlyMemory<float> values)
     {
-        Values = values;
+        _chunks.Add(values);
+        _availableLength = values.Length;
         Length = values.Length;
+        _completed = true;
     }
 
-    public int Length { get; }
-    private double[] Values { get; }
-
-    public static LineSeriesSource FromArray(double[] values)
+    public LineSeriesSource(long length)
     {
-        ArgumentNullException.ThrowIfNull(values);
-        return new LineSeriesSource((double[])values.Clone());
+        Length = length;
     }
 
-    internal ReadOnlyMemory<double> Read(int offset, int count) => Values.AsMemory(offset, count);
+    public long Length { get; }
+    internal int Version => _version;
 
-    internal bool TryGetValue(int index, out double value)
+    internal void AddChunk(ReadOnlyMemory<float> values)
     {
-        if ((uint)index < (uint)Values.Length)
+        TaskCompletionSource changed;
+
+        lock (_gate)
         {
-            value = Values[index];
-            return true;
+            if (_completed)
+                throw new InvalidOperationException("The series source is already complete.");
+
+            if (_availableLength + values.Length > Length)
+                throw new InvalidOperationException("The series source contains more data than expected.");
+
+            _chunks.Add(values);
+            _availableLength += values.Length;
+            _version++;
+            changed = _changed;
+            _changed = CreateCompletionSource();
+        }
+
+        changed.SetResult();
+    }
+
+    internal void Complete()
+    {
+        TaskCompletionSource changed;
+
+        lock (_gate)
+        {
+            if (_availableLength != Length)
+                throw new InvalidOperationException("The series source is incomplete.");
+
+            _completed = true;
+            _version++;
+            changed = _changed;
+            _changed = CreateCompletionSource();
+        }
+
+        changed.SetResult();
+    }
+
+    internal async Task<bool> WaitForRangeAsync(long offset, int count)
+    {
+        while (true)
+        {
+            Task changed;
+
+            lock (_gate)
+            {
+                if (offset < 0 || count < 0 || offset > Length - count)
+                    return false;
+
+                if (offset + count <= _availableLength)
+                    return true;
+
+                if (_completed)
+                    return false;
+
+                changed = _changed.Task;
+            }
+
+            await changed.ConfigureAwait(false);
+        }
+    }
+
+    internal bool TryGetNextContiguousArraySegment(long offset, int maximumCount, out ArraySegment<float> segment)
+    {
+        if (offset < 0)
+            throw new ArgumentOutOfRangeException(nameof(offset));
+
+        if (maximumCount < 0)
+            throw new ArgumentOutOfRangeException(nameof(maximumCount));
+
+        lock (_gate)
+        {
+            if (offset > _availableLength)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+
+            var relativeOffset = offset;
+
+            foreach (var chunk in _chunks)
+            {
+                if (relativeOffset >= chunk.Length)
+                {
+                    relativeOffset -= chunk.Length;
+                    continue;
+                }
+
+                if (MemoryMarshal.TryGetArray(chunk, out var chunkSegment))
+                {
+                    var count = Math.Min(maximumCount, chunk.Length - checked((int)relativeOffset));
+                    segment = new ArraySegment<float>(
+                        chunkSegment.Array!,
+                        chunkSegment.Offset + (int)relativeOffset,
+                        count);
+
+                    return true;
+                }
+
+                break;
+            }
+        }
+
+        segment = default;
+        return false;
+    }
+
+    internal bool TryGetValue(long index, out float value)
+    {
+        lock (_gate)
+        {
+            if ((ulong)index >= (ulong)_availableLength)
+            {
+                value = 0;
+                return false;
+            }
+
+            var offset = 0L;
+
+            foreach (var chunk in _chunks)
+            {
+                if (index < offset + chunk.Length)
+                {
+                    value = chunk.Span[checked((int)(index - offset))];
+                    return true;
+                }
+
+                offset += chunk.Length;
+            }
         }
 
         value = 0;
         return false;
     }
+
+    private static TaskCompletionSource CreateCompletionSource() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
 
 internal enum SyntheticSeriesKind

@@ -7,8 +7,11 @@
         reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, getSyntheticWorker, evictRawChunks,
         createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
         synchronizeSeries,
-        generateSyntheticSeriesAsync, beginChunkedSeriesAsync, appendChunkedSeriesAsync,
-        completeChunkedSeriesAsync, abortChunkedSeries, provideSeriesChunkAsync,
+        generateSyntheticSeriesAsync, beginChunkedSeriesAsync,
+        appendChunkedSeries: appendChunkedSeriesImpl,
+        processChunkedSeriesUploadAsync,
+        completeChunkedSeriesAsync, abortChunkedSeries,
+        appendSeriesChunk: appendSeriesChunkImpl,
         getSeriesBuffer, getPreviewRenderKey, getRawRenderItems,
         uniformBufferSize, fillVerticesPerSegment, lineVerticesPerSegment, decimationFactor,
         decimationBucketsPerPixel, maxDecimationBuckets, overviewBucketSize, reducedPointsPerBucket, rawChunkLength,
@@ -439,7 +442,6 @@
 
         if (previewRenderKey !== null)
             instance.previewRenderKeys.set(target, previewRenderKey);
-
     }
 
     function scheduleRender(chartId, payload) {
@@ -518,9 +520,25 @@
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
                 beginChunkedSeriesAsync(chartId, id, version, length));
         },
-        appendChunkedSeries(chartId, token, offset, streamReference) {
+        appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
+            const epoch = getLifecycleEpoch(chartId);
+            try {
+                appendChunkedSeriesImpl(chartId, token, offset, dataReference, dataLength);
+            } catch (error) {
+                if (!isCancellationError(error)) {
+                    reportRuntimeFailure(
+                        chartId,
+                        epoch,
+                        'WebGPU upload failed',
+                        `${error?.message ?? error} Retry the chart to recreate its GPU resources.`);
+                }
+
+                throw error;
+            }
+        },
+        processChunkedSeriesUpload(chartId, token, offset, count) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
-                appendChunkedSeriesAsync(chartId, token, offset, streamReference));
+                processChunkedSeriesUploadAsync(chartId, token, offset, count));
         },
         completeChunkedSeries(chartId, token) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
@@ -529,9 +547,8 @@
         abortChunkedSeries(chartId, token) {
             abortChunkedSeries(chartId, token);
         },
-        provideSeriesChunk(chartId, requestId, streamReference) {
-            return runRuntimeOperation(chartId, 'WebGPU data loading failed', () =>
-                provideSeriesChunkAsync(chartId, requestId, streamReference));
+        appendSeriesChunk(chartId, requestId, offset, dataReference, dataLength) {
+            appendSeriesChunkImpl(chartId, requestId, offset, dataReference, dataLength);
         },
         renderSeries(chartId, payload) {
             scheduleRender(chartId, payload)

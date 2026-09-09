@@ -96,7 +96,7 @@ public class TestSource : TestSourceBase, IDataSource<TestSourceSettings?>
         if (catalog.Resources is null)
             return Task.FromResult(catalog);
 
-        var representation = new Representation(NexusDataType.UINT8, TimeSpan.FromSeconds(1));
+        var representation = new Representation(NexusDataType.UInt8, TimeSpan.FromSeconds(1));
         var resource = new Resource(id: "foo", representations: [representation]);
 
         var newCatalog = catalog with

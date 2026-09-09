@@ -52,6 +52,15 @@ internal static class NexusOpenApiExtensions
 
                 config.ApiGroupNames = [description.GroupName];
                 config.DocumentName = description.GroupName;
+
+                config.PostProcess = document =>
+                {
+                    if (document.Components.Schemas.TryGetValue("Precision", out var schema))
+                    {
+                        schema.ExtensionData ??= new Dictionary<string, object>();
+                        schema.ExtensionData["x-enum-values"] = new[] { 4, 8 };
+                    }
+                };
             });
         }
 

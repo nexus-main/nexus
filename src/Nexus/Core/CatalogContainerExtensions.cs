@@ -42,7 +42,7 @@ internal static class CatalogContainerExtensions
             if (!lazyCatalogInfo.Catalog.TryFind(parseResult, out baseCatalogItem))
                 return default;
 
-            var representation = new Representation(NexusDataType.FLOAT64, parseResult.SamplePeriod, default, parseResult.Kind);
+            var representation = new Representation(NexusDataType.Float64, parseResult.SamplePeriod, default, parseResult.Kind);
 
             catalogItem = baseCatalogItem with
             {

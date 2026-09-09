@@ -15,68 +15,68 @@ internal class Sample : IDataSource<object?>
 {
     public static readonly Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
 
-    private static readonly double[] DATA =
+    private static readonly float[] DATA =
     [
-        6.5,
-        6.7,
-        7.9,
-        8.1,
-        7.5,
-        7.6,
-        7.0,
-        6.5,
-        6.0,
-        5.9,
-        5.8,
-        5.2,
-        4.6,
-        5.0,
-        5.1,
-        4.9,
-        5.3,
-        5.8,
-        5.9,
-        6.1,
-        5.9,
-        6.3,
-        6.5,
-        6.9,
-        7.1,
-        6.9,
-        7.1,
-        7.2,
-        7.6,
-        7.9,
-        8.2,
-        8.1,
-        8.2,
-        8.0,
-        7.5,
-        7.7,
-        7.6,
-        8.0,
-        7.5,
-        7.2,
-        6.8,
-        6.5,
-        6.6,
-        6.6,
-        6.7,
-        6.2,
-        5.9,
-        5.7,
-        5.9,
-        6.3,
-        6.6,
-        6.7,
-        6.9,
-        6.5,
-        6.0,
-        5.8,
-        5.3,
-        5.8,
-        6.1,
-        6.8
+        6.5f,
+        6.7f,
+        7.9f,
+        8.1f,
+        7.5f,
+        7.6f,
+        7.0f,
+        6.5f,
+        6.0f,
+        5.9f,
+        5.8f,
+        5.2f,
+        4.6f,
+        5.0f,
+        5.1f,
+        4.9f,
+        5.3f,
+        5.8f,
+        5.9f,
+        6.1f,
+        5.9f,
+        6.3f,
+        6.5f,
+        6.9f,
+        7.1f,
+        6.9f,
+        7.1f,
+        7.2f,
+        7.6f,
+        7.9f,
+        8.2f,
+        8.1f,
+        8.2f,
+        8.0f,
+        7.5f,
+        7.7f,
+        7.6f,
+        8.0f,
+        7.5f,
+        7.2f,
+        6.8f,
+        6.5f,
+        6.6f,
+        6.6f,
+        6.7f,
+        6.2f,
+        5.9f,
+        5.7f,
+        5.9f,
+        6.3f,
+        6.6f,
+        6.7f,
+        6.9f,
+        6.5f,
+        6.0f,
+        5.8f,
+        5.3f,
+        5.8f,
+        6.1f,
+        6.8f
     ];
 
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
@@ -155,13 +155,17 @@ internal class Sample : IDataSource<object?>
     {
         var tasks = requests.Select(request =>
         {
-            var (_, catalogItem, data, status) = request;
+            var catalogItem = request.CatalogItem;
+            var data = request.Data;
+            var status = request.Status;
 
-            return Task.Run(() =>
+            return Task.Run(async () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var (catalog, resource, representation, _) = catalogItem;
+                var catalog = catalogItem.Catalog;
+                var resource = catalogItem.Resource;
+                var representation = catalogItem.Representation;
 
                 // check credentials
                 if (catalog.Id == RemoteCatalogId)
@@ -173,54 +177,66 @@ internal class Sample : IDataSource<object?>
                         throw new Exception("The provided credentials are invalid.");
                 }
 
-                double[] dataDouble;
-
                 var beginTime = ToUnixTimeStamp(begin);
                 var elementCount = data.Length / representation.ElementSize;
 
-                // unit time
+                // unix time
                 if (resource.Id.Contains("unix_time"))
                 {
                     var dt = representation.SamplePeriod.TotalSeconds;
-                    dataDouble = Enumerable.Range(0, elementCount).Select(i => i * dt + beginTime).ToArray();
+                    var target = MemoryMarshal.Cast<byte, double>(data.Span);
+
+                    for (int i = 0; i < elementCount; i++)
+                        target[i] = i * dt + beginTime;
                 }
 
                 // temperature or wind speed
                 else
                 {
-                    var offset = (long)beginTime;
                     var dataLength = DATA.Length;
+                    var sourceOffset = (int)(((long)beginTime % dataLength + dataLength) % dataLength);
+                    var target = MemoryMarshal.Cast<byte, float>(data.Span);
 
-                    dataDouble = new double[elementCount];
-
-                    for (int i = 0; i < elementCount; i++)
+                    while (!target.IsEmpty)
                     {
-                        dataDouble[i] = DATA[(offset + i) % dataLength];
+                        var source = DATA.AsSpan(sourceOffset);
+                        var count = Math.Min(source.Length, target.Length);
+                        source[..count].CopyTo(target);
+                        target = target[count..];
+                        sourceOffset = 0;
                     }
                 }
 
-                MemoryMarshal
-                    .AsBytes(dataDouble.AsSpan())
-                    .CopyTo(data.Span);
-
                 status.Span
                     .Fill(1);
+
+                await request.CompleteAsync();
             });
         }).ToList();
 
-        var finishedTasks = 0;
-
-        while (tasks.Count != 0)
+        try
         {
-            var task = await Task.WhenAny(tasks);
-            cancellationToken.ThrowIfCancellationRequested();
+            var finishedTasks = 0;
 
-            if (task.Exception is not null && task.Exception.InnerException is not null)
-                throw task.Exception.InnerException;
-
-            finishedTasks++;
-            progress.Report(finishedTasks / (double)requests.Length);
-            tasks.Remove(task);
+            while (tasks.Count != 0)
+            {
+                var task = await Task.WhenAny(tasks);
+                await task;
+                finishedTasks++;
+                progress.Report(finishedTasks / (double)requests.Length);
+                tasks.Remove(task);
+            }
+        }
+        finally
+        {
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch
+            {
+                // Preserve the first failure after every worker has unwound.
+            }
         }
     }
 
@@ -231,26 +247,26 @@ internal class Sample : IDataSource<object?>
             .WithUnit("°C")
             .WithDescription("Test Resource A")
             .WithGroups("Group 1")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var resourceB = new ResourceBuilder(id: "V1")
             .WithUnit("m/s")
             .WithDescription("Test Resource B")
             .WithGroups("Group 1")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var resourceC = new ResourceBuilder(id: "unix_time1")
             .WithDescription("Test Resource C")
             .WithGroups("Group 2")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromMilliseconds(40)))
+            .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromMilliseconds(40)))
             .Build();
 
         var resourceD = new ResourceBuilder(id: "unix_time2")
             .WithDescription("Test Resource D")
             .WithGroups("Group 2")
-            .AddRepresentation(new Representation(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var catalogBuilder = new ResourceCatalogBuilder(catalogId);

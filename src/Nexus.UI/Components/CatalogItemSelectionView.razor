@@ -131,7 +131,7 @@
             SelectedItem.Kinds.Add(kind);
             _kinds = GetKinds();
             AppState.Settings.CanExportChanged();
-            AppState.Settings.CanVisualizeChanged();
+            AppState.Settings.CanVisualizeSelectionChanged();
         }
 
         else
@@ -152,7 +152,7 @@
             SelectedItem.Kinds.Remove(kind);
             _kinds = GetKinds();
             AppState.Settings.CanExportChanged();
-            AppState.Settings.CanVisualizeChanged();   
+            AppState.Settings.CanVisualizeSelectionChanged();
         }
     }
 }

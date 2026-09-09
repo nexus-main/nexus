@@ -1,9 +1,7 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Net;
 using System.Runtime.InteropServices;
-using System.Security.Claims;
 using System.Text.Json;
 using Nexus.Api;
 using Nexus.Api.V1;
@@ -12,7 +10,12 @@ namespace Nexus.UI.Core;
 
 public class NexusDemoClient : INexusClient
 {
-    public IV1 V1 => throw new NotImplementedException();
+    private readonly V1 _v1 = new();
+    private readonly V2 _v2 = new();
+
+    public IV1 V1 => _v1;
+
+    public Api.V2.IV2 V2 => _v2;
 
     public void SignIn(string accessToken)
     {
@@ -28,13 +31,159 @@ public class NexusDemoClient : INexusClient
     {
         throw new NotImplementedException();
     }
+
+    public void Export(
+        DateTime begin,
+        DateTime end,
+        TimeSpan filePeriod,
+        string? fileFormat,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, object>? configuration,
+        string targetFolder,
+        Api.V2.Precision precision = Api.V2.Precision.Float32,
+        Action<double, string>? onProgress = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task ExportAsync(
+        DateTime begin,
+        DateTime end,
+        TimeSpan filePeriod,
+        string? fileFormat,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, object>? configuration,
+        string targetFolder,
+        Api.V2.Precision precision = Api.V2.Precision.Float32,
+        Action<double, string>? onProgress = default,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IReadOnlyDictionary<string, DataResponse<T>> Load<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default)
+        where T : struct
+    {
+        throw new NotImplementedException();
+    }
+
+    public IReadOnlyDictionary<string, ResourceInfo> Load<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>> bufferProvider,
+        Action<double>? onProgress = default)
+        where T : struct
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<IReadOnlyDictionary<string, DataResponse<T>>> LoadAsync<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<IReadOnlyDictionary<string, ResourceInfo>> LoadAsync<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>> bufferProvider,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct
+    {
+        if (typeof(T) != typeof(double) && typeof(T) != typeof(float))
+            throw new NotSupportedException($"The type {typeof(T)} is not supported.");
+
+        var resourcePathList = resourcePaths.ToList();
+        var catalogItemMap = await CatalogsDemoClient.SearchDemoCatalogItemsAsync(resourcePathList, cancellationToken);
+        var resourceInfoMap = new Dictionary<string, ResourceInfo>();
+
+        foreach (var resourcePath in resourcePathList)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var catalogItem = catalogItemMap[resourcePath];
+            var resource = catalogItem.Resource;
+            var requiredLength = checked((int)((end - begin).Ticks / catalogItem.Representation.SamplePeriod.Ticks));
+            var values = bufferProvider(resourcePath, requiredLength, requiredLength);
+
+            if (values.Length < requiredLength)
+                throw new ArgumentException($"The buffer provided for resource path '{resourcePath}' is too small. Required length: {requiredLength}. Provided length: {values.Length}.", nameof(bufferProvider));
+
+            FillDemoValues(values[..requiredLength], resourcePath);
+
+            resourceInfoMap[resourcePath] = new ResourceInfo(
+                catalogItem,
+                resource.Id,
+                GetStringProperty(resource, "unit"),
+                GetStringProperty(resource, "description"),
+                catalogItem.Representation.SamplePeriod);
+        }
+
+        onProgress?.Invoke(1);
+
+        return resourceInfoMap;
+
+        static string? GetStringProperty(Resource resource, string name)
+        {
+            return resource.Properties is not null &&
+                resource.Properties.TryGetValue(name, out var value) &&
+                value.ValueKind == JsonValueKind.String
+                    ? value.GetString()
+                    : null;
+        }
+
+        static void FillDemoValues(Memory<T> target, string resourcePath)
+        {
+            var offset = resourcePath.Contains("temperature") ? 7 : 12;
+            var factor = resourcePath.Contains("temperature") ? 0.3 : 3;
+            var random = new Random();
+
+            if (typeof(T) == typeof(double))
+            {
+                var values = MemoryMarshal.Cast<T, double>(target.Span);
+
+                for (var index = 0; index < values.Length; index++)
+                    values[index] = offset + random.NextDouble() * factor;
+            }
+            else
+            {
+                var values = MemoryMarshal.Cast<T, float>(target.Span);
+
+                for (var index = 0; index < values.Length; index++)
+                    values[index] = (float)(offset + random.NextDouble() * factor);
+            }
+        }
+    }
+}
+
+public class V2 : Api.V2.IV2
+{
+    private readonly DataV2DemoClient _data = new();
+
+    public Api.V2.IDataClient Data => _data;
+
+    public Api.V2.IJobsClient Jobs => throw new NotImplementedException();
 }
 
 public class V1 : IV1
 {
+    private readonly CatalogsDemoClient _catalogs = new();
+
     public IArtifactsClient Artifacts => throw new NotImplementedException();
 
-    public ICatalogsClient Catalogs => new CatalogsDemoClient();
+    public ICatalogsClient Catalogs => _catalogs;
 
     public IDataClient Data => new DataDemoClient();
 
@@ -82,7 +231,7 @@ public class CatalogsDemoClient : ICatalogsClient
             var resource1 = new Resource(
                 Id: "temperature",
                 Properties: properties1,
-                Representations: new List<Representation>() { new(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
+                Representations: new List<Representation>() { new(NexusDataType.Float64, TimeSpan.FromMinutes(1), default) }
             );
 
             var properties2 = new Dictionary<string, JsonElement>()
@@ -95,7 +244,7 @@ public class CatalogsDemoClient : ICatalogsClient
             var resource2 = new Resource(
                 Id: "wind_speed",
                 Properties: properties2,
-                Representations: new List<Representation>() { new(NexusDataType.FLOAT64, TimeSpan.FromMinutes(1), default) }
+                Representations: new List<Representation>() { new(NexusDataType.Float64, TimeSpan.FromMinutes(1), default) }
             );
 
             var resources = new List<Resource>() { resource1, resource2 };
@@ -249,6 +398,21 @@ We hope you enjoy it!
         throw new NotImplementedException();
     }
 
+    internal static async Task<IReadOnlyDictionary<string, CatalogItem>> SearchDemoCatalogItemsAsync(IReadOnlyList<string> resourcePaths, CancellationToken cancellationToken = default)
+    {
+        var catalog = await new CatalogsDemoClient().GetAsync("/SAMPLE/LOCAL", cancellationToken);
+
+        return resourcePaths.ToDictionary(
+            resourcePath => resourcePath,
+            resourcePath =>
+            {
+                var parts = resourcePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var resource = catalog.Resources!.Single(current => current.Id == parts[^2]);
+                var representation = resource.Representations!.Single(current => current.SamplePeriod == TimeSpan.FromMinutes(1));
+                return new CatalogItem(catalog, resource, representation, Parameters: null);
+            });
+    }
+
     public HttpResponseMessage SetMetadata(string catalogId, CatalogMetadata metadata)
     {
         throw new NotImplementedException();
@@ -279,32 +443,20 @@ public class DataDemoClient : IDataClient
 
     public Task<HttpResponseMessage> GetStreamAsync(string resourcePath, DateTime begin, DateTime end, CancellationToken cancellationToken = default)
     {
-        var offset = resourcePath.Contains("temperature")
-            ? 7
-            : 12;
+        throw new NotImplementedException();
+    }
+}
 
-        var factor = resourcePath.Contains("temperature")
-            ? 0.3
-            : 3;
+public class DataV2DemoClient : Api.V2.IDataClient
+{
+    public HttpResponseMessage GetStream(Api.V2.BatchStreamRequest request)
+    {
+        throw new NotImplementedException();
+    }
 
-        var random = new Random();
-        var length = (end - begin).Ticks / TimeSpan.FromSeconds(1).Ticks;
-        var data = new byte[length * 8];
-        var doubleData = MemoryMarshal.Cast<byte, double>(data);
-
-        for (int i = 0; i < length; i++)
-        {
-            doubleData[i] = offset + random.NextDouble() * factor;
-        }
-
-        var content = new ByteArrayContent(data);
-
-        var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = content,
-        };
-
-        return Task.FromResult(responseMessage);
+    public Task<HttpResponseMessage> GetStreamAsync(Api.V2.BatchStreamRequest request, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 }
 

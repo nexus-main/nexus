@@ -87,8 +87,8 @@ public class CatalogContainersExtensionsTests
     public async Task CanTryFind()
     {
         // Arrange
-        var representation1 = new Representation(NexusDataType.FLOAT64, TimeSpan.FromMilliseconds(1));
-        var representation2 = new Representation(NexusDataType.FLOAT64, TimeSpan.FromMilliseconds(100));
+        var representation1 = new Representation(NexusDataType.Float64, TimeSpan.FromMilliseconds(1));
+        var representation2 = new Representation(NexusDataType.Float64, TimeSpan.FromMilliseconds(100));
 
         var resource = new ResourceBuilder("T1")
             .AddRepresentation(representation1)

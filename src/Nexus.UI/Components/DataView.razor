@@ -1,6 +1,5 @@
-﻿@using System.Runtime.InteropServices
+﻿@implements IDisposable
 @using System.Buffers
-@implements IDisposable
 
 @inject ISnackbar Snackbar
 @inject AppState AppState
@@ -10,8 +9,8 @@
 {
     <div class="h-2/3 flex flex-col justify-center items-center mx-auto text-gray-300">
         <span class="font-bold text-2xl">¯\_(ツ)_/¯</span>
-        <span class="mt-5 text-3xl ">Size limit (@(AppState.UISettings.EffectiveDataViewMemoryLimitMiB) MiB) exceeded</span>
-        <span class="mt-3 text-lg text-gray-400">Increase the data view memory limit in the settings.</span>
+        <span class="mt-5 text-3xl ">Size limit (@(AppState.Settings.SizeLimitMiB) MiB) exceeded</span>
+        <span class="mt-3 text-lg text-gray-400">Reduce the selected range or number of signals.</span>
     </div>
 }
 else
@@ -30,9 +29,19 @@ else
     else
     {
         <div class="h-full p-5 relative">
-            <Chart LineSeriesData="_lineSeriesData" BeginAtZero="AppState.BeginAtZero" />
+            <Chart @key="_chartKey" LineSeriesData="_lineSeriesData" BeginAtZero="AppState.BeginAtZero" />
 
-            <MudOverlay Visible="_showReloadButton" DarkBackground AutoClose Absolute>
+            <MudOverlay Visible="_isLoading" Absolute Class="backdrop-blur-sm">
+                <div class="h-full flex justify-center items-center gap-3 mx-auto">
+                    <MudProgressCircular
+                    Color="Color.Primary"
+                    Value="_progress"
+                    Max="1" />
+                    <span class="text-orange-500 font-semibold">Loading data ...</span>
+                </div>
+            </MudOverlay>
+
+            <MudOverlay Visible="_showReloadButton && !_isLoading" AutoClose Absolute Class="backdrop-blur-sm">
                 <MudButton
                 StartIcon="@Icons.Material.Filled.Refresh"
                 Variant="Variant.Filled"
@@ -58,6 +67,10 @@ else
     private bool _showReloadButton;
 
     private LineSeriesData? _lineSeriesData;
+
+    private VisualizationBuffers? _visualizationBuffers;
+
+    private int _chartKey;
 
     private CancellationTokenSource? _cts;
 
@@ -96,184 +109,265 @@ else
 
     private async Task LoadDataAsync()
     {
+        if (_isLoading)
+        {
+            _cts?.Cancel();
+            return;
+        }
+
+        var previousCts = _cts;
+        previousCts?.Cancel();
+
         _showReloadButton = false;
 
-        var receivedBytes = 0L;
-        var byteCount = AppState.Settings.GetTotalByteCount();
+        await ReleaseCurrentVisualizationAsync();
 
         if (AppState.Settings.IsSizeLimitExceeded)
         {
             _sizeLimitExceeded = true;
             _isLoading = false;
-            StateHasChanged();
+            _cts = null;
+            await InvokeAsync(StateHasChanged);
             return;
         }
 
-        _sizeLimitExceeded = false;
+        var cts = new CancellationTokenSource();
+        _cts = cts;
 
+        _sizeLimitExceeded = false;
         _progress = 0;
-        _lineSeriesData = null;
         _isLoading = true;
 
-        _cts?.Cancel();
-        _cts = new CancellationTokenSource();
+        await InvokeAsync(StateHasChanged);
 
-        StateHasChanged();
-
-        _ = Task.Run(async () =>
+        var progressTask = Task.Run(async () =>
         {
-            while (_isLoading)
+            while (!cts.IsCancellationRequested && ReferenceEquals(_cts, cts) && _isLoading)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
-                _progress = receivedBytes / (double)byteCount;
-                StateHasChanged();
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cts.Token);
+
+                if (ReferenceEquals(_cts, cts))
+                    await InvokeAsync(StateHasChanged);
             }
-        });
+        }, cts.Token);
+
+        VisualizationBuffers? loadBuffers = null;
 
         try
         {
             var begin = AppState.Settings.Begin;
             var end = AppState.Settings.End;
-            var lineSeriesSet = new List<LineSeries>();
+            var requests = AppState.Settings.SelectedCatalogItems
+                .ToList()
+                .SelectMany(catalogItem => catalogItem.Kinds.Select(kind =>
+                (
+                    CatalogItem: catalogItem,
+                    Kind: kind,
+                    ResourcePath: catalogItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value)
+                )))
+                .ToList();
+            if (requests.Count > Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT)
+                throw new InvalidOperationException($"A maximum of {Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT} resources can be loaded at once.");
 
-            foreach (var catalogItem in AppState.Settings.SelectedCatalogItems.ToList())
+            if (requests.Count > 0)
             {
-                foreach (var kind in catalogItem.Kinds)
+                void AssignLineSeriesDataIfReady()
                 {
-                    var resourcePath = catalogItem.GetResourcePath(kind, AppState.Settings.SamplePeriod.Value);
+                    if (!ReferenceEquals(_cts, cts) ||
+                        loadBuffers is null ||
+                        _lineSeriesData is not null ||
+                        !loadBuffers.AreSourcesReady)
+                    {
+                        return;
+                    }
 
-                    using var response = await Client.V1.Data
-                        .GetStreamAsync(resourcePath, begin, end, _cts!.Token);
-                    var elementCount = checked((int)Utilities.GetElementCount(begin, end, AppState.Settings.SamplePeriod.Value));
-                    var data = await ReadAsDoubleAsync(response, elementCount, progress => receivedBytes += progress, _cts!.Token);
+                    var lineSeriesSet = requests.Select(request =>
+                    {
+                        var kindAsString = Utilities.KindToString(request.Kind);
+                        var name = kindAsString is null
+                            ? request.CatalogItem.BaseItem.Resource.Id
+                            : $"{request.CatalogItem.BaseItem.Resource.Id} ({kindAsString})";
 
-                    var resource = catalogItem.BaseItem.Resource;
-                    var kindAsString = Utilities.KindToString(kind);
+                        return new LineSeries(
+                            name,
+                            request.CatalogItem.BaseItem.Unit ?? string.Empty,
+                            AppState.Settings.SamplePeriod.Value,
+                            loadBuffers.GetSource(request.ResourcePath)!);
+                    }).ToList();
 
-                    var name = kindAsString is null
-                        ? resource.Id
-                        : $"{resource.Id} ({kindAsString})";
-
-                    var unit = resource.Properties.GetStringValue(CatalogItemViewModel.UNIT_KEY) ?? string.Empty;
-
-                    lineSeriesSet.Add(new LineSeries(name, unit, AppState.Settings.SamplePeriod.Value, data));
+                    _chartKey++;
+                    _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);
+                    _visualizationBuffers = loadBuffers;
+                    _ = InvokeAsync(StateHasChanged);
                 }
-            }
 
-            _lineSeriesData = new LineSeriesData(begin, end, lineSeriesSet);   
+                var resourcePaths = requests.Select(request => request.ResourcePath).ToArray();
+                loadBuffers = new VisualizationBuffers(resourcePaths, AssignLineSeriesDataIfReady);
+                _ = await Client.LoadAsync<float>(
+                    begin,
+                    end,
+                    resourcePaths,
+                    loadBuffers.ProvideBuffer,
+                    progress =>
+                    {
+                        if (ReferenceEquals(_cts, cts))
+                            _progress = progress;
+                    },
+                    cts.Token);
+
+                loadBuffers.Complete();
+                AssignLineSeriesDataIfReady();
+
+                if (ReferenceEquals(_cts, cts) && ReferenceEquals(_visualizationBuffers, loadBuffers))
+                    loadBuffers = null;
+            }
+            else if (ReferenceEquals(_cts, cts))
+            {
+                _chartKey++;
+                _lineSeriesData = new LineSeriesData(begin, end, []);
+            }
         }
         catch (OperationCanceledException)
         {
-        //
         }
         catch (Exception ex)
         {
-            AppState.AddError(ex, Snackbar);
+            if (ReferenceEquals(_cts, cts))
+                AppState.AddError(ex, Snackbar);
         }
         finally
         {
-            _isLoading = false;
-        }
+            cts.Cancel();
 
-        StateHasChanged();
+            try
+            {
+                await progressTask;
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+            }
+
+            if (ReferenceEquals(_cts, cts))
+            {
+                _isLoading = false;
+                _cts = null;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            cts.Dispose();
+            loadBuffers?.Dispose();
+        }
     }
 
-    @* private async Task<double[]> ReadAsDoubleAsync(
-        HttpResponseMessage response,
-        Action<long> reportProgress, 
-        CancellationToken cancellationToken = default)
+    private async Task ReleaseCurrentVisualizationAsync()
     {
-        var elementCount = Utilities.GetElementCount(
-            AppState.Settings.Begin, 
-            AppState.Settings.End, 
-            AppState.Settings.SamplePeriod.Value);
+        if (_lineSeriesData is null && _visualizationBuffers is null)
+            return;
 
-        // var doubleBuffer = new double[elementCount];
-        // var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
-        var byteBuffer = new byte[elementCount * 8].AsMemory();
-        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
+        if (_lineSeriesData is not null)
         {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken);
+            _chartKey++;
+            _lineSeriesData = null;
 
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
-
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
-            reportProgress(bytesRead);
+            await InvokeAsync(StateHasChanged);
+            await Task.Yield();
         }
 
-        var doubleBuffer = MemoryMarshal.Cast<byte, double>(byteBuffer.Span).ToArray();
+        _visualizationBuffers?.Dispose();
+        _visualizationBuffers = null;
 
-        return doubleBuffer;
-    } *@
-
-    private async Task<double[]> ReadAsDoubleAsync(
-        HttpResponseMessage response,
-        int elementCount,
-        Action<long> reportProgress, 
-        CancellationToken cancellationToken = default)
-    {
-        var doubleBuffer = new double[elementCount];
-        var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
-        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
-        {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken);
-
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
-
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
-            reportProgress(bytesRead);
-        }
-
-        return doubleBuffer;
-    }
-
-    internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
-        where TFrom : struct
-        where TTo : struct
-    {
-        private readonly TFrom[] _from;
-
-        private GCHandle _gcHandle;
-
-        public CastMemoryManager(TFrom[] from) => _from = from;
-
-        public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.AsSpan());
-
-        protected override void Dispose(bool disposing)
-        {
-            //
-        }
-
-        public override unsafe MemoryHandle Pin(int elementIndex = 0)
-        {
-            _gcHandle = GCHandle.Alloc(_from, GCHandleType.Pinned);
-
-            return new MemoryHandle(
-                (void*)(_gcHandle.AddrOfPinnedObject() + elementIndex * Marshal.SizeOf<TTo>()), 
-                _gcHandle, 
-                this);
-        }
-
-        public override void Unpin()
-        {
-            if (_gcHandle.IsAllocated)
-                _gcHandle.Free();
-        }
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
     }
 
     public void Dispose()
     {
         _cts?.Cancel();
+        _visualizationBuffers?.Dispose();
+        _visualizationBuffers = null;
 
         AppState.PropertyChanged -= _handler;
         AppState.Settings.PropertyChanged -= _handler;
+    }
+
+    private sealed class VisualizationBuffers : IDisposable
+    {
+        private readonly Dictionary<string, ResourceBuffers> _resources = [];
+        private readonly List<IMemoryOwner<float>> _owners = [];
+        private readonly HashSet<string> _pendingResourcePaths;
+        private readonly Action _onSourcesReady;
+
+        public VisualizationBuffers(IEnumerable<string> resourcePaths, Action onSourcesReady)
+        {
+            _pendingResourcePaths = resourcePaths.ToHashSet();
+            _onSourcesReady = onSourcesReady;
+        }
+
+        public bool AreSourcesReady => _pendingResourcePaths.Count == 0;
+
+        public Memory<float> ProvideBuffer(string resourcePath, int chunkLength, long remainingLength)
+        {
+            if (chunkLength == 0)
+                return Memory<float>.Empty;
+
+            if (!_resources.TryGetValue(resourcePath, out var resource))
+            {
+                resource = new ResourceBuffers(new LineSeriesSource(remainingLength));
+                _resources.Add(resourcePath, resource);
+
+                if (_pendingResourcePaths.Remove(resourcePath) && AreSourcesReady)
+                    _onSourcesReady();
+            }
+            else
+            {
+                PublishCurrent(resource);
+            }
+
+            var owner = MemoryPool<float>.Shared.Rent(chunkLength);
+            _owners.Add(owner);
+            resource.Current = owner.Memory[..chunkLength];
+
+            return resource.Current;
+        }
+
+        public LineSeriesSource? GetSource(string resourcePath) =>
+            _resources.TryGetValue(resourcePath, out var resource) ? resource.Source : null;
+
+        public void Complete()
+        {
+            foreach (var resource in _resources.Values)
+            {
+                PublishCurrent(resource);
+                resource.Source.Complete();
+            }
+        }
+
+        public void Dispose()
+        {
+            foreach (var owner in _owners)
+                owner.Dispose();
+
+            _owners.Clear();
+            _resources.Clear();
+        }
+
+        private void PublishCurrent(ResourceBuffers resource)
+        {
+            if (resource.Current.Length == 0)
+                return;
+
+            resource.Source.AddChunk(resource.Current);
+
+            resource.NextOffset += resource.Current.Length;
+            resource.Current = Memory<float>.Empty;
+        }
+
+        private sealed class ResourceBuffers(LineSeriesSource source)
+        {
+            public LineSeriesSource Source { get; } = source;
+            public Memory<float> Current { get; set; }
+            public long NextOffset { get; set; }
+        }
     }
 }

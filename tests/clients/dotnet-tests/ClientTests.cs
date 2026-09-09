@@ -2,8 +2,10 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Net;
+using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Moq;
 using Moq.Protected;
 using Nexus.Api.V1;
@@ -14,6 +16,10 @@ namespace Nexus.Api.Tests;
 public class ClientTests
 {
     public const string NexusConfigurationHeaderKey = "Nexus-Configuration";
+    private const byte BatchStreamProtocolVersion = 1;
+    private const byte BatchStreamDataFrameType = 1;
+    private const byte BatchStreamErrorFrameType = 2;
+    private const byte BatchStreamEndFrameType = 3;
 
     [Fact]
     public async Task CanAddConfiguration()
@@ -83,5 +89,291 @@ public class ClientTests
                 Assert.Equal(encodedJson, header);
             },
             Assert.Null);
+    }
+
+    [Fact]
+    public async Task CanLoadInterleavedFrames()
+    {
+        var paths = new[] { "/A/B/C", "/A/B/D" };
+        var requests = new List<HttpRequestMessage>();
+        var catalogItems = paths.ToDictionary(path => path, path => CreateCatalogItemMap(path)[path]);
+        var content = Stream(Frame(1, 3, 4), Frame(0, 1, 2));
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+        {
+            requests.Add(request);
+            return request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : BinaryResponse(content);
+        }));
+
+        var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(2), paths);
+
+        Assert.Equal([1f, 2f], result[paths[0]].Values.ToArray());
+        Assert.Equal([3f, 4f], result[paths[1]].Values.ToArray());
+        Assert.Single(requests, current => current.RequestUri!.AbsolutePath == "/api/v2/data");
+    }
+
+    [Fact]
+    public async Task CanLoadWhenResponseStreamPinsReadBuffer()
+    {
+        var path = "/A/B/C";
+        var catalogItems = CreateCatalogItemMap(path);
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : PinningBinaryResponse(Stream(Frame(0, 1)))));
+
+        var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(1), [path]);
+
+        Assert.Equal([1f], result[path].Values.ToArray());
+    }
+
+    [Fact]
+    public async Task RejectsInvalidBatchFrame()
+    {
+        var path = "/A/B/C";
+        var catalogItems = CreateCatalogItemMap(path);
+        var invalidFrame = Stream(Frame(1, 1));
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : BinaryResponse(invalidFrame)));
+
+        await Assert.ThrowsAsync<Exception>(() => client.LoadAsync<float>(
+            DateTime.UnixEpoch,
+            DateTime.UnixEpoch.AddSeconds(1),
+            [path]));
+    }
+
+    [Fact]
+    public async Task RejectsTruncatedBatchFrameHeader()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(
+            [BatchStreamProtocolVersion, BatchStreamDataFrameType, 0]));
+
+        Assert.Contains("middle of a frame", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsTruncatedBatchFramePayload()
+    {
+        var content = new[] { BatchStreamProtocolVersion }
+            .Concat(Header(resourceIndex: 0, payloadLength: sizeof(float)))
+            .Concat(new byte[] { 0, 0 })
+            .ToArray();
+
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(content));
+
+        Assert.Contains("middle of a frame", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsIncompleteBatchStream()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(
+            Stream(includeEndFrame: false, Frame(0, 1)),
+            end: DateTime.UnixEpoch.AddSeconds(2)));
+
+        Assert.Contains("before the end frame", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsBatchStreamErrorFrame()
+    {
+        var exception = await Assert.ThrowsAsync<NexusException>(() => LoadBatchAsync(
+            Stream(includeEndFrame: false, ErrorFrame("producer failed")),
+            end: DateTime.UnixEpoch.AddSeconds(2)));
+
+        Assert.Equal("02", exception.StatusCode);
+        Assert.Contains("producer failed", exception.Message);
+    }
+
+    [Fact]
+    public async Task LoadAsyncUsesChunkAwareProviderArguments()
+    {
+        var path = "/A/B/C";
+        var calls = new List<(string ResourcePath, int ChunkLength, long RemainingLength)>();
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(CreateCatalogItemMap(path), CreateJsonOptions())
+                : BinaryResponse(Stream(Frame(0, 1, 2)))));
+
+        var result = await client.LoadAsync<float>(
+            DateTime.UnixEpoch,
+            DateTime.UnixEpoch.AddSeconds(2),
+            [path],
+            (resourcePath, chunkLength, remainingLength) =>
+            {
+                calls.Add((resourcePath, chunkLength, remainingLength));
+                return new float[chunkLength];
+            });
+
+        var call = Assert.Single(calls);
+        Assert.Equal(path, call.ResourcePath);
+        Assert.Equal(2, call.ChunkLength);
+        Assert.Equal(2, call.RemainingLength);
+        Assert.Equal("C", result[path].Name);
+    }
+
+    private static HttpClient CreateHttpClient(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> handler)
+    {
+        var messageHandlerMock = new Mock<HttpMessageHandler>();
+
+        messageHandlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync((HttpRequestMessage request, CancellationToken cancellationToken) =>
+                handler(request, cancellationToken));
+
+        return new HttpClient(messageHandlerMock.Object)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+    }
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
+    }
+
+    private static Dictionary<string, CatalogItem> CreateCatalogItemMap(string resourcePath)
+    {
+        return new Dictionary<string, CatalogItem>
+        {
+            [resourcePath] = new CatalogItem(
+                new ResourceCatalog("my-catalog", default, default),
+                new Resource(resourcePath.Split('/')[^1], default, default),
+                new Representation(NexusDataType.Float64, TimeSpan.FromSeconds(1), default),
+                default)
+        };
+    }
+
+    private static HttpResponseMessage JsonResponse<T>(T value, JsonSerializerOptions options)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(value, options), Encoding.UTF8, "application/json")
+        };
+    }
+
+    private static HttpResponseMessage BinaryResponse(byte[] value)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(value) };
+    }
+
+    private static HttpResponseMessage PinningBinaryResponse(byte[] value)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PinningReadStream(value)) };
+    }
+
+    private static Task<IReadOnlyDictionary<string, DataResponse<float>>> LoadBatchAsync(byte[] content, DateTime? end = default)
+    {
+        var path = "/A/B/C";
+        var catalogItems = CreateCatalogItemMap(path);
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : BinaryResponse(content)));
+
+        return client.LoadAsync<float>(DateTime.UnixEpoch, end ?? DateTime.UnixEpoch.AddSeconds(1), [path]);
+    }
+
+    private static byte[] Header(int resourceIndex, int payloadLength)
+    {
+        var result = new byte[6];
+        result[0] = BatchStreamDataFrameType;
+        result[1] = (byte)resourceIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(2), payloadLength);
+        return result;
+    }
+
+    private static byte[] Frame(int resourceIndex, params float[] values)
+    {
+        var result = new byte[6 + values.Length * sizeof(float)];
+        result[0] = BatchStreamDataFrameType;
+        result[1] = (byte)resourceIndex;
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(2), result.Length - 6);
+
+        for (var index = 0; index < values.Length; index++)
+            BinaryPrimitives.WriteSingleLittleEndian(result.AsSpan(6 + index * sizeof(float)), values[index]);
+
+        return result;
+    }
+
+    private static byte[] ErrorFrame(string message)
+    {
+        var messageBytes = Encoding.UTF8.GetBytes(message);
+        var result = new byte[5 + messageBytes.Length];
+        result[0] = BatchStreamErrorFrameType;
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(1), messageBytes.Length);
+        messageBytes.CopyTo(result.AsSpan(5));
+        return result;
+    }
+
+    private static byte[] Stream(params byte[][] frames)
+    {
+        return Stream(includeEndFrame: true, frames);
+    }
+
+    private static byte[] Stream(bool includeEndFrame, params byte[][] frames)
+    {
+        return new[] { new[] { BatchStreamProtocolVersion } }
+            .Concat(frames)
+            .Concat(includeEndFrame ? new[] { new[] { BatchStreamEndFrameType } } : [])
+            .SelectMany(current => current)
+            .ToArray();
+    }
+
+    private sealed class PinningReadStream(byte[] content) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => content.Length;
+
+        public override long Position
+        {
+            get => _position;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return Read(buffer.AsSpan(offset, count));
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var count = Math.Min(buffer.Length, content.Length - _position);
+            content.AsSpan(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            using var handle = buffer.Pin();
+            return ValueTask.FromResult(Read(buffer.Span));
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }
