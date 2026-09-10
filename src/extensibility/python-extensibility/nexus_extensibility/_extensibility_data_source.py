@@ -1,6 +1,7 @@
+import asyncio
 import enum
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import (Any, Awaitable, Callable, Generic, Optional, Protocol,
                     TypeVar)
@@ -99,6 +100,27 @@ class ReadRequest:
 
     status: memoryview
     """The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as float("NaN")."""
+
+    _on_completed: Callable[[], Awaitable[None]] = field(compare=False, repr=False)
+    _completion_task: Optional[asyncio.Task[None]] = field(default=None, init=False, compare=False, repr=False)
+    _completion_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, compare=False, repr=False)
+
+    async def complete(self) -> None:
+        """
+        Called by the data source when data and status are ready.
+        The framework flushes the resource to its pipe immediately.
+        """
+        async with self._completion_lock:
+            task = self._completion_task
+
+            if task is None:
+                async def complete_core() -> None:
+                    await self._on_completed()
+
+                task = asyncio.create_task(complete_core())
+                object.__setattr__(self, "_completion_task", task)
+
+        await task
 
 class ReadDataHandler(Protocol):
     """

@@ -1,3 +1,9 @@
+## v2.0.0-beta.56 - 2026-09-10
+- High performance improvements:
+    - Use WebGPU to render data
+    - Add batch stream endpoint based von Apache Arrow format to stream data
+    - Add vectorization to internal data processing
+
 ## v2.0.0-beta.55 - 2026-07-09
 - Fixed uninitialized buffer issue when a plugin fails to read data
 

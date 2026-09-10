@@ -88,7 +88,7 @@ public class CacheServiceTests
         var catalogItem = new CatalogItem(
             default!,
             default!,
-            new Representation(NexusDataType.FLOAT64, TimeSpan.FromHours(3)),
+            new Representation(NexusDataType.Float64, TimeSpan.FromHours(3)),
             default!);
 
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
@@ -162,7 +162,7 @@ public class CacheServiceTests
         var catalogItem = new CatalogItem(
             default!,
             default!,
-            new Representation(NexusDataType.FLOAT64, TimeSpan.FromHours(3)),
+            new Representation(NexusDataType.Float64, TimeSpan.FromHours(3)),
             default!);
 
         var sourceBuffer = Enumerable.Range(0, 24)

@@ -1868,28 +1868,28 @@
         "type": "string",
         "description": "Specifies the Nexus data type.",
         "x-enumNames": [
-          "UINT8",
-          "UINT16",
-          "UINT32",
-          "UINT64",
-          "INT8",
-          "INT16",
-          "INT32",
-          "INT64",
-          "FLOAT32",
-          "FLOAT64"
+          "UInt8",
+          "UInt16",
+          "UInt32",
+          "UInt64",
+          "Int8",
+          "Int16",
+          "Int32",
+          "Int64",
+          "Float32",
+          "Float64"
         ],
         "enum": [
-          "UINT8",
-          "UINT16",
-          "UINT32",
-          "UINT64",
-          "INT8",
-          "INT16",
-          "INT32",
-          "INT64",
-          "FLOAT32",
-          "FLOAT64"
+          "UInt8",
+          "UInt16",
+          "UInt32",
+          "UInt64",
+          "Int8",
+          "Int16",
+          "Int32",
+          "Int64",
+          "Float32",
+          "Float64"
         ]
       },
       "CatalogInfo": {

@@ -4,9 +4,10 @@
 using Nexus.Api;
 using Nexus.Api.V1;
 using Nexus.UI.Core;
-using Nexus.UI.Services;
 using System.ComponentModel;
 using System.Text.Json;
+using ExportParameters = Nexus.Api.V2.ExportParameters;
+using Precision = Nexus.Api.V2.Precision;
 
 namespace Nexus.UI.ViewModels;
 
@@ -16,21 +17,28 @@ public class SettingsViewModel : INotifyPropertyChanged
 
     private TimeSpan _samplePeriod = TimeSpan.FromSeconds(1);
 
+    private const int DataViewMemoryLimitMiB = 2048;
+
     private readonly AppState _appState;
 
     private readonly INexusClient _client;
 
-    private readonly NexusJSInterop _jsInterop;
-
     private List<CatalogItemSelectionViewModel> _selectedCatalogItems = [];
 
-    public SettingsViewModel(AppState appState, NexusJSInterop jsInterop, INexusClient client)
+    public SettingsViewModel(AppState appState, INexusClient client)
     {
         _appState = appState;
-        _jsInterop = jsInterop;
         _client = client;
 
+        _appState.PropertyChanged += OnAppStatePropertyChanged;
+
         InitializeTask = new Lazy<Task>(InitializeAsync);
+    }
+
+    private void OnAppStatePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.UISettings))
+            SizeLimitExceededChanged();
     }
 
     private string DefaultFileType { get; set; } = default!;
@@ -111,6 +119,23 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public Precision Precision
+    {
+        get
+        {
+            return _appState.ExportParameters.Precision;
+        }
+        set
+        {
+            if (_appState.ExportParameters.Precision != value)
+            {
+                _appState.ExportParameters = _appState.ExportParameters with { Precision = value };
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Precision)));
+                ExportByteCountChanged();
+            }
+        }
+    }
+
     public IList<ExtensionDescription> WriterDescriptions { get; private set; } = default!;
 
     public ExtensionDescription? WriterDescription { get; private set; }
@@ -144,10 +169,8 @@ public class SettingsViewModel : INotifyPropertyChanged
                 Begin.Ticks % SamplePeriod.Value.Ticks == 0 &&
                 End.Ticks % SamplePeriod.Value.Ticks == 0 &&
                 SelectedCatalogItems.Any() &&
+                SelectedCatalogItems.Sum(item => item.Kinds.Count) <= Constants.MAXIMUM_BATCH_STREAM_RESOURCE_COUNT &&
                 SelectedCatalogItems.All(item => item.IsValid(SamplePeriod));
-
-            if (!canVisualize && _appState.ViewState == ViewState.Data)
-                _appState.ViewState = ViewState.Normal;
 
             return canVisualize;
         }
@@ -156,23 +179,76 @@ public class SettingsViewModel : INotifyPropertyChanged
     public void CanExportChanged()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanExport)));
+        ExportByteCountChanged();
     }
 
     public void CanVisualizeChanged()
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanVisualize)));
+        VisualizeByteCountChanged();
     }
 
-    public long GetTotalByteCount()
+    public void CanVisualizeSelectionChanged()
     {
+        if (!CanVisualize && _appState.ViewState == ViewState.Data)
+            _appState.ViewState = ViewState.Normal;
+
+        CanVisualizeChanged();
+    }
+
+    public void SizeLimitExceededChanged()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSizeLimitExceeded)));
+    }
+
+    public int SizeLimitMiB => DataViewMemoryLimitMiB;
+
+    public long SizeLimit => (long)SizeLimitMiB * 1024 * 1024;
+
+    public bool IsSizeLimitExceeded => VisualizeByteCount > SizeLimit;
+
+    public long VisualizeByteCount => GetByteCount(Precision.Float32);
+
+    public long ExportByteCount => GetByteCount(Precision);
+
+    private long GetByteCount(Precision precision)
+    {
+        if (Begin >= End)
+            return 0;
+
         var elementCount = Utilities.GetElementCount(
             _appState.Settings.Begin,
             _appState.Settings.End,
             _appState.Settings.SamplePeriod.Value);
 
-        var byteCount = Utilities.GetByteCount(elementCount, _appState.Settings.SelectedCatalogItems);
+        var byteCount = Utilities.GetByteCount(elementCount, _appState.Settings.SelectedCatalogItems, precision);
 
         return byteCount;
+    }
+
+    private void ExportByteCountChanged()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ExportByteCount)));
+    }
+
+    private void VisualizeByteCountChanged()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(VisualizeByteCount)));
+        SizeLimitExceededChanged();
+    }
+
+    public void ExportParametersChanged()
+    {
+        if (WriterDescriptions is not null)
+            WriterDescription = WriterDescriptions.FirstOrDefault(description => description.Type == FileType);
+
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Begin)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(End)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(FilePeriod)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(FileType)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Precision)));
+        CanExportChanged();
+        CanVisualizeChanged();
     }
 
     public ExportParameters GetExportParameters()
@@ -206,7 +282,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         _selectedCatalogItems = selectedCatalogItems;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedCatalogItems)));
         CanExportChanged();
-        CanVisualizeChanged();
+        CanVisualizeSelectionChanged();
     }
 
     public void ToggleCatalogItemSelection(CatalogItemSelectionViewModel selection)
@@ -229,7 +305,7 @@ public class SettingsViewModel : INotifyPropertyChanged
 
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedCatalogItems)));
         CanExportChanged();
-        CanVisualizeChanged();
+        CanVisualizeSelectionChanged();
     }
 
     private CatalogItemSelectionViewModel? TryFindSelectedCatalogItem(

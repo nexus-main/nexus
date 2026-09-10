@@ -5,6 +5,7 @@ using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -238,7 +239,14 @@ internal class Csv : IDataWriter, IDisposable
             var excelStart = _excelStart + fileOffset.TotalDays;
             var excelScalingFactor = (double)_lastSamplePeriod.Ticks / TimeSpan.FromDays(1).Ticks;
 
-            var rowLength = writeRequests.First().Data.Length;
+            var elementSize = (int)Context.Precision;
+            var rowLength = writeRequests.First().Data.Length / elementSize;
+
+            if (writeRequests.Any(request => request.Data.Length % elementSize != 0))
+                throw new InvalidDataException("The CSV writer received an incomplete sample value.");
+
+            var isFloat32 = Context.Precision == Precision.Float32;
+            var format = $"G{significantFigures}";
 
             for (int rowIndex = 0; rowIndex < rowLength; rowIndex++)
             {
@@ -268,8 +276,16 @@ internal class Csv : IDataWriter, IDisposable
 
                 for (int i = 0; i < writeRequests.Length; i++)
                 {
-                    var value = writeRequests[i].Data.Span[rowIndex];
-                    stringBuilder.Append($"{string.Format(_nfi, $"{{0:G{significantFigures}}}", value)},");
+                    if (isFloat32)
+                    {
+                        var value = MemoryMarshal.Cast<byte, float>(writeRequests[i].Data.Span)[rowIndex];
+                        stringBuilder.Append(value.ToString(format, _nfi)).Append(',');
+                    }
+                    else
+                    {
+                        var value = MemoryMarshal.Cast<byte, double>(writeRequests[i].Data.Span)[rowIndex];
+                        stringBuilder.Append(value.ToString(format, _nfi)).Append(',');
+                    }
                 }
 
                 stringBuilder.Remove(stringBuilder.Length - 1, 1);

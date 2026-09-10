@@ -1,9 +1,14 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Apache.Arrow;
+using Apache.Arrow.Ipc;
+using Apache.Arrow.Types;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Moq;
 using Moq.Protected;
 using Nexus.Api.V1;
@@ -83,5 +88,290 @@ public class ClientTests
                 Assert.Equal(encodedJson, header);
             },
             Assert.Null);
+    }
+
+    [Fact]
+    public async Task CanLoadInterleavedArrowRows()
+    {
+        var paths = new[] { "/A/B/C", "/A/B/D" };
+        var requests = new List<HttpRequestMessage>();
+        var catalogItems = paths.ToDictionary(path => path, path => CreateCatalogItemMap(path)[path]);
+        var content = ArrowStream((1, 0, [3f, 4f]), (0, 0, [1f, 2f]));
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+        {
+            requests.Add(request);
+            return request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : ArrowResponse(content);
+        }));
+
+        var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(2), paths);
+
+        Assert.Equal([1f, 2f], result[paths[0]].Values.ToArray());
+        Assert.Equal([3f, 4f], result[paths[1]].Values.ToArray());
+        Assert.Single(requests, current => current.RequestUri!.AbsolutePath == "/api/v2/data");
+    }
+
+    [Fact]
+    public async Task CanLoadWhenResponseStreamPinsReadBuffer()
+    {
+        var path = "/A/B/C";
+        var catalogItems = CreateCatalogItemMap(path);
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : PinningArrowResponse(ArrowStream((0, 0, [1f])))));
+
+        var result = await client.LoadAsync<float>(DateTime.UnixEpoch, DateTime.UnixEpoch.AddSeconds(1), [path]);
+
+        Assert.Equal([1f], result[path].Values.ToArray());
+    }
+
+    [Fact]
+    public async Task RejectsInvalidArrowResourceIndex()
+    {
+        var path = "/A/B/C";
+        var catalogItems = CreateCatalogItemMap(path);
+        var invalidResourceIndex = ArrowStream((1, 0, [1f]));
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : ArrowResponse(invalidResourceIndex)));
+
+        await Assert.ThrowsAsync<Exception>(() => client.LoadAsync<float>(
+            DateTime.UnixEpoch,
+            DateTime.UnixEpoch.AddSeconds(1),
+            [path]));
+    }
+
+    [Fact]
+    public async Task RejectsInvalidArrowStream()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync([1, 2, 3]));
+
+        Assert.Contains("failed or ended unexpectedly", exception.Message);
+        Assert.NotNull(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task RejectsInvalidArrowSchema()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(InvalidSchemaArrowStream()));
+
+        Assert.Contains("schema is invalid", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsIncompleteArrowStream()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(
+            ArrowStream((0, 0, [1f])),
+            end: DateTime.UnixEpoch.AddSeconds(2)));
+
+        Assert.Contains("before all data", exception.Message);
+    }
+
+    [Fact]
+    public async Task RejectsOutOfOrderArrowStream()
+    {
+        var exception = await Assert.ThrowsAsync<Exception>(() => LoadBatchAsync(ArrowStream((0, 1, [1f]))));
+
+        Assert.Contains("out-of-order", exception.Message);
+    }
+
+    [Fact]
+    public async Task LoadAsyncUsesChunkAwareProviderArguments()
+    {
+        var path = "/A/B/C";
+        var calls = new List<(string ResourcePath, int ChunkLength, long RemainingLength)>();
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(CreateCatalogItemMap(path), CreateJsonOptions())
+                : ArrowResponse(ArrowStream((0, 0, [1f, 2f])))));
+
+        var result = await client.LoadAsync<float>(
+            DateTime.UnixEpoch,
+            DateTime.UnixEpoch.AddSeconds(2),
+            [path],
+            (resourcePath, chunkLength, remainingLength) =>
+            {
+                calls.Add((resourcePath, chunkLength, remainingLength));
+                return new float[chunkLength];
+            });
+
+        var call = Assert.Single(calls);
+        Assert.Equal(path, call.ResourcePath);
+        Assert.Equal(2, call.ChunkLength);
+        Assert.Equal(2, call.RemainingLength);
+        Assert.Equal("C", result[path].Name);
+    }
+
+    private static HttpClient CreateHttpClient(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> handler)
+    {
+        var messageHandlerMock = new Mock<HttpMessageHandler>();
+
+        messageHandlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync((HttpRequestMessage request, CancellationToken cancellationToken) =>
+                handler(request, cancellationToken));
+
+        return new HttpClient(messageHandlerMock.Object)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+    }
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
+    }
+
+    private static Dictionary<string, CatalogItem> CreateCatalogItemMap(string resourcePath)
+    {
+        return new Dictionary<string, CatalogItem>
+        {
+            [resourcePath] = new CatalogItem(
+                new ResourceCatalog("my-catalog", default, default),
+                new Resource(resourcePath.Split('/')[^1], default, default),
+                new Representation(NexusDataType.Float64, TimeSpan.FromSeconds(1), default),
+                default)
+        };
+    }
+
+    private static HttpResponseMessage JsonResponse<T>(T value, JsonSerializerOptions options)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(value, options), Encoding.UTF8, "application/json")
+        };
+    }
+
+    private static HttpResponseMessage ArrowResponse(byte[] value)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(value) };
+    }
+
+    private static HttpResponseMessage PinningArrowResponse(byte[] value)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PinningReadStream(value)) };
+    }
+
+    private static Task<IReadOnlyDictionary<string, DataResponse<float>>> LoadBatchAsync(byte[] content, DateTime? end = default)
+    {
+        var path = "/A/B/C";
+        var catalogItems = CreateCatalogItemMap(path);
+        var client = new NexusClient(CreateHttpClient((request, _) =>
+            request.RequestUri!.AbsolutePath == "/api/v1/catalogs/search-items"
+                ? JsonResponse(catalogItems, CreateJsonOptions())
+                : ArrowResponse(content)));
+
+        return client.LoadAsync<float>(DateTime.UnixEpoch, end ?? DateTime.UnixEpoch.AddSeconds(1), [path]);
+    }
+
+    private static byte[] ArrowStream(params (int ResourceIndex, long Offset, float[] Values)[] rows)
+    {
+        var fields = new[]
+        {
+            new Field("resourceIndex", new Int32Type(), nullable: false, metadata: []),
+            new Field("offset", new Int64Type(), nullable: false, metadata: []),
+            new Field("values", new ListType(new FloatType()), nullable: false, metadata: [])
+        };
+        var schema = new Schema(fields, metadata: []);
+        using var stream = new MemoryStream();
+        using var writer = new ArrowStreamWriter(stream, schema);
+
+        writer.WriteStart();
+
+        foreach (var row in rows)
+        {
+            var resourceIndexArray = new Int32Array.Builder().Append(row.ResourceIndex).Build(default);
+            var offsetArray = new Int64Array.Builder().Append(row.Offset).Build(default);
+            var offsetsBuffer = new ArrowBuffer(MemoryMarshal.AsBytes(new[] { 0, row.Values.Length }.AsSpan()).ToArray());
+            var valuesBuffer = new ArrowBuffer(MemoryMarshal.AsBytes(row.Values.AsSpan()).ToArray());
+            var valuesArray = new FloatArray(valuesBuffer, ArrowBuffer.Empty, row.Values.Length, nullCount: 0, offset: 0);
+            var listArray = new ListArray(new ListType(new FloatType()), 1, offsetsBuffer, valuesArray, ArrowBuffer.Empty, 0, 0);
+            using var recordBatch = new RecordBatch(schema, [resourceIndexArray, offsetArray, listArray], 1);
+
+            writer.WriteRecordBatch(recordBatch);
+        }
+
+        writer.WriteEnd();
+        return stream.ToArray();
+    }
+
+    private static byte[] InvalidSchemaArrowStream()
+    {
+        var schema = new Schema([
+            new Field("resource", new Int32Type(), nullable: false, metadata: []),
+            new Field("offset", new Int64Type(), nullable: false, metadata: []),
+            new Field("values", new ListType(new FloatType()), nullable: false, metadata: [])], metadata: []);
+        var resourceIndexArray = new Int32Array.Builder().Append(0).Build(default);
+        var offsetArray = new Int64Array.Builder().Append(0).Build(default);
+        var offsetsBuffer = new ArrowBuffer(MemoryMarshal.AsBytes(new[] { 0, 1 }.AsSpan()).ToArray());
+        var valuesBuffer = new ArrowBuffer(MemoryMarshal.AsBytes(new[] { 1f }.AsSpan()).ToArray());
+        var valuesArray = new FloatArray(valuesBuffer, ArrowBuffer.Empty, 1, nullCount: 0, offset: 0);
+        var listArray = new ListArray(new ListType(new FloatType()), 1, offsetsBuffer, valuesArray, ArrowBuffer.Empty, 0, 0);
+        using var recordBatch = new RecordBatch(schema, [resourceIndexArray, offsetArray, listArray], 1);
+        using var stream = new MemoryStream();
+        using var writer = new ArrowStreamWriter(stream, schema);
+
+        writer.WriteStart();
+        writer.WriteRecordBatch(recordBatch);
+        writer.WriteEnd();
+        return stream.ToArray();
+    }
+
+    private sealed class PinningReadStream(byte[] content) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => content.Length;
+
+        public override long Position
+        {
+            get => _position;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return Read(buffer.AsSpan(offset, count));
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var count = Math.Min(buffer.Length, content.Length - _position);
+            content.AsSpan(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            using var handle = buffer.Pin();
+            return ValueTask.FromResult(Read(buffer.Span));
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

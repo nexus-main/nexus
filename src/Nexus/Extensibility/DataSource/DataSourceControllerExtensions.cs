@@ -25,8 +25,10 @@ internal static class DataSourceControllerExtensions
         // Otherwise the PipeReader.AsStream() would be sufficient.
 
         var samplePeriod = request.Item.Representation.SamplePeriod;
+        DataSourceController.ValidateParameters(begin, end, samplePeriod);
+
         var elementCount = ExtensibilityUtilities.CalculateElementCountLong(begin, end, samplePeriod);
-        var totalLength = elementCount * NexusUtilities.SizeOf(NexusDataType.FLOAT64);
+        var totalLength = elementCount * NexusUtilities.SizeOf(NexusDataType.Float64);
         var pipe = new Pipe();
         var stream = new DataSourceDoubleStream(totalLength, pipe.Reader);
 
@@ -39,7 +41,8 @@ internal static class DataSourceControllerExtensions
             memoryTracker,
             progress: default,
             logger,
-            cancellationToken);
+            cancellationToken
+        );
 
         _ = Task.Run(async () =>
         {
@@ -87,6 +90,7 @@ internal static class DataSourceControllerExtensions
             begin,
             end,
             samplePeriod,
+            Precision.Float64,
             [readingGroup],
             readDataHandler,
             memoryTracker,

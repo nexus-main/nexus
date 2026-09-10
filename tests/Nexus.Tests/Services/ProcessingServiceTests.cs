@@ -45,7 +45,7 @@ public class ProcessingServiceTests
         var byteData = MemoryMarshal.AsBytes<int>(data).ToArray();
 
         // Act
-        processingService.Aggregate(NexusDataType.INT32, kind, byteData, status, targetBuffer: actual, blockSize);
+        processingService.Aggregate(NexusDataType.Int32, kind, byteData, status, targetBuffer: actual, blockSize);
 
         // Assert
         Assert.Equal(expected, actual[0], precision: 2);
@@ -75,7 +75,7 @@ public class ProcessingServiceTests
         var byteData = MemoryMarshal.AsBytes<int>(data).ToArray();
 
         // Act
-        processingService.Aggregate(NexusDataType.INT32, RepresentationKind.Sum, byteData, status, targetBuffer: actual, blockSize);
+        processingService.Aggregate(NexusDataType.Int32, RepresentationKind.Sum, byteData, status, targetBuffer: actual, blockSize);
 
         // Assert
         Assert.True(expected.SequenceEqual(actual));
@@ -95,17 +95,18 @@ public class ProcessingServiceTests
             1, 1, 0, 1
         };
 
-        var expected = new double[] { 0, 0, 1, 1, 1, 1, double.NaN, double.NaN, double.NaN, double.NaN, 3, 3 };
+        var expected = new float[] { 0, 0, 1, 1, 1, 1, float.NaN, float.NaN, float.NaN, float.NaN, 3, 3 };
         var options = Options.Create(new DataOptions());
         var processingService = new ProcessingService(options);
         var blockSize = 4;
-        var actual = new double[expected.Length];
         var byteData = MemoryMarshal.AsBytes<float>(data).ToArray();
+        var actualBytes = new byte[expected.Length * sizeof(float)];
 
         // Act
-        processingService.Resample(NexusDataType.FLOAT32, byteData, status, targetBuffer: actual, blockSize, offset: 2);
+        processingService.Resample(NexusDataType.Float32, byteData, status, targetBuffer: actualBytes, Precision.Float32, blockSize, offset: 2);
 
         // Assert
-        Assert.True(expected.SequenceEqual(actual));
+        var actual = MemoryMarshal.Cast<byte, float>(actualBytes);
+        Assert.True(expected.AsSpan().SequenceEqual(actual));
     }
 }

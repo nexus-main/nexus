@@ -54,8 +54,8 @@ jobs:
       - name: Install
         run: |
           npm install -g pyright@1.1.369
-          python -m pip install frictionless==4.40.9 build wheel httpx pytest pytest-asyncio
-          npm install -g tailwindcss@3.4.3
+          python -m pip install frictionless==4.40.9 build wheel httpx pyarrow pytest pytest-asyncio
+          npm install -g tailwindcss@3.4.18
           dotnet tool install -g Microsoft.Web.LibraryManager.Cli
           dotnet workload install --temp-dir tmp wasm-tools-net9
 
@@ -72,6 +72,7 @@ jobs:
 
       - name: Test
         run: |
+          node --test tests/js/*.test.js
           dotnet test -c Release /p:BuildProjectReferences=false
           pyright
           pytest
@@ -90,6 +91,9 @@ jobs:
         run: |
           dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi_new.json
           diff --strip-trailing-cr openapi.json openapi_new.json
+          diff --strip-trailing-cr openapi.v2.json openapi_new.v2.json
+          # Fail if generated clients changed, which means committed client sources are stale.
+          test -z "$(git status --porcelain -- src/clients/dotnet src/clients/python/nexus_api)"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

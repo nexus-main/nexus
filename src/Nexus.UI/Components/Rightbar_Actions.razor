@@ -33,7 +33,8 @@ else
     {
         _handler = (sender, e) => 
         {
-            if (e.PropertyName == nameof(AppState.Settings.CanExport))
+            if (e.PropertyName == nameof(AppState.Settings.CanExport) ||
+                e.PropertyName == nameof(AppState.Settings.ExportByteCount))
                 StateHasChanged();
         };
     }
@@ -49,7 +50,7 @@ else
 
         try
         {
-            var job = await Client.V1.Jobs.ExportAsync(exportParameters, CancellationToken.None);
+            var job = await Client.V2.Jobs.ExportAsync(exportParameters, CancellationToken.None);
             AppState.AddJob(new JobViewModel(job, exportParameters, Client, ex => AppState.AddError(ex, Snackbar)));
         }
         catch (Exception ex)
@@ -60,7 +61,7 @@ else
 
     private string GetLabel()
     {
-        var byteCount = AppState.Settings.GetTotalByteCount();
+        var byteCount = AppState.Settings.ExportByteCount;
 
         if (byteCount > 0)
             return FormatByteCount(byteCount);

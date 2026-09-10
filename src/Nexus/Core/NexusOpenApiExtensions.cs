@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Nexus.Core;
 using NJsonSchema.Generation;
+using NSwag;
 using NSwag.AspNetCore;
 using System.Text.Json.Serialization;
 
@@ -52,6 +53,27 @@ internal static class NexusOpenApiExtensions
 
                 config.ApiGroupNames = [description.GroupName];
                 config.DocumentName = description.GroupName;
+
+                config.PostProcess = document =>
+                {
+                    if (document.Components.Schemas.TryGetValue("Precision", out var schema))
+                    {
+                        schema.ExtensionData ??= new Dictionary<string, object?>();
+                        schema.ExtensionData["x-enum-values"] = new[] { 4, 8 };
+                    }
+
+                    // NSwag ignores custom response content types for FileStreamResult.
+                    // https://github.com/RicoSuter/NSwag/issues/3920
+                    if (description.GroupName == "v2" &&
+                        document.Paths.TryGetValue("/api/v2/data", out var dataPath) &&
+                        dataPath.TryGetValue(OpenApiOperationMethod.Post, out var dataOperation) &&
+                        dataOperation.Responses.TryGetValue("200", out var response) &&
+                        response.Content.TryGetValue("application/octet-stream", out var streamContent))
+                    {
+                        response.Content.Remove("application/octet-stream");
+                        response.Content["application/vnd.apache.arrow.stream"] = streamContent;
+                    }
+                };
             });
         }
 

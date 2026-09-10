@@ -1,15 +1,19 @@
 #nullable enable
 
-using System.Buffers;
+using Apache.Arrow;
+using Apache.Arrow.Ipc;
+using Apache.Arrow.Types;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Precision = Nexus.Api.V2.Precision;
 
 namespace Nexus.Api
 {
@@ -22,6 +26,11 @@ public interface INexusClient
     /// Gets the V1 client.
     /// </summary>
     Nexus.Api.V1.IV1 V1 { get; }
+
+    /// <summary>
+    /// Gets the V2 client.
+    /// </summary>
+    Nexus.Api.V2.IV2 V2 { get; }
 
 
 
@@ -42,6 +51,122 @@ public interface INexusClient
     /// Clears configuration data for all subsequent API requests.
     /// </summary>
     void ClearConfiguration();
+
+    /// <summary>
+    /// This high-level methods simplifies loading multiple resources at once.
+    /// </summary>
+    /// <param name="begin">Start date/time.</param>
+    /// <param name="end">End date/time.</param>
+    /// <param name="resourcePaths">The resource paths.</param>
+    /// <param name="onProgress">A callback which accepts the current progress.</param>
+    /// <typeparam name="T">The element type. Use <see cref="double"/> for 64-bit or <see cref="float"/> for 32-bit precision.</typeparam>
+    IReadOnlyDictionary<string, DataResponse<T>> Load<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default)
+        where T : struct;
+
+    /// <summary>
+    /// This high-level methods simplifies loading multiple resources at once into caller-provided buffers.
+    /// </summary>
+    /// <param name="begin">Start date/time.</param>
+    /// <param name="end">End date/time.</param>
+    /// <param name="resourcePaths">The resource paths.</param>
+    /// <param name="bufferProvider">A callback which provides a writable buffer for each resource path, chunk element count, and remaining resource element count.</param>
+    /// <param name="onProgress">A callback which accepts the current progress.</param>
+    /// <typeparam name="T">The element type. Use <see cref="double"/> for 64-bit or <see cref="float"/> for 32-bit precision.</typeparam>
+    IReadOnlyDictionary<string, ResourceInfo> Load<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>> bufferProvider,
+        Action<double>? onProgress = default)
+        where T : struct;
+
+    /// <summary>
+    /// This high-level methods simplifies loading multiple resources at once.
+    /// </summary>
+    /// <param name="begin">Start date/time.</param>
+    /// <param name="end">End date/time.</param>
+    /// <param name="resourcePaths">The resource paths.</param>
+    /// <param name="onProgress">A callback which accepts the current progress.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    /// <typeparam name="T">The element type. Use <see cref="double"/> for 64-bit or <see cref="float"/> for 32-bit precision.</typeparam>
+    Task<IReadOnlyDictionary<string, DataResponse<T>>> LoadAsync<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct;
+
+    /// <summary>
+    /// This high-level methods simplifies loading multiple resources at once into caller-provided buffers.
+    /// </summary>
+    /// <param name="begin">Start date/time.</param>
+    /// <param name="end">End date/time.</param>
+    /// <param name="resourcePaths">The resource paths.</param>
+    /// <param name="bufferProvider">A callback which provides a writable buffer for each resource path, chunk element count, and remaining resource element count.</param>
+    /// <param name="onProgress">A callback which accepts the current progress.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    /// <typeparam name="T">The element type. Use <see cref="double"/> for 64-bit or <see cref="float"/> for 32-bit precision.</typeparam>
+    Task<IReadOnlyDictionary<string, ResourceInfo>> LoadAsync<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>> bufferProvider,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct;
+
+    /// <summary>
+    /// This high-level methods simplifies exporting multiple resources at once.
+    /// </summary>
+    /// <param name="begin">The begin date/time.</param>
+    /// <param name="end">The end date/time.</param>
+    /// <param name="filePeriod">The file period. Use TimeSpan.Zero to get a single file.</param>
+    /// <param name="fileFormat">The target file format. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
+    /// <param name="resourcePaths">The resource paths to export.</param>
+    /// <param name="configuration">The configuration.</param>
+    /// <param name="targetFolder">The target folder for the files to extract.</param>
+    /// <param name="precision">The floating point precision used for exported sample values.</param>
+    /// <param name="onProgress">A callback which accepts the current progress and the progress message.</param>
+    void Export(
+        DateTime begin,
+        DateTime end,
+        TimeSpan filePeriod,
+        string? fileFormat,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, object>? configuration,
+        string targetFolder,
+        Precision precision,
+        Action<double, string>? onProgress = default);
+
+    /// <summary>
+    /// This high-level methods simplifies exporting multiple resources at once.
+    /// </summary>
+    /// <param name="begin">The begin date/time.</param>
+    /// <param name="end">The end date/time.</param>
+    /// <param name="filePeriod">The file period. Use TimeSpan.Zero to get a single file.</param>
+    /// <param name="fileFormat">The target file format. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
+    /// <param name="resourcePaths">The resource paths to export.</param>
+    /// <param name="configuration">The configuration.</param>
+    /// <param name="targetFolder">The target folder for the files to extract.</param>
+    /// <param name="precision">The floating point precision used for exported sample values.</param>
+    /// <param name="onProgress">A callback which accepts the current progress and the progress message.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    Task ExportAsync(
+        DateTime begin,
+        DateTime end,
+        TimeSpan filePeriod,
+        string? fileFormat,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, object>? configuration,
+        string targetFolder,
+        Precision precision,
+        Action<double, string>? onProgress = default,
+        CancellationToken cancellationToken = default);
 }
 
 /// <inheritdoc />
@@ -74,6 +199,7 @@ public class NexusClient : INexusClient, IDisposable
         __httpClient = httpClient;
 
         V1 = new Nexus.Api.V1.V1(this);
+        V2 = new Nexus.Api.V2.V2(this);
 
     }
 
@@ -84,6 +210,9 @@ public class NexusClient : INexusClient, IDisposable
 
     /// <inheritdoc />
     public Nexus.Api.V1.IV1 V1 { get; }
+
+    /// <inheritdoc />
+    public Nexus.Api.V2.IV2 V2 { get; }
 
 
 
@@ -114,6 +243,7 @@ public class NexusClient : INexusClient, IDisposable
         __httpClient.DefaultRequestHeaders.Remove(ConfigurationHeaderKey);
     }
 
+
     internal T Invoke<T>(string method, string relativeUrl, string? acceptHeaderValue, string? contentTypeValue, HttpContent? content)
     {
         // prepare request
@@ -125,14 +255,17 @@ public class NexusClient : INexusClient, IDisposable
         // process response
         if (!response.IsSuccessStatusCode)
         {
-            var message = new StreamReader(response.Content.ReadAsStream()).ReadToEnd();
-            var statusCode = $"00.{(int)response.StatusCode}";
+            using (response)
+            {
+                var message = new StreamReader(response.Content.ReadAsStream()).ReadToEnd();
+                var statusCode = $"00.{(int)response.StatusCode}";
 
-            if (string.IsNullOrWhiteSpace(message))
-                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
+                if (string.IsNullOrWhiteSpace(message))
+                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
 
-            else
-                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
+                else
+                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
+            }
         }
 
         try
@@ -179,14 +312,17 @@ public class NexusClient : INexusClient, IDisposable
         // process response
         if (!response.IsSuccessStatusCode)
         {
-            var message = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            var statusCode = $"00.{(int)response.StatusCode}";
+            using (response)
+            {
+                var message = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var statusCode = $"00.{(int)response.StatusCode}";
 
-            if (string.IsNullOrWhiteSpace(message))
-                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
+                if (string.IsNullOrWhiteSpace(message))
+                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}.");
 
-            else
-                throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
+                else
+                    throw new NexusException(statusCode, $"The HTTP request failed with status code {response.StatusCode}. The response message is: {message}");
+            }
         }
 
         try
@@ -253,209 +389,387 @@ public class NexusClient : INexusClient, IDisposable
         __httpClient?.Dispose();
     }
 
-    /// <summary>
-    /// This high-level methods simplifies loading multiple resources at once.
-    /// </summary>
-    /// <param name="begin">Start date/time.</param>
-    /// <param name="end">End date/time.</param>
-    /// <param name="resourcePaths">The resource paths.</param>
-    /// <param name="onProgress">A callback which accepts the current progress.</param>
-    public IReadOnlyDictionary<string, DataResponse> Load(
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, DataResponse<T>> Load<T>(
         DateTime begin, 
         DateTime end, 
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default)
+        where T : struct
     {
-        var catalogItemMap = V1.Catalogs.SearchCatalogItems(resourcePaths.ToList());
-        var result = new Dictionary<string, DataResponse>();
-        var progress = 0.0;
+        var result = LoadCoreAsync<T>(begin, end, resourcePaths, bufferProvider: null, useAsync: false, onProgress).GetAwaiter().GetResult();
 
-        foreach (var (resourcePath, catalogItem) in catalogItemMap)
-        {
-            using var responseMessage = V1.Data.GetStream(resourcePath, begin, end);
-
-            var doubleData = ReadAsDoubleAsync(responseMessage, useAsync: false)
-                .GetAwaiter()
-                .GetResult();
-
-            var resource = catalogItem.Resource;
-
-            string? unit = default;
-
-            if (resource.Properties is not null &&
-                resource.Properties.TryGetValue("unit", out var unitElement) &&
-                unitElement.ValueKind == JsonValueKind.String)
-                unit = unitElement.GetString();
-
-            string? description = default;
-
-            if (resource.Properties is not null &&
-                resource.Properties.TryGetValue("description", out var descriptionElement) &&
-                descriptionElement.ValueKind == JsonValueKind.String)
-                description = descriptionElement.GetString();
-
-            var samplePeriod = catalogItem.Representation.SamplePeriod;
-
-            result[resourcePath] = new DataResponse(
-                CatalogItem: catalogItem,
-                Name: resource.Id,
-                Unit: unit,
-                Description: description,
-                SamplePeriod: samplePeriod,
-                Values: doubleData
-            );
-
-            progress += 1.0 / catalogItemMap.Count;
-            onProgress?.Invoke(progress);
-        }
-
-        return result;
+        return result.ResourcePaths
+            .Select((resourcePath, index) => (resourcePath, Values: result.Values[index]))
+            .ToDictionary(
+                item => item.resourcePath,
+                item => new DataResponse<T>(result.ResourceInfoMap[item.resourcePath], item.Values));
     }
 
-    /// <summary>
-    /// This high-level methods simplifies loading multiple resources at once.
-    /// </summary>
-    /// <param name="begin">Start date/time.</param>
-    /// <param name="end">End date/time.</param>
-    /// <param name="resourcePaths">The resource paths.</param>
-    /// <param name="onProgress">A callback which accepts the current progress.</param>
-    /// <param name="cancellationToken">A token to cancel the current operation.</param>
-    public async Task<IReadOnlyDictionary<string, DataResponse>> LoadAsync(
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, ResourceInfo> Load<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>> bufferProvider,
+        Action<double>? onProgress = default)
+        where T : struct
+    {
+        ArgumentNullException.ThrowIfNull(bufferProvider);
+
+        var result = LoadCoreAsync<T>(begin, end, resourcePaths, bufferProvider, useAsync: false, onProgress).GetAwaiter().GetResult();
+
+        return result.ResourceInfoMap;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<string, DataResponse<T>>> LoadAsync<T>(
         DateTime begin, 
         DateTime end, 
         IEnumerable<string> resourcePaths,
         Action<double>? onProgress = default,
         CancellationToken cancellationToken = default)
+        where T : struct
     {
-        var catalogItemMap = await V1.Catalogs.SearchCatalogItemsAsync(resourcePaths.ToList()).ConfigureAwait(false);
-        var result = new Dictionary<string, DataResponse>();
-        var progress = 0.0;
+        var result = await LoadCoreAsync<T>(begin, end, resourcePaths, bufferProvider: null, useAsync: true, onProgress, cancellationToken).ConfigureAwait(false);
 
-        foreach (var (resourcePath, catalogItem) in catalogItemMap)
-        {
-            using var responseMessage = await V1.Data.GetStreamAsync(resourcePath, begin, end, cancellationToken).ConfigureAwait(false);
-            var doubleData = await ReadAsDoubleAsync(responseMessage, useAsync: true, cancellationToken).ConfigureAwait(false);
-            var resource = catalogItem.Resource;
-
-            string? unit = default;
-
-            if (resource.Properties is not null &&
-                resource.Properties.TryGetValue("unit", out var unitElement) &&
-                unitElement.ValueKind == JsonValueKind.String)
-                unit = unitElement.GetString();
-
-            string? description = default;
-
-            if (resource.Properties is not null &&
-                resource.Properties.TryGetValue("description", out var descriptionElement) &&
-                descriptionElement.ValueKind == JsonValueKind.String)
-                description = descriptionElement.GetString();
-
-            var samplePeriod = catalogItem.Representation.SamplePeriod;
-
-            result[resourcePath] = new DataResponse(
-                CatalogItem: catalogItem,
-                Name: resource.Id,
-                Unit: unit,
-                Description: description,
-                SamplePeriod: samplePeriod,
-                Values: doubleData
-            );
-
-            progress += 1.0 / catalogItemMap.Count;
-            onProgress?.Invoke(progress);
-        }
-
-        return result;
+        return result.ResourcePaths
+            .Select((resourcePath, index) => (resourcePath, Values: result.Values[index]))
+            .ToDictionary(
+                item => item.resourcePath,
+                item => new DataResponse<T>(result.ResourceInfoMap[item.resourcePath], item.Values));
     }
 
-    private async Task<double[]> ReadAsDoubleAsync(HttpResponseMessage responseMessage, bool useAsync, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<string, ResourceInfo>> LoadAsync<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>> bufferProvider,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct
     {
-        int? length = default;
+        ArgumentNullException.ThrowIfNull(bufferProvider);
 
-        if (responseMessage.Content.Headers.TryGetValues("Content-Length", out var values) && 
-            values.Any() && 
-            int.TryParse(values.First(), out var contentLength))
+        var result = await LoadCoreAsync<T>(begin, end, resourcePaths, bufferProvider, useAsync: true, onProgress, cancellationToken).ConfigureAwait(false);
+
+        return result.ResourceInfoMap;
+    }
+
+    private async Task<LoadResult<T>> LoadCoreAsync<T>(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        Func<string, int, long, Memory<T>>? bufferProvider,
+        bool useAsync,
+        Action<double>? onProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct
+    {
+        var precision = GetPrecisionFromType<T>();
+        var resourcePathList = resourcePaths.ToList();
+
+        if (resourcePathList.Count == 0)
+            return new LoadResult<T>(resourcePathList, new Dictionary<string, ResourceInfo>(), []);
+
+        var catalogItemMap = useAsync
+            ? await V1.Catalogs.SearchCatalogItemsAsync(resourcePathList, cancellationToken).ConfigureAwait(false)
+            : V1.Catalogs.SearchCatalogItems(resourcePathList);
+        using var response = useAsync
+            ? await V2.Data.GetStreamAsync(new V2.BatchStreamRequest(begin, end, resourcePathList, precision), cancellationToken).ConfigureAwait(false)
+            : V2.Data.GetStream(new V2.BatchStreamRequest(begin, end, resourcePathList, precision));
+        var expectedLengths = GetExpectedLengths(begin, end, resourcePathList, catalogItemMap, precision);
+        var totalLength = expectedLengths.Sum(length => (long)length);
+        var consumedLength = 0L;
+        var data = await ReadBatchAsync<T>(response, resourcePathList, expectedLengths, bufferProvider, useAsync, ReportProgress, cancellationToken).ConfigureAwait(false);
+
+        onProgress?.Invoke(1);
+        var resourceInfoMap = resourcePathList.ToDictionary(
+            resourcePath => resourcePath,
+            resourcePath => CreateResourceInfo(catalogItemMap[resourcePath]));
+
+        return new LoadResult<T>(resourcePathList, resourceInfoMap, data);
+
+        void ReportProgress(long bytesRead)
         {
-            length = contentLength;
+            if (totalLength > 0)
+                onProgress?.Invoke(Math.Min(1, Interlocked.Add(ref consumedLength, bytesRead) / (double)totalLength));
         }
+    }
 
-        if (!length.HasValue)
-            throw new Exception("The data length is unknown.");
+    private static long[] GetExpectedLengths(
+        DateTime begin,
+        DateTime end,
+        IEnumerable<string> resourcePaths,
+        IReadOnlyDictionary<string, V1.CatalogItem> catalogItemMap,
+        Precision precision)
+    {
+        return resourcePaths.Select(resourcePath => checked(
+            (end - begin).Ticks /
+            catalogItemMap[resourcePath].Representation.SamplePeriod.Ticks *
+            (long)precision)).ToArray();
+    }
 
-        if (length.Value % 8 != 0)
-            throw new Exception("The data length is invalid.");
+    private static Precision GetPrecisionFromType<T>() where T : struct
+    {
+        if (typeof(T) == typeof(double))
+            return Precision.Float64;
 
-        var elementCount = length.Value / 8;
-        var doubleBuffer = new double[elementCount];
-        var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
+        if (typeof(T) == typeof(float))
+            return Precision.Float32;
+
+        throw new NotSupportedException($"The type {typeof(T)} is not supported. Only double and float are allowed.");
+    }
+
+    private static ResourceInfo CreateResourceInfo(V1.CatalogItem catalogItem)
+    {
+        var resource = catalogItem.Resource;
+
+        string? unit = default;
+
+        if (resource.Properties is not null &&
+            resource.Properties.TryGetValue("unit", out var unitElement) &&
+            unitElement.ValueKind == JsonValueKind.String)
+            unit = unitElement.GetString();
+
+        string? description = default;
+
+        if (resource.Properties is not null &&
+            resource.Properties.TryGetValue("description", out var descriptionElement) &&
+            descriptionElement.ValueKind == JsonValueKind.String)
+            description = descriptionElement.GetString();
+
+        return new ResourceInfo(
+            CatalogItem: catalogItem,
+            Name: resource.Id,
+            Unit: unit,
+            Description: description,
+            SamplePeriod: catalogItem.Representation.SamplePeriod);
+    }
+
+    private static async Task<Memory<T>[]> ReadBatchAsync<T>(
+        HttpResponseMessage responseMessage,
+        IReadOnlyList<string> resourcePaths,
+        long[] expectedLengths,
+        Func<string, int, long, Memory<T>>? bufferProvider,
+        bool useAsync,
+        Action<long>? reportProgress = default,
+        CancellationToken cancellationToken = default)
+        where T : struct
+    {
+        var elementSize = Unsafe.SizeOf<T>();
+        var maxChunkLength = Math.Max(1, 16 * 1024 * 1024 / elementSize);
+        var values = new Memory<T>[expectedLengths.Length];
+        var chunks = new Memory<T>[expectedLengths.Length];
+        var chunkOffsets = new int[expectedLengths.Length];
+        var chunkLengths = new int[expectedLengths.Length];
+        var offsets = new long[expectedLengths.Length];
+
+        for (var index = 0; index < expectedLengths.Length; index++)
+        {
+            if (expectedLengths[index] % elementSize != 0)
+                throw new Exception("The expected resource length is not aligned to the requested precision.");
+
+            var requiredLength = expectedLengths[index] / elementSize;
+
+            if (bufferProvider is null)
+            {
+                if (requiredLength > int.MaxValue)
+                    throw new InvalidOperationException($"The resource '{resourcePaths[index]}' is too large for a single contiguous buffer. Provide a chunk-aware buffer provider.");
+
+                values[index] = new T[checked((int)requiredLength)];
+                chunks[index] = values[index];
+                chunkLengths[index] = checked((int)expectedLengths[index]);
+            }
+            else
+            {
+                values[index] = Memory<T>.Empty;
+
+                if (requiredLength > 0)
+                    RentNextChunk(index, requiredLength);
+            }
+        }
 
         Stream stream = useAsync
             ? await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false)
             : responseMessage.Content.ReadAsStream(cancellationToken);
+        using var reader = new ArrowStreamReader(stream);
 
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
+        while (true)
         {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken).ConfigureAwait(false);
+            using var recordBatch = await ReadNextRecordBatchAsync().ConfigureAwait(false);
 
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
+            if (recordBatch is null)
+                break;
 
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
+            var (resourceIndexArray, offsetArray, valuesArray) = GetArrowArrays(recordBatch);
+
+            for (var rowIndex = 0; rowIndex < recordBatch.Length; rowIndex++)
+            {
+                var resourceIndex = resourceIndexArray.GetValue(rowIndex) ?? throw new Exception("The Arrow stream contains a null resource index.");
+                var offset = offsetArray.GetValue(rowIndex) ?? throw new Exception("The Arrow stream contains a null offset.");
+                var valueOffset = valuesArray.ValueOffsets[rowIndex];
+                var valueLength = valuesArray.ValueOffsets[rowIndex + 1] - valueOffset;
+                var payloadLength = checked(valueLength * elementSize);
+
+                if ((uint)resourceIndex >= (uint)values.Length)
+                    throw new Exception("The Arrow stream contains an invalid resource index.");
+
+                if (offset < 0)
+                    throw new Exception("The Arrow stream contains an invalid offset.");
+
+                if (offset != offsets[resourceIndex] / elementSize)
+                    throw new Exception("The Arrow stream contains out-of-order data.");
+
+                if (offsets[resourceIndex] > expectedLengths[resourceIndex] - payloadLength)
+                    throw new Exception("The Arrow stream contains more data than expected.");
+
+                var remainingValueOffset = valueOffset;
+                var remainingValueLength = valueLength;
+
+                while (remainingValueLength > 0)
+                {
+                    if (chunkOffsets[resourceIndex] == chunkLengths[resourceIndex])
+                    {
+                        var remainingLength = (expectedLengths[resourceIndex] - offsets[resourceIndex]) / elementSize;
+                        RentNextChunk(resourceIndex, remainingLength);
+                    }
+
+                    var count = Math.Min(remainingValueLength, (chunkLengths[resourceIndex] - chunkOffsets[resourceIndex]) / elementSize);
+                    var target = chunks[resourceIndex].Slice(chunkOffsets[resourceIndex] / elementSize, count);
+                    CopyArrowValues(valuesArray, remainingValueOffset, count, target);
+
+                    var bytesCopied = checked(count * elementSize);
+                    chunkOffsets[resourceIndex] += bytesCopied;
+                    offsets[resourceIndex] += bytesCopied;
+                    remainingValueOffset += count;
+                    remainingValueLength -= count;
+                    reportProgress?.Invoke(bytesCopied);
+                }
+            }
         }
 
-        return doubleBuffer;
+        if (!offsets.SequenceEqual(expectedLengths))
+            throw new Exception("The Arrow stream ended before all data was received.");
+
+        return values;
+
+        void RentNextChunk(int index, long remainingLength)
+        {
+            if (bufferProvider is null)
+                throw new Exception("The Arrow stream contains more chunk data than expected.");
+
+            var chunkLength = checked((int)Math.Min(maxChunkLength, remainingLength));
+            var memory = bufferProvider(resourcePaths[index], chunkLength, remainingLength);
+
+            if (memory.Length < chunkLength)
+                throw new ArgumentException($"The buffer provided for resource path '{resourcePaths[index]}' is too small. Required length: {chunkLength}. Provided length: {memory.Length}.", nameof(bufferProvider));
+
+            chunks[index] = memory[..chunkLength];
+            chunkOffsets[index] = 0;
+            chunkLengths[index] = checked(chunkLength * elementSize);
+        }
+
+        async Task<RecordBatch?> ReadNextRecordBatchAsync()
+        {
+            try
+            {
+                return useAsync
+                    ? await reader.ReadNextRecordBatchAsync(cancellationToken).AsTask()!.ConfigureAwait(false)
+                    : reader.ReadNextRecordBatch();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new Exception("The Arrow data stream failed or ended unexpectedly.", ex);
+            }
+        }
+
+        static (Int32Array ResourceIndexArray, Int64Array OffsetArray, ListArray ValuesArray) GetArrowArrays(RecordBatch recordBatch)
+        {
+            var fields = recordBatch.Schema.FieldsList;
+
+            if (fields.Count != 3 ||
+                fields[0].Name != "resourceIndex" || fields[0].DataType is not Int32Type ||
+                fields[1].Name != "offset" || fields[1].DataType is not Int64Type ||
+                fields[2].Name != "values" || fields[2].DataType is not ListType listType)
+                throw new Exception("The Arrow stream schema is invalid.");
+
+            if (typeof(T) == typeof(float))
+            {
+                if (listType.ValueDataType is not FloatType)
+                    throw new Exception("The Arrow stream value type does not match the requested precision.");
+            }
+            else if (typeof(T) == typeof(double))
+            {
+                if (listType.ValueDataType is not DoubleType)
+                    throw new Exception("The Arrow stream value type does not match the requested precision.");
+            }
+            else
+            {
+                throw new Exception("The Arrow stream value type does not match the requested precision.");
+            }
+
+            Int32Array? resourceIndexArray = null;
+            Int64Array? offsetArray = null;
+            ListArray? valuesArray = null;
+            var columnIndex = 0;
+
+            foreach (var array in recordBatch.Arrays)
+            {
+                switch (columnIndex)
+                {
+                    case 0 when array is Int32Array current:
+                        resourceIndexArray = current;
+                        break;
+                    case 1 when array is Int64Array current:
+                        offsetArray = current;
+                        break;
+                    case 2 when array is ListArray current:
+                        valuesArray = current;
+                        break;
+                    default:
+                        throw new Exception("The Arrow stream schema is invalid.");
+                }
+
+                columnIndex++;
+            }
+
+            if (columnIndex != 3 || resourceIndexArray is null || offsetArray is null || valuesArray is null)
+                throw new Exception("The Arrow stream schema is invalid.");
+
+            return (resourceIndexArray, offsetArray, valuesArray);
+        }
+
+        static void CopyArrowValues(ListArray valuesArray, int offset, int length, Memory<T> target)
+        {
+            var valueData = valuesArray.Data.Children.Length == 1
+                ? valuesArray.Data.Children[0]
+                : throw new Exception("The Arrow stream values column is invalid.");
+            var valueBuffer = valueData.Buffers.Length > 1
+                ? valueData.Buffers[1]
+                : throw new Exception("The Arrow stream values column is invalid.");
+
+            if (typeof(T) == typeof(float))
+            {
+                var targetSpan = MemoryMarshal.Cast<T, float>(target.Span);
+                var sourceSpan = MemoryMarshal.Cast<byte, float>(valueBuffer.Span);
+                sourceSpan.Slice(offset, length).CopyTo(targetSpan);
+            }
+            else if (typeof(T) == typeof(double))
+            {
+                var targetSpan = MemoryMarshal.Cast<T, double>(target.Span);
+                var sourceSpan = MemoryMarshal.Cast<byte, double>(valueBuffer.Span);
+                sourceSpan.Slice(offset, length).CopyTo(targetSpan);
+            }
+            else
+            {
+                throw new Exception("The Arrow stream value type does not match the requested precision.");
+            }
+        }
     }
 
-    private async Task<double[]> ReadAsDoubleAsync(HttpResponseMessage responseMessage, CancellationToken cancellationToken = default)
-    {
-        int? length = default;
-
-        if (responseMessage.Content.Headers.TryGetValues("Content-Length", out var values) && 
-            values.Any() && 
-            int.TryParse(values.First(), out var contentLength))
-        {
-            length = contentLength;
-        }
-
-        if (!length.HasValue)
-            throw new Exception("The data length is unknown.");
-
-        if (length.Value % 8 != 0)
-            throw new Exception("The data length is invalid.");
-
-        var elementCount = length.Value / 8;
-        var doubleBuffer = new double[elementCount];
-        var byteBuffer = new CastMemoryManager<double, byte>(doubleBuffer).Memory;
-        var stream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        var remainingBuffer = byteBuffer;
-
-        while (!remainingBuffer.IsEmpty)
-        {
-            var bytesRead = await stream.ReadAsync(remainingBuffer, cancellationToken).ConfigureAwait(false);
-
-            if (bytesRead == 0)
-                throw new Exception("The stream ended early.");
-
-            remainingBuffer = remainingBuffer.Slice(bytesRead);
-        }
-
-        return doubleBuffer;
-    }
-
-    /// <summary>
-    /// This high-level methods simplifies exporting multiple resources at once.
-    /// </summary>
-    /// <param name="begin">The begin date/time.</param>
-    /// <param name="end">The end date/time.</param>
-    /// <param name="filePeriod">The file period. Use TimeSpan.Zero to get a single file.</param>
-    /// <param name="fileFormat">The target file format. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
-    /// <param name="resourcePaths">The resource paths to export.</param>
-    /// <param name="configuration">The configuration.</param>
-    /// <param name="targetFolder">The target folder for the files to extract.</param>
-    /// <param name="onProgress">A callback which accepts the current progress and the progress message.</param>
+    /// <inheritdoc />
     public void Export(
         DateTime begin, 
         DateTime end,
@@ -464,22 +778,24 @@ public class NexusClient : INexusClient, IDisposable
         IEnumerable<string> resourcePaths,
         IReadOnlyDictionary<string, object>? configuration,
         string targetFolder,
+        Precision precision,
         Action<double, string>? onProgress = default)
     {
         var actualConfiguration = configuration is null
             ? default
             : JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(JsonSerializer.Serialize(configuration));
 
-        var exportParameters = new V1.ExportParameters(
+        var exportParameters = new V2.ExportParameters(
             begin,
             end,
             filePeriod,
             fileFormat,
             resourcePaths.ToList(),
-            actualConfiguration);
+            actualConfiguration,
+            precision);
 
         // Start Job
-        var job = V1.Jobs.Export(exportParameters);
+        var job = V2.Jobs.Export(exportParameters);
 
         // Wait for job to finish
         string? artifactId = default;
@@ -581,18 +897,7 @@ public class NexusClient : INexusClient, IDisposable
         }
     }
 
-    /// <summary>
-    /// This high-level methods simplifies exporting multiple resources at once.
-    /// </summary>
-    /// <param name="begin">The begin date/time.</param>
-    /// <param name="end">The end date/time.</param>
-    /// <param name="filePeriod">The file period. Use TimeSpan.Zero to get a single file.</param>
-    /// <param name="fileFormat">The target file format. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
-    /// <param name="resourcePaths">The resource paths to export.</param>
-    /// <param name="configuration">The configuration.</param>
-    /// <param name="targetFolder">The target folder for the files to extract.</param>
-    /// <param name="onProgress">A callback which accepts the current progress and the progress message.</param>
-    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    /// <inheritdoc />
     public async Task ExportAsync(
         DateTime begin, 
         DateTime end,
@@ -601,6 +906,7 @@ public class NexusClient : INexusClient, IDisposable
         IEnumerable<string> resourcePaths,
         IReadOnlyDictionary<string, object>? configuration,
         string targetFolder,
+        Precision precision,
         Action<double, string>? onProgress = default,
         CancellationToken cancellationToken = default)
     {
@@ -608,16 +914,17 @@ public class NexusClient : INexusClient, IDisposable
             ? default
             : JsonSerializer.Deserialize<IReadOnlyDictionary<string, JsonElement>?>(JsonSerializer.Serialize(configuration));
 
-        var exportParameters = new V1.ExportParameters(
+        var exportParameters = new V2.ExportParameters(
             begin,
             end,
             filePeriod,
             fileFormat,
             resourcePaths.ToList(),
-            actualConfiguration);
+            actualConfiguration,
+            precision);
 
         // Start Job
-        var job = await V1.Jobs.ExportAsync(exportParameters).ConfigureAwait(false);
+        var job = await V2.Jobs.ExportAsync(exportParameters).ConfigureAwait(false);
 
         // Wait for job to finish
         string? artifactId = default;
@@ -720,25 +1027,6 @@ public class NexusClient : INexusClient, IDisposable
     }
 }
 
-internal class CastMemoryManager<TFrom, TTo> : MemoryManager<TTo>
-     where TFrom : struct
-     where TTo : struct
-{
-    private readonly Memory<TFrom> _from;
-
-    public CastMemoryManager(Memory<TFrom> from) => _from = from;
-
-    public override Span<TTo> GetSpan() => MemoryMarshal.Cast<TFrom, TTo>(_from.Span);
-
-    protected override void Dispose(bool disposing)
-    {
-        //
-    }
-
-    public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
-
-    public override void Unpin() => throw new NotSupportedException();
-}
 
 /// <summary>
 /// A NexusException.
@@ -795,19 +1083,33 @@ internal static class Utilities
 /// <summary>
 /// Result of a data request with a certain resource path.
 /// </summary>
+/// <param name="Info">The resource metadata.</param>
+/// <param name="Values">The data.</param>
+/// <typeparam name="T">The element type of the data.</typeparam>
+public sealed record DataResponse<T>(
+    ResourceInfo Info,
+    ReadOnlyMemory<T> Values) where T : struct;
+
+/// <summary>
+/// Metadata for a data resource.
+/// </summary>
 /// <param name="CatalogItem">The catalog item.</param>
 /// <param name="Name">The resource name.</param>
 /// <param name="Unit">The optional resource unit.</param>
 /// <param name="Description">The optional resource description.</param>
 /// <param name="SamplePeriod">The sample period.</param>
-/// <param name="Values">The data.</param>
-public record DataResponse(
-    V1.CatalogItem CatalogItem, 
-    string? Name,
+public sealed record ResourceInfo(
+    V1.CatalogItem CatalogItem,
+    string Name,
     string? Unit,
     string? Description,
-    TimeSpan SamplePeriod,
-    double[] Values);
+    TimeSpan SamplePeriod);
+
+internal sealed record LoadResult<T>(
+    IReadOnlyList<string> ResourcePaths,
+    IReadOnlyDictionary<string, ResourceInfo> ResourceInfoMap,
+    Memory<T>[] Values) where T : struct;
+
 }
 
 namespace Nexus.Api.V1
@@ -3023,54 +3325,54 @@ public record Representation(NexusDataType DataType, TimeSpan SamplePeriod, IRea
 public enum NexusDataType
 {
     /// <summary>
-    /// UINT8
+    /// UInt8
     /// </summary>
-    UINT8,
+    UInt8,
 
     /// <summary>
-    /// UINT16
+    /// UInt16
     /// </summary>
-    UINT16,
+    UInt16,
 
     /// <summary>
-    /// UINT32
+    /// UInt32
     /// </summary>
-    UINT32,
+    UInt32,
 
     /// <summary>
-    /// UINT64
+    /// UInt64
     /// </summary>
-    UINT64,
+    UInt64,
 
     /// <summary>
-    /// INT8
+    /// Int8
     /// </summary>
-    INT8,
+    Int8,
 
     /// <summary>
-    /// INT16
+    /// Int16
     /// </summary>
-    INT16,
+    Int16,
 
     /// <summary>
-    /// INT32
+    /// Int32
     /// </summary>
-    INT32,
+    Int32,
 
     /// <summary>
-    /// INT64
+    /// Int64
     /// </summary>
-    INT64,
+    Int64,
 
     /// <summary>
-    /// FLOAT32
+    /// Float32
     /// </summary>
-    FLOAT32,
+    Float32,
 
     /// <summary>
-    /// FLOAT64
+    /// Float64
     /// </summary>
-    FLOAT64
+    Float64
 }
 
 
@@ -3140,7 +3442,7 @@ public record Job(Guid Id, string Type, string Owner, JsonElement? Parameters);
 public record JobStatus(DateTime Start, TaskStatus Status, double Progress, string? ExceptionMessage, JsonElement? Result);
 
 /// <summary>
-/// 
+///
 /// </summary>
 public enum TaskStatus
 {
@@ -3267,6 +3569,206 @@ public record PersonalAccessToken(string Description, DateTime Expires, IReadOnl
 /// <param name="Type">The claim type.</param>
 /// <param name="Value">The claim value.</param>
 public record TokenClaim(string Type, string Value);
+
+
+
+}
+namespace Nexus.Api.V2
+{
+
+/// <summary>
+/// A client for version V2.
+/// </summary>
+public interface IV2
+{
+    /// <summary>
+    /// Gets the <see cref="IDataClient"/>.
+    /// </summary>
+    IDataClient Data { get; }
+
+    /// <summary>
+    /// Gets the <see cref="IJobsClient"/>.
+    /// </summary>
+    IJobsClient Jobs { get; }
+
+
+}
+
+/// <inheritdoc />
+public class V2 : IV2
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="V2"/>.
+    /// </summary>
+    /// <param name="client">The client to use.</param>
+    public V2(NexusClient client)
+    {
+        Data = new DataClient(client);
+        Jobs = new JobsClient(client);
+
+    }
+
+    /// <inheritdoc />
+    public IDataClient Data { get; }
+
+    /// <inheritdoc />
+    public IJobsClient Jobs { get; }
+
+
+}
+
+/// <summary>
+/// Provides methods to interact with data.
+/// </summary>
+public interface IDataClient
+{
+    /// <summary>
+    /// Streams multiple resources in an Apache Arrow IPC response.
+    /// </summary>
+    /// <param name="request">The batch stream request.</param>
+    HttpResponseMessage GetStream(BatchStreamRequest request);
+
+    /// <summary>
+    /// Streams multiple resources in an Apache Arrow IPC response.
+    /// </summary>
+    /// <param name="request">The batch stream request.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> GetStreamAsync(BatchStreamRequest request, CancellationToken cancellationToken = default);
+
+}
+
+/// <inheritdoc />
+public class DataClient : IDataClient
+{
+    private NexusClient ___client;
+    
+    internal DataClient(NexusClient client)
+    {
+        ___client = client;
+    }
+
+    /// <inheritdoc />
+    public HttpResponseMessage GetStream(BatchStreamRequest request)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/data");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/vnd.apache.arrow.stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> GetStreamAsync(BatchStreamRequest request, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/data");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/vnd.apache.arrow.stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+}
+
+/// <summary>
+/// Provides methods to interact with jobs.
+/// </summary>
+public interface IJobsClient
+{
+    /// <summary>
+    /// Creates a new export job.
+    /// </summary>
+    /// <param name="parameters">Export parameters.</param>
+    Job Export(ExportParameters parameters);
+
+    /// <summary>
+    /// Creates a new export job.
+    /// </summary>
+    /// <param name="parameters">Export parameters.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<Job> ExportAsync(ExportParameters parameters, CancellationToken cancellationToken = default);
+
+}
+
+/// <inheritdoc />
+public class JobsClient : IJobsClient
+{
+    private NexusClient ___client;
+    
+    internal JobsClient(NexusClient client)
+    {
+        ___client = client;
+    }
+
+    /// <inheritdoc />
+    public Job Export(ExportParameters parameters)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/jobs/export");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<Job>("POST", __url, "application/json", "application/json", JsonContent.Create(parameters, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<Job> ExportAsync(ExportParameters parameters, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/jobs/export");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<Job>("POST", __url, "application/json", "application/json", JsonContent.Create(parameters, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+}
+
+
+
+/// <summary>
+/// A request to stream multiple resources.
+/// </summary>
+/// <param name="Begin">The start date/time.</param>
+/// <param name="End">The end date/time.</param>
+/// <param name="ResourcePaths">The resource paths to stream.</param>
+/// <param name="Precision">The floating point precision used for streamed sample values.</param>
+public record BatchStreamRequest(DateTime Begin, DateTime End, IReadOnlyList<string> ResourcePaths, Precision Precision);
+
+/// <summary>
+/// Specifies floating point precision for API output values.
+/// </summary>
+public enum Precision
+{
+    /// <summary>
+    /// Float32
+    /// </summary>
+    Float32 = 4,
+
+    /// <summary>
+    /// Float64
+    /// </summary>
+    Float64 = 8
+}
+
+
+/// <summary>
+/// Description of a job.
+/// </summary>
+/// <param name="Id">The global unique identifier.</param>
+/// <param name="Type">The job type.</param>
+/// <param name="Owner">The owner of the job.</param>
+/// <param name="Parameters">The job parameters.</param>
+public record Job(Guid Id, string Type, string Owner, JsonElement? Parameters);
+
+/// <summary>
+/// A structure for export parameters.
+/// </summary>
+/// <param name="Begin">The start date/time.</param>
+/// <param name="End">The end date/time.</param>
+/// <param name="FilePeriod">The file period.</param>
+/// <param name="Type">The writer type. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation.</param>
+/// <param name="ResourcePaths">The resource paths to export.</param>
+/// <param name="Configuration">The configuration.</param>
+/// <param name="Precision">The floating point precision used for exported sample values.</param>
+public record ExportParameters(DateTime Begin, DateTime End, TimeSpan FilePeriod, string? Type, IReadOnlyList<string> ResourcePaths, IReadOnlyDictionary<string, JsonElement>? Configuration, Precision Precision);
 
 
 

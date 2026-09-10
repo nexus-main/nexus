@@ -14,8 +14,8 @@ public class DataWriterFixture : IDisposable
         // catalog 1
         var representations1 = new List<Representation>()
         {
-            new(dataType: NexusDataType.FLOAT32, samplePeriod: TimeSpan.FromSeconds(1)),
-            new(dataType: NexusDataType.FLOAT64, samplePeriod: TimeSpan.FromSeconds(10)),
+            new(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)),
+            new(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromSeconds(10)),
         };
 
         var resourceBuilder1 = new ResourceBuilder(id: "resource1")
@@ -29,7 +29,7 @@ public class DataWriterFixture : IDisposable
             .AddResource(resourceBuilder1.Build());
 
         // catalog 2
-        var representation2 = new Representation(dataType: NexusDataType.INT64, samplePeriod: TimeSpan.FromSeconds(1));
+        var representation2 = new Representation(dataType: NexusDataType.Int64, samplePeriod: TimeSpan.FromSeconds(1));
 
         var resourceBuilder2 = new ResourceBuilder(id: "resource3")
             .WithUnit("m/s")

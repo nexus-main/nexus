@@ -5,10 +5,10 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.JSInterop;
 using MudBlazor;
 using Nexus.Api;
 using Nexus.Api.V1;
+using Nexus.Api.V2;
 using Nexus.UI.Services;
 using Nexus.UI.ViewModels;
 
@@ -18,7 +18,7 @@ public interface IAppState
 {
     ViewState ViewState { get; set; }
 
-    ExportParameters ExportParameters { get; set; }
+    Api.V2.ExportParameters ExportParameters { get; set; }
 
     SettingsViewModel Settings { get; }
 
@@ -73,7 +73,7 @@ public class AppState : INotifyPropertyChanged, IAppState
 
     private ViewState _viewState = ViewState.Normal;
 
-    private ExportParameters _exportParameters = default!;
+    private Api.V2.ExportParameters _exportParameters = default!;
 
     private readonly INexusClient _client;
 
@@ -102,7 +102,7 @@ public class AppState : INotifyPropertyChanged, IAppState
         IsDemo = isDemo;
         _client = client;
         _jsInterop = jsInterop;
-        Settings = new SettingsViewModel(this, jsInterop, client);
+        Settings = new SettingsViewModel(this, client);
 
         var childCatalogInfosTask = client.V1.Catalogs.GetChildCatalogInfosAsync(ResourceCatalogViewModel.ROOT_CATALOG_ID, CancellationToken.None);
 
@@ -130,13 +130,14 @@ public class AppState : INotifyPropertyChanged, IAppState
         );
 
         // export parameters
-        ExportParameters = new ExportParameters(
+        ExportParameters = new Api.V2.ExportParameters(
             Begin: DateTime.UtcNow.Date.AddDays(-2),
             End: DateTime.UtcNow.Date.AddDays(-1),
             FilePeriod: default,
             Type: default,
             ResourcePaths: new List<string>(),
-            Configuration: default
+            Configuration: default,
+            Precision: Precision.Float32
         );
 
         // request configuration
@@ -188,7 +189,7 @@ public class AppState : INotifyPropertyChanged, IAppState
         }
     }
 
-    public ExportParameters ExportParameters
+    public Api.V2.ExportParameters ExportParameters
     {
         get
         {

@@ -26,52 +26,68 @@ public enum NexusDataType : ushort
     /// <summary>
     /// Unsigned 8-bit integer.
     /// </summary>
-    UINT8 = 0x108,
+    UInt8 = 0x108,
 
     /// <summary>
     /// Signed 8-bit integer.
     /// </summary>
-    INT8 = 0x208,
+    Int8 = 0x208,
 
     /// <summary>
     /// Unsigned 16-bit integer.
     /// </summary>
-    UINT16 = 0x110,
+    UInt16 = 0x110,
 
     /// <summary>
     /// Signed 16-bit integer.
     /// </summary>
-    INT16 = 0x210,
+    Int16 = 0x210,
 
     /// <summary>
     /// Unsigned 32-bit integer.
     /// </summary>
-    UINT32 = 0x120,
+    UInt32 = 0x120,
 
     /// <summary>
     /// Signed 32-bit integer.
     /// </summary>
-    INT32 = 0x220,
+    Int32 = 0x220,
 
     /// <summary>
     /// Unsigned 64-bit integer.
     /// </summary>
-    UINT64 = 0x140,
+    UInt64 = 0x140,
 
     /// <summary>
     /// Signed 64-bit integer.
     /// </summary>
-    INT64 = 0x240,
+    Int64 = 0x240,
 
     /// <summary>
     /// 32-bit floating-point number.
     /// </summary>
-    FLOAT32 = 0x320,
+    Float32 = 0x320,
 
     /// <summary>
     /// 64-bit floating-point number.
     /// </summary>
-    FLOAT64 = 0x340
+    Float64 = 0x340
+}
+
+/// <summary>
+/// Specifies floating point precision for API output values.
+/// </summary>
+public enum Precision
+{
+    /// <summary>
+    /// 32-bit floating point output.
+    /// </summary>
+    Float32 = 4,
+
+    /// <summary>
+    /// 64-bit floating point output.
+    /// </summary>
+    Float64 = 8
 }
 
 /// <summary>
