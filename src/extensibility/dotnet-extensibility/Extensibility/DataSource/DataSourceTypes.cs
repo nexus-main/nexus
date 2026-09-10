@@ -44,7 +44,7 @@ public sealed class ReadRequest
     private Task? _completionTask;
 
     /// <summary>
-    /// Initializes a new runtime read request.
+    /// Initializes a read request.
     /// </summary>
     /// <param name="originalResourceName">The original resource name.</param>
     /// <param name="catalogItem">The catalog item to be read.</param>
