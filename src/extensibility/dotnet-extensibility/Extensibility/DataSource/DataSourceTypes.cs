@@ -49,7 +49,7 @@ public sealed class ReadRequest
     /// <param name="originalResourceName">The original resource name.</param>
     /// <param name="catalogItem">The catalog item to be read.</param>
     /// <param name="data">The data buffer.</param>
-    /// <param name="status">The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="double.NaN"/>.</param>
+    /// <param name="status">The status buffer. A value of 0x01 ('1') indicates that the corresponding value in the data buffer is valid, otherwise it is treated as <see cref="float.NaN"/> or <see cref="double.NaN"/>, respectively.</param>
     /// <param name="onCompleted">The host callback to run once when the request is completed.</param>
     /// <param name="cancellationToken">The host-owned cancellation token for completion.</param>
     public ReadRequest(
