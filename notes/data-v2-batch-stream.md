@@ -1,40 +1,42 @@
 # V2 Batch Data Stream
 
-The `/api/v2/data` endpoint returns one binary response body containing frames for all requested resources. Frames can be interleaved between resources, but each individual resource stream preserves byte order.
+The `/api/v2/data` endpoint returns one Apache Arrow IPC stream for all requested resources.
+The response media type is `application/vnd.apache.arrow.stream`.
 
-The response starts with a one-byte protocol version. The current version is `1`. There is no magic marker.
+The request body is JSON:
 
-After the version byte, the stream contains typed frames:
+```json
+{
+  "begin": "2026-01-01T00:00:00.0000000Z",
+  "end": "2026-01-01T01:00:00.0000000Z",
+  "resourcePaths": [
+    "/catalog/a/1_s",
+    "/catalog/b/1_s"
+  ],
+  "precision": "Float32"
+}
+```
 
-| Frame | Type byte | Layout                                              |
-| ----- | --------- | --------------------------------------------------- |
-| Data  | `1`       | `type`, `resourceIndex`, `payloadLength`, `payload` |
-| Error | `2`       | `type`, `messageLength`, `message`                  |
-| End   | `3`       | `type`                                              |
+`resourcePaths` must be non-empty, unique, and contain at most 100 paths. All requested resources must have the same sample period. `precision` is common to all resources in the request and is either `Float32` or `Float64`.
 
-Data frame fields are:
+The Arrow IPC stream schema is:
 
-| Field           | Size                  | Encoding                     | Description                                              |
-| --------------- | --------------------- | ---------------------------- | -------------------------------------------------------- |
-| `type`          | 1 byte                | unsigned byte                | Must be `1`.                                             |
-| `resourceIndex` | 1 byte                | unsigned byte                | Zero-based index into the request `resourcePaths` array. |
-| `payloadLength` | 4 bytes               | little-endian signed `int32` | Number of payload bytes following the header.            |
-| `payload`       | `payloadLength` bytes | raw bytes                    | Data bytes for the resource.                             |
+| Field | Arrow type | Nullable | Description |
+|---|---|---:|---|
+| `resourceIndex` | `int32` | no | Zero-based index into the request `resourcePaths` array. |
+| `offset` | `int64` | no | Element offset for the resource, not byte offset. |
+| `values` | `list<float32>` or `list<float64>` | no | Sample values for this chunk. The child type matches `precision`. |
 
-Error frame fields are:
+Each Arrow record batch contains one row per emitted chunk. A row can contain many samples in the `values` list; a row does not represent a single sample. Chunks from different resources may be interleaved, but chunks for one resource must arrive in increasing contiguous `offset` order.
 
-| Field           | Size                  | Encoding                     | Description                                                                |
-| --------------- | --------------------- | ---------------------------- | -------------------------------------------------------------------------- |
-| `type`          | 1 byte                | unsigned byte                | Must be `2`.                                                               |
-| `messageLength` | 4 bytes               | little-endian signed `int32` | Number of UTF-8 message bytes following the header.                        |
-| `message`       | `messageLength` bytes | UTF-8                        | Server-side failure message. The current server caps this field at 64 KiB. |
+The server creates one internal `Pipe` per resource and multiplexes completed pipe segments into one bounded Arrow output stream. `ReadRequest.CompleteAsync()` allows a data source to publish an individual resource before the complete batch read returns. Typical emitted chunk payloads are limited by the internal pipe segment size, currently about 4 MiB.
 
-End frame fields are:
+Initial validation, authorization, and missing-resource failures are normal HTTP error responses. Once the Arrow response has started, mid-stream failures fault or terminate the response stream; Nexus does not write custom error frames inside the Arrow stream.
 
-| Field  | Size   | Encoding      | Description  |
-| ------ | ------ | ------------- | ------------ |
-| `type` | 1 byte | unsigned byte | Must be `3`. |
+Clients validate the schema, field names, field types, resource indices, offsets, precision type, and expected byte counts. A stream succeeds only when every requested resource receives exactly the expected number of elements. If the Arrow stream is truncated, malformed, out of order, or contains more/fewer values than expected, clients fail the load.
 
-Clients must reject unsupported versions, unknown frame types, invalid resource indices, negative lengths, truncated headers, truncated payloads, and data beyond the expected byte count for a resource. Payload lengths must be aligned to the requested precision size.
+The generated .NET client reads with `ArrowStreamReader`, disposes each `RecordBatch` after copying its values, and copies Arrow value buffers into either client-owned arrays or chunks provided by the caller's buffer provider. `ArrowBuffer` instances are owned by the Arrow array/record-batch graph and are not disposed directly by the copy routine.
 
-EOF is not a success signal. A stream succeeds only after an explicit end frame and exactly the expected byte count for every requested resource. If the stream ends before the version byte, in the middle of a frame, or before the end frame, clients must treat it as a truncated stream. If an error frame is received, clients must fail the load with that message.
+The generated Python client reads with `pyarrow.ipc.open_stream`. The sync path adapts `response.iter_bytes()` to a small file-like stream; the async path buffers the response into `io.BytesIO` before opening the Arrow stream. Python copies Arrow value buffers into byte arrays and returns typed memory views.
+
+The OpenAPI document should expose the v2 data response as binary content with media type `application/vnd.apache.arrow.stream`. NSwag currently reports `FileStreamResult` responses as `application/octet-stream`, so `NexusOpenApiExtensions` contains a targeted post-process workaround for `/api/v2/data` until https://github.com/RicoSuter/NSwag/issues/3920 is resolved.

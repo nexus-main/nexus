@@ -52,7 +52,7 @@ Current C# and Python high-level load methods use one v2 request:
 ```http
 POST /api/v2/data
 Content-Type: application/json
-Accept: application/octet-stream
+Accept: application/vnd.apache.arrow.stream
 ```
 
 ```json
@@ -62,18 +62,19 @@ Accept: application/octet-stream
   "resourcePaths": [
     "/catalog/a/1_s",
     "/catalog/b/1_s"
-  ]
+  ],
+  "precision": "Float32"
 }
 ```
 
-The request accepts at most 100 unique resource paths with one common sample period. The response contains repeated binary frames:
+The request accepts at most 100 unique resource paths with one common sample period. The response is an Apache Arrow IPC stream with this schema:
 
-| Field | Size | Encoding |
-|---|---:|---|
-| Resource index | 4 bytes | signed little-endian integer |
-| Payload length | 4 bytes | signed little-endian integer |
-| Payload | up to 4 MiB | little-endian `Float64` values |
+| Field | Arrow type | Description |
+|---|---|---|
+| `resourceIndex` | `int32` | Zero-based index into `resourcePaths`. |
+| `offset` | `int64` | Element offset for the resource. |
+| `values` | `list<float32>` or `list<float64>` | Sample values for one chunk. |
 
-The resource index refers to the path's position in `resourcePaths`. End-of-stream marks successful completion; clients validate that every resource received the expected number of bytes.
+Chunks may be interleaved between resources, but each resource must be contiguous and ordered by `offset`. Clients validate that every resource received the expected number of elements.
 
 The server creates one internal `Pipe` per resource and multiplexes them into one bounded output pipe. `ReadRequest.CompleteAsync()` allows a source to publish an individual resource before its complete batch returns. Reverse proxies should disable response buffering to preserve back-pressure.
