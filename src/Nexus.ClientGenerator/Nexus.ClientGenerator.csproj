@@ -4,6 +4,7 @@
     <TargetFramework>$(TargetFrameworkVersion)</TargetFramework>
     <OutputType>Exe</OutputType>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <OpenApiClientGeneratorProjectPath Condition="'$(OpenApiClientGeneratorProjectPath)' == ''">../../../openapi-client-generator/src/Apollo3zehn.OpenApiClientGenerator/Apollo3zehn.OpenApiClientGenerator.csproj</OpenApiClientGeneratorProjectPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Apollo3zehn.OpenApiClientGenerator" />
+    <ProjectReference Include="$(OpenApiClientGeneratorProjectPath)" />
   </ItemGroup>
 
 </Project>

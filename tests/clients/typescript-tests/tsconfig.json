@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ES2022",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "paths": {
+            "nexus-api": ["../../../src/clients/typescript/index.ts"]
+        }
+    },
+    "include": ["*.ts"],
+    "exclude": ["node_modules"]
+}
