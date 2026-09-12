@@ -1,0 +1,20 @@
+{
+    "name": "nexus-api",
+    "version": "2.0.0-beta.56",
+    "description": "Client for the Nexus system.",
+    "author": "Nexus",
+    "license": "MIT",
+    "keywords": [
+        "nexus",
+        "time-series",
+        "data-lake"
+    ],
+    "main": "index.js",
+    "types": "index.d.ts",
+    "dependencies": {
+        "apache-arrow": "^16.0.0"
+    },
+    "devDependencies": {
+        "typescript": "^7.0.2"
+    }
+}

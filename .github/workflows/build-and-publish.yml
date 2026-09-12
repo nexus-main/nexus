@@ -22,6 +22,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Checkout openapi-client-generator
+        uses: actions/checkout@v3
+        with:
+          repository: Apollo3zehn/openapi-client-generator
+          ref: 97b396152b50c29d3c15c0d3bc5d102ff5b9e3f6
+          path: openapi-client-generator
+
       - name: Fetch tags
         run: git fetch --tags --force
 
@@ -48,6 +55,11 @@ jobs:
         with:
           python-version: "3.9"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Create Docker Output Folder
         run: mkdir --parent artifacts/images
 
@@ -64,6 +76,8 @@ jobs:
         uses: docker/setup-buildx-action@v1
 
       - name: Build
+        env:
+          OpenApiClientGeneratorProjectPath: ../../openapi-client-generator/src/Apollo3zehn.OpenApiClientGenerator/Apollo3zehn.OpenApiClientGenerator.csproj
         run: |
           (cd src/Nexus && libman restore)
           dotnet publish -c Release -o app /p:GeneratePackage=true src/Nexus/Nexus.csproj
@@ -71,11 +85,15 @@ jobs:
           python -m build --wheel --outdir artifacts/package --no-isolation src/extensibility/python-extensibility
 
       - name: Test
+        env:
+          OpenApiClientGeneratorProjectPath: ../../openapi-client-generator/src/Apollo3zehn.OpenApiClientGenerator/Apollo3zehn.OpenApiClientGenerator.csproj
         run: |
           node --test tests/js/*.test.js
           dotnet test -c Release /p:BuildProjectReferences=false
           pyright
           pytest
+          (cd src/clients/typescript && npm install --no-package-lock && npx tsc --strict --noEmit --moduleResolution bundler --module ES2022 --target ES2022 --lib DOM,ES2022 index.ts)
+          (cd tests/clients/typescript-tests && npm install --no-package-lock && npx tsc --noEmit --project tsconfig.json && npx vitest run)
 
       - name: Docker Build
         run: |
@@ -88,12 +106,14 @@ jobs:
           diff src/Nexus/wwwroot/css/app.css app_new.css
 
       - name: API
+        env:
+          OpenApiClientGeneratorProjectPath: ../../openapi-client-generator/src/Apollo3zehn.OpenApiClientGenerator/Apollo3zehn.OpenApiClientGenerator.csproj
         run: |
           dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi_new.json
           diff --strip-trailing-cr openapi.json openapi_new.json
           diff --strip-trailing-cr openapi.v2.json openapi_new.v2.json
           # Fail if generated clients changed, which means committed client sources are stale.
-          test -z "$(git status --porcelain -- src/clients/dotnet src/clients/python/nexus_api)"
+          test -z "$(git status --porcelain -- src/clients/dotnet src/clients/python/nexus_api src/clients/typescript)"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
