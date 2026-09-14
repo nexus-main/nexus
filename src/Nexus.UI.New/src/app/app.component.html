@@ -2,7 +2,7 @@
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
   <div class="flex h-screen w-full flex-col gap-4 overflow-hidden p-3 sm:p-4 xl:p-5">
-    <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" (openCatalog)="isMobileCatalogOpen.set(true)" />
+    <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" [themeMode]="themeMode()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" />
 
     @if (!apiAvailable() && !overviewLoading()) {
       <section class="rounded-3xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
