@@ -68,7 +68,7 @@
             </div>
           </section>
 
-          <section class="glass-panel grid min-h-[470px] overflow-hidden rounded-xl xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section class="glass-panel grid min-h-[470px] overflow-hidden rounded-xl xl:h-[clamp(420px,62vh,720px)] xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div class="flex min-h-0 flex-col border-b border-white/10 xl:border-b-0 xl:border-r">
               <div class="border-b border-white/10 p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -82,7 +82,7 @@
                 </div>
               </div>
 
-              <div class="min-h-0 flex-1 overflow-auto">
+              <div class="min-h-0 flex-1 overflow-x-auto xl:overflow-auto">
                 <table class="w-full min-w-[760px] border-separate border-spacing-0 text-left text-sm">
                   <thead class="sticky top-0 z-10 bg-slate-950/90 text-xs uppercase tracking-[0.18em] text-slate-500 backdrop-blur">
                     <tr>
@@ -127,7 +127,7 @@
               </div>
             </div>
 
-            <div class="bg-white/[0.025] p-4">
+            <div class="bg-white/[0.025] p-4 xl:min-h-0 xl:overflow-y-auto">
               <ng-container [ngTemplateOutlet]="activeInspector"></ng-container>
             </div>
           </section>
