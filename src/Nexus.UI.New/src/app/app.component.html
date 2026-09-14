@@ -1,7 +1,7 @@
 <div class="min-h-screen text-slate-100">
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
-  <div class="mx-auto flex h-screen w-full max-w-[1800px] flex-col gap-4 overflow-hidden p-3 sm:p-4 xl:p-5">
+  <div class="flex h-screen w-full flex-col gap-4 overflow-hidden p-3 sm:p-4 xl:p-5">
     <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" (openCatalog)="isMobileCatalogOpen.set(true)" />
 
     @if (!apiAvailable() && !overviewLoading()) {
@@ -21,8 +21,8 @@
         <ng-container [ngTemplateOutlet]="catalogBrowser"></ng-container>
       </aside>
 
-      <section class="grid min-h-0 gap-4 overflow-x-hidden overflow-y-auto">
-        <div class="grid min-w-0 gap-4">
+      <section class="flex min-h-0 flex-col gap-4 overflow-x-hidden overflow-y-auto">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
           <section class="glass-panel overflow-hidden rounded-xl">
             <div class="relative p-4 sm:p-5">
               <div class="absolute right-0 top-0 h-40 w-72 rounded-full bg-cyan-300/10 blur-3xl"></div>
@@ -68,8 +68,9 @@
             </div>
           </section>
 
-          <section class="glass-panel grid min-h-[470px] overflow-hidden rounded-xl xl:h-[clamp(420px,62vh,720px)] xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div class="flex min-h-0 flex-col border-b border-white/10 xl:border-b-0 xl:border-r">
+          <div class="grid min-h-0 min-w-0 flex-1 gap-4 2xl:grid-cols-2">
+          <section class="glass-panel min-h-[470px] overflow-hidden rounded-xl lg:min-h-0">
+            <div class="flex h-full min-h-0 flex-col">
               <div class="border-b border-white/10 p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -126,26 +127,28 @@
                 }
               </div>
             </div>
-
-            <div class="bg-white/[0.025] p-4 xl:min-h-0 xl:overflow-y-auto">
-              <ng-container [ngTemplateOutlet]="activeInspector"></ng-container>
-            </div>
           </section>
 
-          <section class="glass-panel overflow-hidden rounded-xl">
+          <section class="glass-panel min-h-0 overflow-hidden rounded-xl" [ngClass]="previewBreakoutOpen() ? 'fixed inset-3 z-50 flex flex-col shadow-2xl shadow-black/50 sm:inset-5' : 'hidden 2xl:block'" [attr.role]="previewBreakoutOpen() ? 'dialog' : null" [attr.aria-modal]="previewBreakoutOpen() ? 'true' : null" [attr.aria-label]="previewBreakoutOpen() ? 'Preview canvas breakout' : null">
             <div class="flex flex-col gap-4 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">preview canvas</div>
                 <div class="mt-1 text-xl font-semibold tracking-[-0.03em] text-white">Placeholder graph wired to selection state</div>
               </div>
-              <div class="flex flex-wrap gap-2">
-                @for (range of quickRanges; track range.label) {
-                  <button type="button" class="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-medium text-slate-300 hover:border-cyan-300/40 hover:text-cyan-100" (click)="applyQuickRange(range)">{{ range.label }}</button>
+              <button type="button" class="inline-grid h-9 w-9 place-items-center rounded-xl border border-lime-300/20 bg-lime-300/10 text-lime-100 transition hover:border-lime-300/45 hover:text-white" (click)="previewBreakoutOpen.update((value) => !value)" [attr.aria-label]="previewBreakoutOpen() ? 'Close preview breakout' : 'Open preview breakout'" [attr.title]="previewBreakoutOpen() ? 'Close preview breakout' : 'Open preview breakout'">
+                @if (previewBreakoutOpen()) {
+                  <span class="text-xl leading-none">×</span>
+                } @else {
+                  <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M7.25 5.75H5.75A1.75 1.75 0 0 0 4 7.5v6.75A1.75 1.75 0 0 0 5.75 16h6.75a1.75 1.75 0 0 0 1.75-1.75v-1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M10.25 4H16v5.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M9 11l6.75-6.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                  </svg>
                 }
-              </div>
+              </button>
             </div>
-            <div class="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_230px]">
-              <div class="relative h-72 overflow-hidden rounded-3xl border border-white/10 bg-[#06101d] p-4">
+            <div [ngClass]="previewBreakoutOpen() ? 'grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_280px]' : 'grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_230px]'">
+              <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-[#06101d] p-4" [ngClass]="previewBreakoutOpen() ? 'min-h-[420px]' : 'h-72'">
                 <div class="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(34,211,238,0.16),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(139,92,246,0.14),transparent_30%)]"></div>
                 <svg class="relative h-full w-full" viewBox="0 0 900 260" preserveAspectRatio="none" role="img" aria-label="Placeholder chart">
                   @for (line of [30,54,78,102,126,150,174]; track line) {
@@ -169,6 +172,7 @@
               </div>
             </div>
           </section>
+          </div>
         </div>
       </section>
     </main>
@@ -227,8 +231,8 @@
               <span class="mb-1 block text-xs text-slate-400">Period</span>
               <input class="range-period-input w-full bg-transparent font-mono text-sm text-slate-100 outline-none placeholder:text-slate-600" [ngModel]="formattedSamplePeriod()" (ngModelChange)="samplePeriod.set($event)" placeholder="1 s" />
             </label>
-            <div class="relative shrink-0">
-              <button type="button" class="inline-flex h-8 items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/45 hover:text-white" (click)="quickRangeMenuOpen.update((value) => !value)" [attr.aria-expanded]="quickRangeMenuOpen()" aria-label="Open quick time ranges" title="Quick time ranges">Range</button>
+            <div class="relative shrink-0 text-sm font-normal" data-range-menu-root>
+              <button type="button" class="inline-flex h-7 items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-cyan-100 transition hover:border-cyan-300/45 hover:text-white" (click)="quickRangeMenuOpen.update((value) => !value)" [attr.aria-expanded]="quickRangeMenuOpen()" aria-label="Open quick time ranges" title="Quick time ranges">Range</button>
               @if (quickRangeMenuOpen()) {
                 <div class="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-slate-950 py-1 text-sm shadow-2xl shadow-black/40">
                   @for (range of timeRangePresets; track range.label) {
@@ -312,32 +316,4 @@
       }
     </div>
   </section>
-</ng-template>
-
-<ng-template #activeInspector>
-  <div class="flex items-center justify-between gap-3">
-    <div>
-      <div class="text-xs uppercase tracking-[0.22em] text-violet-200/80">inspector</div>
-      <div class="mt-1 font-mono text-lg font-semibold text-white">{{ activeResource()?.id ?? 'No resource selected' }}</div>
-    </div>
-    <span class="text-2xl text-cyan-200">◌</span>
-  </div>
-  <div class="mt-4 space-y-3 text-sm">
-    <div><div class="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Full path</div><div class="break-words rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 font-mono text-xs text-slate-200">{{ activeResource()?.path ?? '-' }}</div></div>
-    <div><div class="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Description</div><div class="break-words rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-slate-200">{{ activeResource()?.description ?? '-' }}</div></div>
-    <div><div class="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Unit</div><div class="break-words rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-slate-200">{{ activeResource()?.unit ?? '-' }}</div></div>
-    <div><div class="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Groups</div><div class="break-words rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-slate-200">{{ activeResource()?.groups?.join(', ') || 'ungrouped' }}</div></div>
-  </div>
-  <div class="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-3">
-    <div class="mb-3 text-xs uppercase tracking-[0.2em] text-slate-500">representations</div>
-    <div class="space-y-2">
-      @for (rep of activeResource()?.representations ?? []; track $index) {
-        <div class="rounded-xl border border-cyan-300/15 bg-cyan-300/5 p-3">
-          <div class="font-mono text-sm text-cyan-100">{{ formatSamplePeriod(rep.samplePeriod) }}</div>
-        </div>
-      } @empty {
-        <div class="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-500">Select a resource to inspect representations.</div>
-      }
-    </div>
-  </div>
 </ng-template>
