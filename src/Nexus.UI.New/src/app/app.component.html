@@ -2,30 +2,7 @@
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
   <div class="mx-auto flex min-h-screen w-full max-w-[1800px] flex-col gap-4 p-3 sm:p-4 xl:p-5">
-    <header class="glass-panel overflow-hidden rounded-[1.5rem] sm:rounded-[2rem]">
-      <div class="relative flex items-center justify-between gap-3 p-2.5 sm:p-3 lg:p-4">
-        <div class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <span class="bg-gradient-to-r from-[#3dd9ef] to-cyan-400 bg-clip-text font-mono text-xl font-bold uppercase leading-none tracking-[0.12em] text-transparent sm:text-3xl sm:tracking-[0.2em] lg:text-4xl">Nexus</span>
-        </div>
-
-        <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 lg:hidden" (click)="isMobileCatalogOpen.set(true)" aria-label="Open catalog browser">
-          <span class="text-xl leading-none">☰</span>
-        </button>
-
-        <div class="flex shrink-0 items-center gap-2">
-          <button type="button" class="grid h-10 min-w-10 place-items-center rounded-2xl border border-lime-300/20 bg-lime-300/10 px-3 text-lime-200 lg:hidden" (click)="isMobileResourcesOpen.set(true)" aria-label="Open selected resources">
-            <span class="font-mono text-xs font-semibold">✓ {{ selectedResourcePaths().size }}</span>
-          </button>
-          <div class="hidden items-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-100 sm:flex">
-            <span>◇</span>
-            <span class="max-w-48 truncate font-mono">{{ endpointHost() }}</span>
-          </div>
-          <div class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100" aria-label="Signed-in user initials">
-            {{ userInitials() }}
-          </div>
-        </div>
-      </div>
-    </header>
+    <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" (openCatalog)="isMobileCatalogOpen.set(true)" />
 
     @if (!apiAvailable() && !overviewLoading()) {
       <section class="rounded-3xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
@@ -44,24 +21,24 @@
         <ng-container [ngTemplateOutlet]="catalogBrowser"></ng-container>
       </aside>
 
-      <section class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_410px]">
+      <section class="grid min-h-0 gap-4">
         <div class="grid min-w-0 gap-4">
-          <section class="glass-panel overflow-hidden rounded-[2rem]">
+          <section class="glass-panel overflow-hidden rounded-xl">
             <div class="relative p-5 sm:p-6">
               <div class="absolute right-0 top-0 h-48 w-72 rounded-full bg-cyan-300/10 blur-3xl"></div>
-              <div class="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div class="min-w-0">
-                  <div class="flex items-center justify-between gap-3">
+              <div class="absolute right-5 top-5 z-10 flex shrink-0 items-center gap-2 sm:right-6 sm:top-6">
+                @if (selectedCatalogReadme()) {
+                  <button type="button" class="inline-grid h-9 w-9 place-items-center rounded-2xl border border-violet-300/20 bg-violet-300/10 text-violet-100 hover:border-violet-300/45 hover:text-white" (click)="isReadmeOpen.set(true)" aria-label="Open catalog readme" title="Open catalog readme">▤</button>
+                }
+                <button type="button" class="inline-grid h-9 w-9 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 hover:border-cyan-300/45 hover:text-white" (click)="copyCatalogPath()" aria-label="Copy catalog path" title="Copy catalog path">⧉</button>
+              </div>
+              <div class="relative flex flex-col gap-5 2xl:flex-row 2xl:items-end 2xl:justify-between">
+                <div class="min-w-0 2xl:flex-1">
+                  <div class="flex w-full items-center justify-between gap-3 pr-24">
                     <div class="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.24em] text-violet-200/80">
                       <span>{{ isSelectedFake() ? 'catalog grouping' : 'active catalog' }}</span>
                       @if (catalogLoading()) { <span class="rounded-full bg-cyan-300/10 px-2 py-0.5 text-cyan-200">syncing</span> }
                       @if (isSelectedFake()) { <span class="rounded-full bg-violet-300/10 px-2 py-0.5 text-violet-200">virtual folder</span> }
-                    </div>
-                    <div class="flex shrink-0 items-center gap-2">
-                      @if (selectedCatalogReadme()) {
-                        <button type="button" class="inline-grid h-9 w-9 place-items-center rounded-2xl border border-violet-300/20 bg-violet-300/10 text-violet-100 hover:border-violet-300/45 hover:text-white" (click)="isReadmeOpen.set(true)" aria-label="Open catalog readme" title="Open catalog readme">▤</button>
-                      }
-                      <button type="button" class="inline-grid h-9 w-9 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 hover:border-cyan-300/45 hover:text-white" (click)="copyCatalogPath()" aria-label="Copy catalog path" title="Copy catalog path">⧉</button>
                     </div>
                   </div>
                   <div class="mt-3">
@@ -94,7 +71,7 @@
             </div>
           </section>
 
-          <section class="glass-panel grid min-h-[470px] overflow-hidden rounded-[2rem] xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section class="glass-panel grid min-h-[470px] overflow-hidden rounded-xl xl:grid-cols-[minmax(0,1fr)_360px]">
             <div class="flex min-h-0 flex-col border-b border-white/10 xl:border-b-0 xl:border-r">
               <div class="border-b border-white/10 p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -162,7 +139,7 @@
             </div>
           </section>
 
-          <section class="glass-panel overflow-hidden rounded-[2rem]">
+          <section class="glass-panel overflow-hidden rounded-xl">
             <div class="flex flex-col gap-4 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">preview canvas</div>
@@ -200,10 +177,6 @@
             </div>
           </section>
         </div>
-
-        <aside class="hidden min-h-0 xl:block">
-          <ng-container [ngTemplateOutlet]="insightPanel"></ng-container>
-        </aside>
       </section>
     </main>
   </div>
@@ -221,36 +194,9 @@
   </div>
 }
 
-@if (isMobileResourcesOpen()) {
-  <div class="fixed inset-0 z-50 overscroll-contain bg-black/60 p-3 backdrop-blur-sm lg:hidden">
-    <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-lime-300/20 bg-slate-950 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-white/10 p-3">
-        <div>
-          <span class="text-sm font-semibold text-white">Selected resources</span>
-          <div class="mt-0.5 text-xs text-slate-500">{{ selectedResources().length }} pinned channels</div>
-        </div>
-        <button type="button" class="rounded-xl bg-white/10 px-3 py-2" (click)="isMobileResourcesOpen.set(false)">Close</button>
-      </div>
-      <div class="min-h-0 flex-1 overflow-y-auto p-3">
-        @for (resource of selectedResources(); track resource.path) {
-          <button type="button" class="mb-2 w-full rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left hover:border-lime-300/30" (click)="activateResource(resource)">
-            <div class="truncate font-mono text-sm font-semibold text-white">{{ resource.id }}</div>
-            <div class="mt-1 truncate text-xs text-slate-500">{{ resource.description || resource.path }}</div>
-          </button>
-        } @empty {
-          <div class="grid h-full place-items-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">Select resources from the matrix to pin them here.</div>
-        }
-      </div>
-      <div class="border-t border-white/10 p-3">
-        <button type="button" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-lime-300 px-4 py-3 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45" [disabled]="selectedResources().length === 0" (click)="isMobileResourcesOpen.set(false); isExportOpen.set(true)">Export selection</button>
-      </div>
-    </div>
-  </div>
-}
-
 @if (isReadmeOpen()) {
   <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" (click)="isReadmeOpen.set(false)">
-    <div class="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl shadow-black/50" (click)="$event.stopPropagation()">
+    <div class="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/50" (click)="$event.stopPropagation()">
       <div class="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
         <div class="min-w-0">
           <p class="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">Catalog readme</p>
@@ -265,114 +211,81 @@
 }
 
 @if (isExportOpen()) {
-  <div class="fixed inset-0 z-50 grid place-items-center bg-black/70 p-3 sm:p-6" (click)="isExportOpen.set(false)">
-    <section class="glass-panel max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-auto rounded-[2rem] p-4" (click)="$event.stopPropagation()">
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <div class="text-xs uppercase tracking-[0.22em] text-lime-200/80">export composer</div>
-          <div class="mt-1 text-lg font-semibold text-white">Package selected resources</div>
-          <p class="mt-1 text-sm text-slate-500">Metadata-driven writer options, compact defaults, job response inline.</p>
-        </div>
-        <button type="button" class="rounded-xl bg-white/10 px-3 py-2 text-slate-300" (click)="isExportOpen.set(false)">Close</button>
-      </div>
-
-      <div class="mt-4 space-y-3">
-        <label class="block"><span class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-slate-500">Writer</span>
-          <select class="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/60" [ngModel]="selectedWriterType()" (ngModelChange)="selectedWriterType.set($event)">
-            @for (writer of writerDescriptions(); track writer.type) {
-              <option [value]="writer.type ?? ''">{{ writer.additionalInformation?.label ?? writer.type }}</option>
-            }
-          </select>
-        </label>
-
-        <div class="grid gap-3 sm:grid-cols-2">
-          <label class="block"><span class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-slate-500">Begin</span><input class="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 font-mono text-xs text-white outline-none focus:border-cyan-300/60" [ngModel]="exportBegin()" (ngModelChange)="exportBegin.set($event)" /></label>
-          <label class="block"><span class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-slate-500">End</span><input class="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 font-mono text-xs text-white outline-none focus:border-cyan-300/60" [ngModel]="exportEnd()" (ngModelChange)="exportEnd.set($event)" /></label>
-          <label class="block"><span class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-slate-500">File period</span><input class="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 font-mono text-xs text-white outline-none focus:border-cyan-300/60" [ngModel]="exportFilePeriod()" (ngModelChange)="exportFilePeriod.set($event)" /></label>
-          <label class="block"><span class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-slate-500">Precision</span>
-            <select class="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/60" [ngModel]="exportPrecision()" (ngModelChange)="exportPrecision.set($event)">
-              <option [value]="'Float32'">Float32</option>
-              <option [value]="'Float64'">Float64</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="flex flex-wrap gap-2">
-          @for (range of quickRanges; track range.label) {
-            <button type="button" class="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-medium text-slate-300" (click)="applyQuickRange(range)">{{ range.label }}</button>
-          }
-        </div>
-
-        @for (option of writerOptions(); track option[0]) {
-          <label class="block"><span class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-slate-500">{{ option[1].label ?? option[0] }}</span>
-            @if (option[1].items) {
-              <select class="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/60" [ngModel]="exportConfiguration()[option[0]] ?? option[1].default" (ngModelChange)="updateConfig(option[0], $event)">
-                @for (item of option[1].items | keyvalue; track item.key) { <option [value]="item.key">{{ item.value }}</option> }
-              </select>
-            } @else {
-              <input class="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/60" [ngModel]="exportConfiguration()[option[0]] ?? option[1].default" (ngModelChange)="updateConfig(option[0], $event)" />
-            }
-          </label>
-        }
-      </div>
-
-      <div class="mt-4 rounded-2xl border border-white/10 bg-slate-950/60 p-3">
-        <div class="mb-2 text-xs uppercase tracking-[0.18em] text-slate-500">selection payload</div>
-        <div class="max-h-32 space-y-1 overflow-auto font-mono text-xs text-slate-400">
-          @for (resource of selectedResources(); track resource.path) { <div class="truncate">{{ resource.path }}</div> }
-          @if (selectedResources().length === 0) { <div>No resources selected yet.</div> }
-        </div>
-      </div>
-      <pre class="mt-4 max-h-40 overflow-auto rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-xs text-slate-300">{{ exportPreview() | json }}</pre>
-      @if (exportStatus()) { <div class="mt-3 rounded-2xl border border-lime-300/20 bg-lime-300/10 p-3 text-sm text-lime-100">{{ exportStatus() }}</div> }
-      <button type="button" class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-300 to-lime-300 px-4 py-3 text-sm font-bold text-slate-950 shadow-[0_0_36px_rgba(34,211,238,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45" [disabled]="selectedResources().length === 0 || exportBusy()" (click)="createExportJob()">{{ exportBusy() ? 'Creating...' : 'Create export job' }}</button>
-    </section>
-  </div>
+  <app-export-composer [writerDescriptions]="writerDescriptions()" [selectedWriterType]="selectedWriterType()" [exportBegin]="exportBegin()" [exportEnd]="exportEnd()" [exportFilePeriod]="exportFilePeriod()" [exportPrecision]="exportPrecision()" [writerOptions]="writerOptions()" [exportConfiguration]="exportConfiguration()" [quickRanges]="quickRanges" [selectedResources]="selectedResources()" [exportPreview]="exportPreview()" [exportStatus]="exportStatus()" [exportBusy]="exportBusy()" (close)="isExportOpen.set(false)" (selectedWriterTypeChange)="selectedWriterType.set($event)" (exportBeginChange)="exportBegin.set($event)" (exportEndChange)="exportEnd.set($event)" (exportFilePeriodChange)="exportFilePeriod.set($event)" (exportPrecisionChange)="exportPrecision.set($event)" (configChanged)="updateConfig($event.key, $event.value)" (quickRangeApplied)="applyQuickRange($event)" (createJob)="createExportJob()" />
 }
 
 <ng-template #catalogBrowser>
-  <section class="glass-panel flex h-full min-h-0 flex-col overflow-hidden rounded-none lg:rounded-[2rem]">
+  <section class="glass-panel flex h-full min-h-0 flex-col overflow-hidden rounded-none lg:rounded-xl">
     <div class="border-b border-white/10 p-3 sm:p-4">
       <div class="hidden items-center justify-between gap-3 lg:flex">
         <div>
-          <div class="text-xs uppercase tracking-[0.26em] text-cyan-200/80">catalog atlas</div>
+          <div class="text-xs uppercase tracking-[0.26em] text-cyan-200/80">data browser</div>
         </div>
         @if (overviewLoading()) { <span class="rounded-full bg-cyan-300/10 px-2 py-1 text-xs text-cyan-100">Syncing</span> }
       </div>
-      <label class="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300 focus-within:border-cyan-300/60 lg:mt-4 lg:rounded-2xl lg:border-cyan-300/20 lg:bg-slate-950/70">
-        <span class="text-cyan-200">⌕</span>
-        <input class="w-full bg-transparent outline-none placeholder:text-slate-600" placeholder="Jump to campaign, source type, owner..." [ngModel]="catalogSearch()" (ngModelChange)="catalogSearch.set($event)" />
-      </label>
+      <div class="mt-3 grid grid-cols-2 rounded-lg border border-white/10 bg-white/[0.035] p-1 text-xs font-semibold text-slate-400 lg:mt-4">
+        <button type="button" class="rounded-md px-3 py-2 transition" [ngClass]="activeSidebarTab() === 'catalogs' ? 'bg-cyan-300 text-slate-950' : 'hover:bg-white/[0.06] hover:text-slate-100'" (click)="activeSidebarTab.set('catalogs')">Catalog atlas</button>
+        <button type="button" class="rounded-md px-3 py-2 transition" [ngClass]="activeSidebarTab() === 'selectedResources' ? 'bg-lime-300 text-slate-950' : 'hover:bg-white/[0.06] hover:text-slate-100'" (click)="activeSidebarTab.set('selectedResources')">Selected resources ({{ selectedResources().length }})</button>
+      </div>
+      @if (activeSidebarTab() === 'catalogs') {
+        <label class="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300 focus-within:border-cyan-300/60 lg:rounded-lg lg:border-cyan-300/20 lg:bg-slate-950/70">
+          <span class="text-cyan-200">⌕</span>
+          <input class="w-full bg-transparent outline-none placeholder:text-slate-600" placeholder="Jump to campaign, source type, owner..." [ngModel]="catalogSearch()" (ngModelChange)="catalogSearch.set($event)" />
+        </label>
+      } @else {
+        <div class="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
+          <span>{{ selectedResources().length }} pinned channels</span>
+          <button type="button" class="rounded-lg bg-lime-300 px-2.5 py-1.5 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45" [disabled]="selectedResources().length === 0" (click)="isExportOpen.set(true)">Export</button>
+        </div>
+      }
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto p-1.5 lg:p-2">
-      @for (node of filteredCatalogNodes(); track node.nodeKey) {
-        <div class="group relative">
-          <div class="mb-1 grid grid-cols-[32px_minmax(0,1fr)] items-center gap-1 rounded-xl border px-2 py-2 transition lg:rounded-2xl" [ngClass]="selectedCatalogNodeKey() === node.nodeKey ? (node.isFake ? 'border-violet-300/40 bg-violet-300/10' : 'border-cyan-300/40 bg-cyan-300/10') : 'border-transparent hover:border-white/10 hover:bg-white/[0.045]'" [style.margin-left.px]="node.depth * 18">
-            <button type="button" class="grid h-8 w-8 place-items-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-cyan-200" (click)="toggleExpanded(node)" [attr.aria-label]="'Toggle ' + (node.id ?? '/')">{{ expandedCatalogNodeKeys().has(node.nodeKey) ? '⌄' : '›' }}</button>
-            <button type="button" class="min-w-0 text-left" (click)="selectCatalog(node)">
-              <div class="flex min-w-0 items-center gap-2">
-                @if (node.isFake) {
-                  <svg lucideFolder class="h-4 w-4 shrink-0 text-violet-300" aria-hidden="true"></svg>
-                } @else {
-                  <span class="h-1.5 w-1.5 shrink-0 rounded-full" [ngClass]="node.isWritable ? 'bg-lime-300' : (node.isReadable ? 'bg-cyan-300' : 'bg-slate-500')" aria-hidden="true"></span>
-                }
-                <span class="truncate font-mono text-[13px]" [ngClass]="node.isFake ? 'text-violet-100' : 'text-slate-100'">
-                  <span class="sm:hidden">{{ node.isFake ? abbreviateMiddle(lastSegment(node.id), 28) : abbreviateMiddle(node.id ?? '/', 30) }}</span>
-                  <span class="hidden sm:inline">{{ node.isFake ? lastSegment(node.id) : compactPath(node.id, 4) }}</span>
-                </span>
-              </div>
-              @if (!node.isFake) {
-                <div class="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                  <span class="truncate">{{ node.title ?? node.pipelineInfo?.types?.[0] ?? 'Untitled catalog' }}</span>
-                  @if (node.isWritable) { <span class="rounded-full bg-violet-300/10 px-1.5 py-0.5 text-violet-200">write</span> }
+      @if (activeSidebarTab() === 'catalogs') {
+        @for (node of filteredCatalogNodes(); track node.nodeKey) {
+          <div class="group relative">
+            <div class="mb-1 grid grid-cols-[32px_minmax(0,1fr)] items-center gap-1 rounded-xl border px-2 py-2 transition lg:rounded-lg" [ngClass]="selectedCatalogNodeKey() === node.nodeKey ? (node.isFake ? 'border-violet-300/40 bg-violet-300/10' : 'border-cyan-300/40 bg-cyan-300/10') : 'border-transparent hover:border-white/10 hover:bg-white/[0.045]'" [style.margin-left.px]="node.depth * 18">
+              <button type="button" class="grid h-8 w-8 place-items-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-cyan-200" (click)="toggleExpanded(node)" [attr.aria-label]="'Toggle ' + (node.id ?? '/')">{{ expandedCatalogNodeKeys().has(node.nodeKey) ? '⌄' : '›' }}</button>
+              <button type="button" class="min-w-0 text-left" (click)="selectCatalog(node)">
+                <div class="flex min-w-0 items-center gap-2">
+                  @if (node.isFake) {
+                    <svg lucideFolder class="h-4 w-4 shrink-0 text-violet-300" aria-hidden="true"></svg>
+                  } @else {
+                    <span class="h-1.5 w-1.5 shrink-0 rounded-full" [ngClass]="node.isWritable ? 'bg-lime-300' : (node.isReadable ? 'bg-cyan-300' : 'bg-slate-500')" aria-hidden="true"></span>
+                  }
+                  <span class="truncate font-mono text-[13px]" [ngClass]="node.isFake ? 'text-violet-100' : 'text-slate-100'">
+                    <span class="sm:hidden">{{ node.isFake ? abbreviateMiddle(lastSegment(node.id), 28) : abbreviateMiddle(node.id ?? '/', 30) }}</span>
+                    <span class="hidden sm:inline">{{ node.isFake ? lastSegment(node.id) : compactPath(node.id, 4) }}</span>
+                  </span>
                 </div>
-              }
-            </button>
+                @if (!node.isFake) {
+                  <div class="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                    <span class="truncate">{{ node.title ?? node.pipelineInfo?.types?.[0] ?? 'Untitled catalog' }}</span>
+                    @if (node.isWritable) { <span class="rounded-full bg-violet-300/10 px-1.5 py-0.5 text-violet-200">write</span> }
+                  </div>
+                }
+              </button>
+            </div>
           </div>
-        </div>
-      } @empty {
-        <div class="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">No catalogs match your search.</div>
+        } @empty {
+          <div class="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">No catalogs match your search.</div>
+        }
+      } @else {
+        @for (group of groupedSelectedResources(); track group.catalogId) {
+          <section class="mb-3">
+            <div class="mb-1.5 flex items-center justify-between gap-2 border-b border-white/5 px-1 pb-1.5 text-[11px] text-slate-500">
+              <span class="min-w-0 truncate font-mono text-slate-500" [title]="group.catalogId">{{ compactPath(group.catalogId, 3) }}</span>
+              <span class="shrink-0 rounded-full bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-slate-500">{{ group.resources.length }}</span>
+            </div>
+            @for (resource of group.resources; track resource.path) {
+              <button type="button" class="mb-1 w-full rounded-lg px-2.5 py-1.5 text-left hover:bg-white/[0.045] hover:text-rose-100" (click)="toggleResource(resource)" [title]="'Deselect ' + resource.id">
+                <div class="font-mono text-sm font-semibold text-white">{{ abbreviateMiddle(resource.id, 34) }}</div>
+              </button>
+            }
+          </section>
+        } @empty {
+          <div class="grid h-full min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">Select resources from the matrix to pin them here.</div>
+        }
       }
     </div>
   </section>
@@ -404,52 +317,4 @@
       }
     </div>
   </div>
-</ng-template>
-
-<ng-template #insightPanel>
-  <section class="glass-panel rounded-[2rem] p-4">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <div class="text-xs uppercase tracking-[0.22em] text-cyan-200/80">operations</div>
-        <div class="mt-1 text-lg font-semibold text-white">Fast decisions panel</div>
-      </div>
-      <button type="button" class="rounded-2xl bg-cyan-300 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-200" (click)="isExportOpen.set(true)">Export</button>
-    </div>
-
-    <div class="mt-4 grid grid-cols-2 gap-2">
-      <div class="rounded-2xl border border-white/10 bg-white/[0.035] p-3"><div class="text-xs uppercase tracking-[0.18em] text-slate-400">Writers</div><div class="mt-2 font-mono text-2xl font-semibold text-white">{{ writerDescriptions().length }}</div></div>
-      <div class="rounded-2xl border border-white/10 bg-white/[0.035] p-3"><div class="text-xs uppercase tracking-[0.18em] text-slate-400">Jobs</div><div class="mt-2 font-mono text-2xl font-semibold text-white">{{ jobs().length }}</div></div>
-    </div>
-
-    <div class="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-      <div class="mb-3 text-xs uppercase tracking-[0.18em] text-slate-500">group pressure</div>
-      <div class="space-y-2">
-        @for (group of topGroups(); track group[0]) {
-          <div>
-            <div class="mb-1 flex items-center justify-between gap-3 text-xs"><span class="truncate text-slate-300">{{ group[0] }}</span><span class="font-mono text-slate-500">{{ group[1] }}</span></div>
-            <div class="h-1.5 rounded-full bg-white/10"><div class="h-full rounded-full bg-gradient-to-r from-cyan-300 to-violet-400" [style.width.%]="(group[1] / (resourceRows().length || 1)) * 100"></div></div>
-          </div>
-        } @empty {
-          <div class="text-sm text-slate-500">No resource groups available.</div>
-        }
-      </div>
-    </div>
-
-    <div class="mt-4 rounded-2xl border border-violet-300/15 bg-violet-300/5 p-3">
-      <div class="mb-2 text-sm font-semibold text-violet-100">Suggested next action</div>
-      <p class="text-sm text-slate-400">
-        @if (activeResource()) {
-          Inspect <span class="font-mono text-slate-200">{{ activeResource()?.id }}</span>, compare nearby channels, then send the curated selection to the export queue.
-        } @else {
-          Choose a catalog with resources, then pin the most relevant channels before opening the export composer.
-        }
-      </p>
-    </div>
-
-    @if (isSelectedFake()) {
-      <div class="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm text-slate-500">Virtual folders do not have raw catalog JSON</div>
-    } @else {
-      <a class="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm text-slate-300 hover:border-cyan-300/40 hover:text-cyan-100" [href]="endpointHost() + '/api/v1/catalogs/' + selectedCatalogId()" target="_blank" rel="noreferrer">Open raw catalog JSON <span>↗</span></a>
-    }
-  </section>
 </ng-template>
