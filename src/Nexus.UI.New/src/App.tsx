@@ -1,25 +1,28 @@
-import { useDeferredValue, useState, useTransition } from 'react'
+import { useDeferredValue, useEffect, useState, useTransition } from 'react'
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   Activity,
   Archive,
+  BookOpen,
   Check,
   ChevronDown,
   ChevronsUpDown,
   CircleAlert,
   Clock3,
+  Copy,
   Database,
   Download,
   FileJson,
   Filter,
+  Folder,
   Gauge,
   Layers3,
   Loader2,
-  Lock,
   Menu,
   PackageCheck,
   PanelLeftClose,
-  RadioTower,
   Search,
   ShieldCheck,
   Sparkles,
@@ -35,13 +38,15 @@ import {
   mapResources,
   nexusClient,
   nexusEndpoint,
+  prepareChildCatalogs,
   type CatalogNode,
+  type PreparedCatalogNode,
   type ResourceRow,
   type WriterDescription,
   V1,
   V2,
 } from './lib/nexus'
-import { cn, compactPath, formatNumber } from './lib/utils'
+import { cn, compactPath, formatNumber, lastSegment } from './lib/utils'
 
 const quickRanges = [
   { label: 'Last 10 min', begin: '-PT10M', end: 'now' },
@@ -49,7 +54,7 @@ const quickRanges = [
   { label: 'Campaign day', begin: '2025-01-01T00:00:00Z', end: '2025-01-02T00:00:00Z' },
 ]
 
-const fallbackCatalogs: CatalogNode[] = [
+const fallbackCatalogInfos: V1.CatalogInfo[] = [
   {
     id: '/SCADA_OLD',
     title: 'Messdaten der HLB SPS',
@@ -58,8 +63,6 @@ const fallbackCatalogs: CatalogNode[] = [
     isReleased: true,
     isVisible: true,
     isOwner: true,
-    depth: 0,
-    parentId: '/',
     pipelineInfo: { types: ['IwesNexus.SimpleHdf5'] },
   },
   {
@@ -70,8 +73,6 @@ const fallbackCatalogs: CatalogNode[] = [
     isReleased: true,
     isVisible: true,
     isOwner: true,
-    depth: 0,
-    parentId: '/',
     pipelineInfo: { types: ['IwesNexus.PerceptionPnrf'] },
   },
   {
@@ -82,8 +83,6 @@ const fallbackCatalogs: CatalogNode[] = [
     isReleased: true,
     isVisible: true,
     isOwner: false,
-    depth: 0,
-    parentId: '/',
     pipelineInfo: { types: ['Nexus.Sources.Sample'] },
   },
 ]
@@ -145,37 +144,81 @@ const fallbackWriters: WriterDescription[] = [
   { type: 'Nexus.Writers.Mat73', description: 'Store data in Matlab v7.3.', additionalInformation: { label: 'Matlab v7.3 (*.mat)' } },
 ]
 
+const defaultCatalogId = '/SAMPLE/LOCAL'
+
+function getSelectedCatalogIdFromUrl() {
+  const catalogId = new URLSearchParams(window.location.search).get('catalog')?.trim()
+
+  return catalogId || defaultCatalogId
+}
+
+function getRealCatalogNodeKey(catalogId: string) {
+  return `real:${catalogId}`
+}
+
+function writeSelectedCatalogToUrl(catalogId: string, replace = false) {
+  const url = new URL(window.location.href)
+
+  if (url.searchParams.get('catalog') === catalogId) {
+    return
+  }
+
+  url.searchParams.set('catalog', catalogId)
+  window.history[replace ? 'replaceState' : 'pushState'](null, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
 function App() {
-  const [selectedCatalogId, setSelectedCatalogId] = useState('/SAMPLE/LOCAL')
-  const [expandedCatalogIds, setExpandedCatalogIds] = useState<Set<string>>(() => new Set(['/']))
+  const [selectedCatalogId, setSelectedCatalogId] = useState(getSelectedCatalogIdFromUrl)
+  const [selectedCatalogNodeKey, setSelectedCatalogNodeKey] = useState(() => getRealCatalogNodeKey(getSelectedCatalogIdFromUrl()))
+  const [expandedCatalogNodeKeys, setExpandedCatalogNodeKeys] = useState<Set<string>>(() => new Set())
+  const [expandedRealCatalogIds, setExpandedRealCatalogIds] = useState<Set<string>>(() => new Set())
   const [catalogSearch, setCatalogSearch] = useState('')
   const [resourceSearch, setResourceSearch] = useState('')
   const [selectedResourcePaths, setSelectedResourcePaths] = useState<Set<string>>(() => new Set(['/SAMPLE/LOCAL/T1', '/SAMPLE/LOCAL/V1']))
   const [activeResourcePath, setActiveResourcePath] = useState('/SAMPLE/LOCAL/T1')
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [isMobileCatalogOpen, setIsMobileCatalogOpen] = useState(false)
+  const [isMobileResourcesOpen, setIsMobileResourcesOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const deferredCatalogSearch = useDeferredValue(catalogSearch)
   const deferredResourceSearch = useDeferredValue(resourceSearch)
+
+  useEffect(() => {
+    writeSelectedCatalogToUrl(selectedCatalogId, true)
+
+    const handlePopState = () => {
+      const catalogId = getSelectedCatalogIdFromUrl()
+      setSelectedCatalogId(catalogId)
+      setSelectedCatalogNodeKey(getRealCatalogNodeKey(catalogId))
+      setIsMobileCatalogOpen(false)
+      setSelectedResourcePaths(new Set())
+      setActiveResourcePath('')
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [selectedCatalogId])
 
   const overviewQuery = useQuery({
     queryKey: ['overview'],
     queryFn: getSessionOverview,
   })
 
-  const rootCatalogs = overviewQuery.data?.roots ?? fallbackCatalogs
+  const rootCatalogInfos = overviewQuery.data?.roots ?? fallbackCatalogInfos
   const writerDescriptions = overviewQuery.data?.writers ?? fallbackWriters
   const jobs = overviewQuery.data?.jobs ?? []
   const userName = overviewQuery.data?.me.user?.name ?? 'Prototype user'
-  const userId = overviewQuery.data?.me.userId ?? 'not connected'
 
-  const expandedIds = Array.from(expandedCatalogIds).filter((id) => id !== '/')
+  const expandedIds = Array.from(expandedRealCatalogIds)
+
   const childQueries = useQueries({
     queries: expandedIds.map((catalogId) => ({
       queryKey: ['catalog-children', catalogId],
       queryFn: () => getCatalogChildren(catalogId),
       enabled: hasConfiguredToken,
       staleTime: 5 * 60_000,
+      retry: false,
     })),
   })
 
@@ -187,30 +230,45 @@ function App() {
   })
 
   const catalogNodes: CatalogNode[] = []
-  const appendCatalogNodes = (items: V1.CatalogInfo[], parentId: string, depth: number) => {
-    for (const item of items) {
-      catalogNodes.push({ ...item, depth, parentId })
+  const appendPreparedNodes = (prepared: PreparedCatalogNode[], parentId: string, depth: number) => {
+    for (const node of prepared) {
+      const catalogNode: CatalogNode = { ...node, depth, parentId }
+      catalogNodes.push(catalogNode)
 
-      if (item.id && expandedCatalogIds.has(item.id)) {
-        appendCatalogNodes(childMap.get(item.id) ?? [], item.id, depth + 1)
+      if (node.id && expandedCatalogNodeKeys.has(node.nodeKey)) {
+        let children: V1.CatalogInfo[]
+        if (node.isFake && node.groupedChildren) {
+          children = node.groupedChildren
+        } else {
+          children = childMap.get(node.id) ?? []
+        }
+        appendPreparedNodes(prepareChildCatalogs(node.id, children), node.id, depth + 1)
       }
     }
   }
-  appendCatalogNodes(rootCatalogs, '/', 0)
+  appendPreparedNodes(prepareChildCatalogs('/', rootCatalogInfos), '/', 0)
 
   const catalogTerm = deferredCatalogSearch.trim().toLowerCase()
   const filteredCatalogNodes = catalogTerm
     ? catalogNodes.filter((node) => `${node.id ?? ''} ${node.title ?? ''} ${node.pipelineInfo?.types?.join(' ') ?? ''}`.toLowerCase().includes(catalogTerm))
     : catalogNodes
 
+  const selectedNode = catalogNodes.find((node) => node.nodeKey === selectedCatalogNodeKey)
+  const isSelectedFake = selectedNode?.isFake ?? selectedCatalogNodeKey.startsWith('fake:')
+
   const selectedCatalogQuery = useQuery({
     queryKey: ['catalog', selectedCatalogId],
     queryFn: () => getCatalogBundle(selectedCatalogId),
-    enabled: hasConfiguredToken && Boolean(selectedCatalogId),
+    enabled: hasConfiguredToken && Boolean(selectedCatalogId) && !isSelectedFake,
   })
 
-  const liveRows = selectedCatalogQuery.data?.catalog ? mapResources(selectedCatalogQuery.data.catalog) : []
-  const resourceRows = hasConfiguredToken ? liveRows : fallbackResources
+  const selectedCatalog = selectedCatalogQuery.data?.catalog
+  const liveRows = selectedCatalog ? mapResources(selectedCatalog) : []
+  const resourceRows = !hasConfiguredToken
+    ? fallbackResources
+    : isSelectedFake
+      ? []
+      : liveRows
 
   const resourceTerm = deferredResourceSearch.trim().toLowerCase()
   const filteredResources = (resourceTerm
@@ -222,28 +280,47 @@ function App() {
   const selectedResources = resourceRows.filter((resource) => selectedResourcePaths.has(resource.path))
   const selectedDataTypes = new Set(selectedResources.flatMap((resource) => resource.representations.map((rep) => rep.dataType).filter(Boolean)))
   const groupCount = new Set(resourceRows.flatMap((resource) => resource.groups)).size
-  const readableCatalogCount = catalogNodes.filter((node) => node.isReadable).length
+  const readableCatalogCount = catalogNodes.filter((node) => node.isReadable && !node.isFake).length
+  const endpointHost = new URL(nexusEndpoint).host
+  const userInitials = getInitials(userName)
 
-  function selectCatalog(catalogId: string) {
+  function selectCatalog(catalog: CatalogNode) {
+    const catalogId = catalog.id ?? '/'
     startTransition(() => {
       setSelectedCatalogId(catalogId)
+      setSelectedCatalogNodeKey(catalog.nodeKey)
+      writeSelectedCatalogToUrl(catalogId)
       setIsMobileCatalogOpen(false)
       setSelectedResourcePaths(new Set())
       setActiveResourcePath('')
     })
   }
 
-  function toggleExpanded(catalogId: string) {
-    setExpandedCatalogIds((current) => {
+  function toggleExpanded(catalog: CatalogNode) {
+    setExpandedCatalogNodeKeys((current) => {
       const next = new Set(current)
-      if (next.has(catalogId)) {
-        next.delete(catalogId)
+      const isExpanded = next.has(catalog.nodeKey)
+      if (isExpanded) {
+        next.delete(catalog.nodeKey)
       } else {
-        next.add(catalogId)
+        next.add(catalog.nodeKey)
       }
 
       return next
     })
+
+    if (!catalog.isFake && catalog.id) {
+      setExpandedRealCatalogIds((current) => {
+        const next = new Set(current)
+        if (next.has(catalog.id!)) {
+          next.delete(catalog.id!)
+        } else {
+          next.add(catalog.id!)
+        }
+
+        return next
+      })
+    }
   }
 
   function toggleResource(resource: ResourceRow) {
@@ -264,34 +341,41 @@ function App() {
     <div className="min-h-screen text-slate-100">
       <div className="fixed inset-0 -z-10 opacity-80 scanline" />
       <div className="mx-auto flex min-h-screen w-full max-w-[1800px] flex-col gap-4 p-3 sm:p-4 xl:p-5">
-        <header className="glass-panel overflow-hidden rounded-[2rem]">
-          <div className="flex flex-col gap-5 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
+        <header className="glass-panel overflow-hidden rounded-[1.5rem] sm:rounded-[2rem]">
+          <div className="relative flex items-center justify-between gap-3 p-2.5 sm:p-3 lg:p-4">
+            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-cyan-500 via-sky-300 to-teal-400 bg-clip-text text-lg font-black uppercase tracking-[0.28em] text-transparent drop-shadow-[0_0_28px_rgba(34,211,238,0.78)] sm:text-xl">
+              Nexus
+            </div>
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 type="button"
-                className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3 text-cyan-200 lg:hidden"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 lg:hidden"
                 onClick={() => setIsMobileCatalogOpen(true)}
                 aria-label="Open catalog browser"
               >
-                <Menu className="h-5 w-5" />
+                <Menu className="h-4.5 w-4.5" />
               </button>
-              <div className="relative grid h-13 w-13 place-items-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10 shadow-[0_0_42px_rgba(34,211,238,0.24)]">
-                <RadioTower className="h-7 w-7 text-cyan-200" />
-                <div className="absolute -right-1 -top-1 h-4 w-4 rounded-full border-2 border-[#080d1a] bg-lime-300" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.28em] text-cyan-200/80">
-                  Nexus Command Surface
-                  <span className="rounded-full bg-lime-300/10 px-2 py-0.5 text-[10px] tracking-[0.2em] text-lime-200">live api</span>
-                </div>
-                <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">Catalog intelligence, not catalog clutter.</h1>
-              </div>
             </div>
 
-            <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[560px]">
-              <Metric label="Endpoint" value={new URL(nexusEndpoint).host} icon={<ShieldCheck className="h-4 w-4" />} tone="cyan" />
-              <Metric label="Identity" value={userName} hint={userId} icon={<Lock className="h-4 w-4" />} tone="violet" />
-              <Metric label="Selected" value={`${selectedResourcePaths.size} resources`} hint={`${selectedDataTypes.size} data types`} icon={<Check className="h-4 w-4" />} tone="lime" />
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                className="grid h-10 min-w-10 place-items-center rounded-2xl border border-lime-300/20 bg-lime-300/10 px-3 text-lime-200 lg:hidden"
+                onClick={() => setIsMobileResourcesOpen(true)}
+                aria-label="Open selected resources"
+              >
+                <span className="flex items-center gap-1.5 font-mono text-xs font-semibold">
+                  <Check className="h-4 w-4" />
+                  {selectedResourcePaths.size}
+                </span>
+              </button>
+              <div className="hidden items-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-100 sm:flex">
+                <ShieldCheck className="h-4 w-4" />
+                <span className="max-w-48 truncate font-mono">{endpointHost}</span>
+              </div>
+              <div className="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100" aria-label="Signed-in user initials">
+                {userInitials}
+              </div>
             </div>
           </div>
         </header>
@@ -303,37 +387,108 @@ function App() {
           <aside className="hidden min-h-[calc(100vh-190px)] lg:block">
             <CatalogBrowser
               nodes={filteredCatalogNodes}
-              selectedCatalogId={selectedCatalogId}
+              selectedCatalogNodeKey={selectedCatalogNodeKey}
               search={catalogSearch}
               isPending={isPending || overviewQuery.isLoading}
               readableCatalogCount={readableCatalogCount}
               onSearch={setCatalogSearch}
               onSelect={selectCatalog}
               onToggleExpanded={toggleExpanded}
-              expandedCatalogIds={expandedCatalogIds}
+              expandedCatalogNodeKeys={expandedCatalogNodeKeys}
             />
           </aside>
 
           {isMobileCatalogOpen ? (
-            <div className="fixed inset-0 z-50 bg-black/60 p-3 backdrop-blur-sm lg:hidden">
-              <div className="h-full overflow-hidden rounded-[1.75rem] border border-cyan-300/20 bg-slate-950 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-white/10 p-3">
+            <div className="fixed inset-0 z-50 overscroll-contain bg-slate-950 lg:hidden">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-950">
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                   <span className="text-sm font-semibold text-white">Catalog browser</span>
-                  <button type="button" className="rounded-xl bg-white/10 p-2" onClick={() => setIsMobileCatalogOpen(false)} aria-label="Close catalog browser">
+                  <button type="button" className="rounded-xl bg-white/[0.06] p-2 text-slate-300 hover:bg-white/10 hover:text-white" onClick={() => setIsMobileCatalogOpen(false)} aria-label="Close catalog browser">
                     <X className="h-5 w-5" />
                   </button>
                 </div>
                 <CatalogBrowser
+                  isMobile
                   nodes={filteredCatalogNodes}
-                  selectedCatalogId={selectedCatalogId}
+                  selectedCatalogNodeKey={selectedCatalogNodeKey}
                   search={catalogSearch}
                   isPending={isPending || overviewQuery.isLoading}
                   readableCatalogCount={readableCatalogCount}
                   onSearch={setCatalogSearch}
                   onSelect={selectCatalog}
                   onToggleExpanded={toggleExpanded}
-                  expandedCatalogIds={expandedCatalogIds}
+                  expandedCatalogNodeKeys={expandedCatalogNodeKeys}
                 />
+              </div>
+            </div>
+          ) : null}
+
+          {isMobileResourcesOpen ? (
+            <div className="fixed inset-0 z-50 overscroll-contain bg-black/60 p-3 backdrop-blur-sm lg:hidden">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-lime-300/20 bg-slate-950 shadow-2xl">
+                <div className="flex items-center justify-between border-b border-white/10 p-3">
+                  <div>
+                    <span className="text-sm font-semibold text-white">Selected resources</span>
+                    <div className="mt-0.5 text-xs text-slate-500">{selectedResources.length} pinned channels</div>
+                  </div>
+                  <button type="button" className="rounded-xl bg-white/10 p-2" onClick={() => setIsMobileResourcesOpen(false)} aria-label="Close selected resources">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                  {selectedResources.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedResources.map((resource) => (
+                        <button
+                          key={resource.path}
+                          type="button"
+                          className="w-full rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left hover:border-lime-300/30"
+                          onClick={() => {
+                            setActiveResourcePath(resource.path)
+                            setIsMobileResourcesOpen(false)
+                          }}
+                        >
+                          <div className="truncate font-mono text-sm font-semibold text-white">{resource.id}</div>
+                          <div className="mt-1 truncate text-xs text-slate-500">{resource.description || resource.path}</div>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {resource.representations.slice(0, 2).map((rep, index) => (
+                              <span key={`${rep.dataType}-${rep.samplePeriod}-${index}`} className="rounded-lg bg-lime-300/10 px-2 py-1 font-mono text-[11px] text-lime-100">
+                                {rep.dataType ?? 'unknown'}
+                              </span>
+                            ))}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid h-full place-items-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
+                      Select resources from the matrix to pin them here.
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-white/10 p-3">
+                  <div className="mb-3 flex flex-wrap gap-1.5">
+                    {Array.from(selectedDataTypes).map((dataType) => (
+                      <span key={dataType} className="rounded-lg bg-cyan-300/10 px-2 py-1 font-mono text-[11px] text-cyan-100">
+                        {dataType}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={selectedResources.length === 0}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-lime-300 px-4 py-3 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
+                    onClick={() => {
+                      setIsMobileResourcesOpen(false)
+                      setIsExportOpen(true)
+                    }}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export selection
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
@@ -342,6 +497,9 @@ function App() {
             <div className="grid min-h-0 gap-4">
               <CatalogHero
                 catalogId={selectedCatalogId}
+                description={isSelectedFake ? undefined : getStringProperty(selectedCatalog?.properties, 'title') ?? selectedNode?.title ?? undefined}
+                readme={isSelectedFake ? undefined : getStringProperty(selectedCatalog?.properties, 'readme') ?? selectedNode?.readme ?? undefined}
+                isFake={isSelectedFake}
                 isLoading={selectedCatalogQuery.isFetching}
                 resourceCount={resourceRows.length}
                 groupCount={groupCount}
@@ -373,6 +531,7 @@ function App() {
                 activeResource={activeResource}
                 jobs={jobs}
                 writers={writerDescriptions}
+                isVirtualCatalog={isSelectedFake}
                 onOpenExport={() => setIsExportOpen(true)}
               />
 
@@ -397,23 +556,106 @@ function App() {
   )
 }
 
-function Metric({ label, value, hint, icon, tone }: { label: string; value: string; hint?: string; icon: React.ReactNode; tone: 'cyan' | 'violet' | 'lime' }) {
-  const toneClass = {
-    cyan: 'border-cyan-300/20 bg-cyan-300/10 text-cyan-200',
-    violet: 'border-violet-300/20 bg-violet-300/10 text-violet-200',
-    lime: 'border-lime-300/20 bg-lime-300/10 text-lime-200',
-  }[tone]
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  const initials = parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : parts[0]?.slice(0, 2)
 
+  return initials?.toUpperCase() ?? 'NX'
+}
+
+function formatCatalogRange(timeRange: V1.CatalogTimeRange | undefined) {
+  if (!timeRange?.begin || !timeRange.end) {
+    return undefined
+  }
+
+  if (isMinDate(timeRange.begin) && isMaxDate(timeRange.end)) {
+    return undefined
+  }
+
+  const begin = formatIsoDate(timeRange.begin)
+  const end = formatIsoDate(timeRange.end)
+
+  if (begin && end) {
+    return `${begin} -> ${end}`
+  }
+
+  return begin ?? end
+}
+
+function abbreviateMiddle(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value
+  }
+
+  const edgeLength = Math.floor((maxLength - 3) / 2)
+  const startLength = edgeLength + ((maxLength - 3) % 2)
+
+  return `${value.slice(0, startLength)}...${value.slice(-edgeLength)}`
+}
+
+function renderSlashBreakablePath(path: string) {
+  return path.split('/').map((part, index) => (
+    <span key={`${part}-${index}`}>
+      {index > 0 ? '/\u200B' : null}
+      {part}
+    </span>
+  ))
+}
+
+function isMinDate(value: string) {
+  return value.startsWith('0001-01-01')
+}
+
+function isMaxDate(value: string) {
+  return value.startsWith('9999-12-31')
+}
+
+function formatIsoDate(value: string) {
+  const isoDate = /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1]
+
+  if (isoDate) {
+    return isoDate
+  }
+
+  const parsed = new Date(value)
+
+  return Number.isNaN(parsed.valueOf()) ? undefined : parsed.toISOString().slice(0, 10)
+}
+
+function getStringProperty(record: Record<string, unknown> | null | undefined, key: string) {
+  const value = record?.[key]
+
+  return typeof value === 'string' ? value : undefined
+}
+
+async function copyCatalogPath(catalogId: string) {
+  await navigator.clipboard?.writeText(catalogId)
+}
+
+function MarkdownContent({ markdown }: { markdown: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-slate-400">
-        <span className={cn('grid h-7 w-7 place-items-center rounded-xl border', toneClass)}>{icon}</span>
-        {label}
-      </div>
-      <div className="mt-2 truncate text-sm font-semibold text-white">{value}</div>
-      {hint ? <div className="mt-1 truncate text-xs text-slate-500">{hint}</div> : null}
+    <div className="space-y-3 text-sm leading-6 text-slate-300">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-cyan-200 underline decoration-cyan-300/40 underline-offset-4 hover:text-cyan-100">{children}</a>,
+          code: ({ children, className }) => <code className={cn('rounded bg-white/10 px-1.5 py-0.5 font-mono text-xs text-cyan-100', className)}>{children}</code>,
+          h1: ({ children }) => <h1 className="text-lg font-semibold text-white">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-base font-semibold text-white">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-sm font-semibold text-slate-100">{children}</h3>,
+          pre: ({ children }) => <pre className="overflow-auto rounded-2xl border border-white/10 bg-black/25 p-3 font-mono text-xs text-slate-300">{children}</pre>,
+          strong: ({ children }) => <strong className="font-semibold text-slate-100">{children}</strong>,
+          ul: ({ children }) => <ul className="list-disc space-y-1 pl-5">{children}</ul>,
+        }}
+      >
+        {normalizeMarkdown(markdown)}
+      </ReactMarkdown>
     </div>
   )
+}
+
+function normalizeMarkdown(markdown: string) {
+  return markdown.replace(/\r\n?/g, '\n').replace(/\\n/g, '\n')
 }
 
 function TokenNotice() {
@@ -445,39 +687,41 @@ function ApiErrorNotice({ error }: { error: Error | null }) {
 }
 
 function CatalogBrowser({
+  isMobile = false,
   nodes,
-  selectedCatalogId,
+  selectedCatalogNodeKey,
   search,
   isPending,
   readableCatalogCount,
-  expandedCatalogIds,
+  expandedCatalogNodeKeys,
   onSearch,
   onSelect,
   onToggleExpanded,
 }: {
+  isMobile?: boolean
   nodes: CatalogNode[]
-  selectedCatalogId: string
+  selectedCatalogNodeKey: string
   search: string
   isPending: boolean
   readableCatalogCount: number
-  expandedCatalogIds: Set<string>
+  expandedCatalogNodeKeys: Set<string>
   onSearch: (value: string) => void
-  onSelect: (catalogId: string) => void
-  onToggleExpanded: (catalogId: string) => void
+  onSelect: (catalog: CatalogNode) => void
+  onToggleExpanded: (catalog: CatalogNode) => void
 }) {
   return (
-    <div className="glass-panel flex h-full min-h-0 flex-col rounded-[2rem]">
-      <div className="border-b border-white/10 p-4">
+    <div className={cn('flex h-full min-h-0 flex-col', isMobile ? 'bg-slate-950' : 'glass-panel rounded-[2rem]')}>
+      <div className={cn('border-b border-white/10', isMobile ? 'p-3' : 'p-4')}>
         <div className="flex items-center justify-between gap-3">
-          <div>
+          <div className={cn(isMobile && 'hidden')}>
             <div className="text-xs uppercase tracking-[0.26em] text-cyan-200/80">catalog atlas</div>
             <div className="mt-1 text-xl font-semibold tracking-[-0.03em] text-white">{formatNumber(readableCatalogCount)} readable branches</div>
           </div>
-          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-300/10 text-cyan-200">
+          <div className={cn('grid h-10 w-10 place-items-center rounded-2xl bg-cyan-300/10 text-cyan-200', isMobile && 'hidden')}>
             {isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Layers3 className="h-5 w-5" />}
           </div>
         </div>
-        <label className="mt-4 flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-slate-950/70 px-3 py-2 text-sm text-slate-300 focus-within:border-cyan-300/60">
+        <label className={cn('flex items-center gap-2 border px-3 py-2 text-sm text-slate-300 focus-within:border-cyan-300/60', isMobile ? 'mt-3 rounded-xl border-white/10 bg-white/[0.04]' : 'mt-4 rounded-2xl border-cyan-300/20 bg-slate-950/70')}>
           <Search className="h-4 w-4 text-cyan-200" />
           <input
             value={search}
@@ -489,51 +733,68 @@ function CatalogBrowser({
         </label>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {nodes.map((node) => {
-          const id = node.id ?? '/'
-          const selected = id === selectedCatalogId
-          const isExpanded = expandedCatalogIds.has(id)
-          return (
-            <div key={`${id}-${node.depth}`} className="group relative">
-              <div
-                className={cn(
-                  'grid grid-cols-[32px_minmax(0,1fr)] items-center gap-1 rounded-2xl border px-2 py-2 transition',
-                  selected
-                    ? 'border-cyan-300/40 bg-cyan-300/12 shadow-[0_0_30px_rgba(34,211,238,0.10)]'
-                    : 'border-transparent hover:border-white/10 hover:bg-white/[0.045]',
-                )}
-                style={{ marginLeft: Math.min(node.depth * 18, 72) }}
-              >
-                <button
-                  type="button"
-                  className="grid h-8 w-8 place-items-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-cyan-200"
-                  onClick={() => onToggleExpanded(id)}
-                  aria-label={`Toggle ${id}`}
+        <div className={cn('min-h-0 flex-1 overflow-y-auto', isMobile ? 'p-1.5' : 'p-2')}>
+          {nodes.map((node) => {
+            const id = node.id ?? '/'
+            const selected = node.nodeKey === selectedCatalogNodeKey
+            const isExpanded = expandedCatalogNodeKeys.has(node.nodeKey)
+            const mobileLabel = node.isFake ? abbreviateMiddle(lastSegment(id), 28) : abbreviateMiddle(id, 30)
+            const desktopLabel = node.isFake ? lastSegment(id) : compactPath(id, 4)
+            return (
+              <div key={node.nodeKey} className="group relative">
+                <div
+                  className={cn(
+                    'grid grid-cols-[32px_minmax(0,1fr)] items-center gap-1 border px-2 py-2 transition',
+                    isMobile ? 'rounded-xl' : 'rounded-2xl',
+                    selected
+                      ? node.isFake
+                        ? 'border-violet-300/40 bg-violet-300/12 shadow-[0_0_30px_rgba(139,92,246,0.10)]'
+                        : 'border-cyan-300/40 bg-cyan-300/12 shadow-[0_0_30px_rgba(34,211,238,0.10)]'
+                      : 'border-transparent hover:border-white/10 hover:bg-white/[0.045]',
+                  )}
+                  style={{ marginLeft: Math.min(node.depth * 18, 72) }}
                 >
-                  <ChevronDown className={cn('h-4 w-4 transition', !isExpanded && '-rotate-90')} />
-                </button>
-                <button type="button" className="min-w-0 text-left" onClick={() => onSelect(id)}>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className={cn('h-2 w-2 shrink-0 rounded-full', node.isOwner ? 'bg-lime-300' : node.isReadable ? 'bg-cyan-300' : 'bg-slate-600')} />
-                    <span className="truncate font-mono text-[13px] text-slate-100">{compactPath(id, 4)}</span>
-                  </div>
-                  <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                    <span className="truncate">{node.title ?? node.pipelineInfo?.types?.[0] ?? 'Untitled catalog'}</span>
-                    {node.isWritable ? <span className="rounded-full bg-violet-300/10 px-1.5 py-0.5 text-violet-200">write</span> : null}
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    className="grid h-8 w-8 place-items-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-cyan-200"
+                    onClick={() => onToggleExpanded(node)}
+                    aria-label={`Toggle ${id}`}
+                  >
+                    <ChevronDown className={cn('h-4 w-4 transition', !isExpanded && '-rotate-90')} />
+                  </button>
+                  <button type="button" className="min-w-0 text-left" onClick={() => (node.isFake ? onToggleExpanded(node) : onSelect(node))}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      {node.isFake ? (
+                        <Folder className="h-3.5 w-3.5 shrink-0 text-violet-300" />
+                      ) : (
+                        <span className={cn('h-2 w-2 shrink-0 rounded-full', node.isOwner ? 'bg-lime-300' : node.isReadable ? 'bg-cyan-300' : 'bg-slate-600')} />
+                      )}
+                      <span className={cn('truncate font-mono text-[13px]', node.isFake ? 'text-violet-100' : 'text-slate-100')}>
+                        <span className="sm:hidden">{mobileLabel}</span>
+                        <span className="hidden sm:inline">{desktopLabel}</span>
+                      </span>
+                    </div>
+                    {!node.isFake ? (
+                      <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                        <span className="truncate">{node.title ?? node.pipelineInfo?.types?.[0] ?? 'Untitled catalog'}</span>
+                        {node.isWritable ? <span className="rounded-full bg-violet-300/10 px-1.5 py-0.5 text-violet-200">write</span> : null}
+                      </div>
+                    ) : null}
+                  </button>
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
     </div>
   )
 }
 
 function CatalogHero({
   catalogId,
+  description,
+  readme,
+  isFake,
   isLoading,
   resourceCount,
   groupCount,
@@ -542,6 +803,9 @@ function CatalogHero({
   attachments,
 }: {
   catalogId: string
+  description: string | undefined
+  readme: string | undefined
+  isFake: boolean
   isLoading: boolean
   resourceCount: number
   groupCount: number
@@ -549,6 +813,11 @@ function CatalogHero({
   metadataKeys: number
   attachments: string[]
 }) {
+  const catalogRange = formatCatalogRange(timeRange)
+  const [isReadmeOpen, setIsReadmeOpen] = useState(false)
+  const catalogDescription = description?.trim()
+  const catalogReadme = readme?.trim()
+
   return (
     <section className="glass-panel overflow-hidden rounded-[2rem]">
       <div className="relative p-5 sm:p-6">
@@ -556,21 +825,64 @@ function CatalogHero({
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.24em] text-violet-200/80">
-              <Database className="h-4 w-4" /> active catalog
+              {isFake ? <Folder className="h-4 w-4" /> : <Database className="h-4 w-4" />}
+              {isFake ? 'catalog grouping' : 'active catalog'}
               {isLoading ? <span className="rounded-full bg-cyan-300/10 px-2 py-0.5 text-cyan-200">syncing</span> : null}
+              {isFake ? <span className="rounded-full bg-violet-300/10 px-2 py-0.5 text-violet-200">virtual folder</span> : null}
             </div>
-            <h2 className="mt-3 break-words font-mono text-2xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">{catalogId}</h2>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <h2 className="min-w-0 break-words font-mono text-2xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
+                {renderSlashBreakablePath(catalogId)}
+              </h2>
+              <div className="flex shrink-0 items-center gap-2">
+                {catalogReadme ? (
+                  <button
+                    type="button"
+                    className="inline-grid h-10 w-10 place-items-center rounded-2xl border border-violet-300/20 bg-violet-300/10 text-violet-100 hover:border-violet-300/45 hover:text-white"
+                    onClick={() => setIsReadmeOpen(true)}
+                    aria-label="Open catalog readme"
+                    title="Open catalog readme"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="inline-grid h-10 w-10 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 hover:border-cyan-300/45 hover:text-white"
+                  onClick={() => void copyCatalogPath(catalogId)}
+                  aria-label="Copy catalog path"
+                  title="Copy catalog path"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            {catalogDescription ? <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-300">{catalogDescription}</p> : null}
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
-              <Pill icon={<Clock3 className="h-3.5 w-3.5" />} label={`${timeRange?.begin ?? 'unknown'} -> ${timeRange?.end ?? 'unknown'}`} />
-              <Pill icon={<FileJson className="h-3.5 w-3.5" />} label={`${metadataKeys} metadata keys`} />
-              <Pill icon={<Archive className="h-3.5 w-3.5" />} label={`${attachments.length} attachments`} />
+              {isFake ? (
+                <Pill icon={<Folder className="h-3.5 w-3.5" />} label="Grouped catalog paths — select a child to view resources" />
+              ) : (
+                <>
+                  {catalogRange ? <Pill icon={<Clock3 className="h-3.5 w-3.5" />} label={catalogRange} /> : null}
+                  <Pill icon={<FileJson className="h-3.5 w-3.5" />} label={`${metadataKeys} metadata keys`} />
+                  <Pill icon={<Archive className="h-3.5 w-3.5" />} label={`${attachments.length} attachments`} />
+                </>
+              )}
             </div>
+            {catalogReadme ? (
+              <ReadmeModal
+                catalogId={catalogId}
+                isOpen={isReadmeOpen}
+                markdown={catalogReadme}
+                title={catalogDescription ?? catalogId}
+                onClose={() => setIsReadmeOpen(false)}
+              />
+            ) : null}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 sm:min-w-[420px]">
+          <div className="grid grid-cols-2 gap-2 sm:min-w-[280px]">
             <Kpi label="Resources" value={resourceCount} />
             <Kpi label="Groups" value={groupCount} />
-            <Kpi label="Density" value={resourceCount > 0 ? Math.ceil(resourceCount / Math.max(groupCount, 1)) : 0} />
           </div>
         </div>
       </div>
@@ -790,12 +1102,42 @@ function TelemetryPreview({ resources, ranges }: { resources: ResourceRow[]; ran
   )
 }
 
+function ReadmeModal({ catalogId, isOpen, markdown, title, onClose }: { catalogId: string; isOpen: boolean; markdown: string; title: string; onClose: () => void }) {
+  if (!isOpen) {
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="catalog-readme-title">
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close readme" />
+      <div className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl shadow-black/50">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">Catalog readme</p>
+            <h2 id="catalog-readme-title" className="mt-2 truncate text-lg font-semibold text-white">
+              {title}
+            </h2>
+            <p className="mt-1 truncate font-mono text-xs text-slate-500">{catalogId}</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/25 hover:text-white" aria-label="Close readme">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-5 sm:p-6">
+          <MarkdownContent markdown={markdown} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function InsightPanel({
   catalogId,
   resources,
   activeResource,
   jobs,
   writers,
+  isVirtualCatalog,
   onOpenExport,
 }: {
   catalogId: string
@@ -803,6 +1145,7 @@ function InsightPanel({
   activeResource: ResourceRow | undefined
   jobs: V1.Job[]
   writers: WriterDescription[]
+  isVirtualCatalog: boolean
   onOpenExport: () => void
 }) {
   const topGroups = Object.entries(
@@ -866,10 +1209,17 @@ function InsightPanel({
         </p>
       </div>
 
-      <a className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm text-slate-300 hover:border-cyan-300/40 hover:text-cyan-100" href={`${nexusEndpoint}/api/v1/catalogs/${encodeURIComponent(catalogId)}`} target="_blank" rel="noreferrer">
-        Open raw catalog JSON
-        <SquareArrowOutUpRight className="h-4 w-4" />
-      </a>
+      {isVirtualCatalog ? (
+        <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm text-slate-500">
+          Virtual folders do not have raw catalog JSON
+          <Folder className="h-4 w-4" />
+        </div>
+      ) : (
+        <a className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm text-slate-300 hover:border-cyan-300/40 hover:text-cyan-100" href={`${nexusEndpoint}/api/v1/catalogs/${encodeURIComponent(catalogId)}`} target="_blank" rel="noreferrer">
+          Open raw catalog JSON
+          <SquareArrowOutUpRight className="h-4 w-4" />
+        </a>
+      )}
     </section>
   )
 }

@@ -1,8 +1,58 @@
 import { NexusClient, V1, V2 } from '@nexus-api'
 
 export type CatalogNode = V1.CatalogInfo & {
+  nodeKey: string
   depth: number
   parentId: string
+  isFake: boolean
+  groupedChildren?: V1.CatalogInfo[]
+}
+
+export type PreparedCatalogNode = Omit<CatalogNode, 'depth' | 'parentId'>
+
+export function prepareChildCatalogs(
+  parentId: string,
+  childInfos: V1.CatalogInfo[],
+): PreparedCatalogNode[] {
+  const normalizedParentId = parentId === '/' ? '' : parentId
+
+  const groups = new Map<string, V1.CatalogInfo[]>()
+  for (const info of childInfos) {
+    if (!((info.isReleased && info.isVisible) || info.isOwner)) continue
+    const remainder = (info.id ?? '').slice(normalizedParentId.length)
+    const segments = remainder.split('/').filter(Boolean)
+    const nextSegment = segments[0] ?? ''
+    if (!groups.has(nextSegment)) groups.set(nextSegment, [])
+    groups.get(nextSegment)!.push(info)
+  }
+
+  const result: PreparedCatalogNode[] = []
+  for (const [segment, group] of groups) {
+    if (group.length > 1) {
+      const fakeId = `${normalizedParentId}/${segment}`
+      result.push({
+        nodeKey: `fake:${normalizedParentId || '/'}:${fakeId}`,
+        id: fakeId,
+        title: null,
+        contact: null,
+        readme: null,
+        license: null,
+        isReadable: true,
+        isWritable: false,
+        isReleased: true,
+        isVisible: true,
+        isOwner: false,
+        packageReferenceIds: [],
+        pipelineInfo: { id: '', types: [], infoUrls: [] },
+        isFake: true,
+        groupedChildren: group,
+      })
+    } else {
+      result.push({ ...group[0], nodeKey: `real:${group[0].id ?? ''}`, isFake: false })
+    }
+  }
+
+  return result.sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''))
 }
 
 export type ResourceRow = {

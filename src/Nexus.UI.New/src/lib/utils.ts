@@ -13,6 +13,12 @@ export function formatNumber(value: number | undefined) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)
 }
 
+export function lastSegment(path: string | undefined): string {
+  if (!path) return '/'
+  const segments = path.split('/').filter(Boolean)
+  return segments[segments.length - 1] ?? '/'
+}
+
 export function compactPath(path: string | undefined, maxSegments = 3) {
   if (!path) {
     return '/'

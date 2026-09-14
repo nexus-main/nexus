@@ -11,6 +11,12 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -20,10 +26,18 @@ body {
   min-height: 100vh;
   margin: 0;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
   background:
     radial-gradient(circle at 18% 4%, rgba(0, 190, 255, 0.24), transparent 32rem),
     radial-gradient(circle at 86% 10%, rgba(111, 66, 255, 0.24), transparent 30rem),
     linear-gradient(135deg, #050712 0%, #07111f 44%, #0b0f1d 100%);
+}
+
+.overflow-auto,
+.overflow-y-auto {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 button,
