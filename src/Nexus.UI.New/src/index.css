@@ -123,7 +123,12 @@ button {
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(8, 13, 26, 0.98));
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(24px);
+}
+
+.backdrop-blur,
+.backdrop-blur-sm {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 .scanline {
