@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "Nexus.UI",
   "resources": {
-    "hash": "sha256-4QhFV2AgSZFJvlDXoEZSliqyRiQGKEb4otSXZXkQCJI=",
+    "hash": "sha256-KVePdXE53EIU54hSJkXlYhzNGUlOBx1n1ROyaxbnS78=",
     "fingerprinting": {
       "Apache.Arrow.pm2jdlegiu.wasm": "Apache.Arrow.wasm",
       "BlazorJsonForm.sf2o8di9mj.wasm": "BlazorJsonForm.wasm",
@@ -31,8 +31,8 @@
       "NJsonSchema.b77tzzio88.wasm": "NJsonSchema.wasm",
       "Namotion.Reflection.vv7dcii2e2.wasm": "Namotion.Reflection.wasm",
       "Newtonsoft.Json.qkbufwhni2.wasm": "Newtonsoft.Json.wasm",
-      "Nexus.Api.egoov2jsud.wasm": "Nexus.Api.wasm",
-      "Nexus.UI.8a3gf69mxc.wasm": "Nexus.UI.wasm",
+      "Nexus.Api.endc2rlwd7.wasm": "Nexus.Api.wasm",
+      "Nexus.UI.q13cxmtrbw.wasm": "Nexus.UI.wasm",
       "SkiaSharp.Views.Blazor.5bdyj4d3j1.wasm": "SkiaSharp.Views.Blazor.wasm",
       "SkiaSharp.7rqdjk3zvb.wasm": "SkiaSharp.wasm",
       "System.Collections.g4arjjkgso.wasm": "System.Collections.wasm",
@@ -141,8 +141,8 @@
       "NJsonSchema.b77tzzio88.wasm": "sha256-t1h30wKsthg+bIkqWg5XMJF77AdnT2UxRlt+JlhAFjU=",
       "Namotion.Reflection.vv7dcii2e2.wasm": "sha256-1eJBgupYUz3Q98b+qt9ITPUlabzdgP6qT1eL3U/rk4c=",
       "Newtonsoft.Json.qkbufwhni2.wasm": "sha256-GlXMWKvDs45M2pACoR3Y4Qh8mcrOZGljqmvJY+6JZ5s=",
-      "Nexus.Api.egoov2jsud.wasm": "sha256-zoiwPB2+/zEp90VEbceL8lulTsTh/e1YNMKQ5jPN65c=",
-      "Nexus.UI.8a3gf69mxc.wasm": "sha256-YDQiQd327wS5uh9T+PD4D1bUX2OY2bkwXp0fGRnkxRg=",
+      "Nexus.Api.endc2rlwd7.wasm": "sha256-5lHnYkqblF2GsEPhQf/F/eQMc50IyCD+FKVMDKKrKEk=",
+      "Nexus.UI.q13cxmtrbw.wasm": "sha256-kvwuVSUipc7qWklXqFLLYdELgaWd9iqYEAJc1r3Jy40=",
       "SkiaSharp.Views.Blazor.5bdyj4d3j1.wasm": "sha256-H3XgHwsVuSSf+ZPfo79+JJmXR7W/KT9vPQOXsQRE+As=",
       "SkiaSharp.7rqdjk3zvb.wasm": "sha256-s3tQDo9kTdlMtuX/ShIS0v31qZvrz1GJM4eaB4tgJhE=",
       "System.Collections.g4arjjkgso.wasm": "sha256-ADWeYX+EJx+Vx6zjKU18cCdE8Ui8T5WzqptI1Lh3tRk=",
