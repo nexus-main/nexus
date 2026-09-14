@@ -52,6 +52,7 @@ export class AppComponent {
 
   readonly selectedCatalogId = signal(getSelectedCatalogIdFromUrl())
   readonly selectedCatalogNodeKey = signal(getRealCatalogNodeKey(getSelectedCatalogIdFromUrl()))
+  readonly activeCatalogDetailsOpen = signal(false)
   readonly expandedCatalogNodeKeys = signal<ReadonlySet<string>>(getInitialExpandedCatalogNodeKeys(this.storage, getSelectedCatalogIdFromUrl()))
   readonly searchCollapsedCatalogNodeKeys = signal<ReadonlySet<string>>(new Set())
   readonly catalogSearch = signal('')
@@ -153,8 +154,9 @@ export class AppComponent {
   readonly selectedNode = computed(() => this.catalogNodes().find((node) => node.nodeKey === this.selectedCatalogNodeKey()))
   readonly isSelectedFake = computed(() => this.selectedNode()?.isFake ?? this.selectedCatalogNodeKey().startsWith('fake:'))
   readonly selectedCatalog = computed(() => this.selectedBundle()?.catalog)
-  readonly selectedCatalogTitle = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'title') ?? this.selectedCatalogInfo()?.title ?? this.selectedNode()?.title ?? lastSegment(this.selectedCatalogId()))
+  readonly selectedCatalogTitle = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'title') ?? this.selectedCatalogInfo()?.title ?? '')
   readonly selectedCatalogReadme = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'readme') ?? this.selectedCatalogInfo()?.readme ?? this.selectedNode()?.readme ?? '')
+  readonly selectedCatalogDisplayPath = computed(() => formatCatalogDisplayPath(this.selectedCatalogId()))
   readonly selectedCatalogRange = computed(() => formatRange(this.selectedBundle()?.timeRange))
 
   readonly resourceRows = computed(() => {
@@ -558,6 +560,12 @@ function resolveRangeEndpoint(value: string, reference: Date) {
 
 function toUtcSecondString(date: Date) {
   return date.toISOString().slice(0, 19) + 'Z'
+}
+
+function formatCatalogDisplayPath(path: string) {
+  if (path === '/') return ''
+
+  return path.replaceAll('/', ' / ').replace(/^ \/ /, '')
 }
 
 function formatSamplePeriod(samplePeriod: string | null | undefined) {
