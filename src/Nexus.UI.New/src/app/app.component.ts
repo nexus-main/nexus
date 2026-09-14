@@ -3,6 +3,8 @@ import { Component, HostListener, computed, effect, inject, signal } from '@angu
 import { FormsModule } from '@angular/forms'
 import { LucideFolder } from '@lucide/angular'
 import { BrowserStorageService } from './browser-storage.service'
+import { AppHeaderComponent } from './components/app-header.component'
+import { ExportComposerComponent } from './components/export-composer.component'
 import { MarkdownPipe } from './markdown.pipe'
 import {
   CatalogBundle,
@@ -31,10 +33,15 @@ const quickRanges = [
   { label: 'Campaign day', begin: '2025-01-01T00:00:00Z', end: '2025-01-02T00:00:00Z' },
 ]
 
+type SelectedResourceGroup = {
+  catalogId: string
+  resources: ResourceRow[]
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, MarkdownPipe, LucideFolder],
+  imports: [CommonModule, FormsModule, MarkdownPipe, LucideFolder, AppHeaderComponent, ExportComposerComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent {
@@ -46,12 +53,12 @@ export class AppComponent {
   readonly expandedCatalogNodeKeys = signal<ReadonlySet<string>>(getInitialExpandedCatalogNodeKeys(this.storage, getSelectedCatalogIdFromUrl()))
   readonly catalogSearch = signal('')
   readonly resourceSearch = signal('')
-  readonly selectedResourcePaths = signal<ReadonlySet<string>>(new Set(['/SAMPLE/LOCAL/T1', '/SAMPLE/LOCAL/V1']))
+  readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceRow>>(new Map())
   readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
   readonly isExportOpen = signal(false)
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
-  readonly isMobileResourcesOpen = signal(false)
+  readonly activeSidebarTab = signal<'catalogs' | 'selectedResources'>('catalogs')
   readonly overviewLoading = signal(true)
   readonly catalogLoading = signal(false)
   readonly overviewError = signal<unknown>(null)
@@ -128,17 +135,17 @@ export class AppComponent {
   })
 
   readonly activeResource = computed<ResourceRow | undefined>(() => this.resourceRows().find((resource) => resource.path === this.activeResourcePath()) ?? this.filteredResources()[0])
-  readonly selectedResources = computed(() => this.resourceRows().filter((resource) => this.selectedResourcePaths().has(resource.path)))
+  readonly selectedResourcePaths = computed(() => new Set(this.selectedResourceRows().keys()))
+  readonly selectedResources = computed(() => [...this.selectedResourceRows().values()].sort(compareResources))
+  readonly groupedSelectedResources = computed<SelectedResourceGroup[]>(() => {
+    const groups = new Map<string, ResourceRow[]>()
+    for (const resource of this.selectedResources()) groups.set(resource.catalogId, [...(groups.get(resource.catalogId) ?? []), resource])
+    return [...groups.entries()].map(([catalogId, resources]) => ({ catalogId, resources }))
+  })
   readonly selectedDataTypes = computed(() => new Set(this.selectedResources().flatMap((resource) => resource.representations.map((rep) => rep.dataType).filter(Boolean))))
   readonly groupCount = computed(() => new Set(this.resourceRows().flatMap((resource) => resource.groups)).size)
   readonly selectedWriter = computed(() => this.writerDescriptions().find((writer) => writer.type === this.selectedWriterType()) ?? this.writerDescriptions()[0])
   readonly writerOptions = computed(() => Object.entries(this.selectedWriter()?.additionalInformation?.options ?? {}))
-  readonly topGroups = computed(() => Object.entries(
-    this.resourceRows().reduce<Record<string, number>>((groups, resource) => {
-      for (const group of resource.groups.length ? resource.groups : ['ungrouped']) groups[group] = (groups[group] ?? 0) + 1
-      return groups
-    }, {}),
-  ).sort((a, b) => b[1] - a[1]).slice(0, 5))
   readonly previewResources = computed(() => this.selectedResources().length > 0 ? this.selectedResources() : this.activeResource() ? [this.activeResource()!] : [])
   readonly exportPreview = computed(() => buildExportParameters(
     this.exportBegin(),
@@ -180,7 +187,6 @@ export class AppComponent {
     this.selectedCatalogNodeKey.set(getRealCatalogNodeKey(catalogId))
     this.expandCatalogPath(catalogId)
     this.isMobileCatalogOpen.set(false)
-    this.selectedResourcePaths.set(new Set())
     this.activeResourcePath.set('')
   }
 
@@ -226,7 +232,6 @@ export class AppComponent {
     this.selectedCatalogNodeKey.set(catalog.nodeKey)
     writeSelectedCatalogToUrl(catalogId)
     this.isMobileCatalogOpen.set(false)
-    this.selectedResourcePaths.set(new Set())
     this.activeResourcePath.set('')
   }
 
@@ -256,7 +261,12 @@ export class AppComponent {
   }
 
   toggleResource(resource: ResourceRow) {
-    this.selectedResourcePaths.update((current) => toggleSetValue(current, resource.path))
+    this.selectedResourceRows.update((current) => {
+      const next = new Map(current)
+      if (next.has(resource.path)) next.delete(resource.path)
+      else next.set(resource.path, resource)
+      return next
+    })
     this.activeResourcePath.set(resource.path)
   }
 
@@ -266,7 +276,6 @@ export class AppComponent {
 
   activateResource(resource: ResourceRow) {
     this.activeResourcePath.set(resource.path)
-    this.isMobileResourcesOpen.set(false)
   }
 
   applyQuickRange(range: { begin: string; end: string }) {
@@ -324,6 +333,10 @@ export class AppComponent {
 function getSelectedCatalogIdFromUrl() {
   const catalogId = new URLSearchParams(window.location.search).get('catalog')?.trim()
   return catalogId || defaultCatalogId
+}
+
+function compareResources(left: ResourceRow, right: ResourceRow) {
+  return left.catalogId.localeCompare(right.catalogId) || left.id.localeCompare(right.id)
 }
 
 function getRealCatalogNodeKey(catalogId: string) {
