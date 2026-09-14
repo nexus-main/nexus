@@ -1,3 +1,6 @@
+## v2.0.0-beta.57 - 2026-09-14
+- Restore the legacy `/api/v1/data` raw double stream response for compatibility with v1 clients.
+
 ## v2.0.0-beta.56 - 2026-09-10
 - High performance improvements:
     - Use WebGPU to render data
