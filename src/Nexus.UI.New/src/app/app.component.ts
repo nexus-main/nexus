@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common'
 import { Component, HostListener, computed, effect, inject, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideFolder } from '@lucide/angular'
 import { BrowserStorageService } from './browser-storage.service'
 import { AppHeaderComponent } from './components/app-header.component'
 import { ExportComposerComponent } from './components/export-composer.component'
@@ -33,6 +32,9 @@ const quickRanges = [
   { label: 'Campaign day', begin: '2025-01-01T00:00:00Z', end: '2025-01-02T00:00:00Z' },
 ]
 
+const defaultExportBegin = getUtcMidnightDaysAgo(2)
+const defaultExportEnd = getUtcMidnightDaysAgo(1)
+
 type SelectedResourceGroup = {
   catalogId: string
   resources: ResourceRow[]
@@ -41,7 +43,7 @@ type SelectedResourceGroup = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, MarkdownPipe, LucideFolder, AppHeaderComponent, ExportComposerComponent],
+  imports: [CommonModule, FormsModule, MarkdownPipe, AppHeaderComponent, ExportComposerComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent {
@@ -51,6 +53,7 @@ export class AppComponent {
   readonly selectedCatalogId = signal(getSelectedCatalogIdFromUrl())
   readonly selectedCatalogNodeKey = signal(getRealCatalogNodeKey(getSelectedCatalogIdFromUrl()))
   readonly expandedCatalogNodeKeys = signal<ReadonlySet<string>>(getInitialExpandedCatalogNodeKeys(this.storage, getSelectedCatalogIdFromUrl()))
+  readonly searchCollapsedCatalogNodeKeys = signal<ReadonlySet<string>>(new Set())
   readonly catalogSearch = signal('')
   readonly resourceSearch = signal('')
   readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceRow>>(new Map())
@@ -65,9 +68,11 @@ export class AppComponent {
   readonly catalogError = signal<unknown>(null)
   readonly overview = signal<SessionOverview | null>(null)
   readonly childMap = signal<ReadonlyMap<string, V1.CatalogInfo[]>>(new Map())
+  readonly selectedCatalogInfo = signal<V1.CatalogInfo | null>(null)
   readonly selectedBundle = signal<CatalogBundle | null>(null)
-  readonly exportBegin = signal(quickRanges[0].begin)
-  readonly exportEnd = signal(quickRanges[0].end)
+  readonly exportBegin = signal(defaultExportBegin)
+  readonly exportEnd = signal(defaultExportEnd)
+  readonly samplePeriod = signal('00:00:01')
   readonly exportFilePeriod = signal('PT0S')
   readonly selectedWriterType = signal('Nexus.Writers.Csv')
   readonly exportConfiguration = signal<Record<string, unknown>>({ 'row-index-format': 'excel', 'significant-figures': 4 })
@@ -105,18 +110,51 @@ export class AppComponent {
     return nodes
   })
 
+  readonly searchableCatalogNodes = computed(() => {
+    const nodes: CatalogNode[] = []
+    const childMap = this.childMap()
+    const appendPreparedNodes = (prepared: ReturnType<typeof prepareChildCatalogs>, parentId: string, depth: number) => {
+      for (const node of prepared) {
+        nodes.push({ ...node, depth, parentId })
+
+        if (!node.id) continue
+
+        const children = node.isFake && node.groupedChildren ? node.groupedChildren : childMap.get(node.id)
+        if (children?.length) appendPreparedNodes(prepareChildCatalogs(node.id, children), node.id, depth + 1)
+      }
+    }
+
+    appendPreparedNodes(prepareChildCatalogs('/', this.rootCatalogInfos()), '/', 0)
+    return nodes
+  })
+
   readonly filteredCatalogNodes = computed(() => {
     const term = this.catalogSearch().trim().toLowerCase()
     if (!term) return this.catalogNodes()
 
-    return this.catalogNodes().filter((node) => `${node.id ?? ''} ${node.title ?? ''} ${node.pipelineInfo?.types?.join(' ') ?? ''}`.toLowerCase().includes(term))
+    const nodes = this.searchableCatalogNodes()
+    const nodeById = new Map(nodes.flatMap((node) => node.id ? [[node.id, node] as const] : []))
+    const includedNodeKeys = new Set<string>()
+    const collapsedNodeKeys = this.searchCollapsedCatalogNodeKeys()
+
+    for (const node of nodes) {
+      if (!catalogNodeMatchesSearch(node, term)) continue
+
+      let current: CatalogNode | undefined = node
+      while (current && !includedNodeKeys.has(current.nodeKey)) {
+        includedNodeKeys.add(current.nodeKey)
+        current = current.parentId === '/' ? undefined : nodeById.get(current.parentId)
+      }
+    }
+
+    return nodes.filter((node) => includedNodeKeys.has(node.nodeKey) && !hasCollapsedSearchAncestor(node, nodeById, collapsedNodeKeys))
   })
 
   readonly selectedNode = computed(() => this.catalogNodes().find((node) => node.nodeKey === this.selectedCatalogNodeKey()))
   readonly isSelectedFake = computed(() => this.selectedNode()?.isFake ?? this.selectedCatalogNodeKey().startsWith('fake:'))
   readonly selectedCatalog = computed(() => this.selectedBundle()?.catalog)
-  readonly selectedCatalogTitle = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'title') ?? this.selectedNode()?.title ?? lastSegment(this.selectedCatalogId()))
-  readonly selectedCatalogReadme = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'readme') ?? this.selectedNode()?.readme ?? '')
+  readonly selectedCatalogTitle = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'title') ?? this.selectedCatalogInfo()?.title ?? this.selectedNode()?.title ?? lastSegment(this.selectedCatalogId()))
+  readonly selectedCatalogReadme = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'readme') ?? this.selectedCatalogInfo()?.readme ?? this.selectedNode()?.readme ?? '')
   readonly selectedCatalogRange = computed(() => formatRange(this.selectedBundle()?.timeRange))
 
   readonly resourceRows = computed(() => {
@@ -147,6 +185,9 @@ export class AppComponent {
   readonly selectedWriter = computed(() => this.writerDescriptions().find((writer) => writer.type === this.selectedWriterType()) ?? this.writerDescriptions()[0])
   readonly writerOptions = computed(() => Object.entries(this.selectedWriter()?.additionalInformation?.options ?? {}))
   readonly previewResources = computed(() => this.selectedResources().length > 0 ? this.selectedResources() : this.activeResource() ? [this.activeResource()!] : [])
+  readonly exportBeginInput = computed(() => toDateTimeLocalValue(this.exportBegin()))
+  readonly exportEndInput = computed(() => toDateTimeLocalValue(this.exportEnd()))
+  readonly formattedSamplePeriod = computed(() => formatSamplePeriod(this.samplePeriod()))
   readonly exportPreview = computed(() => buildExportParameters(
     this.exportBegin(),
     this.exportEnd(),
@@ -156,6 +197,15 @@ export class AppComponent {
     this.exportConfiguration(),
     this.exportPrecision(),
   ))
+
+  formatSamplePeriod(samplePeriod: string | null | undefined) {
+    return formatSamplePeriod(samplePeriod)
+  }
+
+  setCatalogSearch(value: string) {
+    this.catalogSearch.set(value)
+    this.searchCollapsedCatalogNodeKeys.set(new Set())
+  }
 
   constructor() {
     writeSelectedCatalogToUrl(this.selectedCatalogId(), true)
@@ -185,6 +235,7 @@ export class AppComponent {
     const catalogId = getSelectedCatalogIdFromUrl()
     this.selectedCatalogId.set(catalogId)
     this.selectedCatalogNodeKey.set(getRealCatalogNodeKey(catalogId))
+    this.selectedCatalogInfo.set(null)
     this.expandCatalogPath(catalogId)
     this.isMobileCatalogOpen.set(false)
     this.activeResourcePath.set('')
@@ -230,12 +281,44 @@ export class AppComponent {
     const catalogId = catalog.id ?? '/'
     this.selectedCatalogId.set(catalogId)
     this.selectedCatalogNodeKey.set(catalog.nodeKey)
+    this.selectedCatalogInfo.set(catalog)
     writeSelectedCatalogToUrl(catalogId)
     this.isMobileCatalogOpen.set(false)
     this.activeResourcePath.set('')
   }
 
+  activateCatalogNode(catalog: CatalogNode) {
+    if (catalog.isFake) {
+      this.toggleExpanded(catalog)
+      return
+    }
+
+    this.selectCatalog(catalog)
+    if (this.catalogHasExpandableChildren(catalog)) this.toggleExpanded(catalog)
+  }
+
+  catalogHasExpandableChildren(catalog: CatalogNode) {
+    if (catalog.isFake) return (catalog.groupedChildren?.length ?? 0) > 0
+    if (!catalog.id || !this.apiAvailable()) return false
+
+    const children = this.childMap().get(catalog.id)
+    return children === undefined || children.length > 0
+  }
+
+  catalogNodeIsExpanded(catalog: CatalogNode) {
+    if (!this.catalogSearch().trim()) return this.expandedCatalogNodeKeys().has(catalog.nodeKey)
+    if (this.searchCollapsedCatalogNodeKeys().has(catalog.nodeKey)) return false
+
+    return this.filteredCatalogNodes().some((node) => node.parentId === catalog.id)
+  }
+
   toggleExpanded(catalog: CatalogNode) {
+    if (this.catalogSearch().trim()) {
+      this.searchCollapsedCatalogNodeKeys.update((current) => toggleSetValue(current, catalog.nodeKey))
+      if (!catalog.isFake && catalog.id) void this.loadChildren(catalog.id)
+      return
+    }
+
     this.expandedCatalogNodeKeys.update((current) => toggleSetValue(current, catalog.nodeKey))
 
     if (!catalog.isFake && catalog.id) void this.loadChildren(catalog.id)
@@ -279,8 +362,17 @@ export class AppComponent {
   }
 
   applyQuickRange(range: { begin: string; end: string }) {
-    this.exportBegin.set(range.begin)
-    this.exportEnd.set(range.end)
+    const reference = new Date()
+    this.exportBegin.set(resolveRangeEndpoint(range.begin, reference))
+    this.exportEnd.set(resolveRangeEndpoint(range.end, reference))
+  }
+
+  setExportBeginFromInput(value: string) {
+    this.exportBegin.set(fromDateTimeLocalValue(value))
+  }
+
+  setExportEndFromInput(value: string) {
+    this.exportEnd.set(fromDateTimeLocalValue(value))
   }
 
   updateConfig(key: string, value: unknown) {
@@ -337,6 +429,20 @@ function getSelectedCatalogIdFromUrl() {
 
 function compareResources(left: ResourceRow, right: ResourceRow) {
   return left.catalogId.localeCompare(right.catalogId) || left.id.localeCompare(right.id)
+}
+
+function catalogNodeMatchesSearch(node: CatalogNode, term: string) {
+  return `${node.id ?? ''} ${node.title ?? ''} ${node.pipelineInfo?.types?.join(' ') ?? ''}`.toLowerCase().includes(term)
+}
+
+function hasCollapsedSearchAncestor(node: CatalogNode, nodeById: ReadonlyMap<string, CatalogNode>, collapsedNodeKeys: ReadonlySet<string>) {
+  let parent = node.parentId === '/' ? undefined : nodeById.get(node.parentId)
+  while (parent) {
+    if (collapsedNodeKeys.has(parent.nodeKey)) return true
+    parent = parent.parentId === '/' ? undefined : nodeById.get(parent.parentId)
+  }
+
+  return false
 }
 
 function getRealCatalogNodeKey(catalogId: string) {
@@ -419,4 +525,64 @@ function formatRange(timeRange: V1.CatalogTimeRange | undefined) {
 function formatRangeDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.valueOf()) ? value.slice(0, 10) : date.toISOString().slice(0, 10)
+}
+
+function getUtcMidnightDaysAgo(daysAgo: number) {
+  const now = new Date()
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysAgo))
+  return toUtcSecondString(date)
+}
+
+function toDateTimeLocalValue(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.valueOf()) ? '' : date.toISOString().slice(0, 19)
+}
+
+function fromDateTimeLocalValue(value: string) {
+  if (!value) return ''
+  const withSeconds = value.length === 16 ? `${value}:00` : value
+  return `${withSeconds}Z`
+}
+
+function resolveRangeEndpoint(value: string, reference: Date) {
+  if (value === 'now') return toUtcSecondString(reference)
+
+  const relativeDuration = /^-PT(\d+)([HM])$/.exec(value)
+  if (!relativeDuration) return value
+
+  const amount = Number(relativeDuration[1])
+  const unit = relativeDuration[2]
+  const offsetMs = amount * (unit === 'H' ? 60 : 1) * 60 * 1000
+  return toUtcSecondString(new Date(reference.valueOf() - offsetMs))
+}
+
+function toUtcSecondString(date: Date) {
+  return date.toISOString().slice(0, 19) + 'Z'
+}
+
+function formatSamplePeriod(samplePeriod: string | null | undefined) {
+  if (!samplePeriod) return 'no cadence'
+
+  const match = /^(?:(\d+)\.)?(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,7}))?$/.exec(samplePeriod)
+  if (!match) return samplePeriod
+
+  const [, days = '0', hours, minutes, seconds, fraction = ''] = match
+  let ticks = BigInt(days) * 24n * 60n * 60n * 10_000_000n
+  ticks += BigInt(hours) * 60n * 60n * 10_000_000n
+  ticks += BigInt(minutes) * 60n * 10_000_000n
+  ticks += BigInt(seconds) * 10_000_000n
+  ticks += BigInt(fraction.padEnd(7, '0'))
+
+  let currentValue = ticks * 100n
+  const quotients = [1000n, 1000n, 1000n, 60n, 60n, 24n, 1n]
+  const postFixes = ['ns', 'us', 'ms', 's', 'min', 'h', 'd']
+
+  for (let index = 0; index < postFixes.length; index += 1) {
+    const quotient = currentValue / quotients[index]
+    const remainder = currentValue % quotients[index]
+    if (remainder !== 0n) return `${currentValue} ${postFixes[index]}`
+    currentValue = quotient
+  }
+
+  return `${currentValue} ${postFixes.at(-1)}`
 }
