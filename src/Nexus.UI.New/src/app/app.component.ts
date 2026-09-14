@@ -32,6 +32,22 @@ const quickRanges = [
   { label: 'Campaign day', begin: '2025-01-01T00:00:00Z', end: '2025-01-02T00:00:00Z' },
 ]
 
+const timeRangePresets = [
+  { label: 'Last hour', kind: 'rolling', unit: 'hour', amount: 1 },
+  { label: 'Last 24 hours', kind: 'rolling', unit: 'day', amount: 1 },
+  { label: 'Last 7 days', kind: 'rolling', unit: 'day', amount: 7 },
+  { label: 'Today so far', kind: 'calendarToNow', unit: 'day', amount: 0 },
+  { label: 'Yesterday', kind: 'previousCalendar', unit: 'day', amount: 1 },
+  { label: 'This week so far', kind: 'calendarToNow', unit: 'week', amount: 0 },
+  { label: 'Previous week', kind: 'previousCalendar', unit: 'week', amount: 1 },
+  { label: 'This month so far', kind: 'calendarToNow', unit: 'month', amount: 0 },
+  { label: 'Previous month', kind: 'previousCalendar', unit: 'month', amount: 1 },
+  { label: 'This year so far', kind: 'calendarToNow', unit: 'year', amount: 0 },
+  { label: 'Previous year', kind: 'previousCalendar', unit: 'year', amount: 1 },
+] as const
+
+type TimeRangePreset = typeof timeRangePresets[number]
+
 const defaultExportBegin = getUtcMidnightDaysAgo(2)
 const defaultExportEnd = getUtcMidnightDaysAgo(1)
 
@@ -59,6 +75,7 @@ export class AppComponent {
   readonly resourceSearch = signal('')
   readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceRow>>(new Map())
   readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
+  readonly quickRangeMenuOpen = signal(false)
   readonly isExportOpen = signal(false)
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
@@ -82,6 +99,7 @@ export class AppComponent {
   readonly exportBusy = signal(false)
 
   readonly quickRanges = quickRanges
+  readonly timeRangePresets = timeRangePresets
   readonly apiAvailable = this.nexus.apiAvailable.asReadonly()
 
   readonly rootCatalogInfos = computed(() => this.overview()?.roots ?? fallbackCatalogInfos)
@@ -207,6 +225,33 @@ export class AppComponent {
   setCatalogSearch(value: string) {
     this.catalogSearch.set(value)
     this.searchCollapsedCatalogNodeKeys.set(new Set())
+  }
+
+  applyTimeRangePreset(preset: TimeRangePreset) {
+    const reference = new Date()
+    let begin: Date
+    let end: Date
+
+    switch (preset.kind) {
+      case 'rolling':
+        end = reference
+        begin = new Date(end)
+        subtractUtcRange(begin, preset.unit, preset.amount)
+        break
+      case 'calendarToNow':
+        end = reference
+        begin = getUtcPeriodStart(reference, preset.unit)
+        break
+      case 'previousCalendar':
+        end = getUtcPeriodStart(reference, preset.unit)
+        begin = new Date(end)
+        subtractUtcRange(begin, preset.unit, preset.amount)
+        break
+    }
+
+    this.exportBegin.set(begin.toISOString())
+    this.exportEnd.set(end.toISOString())
+    this.quickRangeMenuOpen.set(false)
   }
 
   constructor() {
@@ -421,6 +466,55 @@ export class AppComponent {
 
   errorMessage(error: unknown) {
     return error instanceof Error ? error.message : 'The Nexus API request failed.'
+  }
+}
+
+function getUtcPeriodStart(reference: Date, unit: TimeRangePreset['unit']) {
+  const start = new Date(reference)
+
+  switch (unit) {
+    case 'hour':
+      start.setUTCMinutes(0, 0, 0)
+      break
+    case 'day':
+      start.setUTCHours(0, 0, 0, 0)
+      break
+    case 'week': {
+      const daysSinceMonday = (start.getUTCDay() + 6) % 7
+      start.setUTCDate(start.getUTCDate() - daysSinceMonday)
+      start.setUTCHours(0, 0, 0, 0)
+      break
+    }
+    case 'month':
+      start.setUTCDate(1)
+      start.setUTCHours(0, 0, 0, 0)
+      break
+    case 'year':
+      start.setUTCMonth(0, 1)
+      start.setUTCHours(0, 0, 0, 0)
+      break
+  }
+
+  return start
+}
+
+function subtractUtcRange(date: Date, unit: TimeRangePreset['unit'], amount: number) {
+  switch (unit) {
+    case 'hour':
+      date.setUTCHours(date.getUTCHours() - amount)
+      break
+    case 'day':
+      date.setUTCDate(date.getUTCDate() - amount)
+      break
+    case 'week':
+      date.setUTCDate(date.getUTCDate() - (7 * amount))
+      break
+    case 'month':
+      date.setUTCMonth(date.getUTCMonth() - amount)
+      break
+    case 'year':
+      date.setUTCFullYear(date.getUTCFullYear() - amount)
+      break
   }
 }
 
