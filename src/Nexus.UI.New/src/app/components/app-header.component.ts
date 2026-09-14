@@ -7,7 +7,7 @@ import { Component, input, output } from '@angular/core'
     <header class="glass-panel overflow-hidden rounded-xl">
       <div class="relative flex items-center justify-between gap-3 p-2.5 sm:p-3 lg:p-4">
         <div class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <span class="bg-gradient-to-r from-[#3dd9ef] to-cyan-400 bg-clip-text font-mono text-xl font-bold uppercase leading-none tracking-[0.12em] text-transparent sm:text-3xl sm:tracking-[0.2em] lg:text-4xl">Nexus</span>
+          <span class="bg-gradient-to-r from-[#3dd9ef] to-cyan-400 bg-clip-text font-mono text-xl font-light uppercase leading-none tracking-[0.12em] text-transparent opacity-80 sm:text-3xl sm:tracking-[0.2em] lg:text-4xl">Nexus</span>
         </div>
 
         <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 lg:hidden" (click)="openCatalog.emit()" aria-label="Open catalog browser">

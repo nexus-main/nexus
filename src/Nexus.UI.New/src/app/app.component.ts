@@ -79,6 +79,7 @@ export class AppComponent {
   readonly isExportOpen = signal(false)
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
+  readonly previewBreakoutOpen = signal(false)
   readonly activeSidebarTab = signal<'catalogs' | 'selectedResources'>('catalogs')
   readonly overviewLoading = signal(true)
   readonly catalogLoading = signal(false)
@@ -286,6 +287,16 @@ export class AppComponent {
     this.expandCatalogPath(catalogId)
     this.isMobileCatalogOpen.set(false)
     this.activeResourcePath.set('')
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (!this.quickRangeMenuOpen()) return
+
+    const target = event.target
+    if (target instanceof Element && target.closest('[data-range-menu-root]')) return
+
+    this.quickRangeMenuOpen.set(false)
   }
 
   async loadOverview() {
