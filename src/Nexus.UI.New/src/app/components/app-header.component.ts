@@ -1,5 +1,7 @@
 import { Component, input, output } from '@angular/core'
 
+type ThemeMode = 'dark' | 'light'
+
 @Component({
   selector: 'app-header',
   standalone: true,
@@ -20,6 +22,10 @@ import { Component, input, output } from '@angular/core'
         </div>
 
         <div class="ml-auto flex shrink-0 items-center gap-2">
+          <button type="button" class="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-slate-300 transition hover:border-cyan-300/35 hover:text-white" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
+            <span class="text-sm leading-none">{{ themeMode() === 'dark' ? '☾' : '☀' }}</span>
+            <span class="hidden sm:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
+          </button>
           <div class="hidden items-baseline gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-slate-300 sm:flex">
             <span class="font-mono font-semibold text-white">{{ jobCount() }}</span>
             <span>jobs</span>
@@ -36,5 +42,7 @@ export class AppHeaderComponent {
   readonly endpointHost = input.required<string>()
   readonly jobCount = input.required<number>()
   readonly userInitials = input.required<string>()
+  readonly themeMode = input.required<ThemeMode>()
   readonly openCatalog = output<void>()
+  readonly toggleTheme = output<void>()
 }

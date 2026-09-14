@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common'
+import { CommonModule, DOCUMENT } from '@angular/common'
 import { Component, HostListener, computed, effect, inject, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { BrowserStorageService } from './browser-storage.service'
@@ -25,6 +25,8 @@ import { abbreviateMiddle, compactPath, formatNumber, getStringProperty, lastSeg
 
 const defaultCatalogId = '/SAMPLE/LOCAL'
 const catalogExpansionStorageKey = 'nexus.catalog.expandedNodeKeys'
+const themeModeStorageKey = 'nexus.themeMode'
+type ThemeMode = 'dark' | 'light'
 
 const quickRanges = [
   { label: 'Last 10 min', begin: '-PT10M', end: 'now' },
@@ -65,6 +67,7 @@ type SelectedResourceGroup = {
 export class AppComponent {
   private readonly nexus = inject(NexusService)
   private readonly storage = inject(BrowserStorageService)
+  private readonly document = inject(DOCUMENT)
 
   readonly selectedCatalogId = signal(getSelectedCatalogIdFromUrl())
   readonly selectedCatalogNodeKey = signal(getRealCatalogNodeKey(getSelectedCatalogIdFromUrl()))
@@ -80,6 +83,7 @@ export class AppComponent {
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
   readonly previewBreakoutOpen = signal(false)
+  readonly themeMode = signal<ThemeMode>(getInitialThemeMode(this.storage))
   readonly activeSidebarTab = signal<'catalogs' | 'selectedResources'>('catalogs')
   readonly overviewLoading = signal(true)
   readonly catalogLoading = signal(false)
@@ -255,6 +259,10 @@ export class AppComponent {
     this.quickRangeMenuOpen.set(false)
   }
 
+  toggleTheme() {
+    this.themeMode.update((value) => value === 'dark' ? 'light' : 'dark')
+  }
+
   constructor() {
     writeSelectedCatalogToUrl(this.selectedCatalogId(), true)
     void this.loadOverview()
@@ -275,6 +283,12 @@ export class AppComponent {
       const apiAvailable = this.apiAvailable()
       this.expandCatalogPath(catalogId)
       if (apiAvailable) void this.loadCatalogPathChildren(catalogId)
+    })
+
+    effect(() => {
+      const themeMode = this.themeMode()
+      this.document.documentElement.dataset['theme'] = themeMode
+      this.storage.setJson(themeModeStorageKey, themeMode)
     })
   }
 
@@ -567,6 +581,11 @@ function getInitialExpandedCatalogNodeKeys(storage: BrowserStorageService, catal
 function getStoredCatalogNodeKeys(storage: BrowserStorageService) {
   const storedKeys = storage.getJson<unknown>(catalogExpansionStorageKey, [])
   return Array.isArray(storedKeys) ? storedKeys.filter((key): key is string => typeof key === 'string') : []
+}
+
+function getInitialThemeMode(storage: BrowserStorageService): ThemeMode {
+  const value = storage.getJson<string>(themeModeStorageKey, 'dark')
+  return value === 'light' ? 'light' : 'dark'
 }
 
 function getCatalogPathNodeKeys(catalogId: string) {
