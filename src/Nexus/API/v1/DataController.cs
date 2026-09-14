@@ -4,8 +4,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Nexus.Core.V2;
-using Nexus.DataModel;
 using Nexus.Services;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
@@ -48,9 +46,9 @@ internal class DataController(
 
         try
         {
-            var request = new BatchStreamRequest(begin, end, [resourcePath], Precision.Float64);
-            var stream = await _dataService.ReadBatchAsStreamAsync(request, cancellationToken);
+            var stream = await _dataService.ReadAsStreamAsync(resourcePath, begin, end, cancellationToken);
 
+            Response.Headers.ContentLength = stream.Length;
             return File(stream, "application/octet-stream", "data.bin");
         }
         catch (ValidationException ex)
