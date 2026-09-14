@@ -51,6 +51,38 @@ textarea {
   font: inherit;
 }
 
+.range-datetime-input,
+.range-period-input {
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1rem;
+}
+
+.range-datetime-input {
+  padding-right: 0.25rem;
+}
+
+.range-datetime-input::-webkit-calendar-picker-indicator {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+}
+
+.range-datetime-input::-webkit-datetime-edit,
+.range-datetime-input::-webkit-datetime-edit-fields-wrapper,
+.range-datetime-input::-webkit-datetime-edit-text,
+.range-datetime-input::-webkit-datetime-edit-month-field,
+.range-datetime-input::-webkit-datetime-edit-day-field,
+.range-datetime-input::-webkit-datetime-edit-year-field,
+.range-datetime-input::-webkit-datetime-edit-hour-field,
+.range-datetime-input::-webkit-datetime-edit-minute-field,
+.range-datetime-input::-webkit-datetime-edit-second-field,
+.range-datetime-input::-webkit-datetime-edit-ampm-field {
+  font-size: 12px;
+  line-height: 1rem;
+}
+
 button {
   cursor: pointer;
 }
