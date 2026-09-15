@@ -491,18 +491,16 @@ class PackageReferencesClient:
 
         return self.___invoke(type(None), "DELETE", __url, None, None, None)
 
-    def get_versions(self, id: UUID) -> list[str]:
+    def get_versions(self, package_reference: PackageReference) -> list[str]:
         """
         Gets package versions.
 
         Args:
-            id: The ID of the package reference.
         """
 
-        __url = "/api/v1/packagereferences/{id}/versions"
-        __url = __url.replace("{id}", quote(str(id), safe=""))
+        __url = "/api/v1/packagereferences/versions"
 
-        return self.___invoke(list[str], "GET", __url, "application/json", None, None)
+        return self.___invoke(list[str], "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
 
 
 class SourcesClient:
@@ -1373,18 +1371,16 @@ class PackageReferencesAsyncClient:
 
         return self.___invoke(type(None), "DELETE", __url, None, None, None)
 
-    def get_versions(self, id: UUID) -> Awaitable[list[str]]:
+    def get_versions(self, package_reference: PackageReference) -> Awaitable[list[str]]:
         """
         Gets package versions.
 
         Args:
-            id: The ID of the package reference.
         """
 
-        __url = "/api/v1/packagereferences/{id}/versions"
-        __url = __url.replace("{id}", quote(str(id), safe=""))
+        __url = "/api/v1/packagereferences/versions"
 
-        return self.___invoke(list[str], "GET", __url, "application/json", None, None)
+        return self.___invoke(list[str], "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(package_reference, _json_encoder_options)))
 
 
 class SourcesAsyncClient:
