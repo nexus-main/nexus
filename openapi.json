@@ -933,26 +933,26 @@
         }
       }
     },
-    "/api/v1/packagereferences/{id}/versions": {
-      "get": {
+    "/api/v1/packagereferences/versions": {
+      "post": {
         "tags": [
           "PackageReferences"
         ],
         "summary": "Gets package versions.",
         "operationId": "PackageReferences_GetVersions",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "The ID of the package reference.",
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            },
-            "x-position": 1
-          }
-        ],
+        "requestBody": {
+          "x-name": "packageReference",
+          "description": "The package reference to get versions for.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageReference"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
         "responses": {
           "200": {
             "description": "",

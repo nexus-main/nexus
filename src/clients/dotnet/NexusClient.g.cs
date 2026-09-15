@@ -2135,15 +2135,15 @@ public interface IPackageReferencesClient
     /// <summary>
     /// Gets package versions.
     /// </summary>
-    /// <param name="id">The ID of the package reference.</param>
-    IReadOnlyList<string> GetVersions(Guid id);
+    /// <param name="packageReference">The package reference to get versions for.</param>
+    IReadOnlyList<string> GetVersions(PackageReference packageReference);
 
     /// <summary>
     /// Gets package versions.
     /// </summary>
-    /// <param name="id">The ID of the package reference.</param>
+    /// <param name="packageReference">The package reference to get versions for.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyList<string>> GetVersionsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> GetVersionsAsync(PackageReference packageReference, CancellationToken cancellationToken = default);
 
 }
 
@@ -2256,25 +2256,23 @@ public class PackageReferencesClient : IPackageReferencesClient
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<string> GetVersions(Guid id)
+    public IReadOnlyList<string> GetVersions(PackageReference packageReference)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/packagereferences/{id}/versions");
-        __urlBuilder.Replace("{id}", Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!));
+        __urlBuilder.Append("/api/v1/packagereferences/versions");
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyList<string>>("GET", __url, "application/json", default, default);
+        return ___client.Invoke<IReadOnlyList<string>>("POST", __url, "application/json", "application/json", JsonContent.Create(packageReference, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<string>> GetVersionsAsync(Guid id, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<string>> GetVersionsAsync(PackageReference packageReference, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/packagereferences/{id}/versions");
-        __urlBuilder.Replace("{id}", Uri.EscapeDataString(Convert.ToString(id, CultureInfo.InvariantCulture)!));
+        __urlBuilder.Append("/api/v1/packagereferences/versions");
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyList<string>>("GET", __url, "application/json", default, default, cancellationToken);
+        return ___client.InvokeAsync<IReadOnlyList<string>>("POST", __url, "application/json", "application/json", JsonContent.Create(packageReference, options: Utilities.JsonOptions), cancellationToken);
     }
 
 }
