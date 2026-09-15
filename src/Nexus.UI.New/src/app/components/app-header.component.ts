@@ -22,14 +22,14 @@ type ThemeMode = 'dark' | 'light'
         </div>
 
         <div class="ml-auto flex shrink-0 items-center gap-2">
-          <button type="button" class="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-slate-300 transition hover:border-cyan-300/35 hover:text-white" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
-            <span class="text-sm leading-none">{{ themeMode() === 'dark' ? '☾' : '☀' }}</span>
+          <button type="button" class="inline-flex h-8 items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-white transition hover:border-cyan-300/35 hover:text-white" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
+            <span>{{ themeMode() === 'dark' ? '☾' : '☀' }}</span>
             <span class="hidden sm:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
           </button>
-          <div class="hidden items-baseline gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-slate-300 sm:flex">
-            <span class="font-mono font-semibold text-white">{{ jobCount() }}</span>
-            <span>jobs</span>
-          </div>
+          <button type="button" class="hidden h-8 items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-white transition hover:border-cyan-300/35 hover:text-white sm:flex" aria-label="Open jobs menu" title="Open jobs menu">
+            <span>{{ jobCount() }}</span>
+            <span>Jobs</span>
+          </button>
           <div class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100" aria-label="Signed-in user initials">
             {{ userInitials() }}
           </div>
