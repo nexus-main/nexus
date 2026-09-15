@@ -2,7 +2,7 @@
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
   <div class="flex h-screen w-full flex-col gap-3 overflow-hidden p-3 sm:p-4 xl:p-5">
-    <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" [themeMode]="themeMode()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" />
+    <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" />
 
     @if (!apiAvailable() && !overviewLoading()) {
       <section class="rounded-3xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
@@ -147,6 +147,10 @@
     </main>
   </div>
 </div>
+
+@if (isAdministrator() && isPackageReferencesOpen()) {
+  <app-package-references (close)="isPackageReferencesOpen.set(false)" />
+}
 
 <ng-template #visualizationContent let-breakout>
   <div [ngClass]="breakout ? 'grid min-h-0 flex-1 gap-3 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_280px]' : 'grid gap-3 p-4 xl:grid-cols-[minmax(0,1fr)_230px]'">

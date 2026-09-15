@@ -17,6 +17,7 @@ import { AppHeaderComponent } from './components/app-header.component'
 import { CatalogTreeComponent } from './components/catalog-tree.component'
 import { ExportComposerComponent } from './components/export-composer.component'
 import { PinnedResourceComponent } from './components/pinned-resource.component'
+import { PackageReferencesComponent } from './components/package-references.component'
 import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatPeriod, hydrateSelections, kindValid, parsePeriod, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
 import { MarkdownPipe } from './markdown.pipe'
 import { RestoreFocusDirective } from './restore-focus.directive'
@@ -77,7 +78,7 @@ type SelectedResourceGroup = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, TableModule, TabsModule, LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, TableModule, TabsModule, LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent {
@@ -104,6 +105,7 @@ export class AppComponent {
   readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceSelection>>(new Map())
   readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
   readonly isExportOpen = signal(false)
+  readonly isPackageReferencesOpen = signal(false)
   readonly isClearPinnedOpen = signal(false)
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
@@ -154,7 +156,8 @@ export class AppComponent {
   readonly rootCatalogInfos = computed(() => this.overview()?.roots ?? fallbackCatalogInfos)
   readonly writerDescriptions = computed(() => this.overview()?.writers ?? fallbackWriters)
   readonly jobs = computed(() => this.overview()?.jobs ?? [])
-  readonly userName = computed(() => this.overview()?.me.user?.name ?? 'Prototype user')
+  readonly userName = computed(() => this.nexus.currentUser()?.user?.name ?? 'Prototype user')
+  readonly isAdministrator = computed(() => this.nexus.currentUser()?.user?.claims?.some(claim => claim.type === 'role' && claim.value === 'Administrator') ?? false)
   readonly endpointHost = computed(() => new URL(this.nexus.endpoint).host)
   readonly userInitials = computed(() => getInitials(this.userName()))
 
