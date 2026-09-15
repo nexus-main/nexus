@@ -9,8 +9,8 @@ import { DialogModule } from 'primeng/dialog'
 import { DrawerModule } from 'primeng/drawer'
 import { InputTextModule } from 'primeng/inputtext'
 import { MenuModule } from 'primeng/menu'
-import { SelectButtonModule } from 'primeng/selectbutton'
 import { TableModule } from 'primeng/table'
+import { TabsModule } from 'primeng/tabs'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
 import { AppHeaderComponent } from './components/app-header.component'
@@ -74,7 +74,7 @@ type SelectedResourceGroup = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, SelectButtonModule, TableModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, TableModule, TabsModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent {
@@ -228,10 +228,6 @@ export class AppComponent {
   readonly activeResource = computed<ResourceRow | undefined>(() => this.resourceRows().find((resource) => resource.path === this.activeResourcePath()) ?? this.filteredResources()[0])
   readonly selectedResourcePaths = computed(() => new Set(this.selectedResourceRows().keys()))
   readonly selectedResources = computed(() => [...this.selectedResourceRows().values()].sort(compareResources))
-  readonly sidebarOptions = computed(() => [
-    { label: 'Catalog atlas', value: 'catalogs' },
-    { label: `Selected resources (${this.selectedResources().length})`, value: 'selectedResources' },
-  ])
   readonly groupedSelectedResources = computed<SelectedResourceGroup[]>(() => {
     const groups = new Map<string, ResourceRow[]>()
     for (const resource of this.selectedResources()) groups.set(resource.catalogId, [...(groups.get(resource.catalogId) ?? []), resource])
