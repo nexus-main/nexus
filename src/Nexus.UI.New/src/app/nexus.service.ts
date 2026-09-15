@@ -146,6 +146,7 @@ export const fallbackWriters: WriterDescription[] = [
 export class NexusService {
   readonly endpoint = globalThis.location?.origin ?? 'http://localhost:4200'
   readonly apiAvailable = signal(false)
+  readonly currentUser = signal<V1.MeResponse | null>(null)
   readonly v1 = new V1.V1(this.invoke.bind(this))
   readonly v2 = new V2.V2(this.invoke.bind(this))
 
@@ -169,7 +170,10 @@ export class NexusService {
 
   async getSessionOverview(): Promise<SessionOverview> {
     const [me, writers, jobs, roots] = await Promise.all([
-      this.v1.users.getMe(),
+      this.v1.users.getMe().then(me => {
+        this.currentUser.set(me)
+        return me
+      }),
       this.v1.writers.getDescriptions() as Promise<WriterDescription[]>,
       this.v1.jobs.getJobs(),
       this.getCatalogChildren('/'),

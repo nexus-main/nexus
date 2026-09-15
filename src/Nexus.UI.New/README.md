@@ -13,6 +13,7 @@ Implemented prototype flows:
 - Inspect a selected catalog, resource groups, representations, units, time range, metadata and attachments.
 - Pin individual representations with Original, aggregation, or Resampled methods and show a placeholder telemetry graph wired to the selection state.
 - Configure exports through live writer metadata and create an export job with the generated TypeScript Nexus client.
+- Administrators can list, create, edit, and delete local/Git-tag package references from the Administrator menu. Role detection uses the generated client's users/me call; package operations use its packageReferences API. Tokens also need administrator permission. Changes save references only, without reloading running extensions.
 
 Credentials are not stored in this repo or exposed to browser JavaScript. To run with the local credentials file:
 
