@@ -35,26 +35,18 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
             </div>
             <div>
               <label for="package-version" class="mb-1 block text-sm">{{ provider() === 'local' ? 'Version folder' : 'Git tag' }}</label>
-              @if (editedEntry()) {
-                <p-select inputId="package-version" ariaLabel="Package version" name="version" class="w-full" appendTo="body" [editable]="true" [options]="versionOptions()" [loading]="versionsLoading()" [ngModel]="version()" (ngModelChange)="version.set($event)" [disabled]="busy() || versionsLoading()" />
-              } @else {
-                <input pInputText id="package-version" name="version" class="w-full" required [ngModel]="version()" (ngModelChange)="version.set($event)" [disabled]="busy() || versionsLoading()" />
-              }
+              <p-select inputId="package-version" ariaLabel="Package version" name="version" class="w-full" appendTo="body" [editable]="true" [options]="versionOptions()" [loading]="versionsLoading()" [ngModel]="version()" (ngModelChange)="version.set($event)" [disabled]="busy() || versionsLoading()" />
               <div class="mt-1 flex items-center justify-between gap-2 text-xs">
                 @if (versionsLoading()) {
                   <span>Loading available versions...</span>
                 } @else if (versionError()) {
                   <span>{{ versionError() }}</span>
-                } @else if (editedEntry() && !versionOptions().length) {
-                  <span>No available versions returned; enter one manually.</span>
-                } @else if (versionOptions().length) {
-                  <span>{{ versionOptions().length }} available versions loaded.</span>
+                } @else if (!versionOptions().length) {
+                  <span>Enter a location above and load versions, or type one manually.</span>
                 } @else {
-                  <span>Enter an initial tag or version and save. Available versions will load next.</span>
+                  <span>{{ versionOptions().length }} available versions loaded.</span>
                 }
-                @if (editedEntry()) {
-                  <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="busy() || versionsLoading()" (click)="loadVersions()">Reload versions</button>
-                }
+                <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="busy() || versionsLoading() || !location().trim()" (click)="loadVersions()">Reload versions</button>
               </div>
             </div>
             <div>
@@ -183,7 +175,7 @@ export class PackageReferencesComponent {
     this.versionOptions.set([])
     this.versionError.set('')
     this.editing.set(true)
-    if (entry) void this.loadVersions()
+    void this.loadVersions()
   }
 
   setProvider(provider: string) {
@@ -191,15 +183,21 @@ export class PackageReferencesComponent {
     this.versionOptions.set([])
     this.versionError.set('')
     if (!this.editedEntry()) this.version.set('')
+    if (this.location().trim()) void this.loadVersions()
   }
 
   async loadVersions() {
-    const entry = this.editedEntry()
-    if (!entry || this.versionsLoading()) return
+    if (this.versionsLoading()) return
+    const location = this.location().trim()
+    if (!location) return
     this.versionsLoading.set(true)
     this.versionError.set('')
     try {
-      const versions = await this.api.getVersions(entry.id)
+      const reference: V1.PackageReference = {
+        provider: this.provider(),
+        configuration: { [this.provider() === 'local' ? 'path' : 'repository']: location },
+      }
+      const versions = await this.api.getVersions(reference)
       this.versionOptions.set([...versions].sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' })))
     } catch (error) {
       this.versionOptions.set([])

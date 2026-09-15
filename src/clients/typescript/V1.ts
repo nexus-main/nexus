@@ -573,10 +573,10 @@ export interface IPackageReferencesClient {
 
     /**
      * Gets package versions.
-     * @param id The ID of the package reference.
+     * @param packageReference The package reference to get versions for.
      * @param signal The signal to cancel the current operation.
      */
-    getVersions(id: string, signal?: AbortSignal): Promise<string[]>;
+    getVersions(packageReference: PackageReference, signal?: AbortSignal): Promise<string[]>;
 
 }
 
@@ -644,14 +644,13 @@ export class PackageReferencesClient implements IPackageReferencesClient {
 
     /**
      * Gets package versions.
-     * @param id The ID of the package reference.
+     * @param packageReference The package reference to get versions for.
      * @param signal The signal to cancel the current operation.
      */
-    public async getVersions(id: string, signal?: AbortSignal): Promise<string[]> {
-        let __url = "/api/v1/packagereferences/{id}/versions";
-        __url = __url.replace("{id}", encodeURIComponent(String(id)));
+    public async getVersions(packageReference: PackageReference, signal?: AbortSignal): Promise<string[]> {
+        let __url = "/api/v1/packagereferences/versions";
 
-        return this._invoke<string[]>("GET", __url, "application/json", undefined, undefined, signal);
+        return this._invoke<string[]>("POST", __url, "application/json", "application/json", JSON.stringify(packageReference), signal);
     }
 
 }
