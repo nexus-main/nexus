@@ -26,13 +26,13 @@ type ThemeMode = 'dark' | 'light'
           <span class="max-w-48 truncate font-mono">{{ endpointHost() }}</span>
         </div>
 
+        <p-menu #adminMenu [model]="adminMenuItems" [popup]="true" appendTo="body" />
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           @if (isAdministrator()) {
             <button pButton type="button" size="small" severity="secondary" (click)="adminMenu.toggle($event)" aria-label="Administrator" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
               <svg lucideSettings class="h-4 w-4" aria-hidden="true"></svg>
               <span class="hidden xl:inline">Administrator</span>
             </button>
-            <p-menu #adminMenu [model]="adminMenuItems" [popup]="true" appendTo="body" />
           }
           <button pButton type="button" size="small" severity="secondary" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
             @if (themeMode() === 'dark') {
