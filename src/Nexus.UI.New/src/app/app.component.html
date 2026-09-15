@@ -75,7 +75,7 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div class="flex items-center gap-2">
                     <div class="text-xs uppercase tracking-[0.24em] text-cyan-200/80">resource matrix</div>
-                    <button pButton type="button" size="small" severity="secondary" [text]="true" class="2xl:hidden" (click)="visualizationOpen.set(true)" aria-label="Open visualization" title="Open visualization"><svg lucideChartLine class="h-4 w-4" aria-hidden="true"></svg>Visualize</button>
+                    <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize()" aria-label="Open visualization" title="Open visualization"><svg lucideChartLine class="h-4 w-4" aria-hidden="true"></svg>Visualize</button>
                   </div>
                   <input pInputText pSize="small" type="search" class="w-full min-w-0 sm:w-64" aria-label="Filter resources, groups, units" placeholder="Filter resources, groups, units" [ngModel]="resourceSearch()" (ngModelChange)="resourceSearch.set($event)" />
                 </div>
@@ -98,7 +98,7 @@
                           <p-checkbox [binary]="true" [disabled]="selectionLoading() || requiresParameters(resource)" [ngModel]="resourceSelected(resource)" (onChange)="toggleResource(resource)" (click)="$event.stopPropagation()" [ariaLabel]="'Select ' + resource.path + ', ' + formatSamplePeriod(resource.representation.samplePeriod)" />
                         </td>
                         <td class="border-b border-white/5 p-3 align-top">
-                          <button pButton type="button" size="small" severity="secondary" [text]="true" class="p-0 text-left font-mono text-[13px] font-semibold" (click)="$event.stopPropagation(); activateResource(resource)" [attr.aria-label]="'Visualize ' + resource.path">{{ resource.id }}</button>
+                          <button pButton type="button" size="small" severity="secondary" [text]="true" class="p-0 text-left font-mono text-[13px] font-semibold" (click)="$event.stopPropagation(); activateResource(resource)" [attr.aria-label]="'Inspect ' + resource.path">{{ resource.id }}</button>
                           <div class="mt-1 max-w-[420px] truncate text-xs text-slate-500">{{ resource.description }}</div>
                         </td>
                         <td class="border-b border-white/5 p-3 align-top">
@@ -131,13 +131,13 @@
             <div class="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">visualization</div>
-                <div class="mt-1 text-xl font-semibold tracking-[-0.03em] text-white">Visualization wired to selection state</div>
+                <div class="mt-1 text-xl font-semibold tracking-[-0.03em] text-white">Time Series</div>
               </div>
               <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" (click)="visualizationOpen.set(true)" aria-label="Open visualization" title="Open visualization">
                 <svg lucideExternalLink class="h-4 w-4" aria-hidden="true"></svg>
               </button>
             </div>
-            @if (!visualizationOpen()) {
+            @if (!visualizationOpen() && wideLayout()) {
               <ng-container [ngTemplateOutlet]="visualizationContent" [ngTemplateOutletContext]="{ $implicit: false }"></ng-container>
             }
           </section>
@@ -153,33 +153,39 @@
 }
 
 <ng-template #visualizationContent let-breakout>
-  <div [ngClass]="breakout ? 'grid min-h-0 flex-1 gap-3 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_280px]' : 'grid gap-3 p-4 xl:grid-cols-[minmax(0,1fr)_230px]'">
-    <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-[#06101d] p-4" [ngClass]="breakout ? 'min-h-[420px]' : 'h-72'">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(34,211,238,0.16),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(139,92,246,0.14),transparent_30%)]"></div>
-      <svg class="relative h-full w-full" viewBox="0 0 900 260" preserveAspectRatio="none" role="img" aria-label="Placeholder chart">
-        @for (line of [30,54,78,102,126,150,174]; track line) {
-          <line x1="0" x2="900" [attr.y1]="line" [attr.y2]="line" stroke="rgba(148,163,184,0.11)"></line>
-        }
-        <polyline points="0,130 80,95 160,118 240,74 320,132 400,110 480,156 560,104 640,127 720,91 800,120 900,86" fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round" opacity="0.92"></polyline>
-        <polyline points="0,170 80,150 160,166 240,130 320,144 400,116 480,138 560,96 640,112 720,154 800,122 900,148" fill="none" stroke="#8b5cf6" stroke-width="3" stroke-linecap="round" opacity="0.82"></polyline>
-      </svg>
-      <div class="absolute left-4 top-4 rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-slate-300 backdrop-blur">Real WebGPU chart intentionally not ported yet.</div>
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+    <div class="flex flex-wrap items-center gap-3 text-xs">
+      <label class="flex items-center gap-2"><p-checkbox [binary]="true" [ngModel]="visualizationBeginAtZero()" (ngModelChange)="visualizationBeginAtZero.set($event)" ariaLabel="Begin value axes at zero" />Begin at zero</label>
+      <label class="flex items-center gap-2">GPU cache (MiB)<input pInputText pSize="small" type="number" min="16" step="16" class="w-24" [ngModel]="visualizationCacheMiB()" (ngModelChange)="setVisualizationCache($event)" /></label>
+      @if (visualizationData() && !visualizationLoading()) {
+        <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize(false)" [disabled]="!!visualizationValidation()">Reload</button>
+      }
     </div>
-    <div class="space-y-2">
-      @for (resource of visualizationResources().slice(0, 5); track resource.path) {
-        <div class="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-          <div class="flex items-center gap-2">
-            <span class="h-2.5 w-2.5 rounded-full bg-cyan-300"></span>
-            <span class="truncate font-mono text-sm text-white">{{ resource.id }}</span>
+    <div class="relative min-w-0 flex-1 rounded-lg bg-white p-2 text-[#555555]" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
+      @if (visualizationData(); as data) {
+        <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" (gpuFailed)="visualizationGpuFailed($event)" />
+      }
+      @if (visualizationLoading()) {
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 p-6 backdrop-blur-sm">
+          <div class="w-full max-w-sm space-y-4 text-center" role="status" aria-live="polite">
+            <p>Loading data...</p>
+            <p-progressbar [value]="visualizationProgress()" ariaLabel="Loading time series data" />
+            <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="cancelVisualization()">Cancel</button>
           </div>
-          <div class="mt-1 font-mono text-xs" [class.text-rose-400]="!resource.valid">{{ formattedSamplePeriod() }} / {{ resource.kind }}</div>
+        </div>
+      } @else if (visualizationError() || !visualizationData() || visualizationStale()) {
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 p-6 text-center backdrop-blur-sm">
+          <div class="max-w-lg space-y-4">
+            <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || (visualizationStale() ? 'The time range or selected representations have changed. Reload to visualize the new selection.' : visualizationValidation() || 'Visualize the pinned representations using the selected UTC range and Period.') }}</p>
+            <button pButton type="button" size="small" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Reload' : 'Visualize' }}</button>
+          </div>
         </div>
       }
     </div>
   </div>
 </ng-template>
 
-<p-dialog appRestoreFocus header="Visualization" [visible]="visualizationOpen()" (visibleChange)="visualizationOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close visualization', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'calc(100vw - 2rem)', height: 'calc(100dvh - 2rem)', maxHeight: 'calc(100dvh - 2rem)' }" [contentStyle]="{ display: 'flex', flexDirection: 'column', minHeight: '0', padding: '0' }">
+<p-dialog appRestoreFocus header="Visualization" [visible]="visualizationOpen()" (visibleChange)="closeVisualization()" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close visualization', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'calc(100vw - 2rem)', height: 'calc(100dvh - 2rem)', maxHeight: 'calc(100dvh - 2rem)' }" [contentStyle]="{ display: 'flex', flexDirection: 'column', minHeight: '0', padding: '0' }">
   <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
   @if (visualizationOpen()) {
     <ng-container [ngTemplateOutlet]="visualizationContent" [ngTemplateOutletContext]="{ $implicit: true }"></ng-container>
@@ -260,6 +266,7 @@
           <div class="mt-3 flex items-center justify-end gap-3 text-xs text-slate-500">
             <div class="flex items-center gap-2">
               <button pButton type="button" size="small" severity="secondary" [outlined]="true" [disabled]="pinnedCount() === 0 || selectionLoading()" (click)="requestClearPinnedResources()">Clear</button>
+              <button pButton type="button" size="small" [disabled]="!!visualizationValidation()" (click)="visualize()">Visualize</button>
               <button pButton type="button" size="small" [disabled]="!!selectionError()" (click)="isExportOpen.set(true)">Export</button>
             </div>
           </div>

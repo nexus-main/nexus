@@ -23,6 +23,14 @@
                 "input": "public"
               }
             ],
+            "scripts": [
+              "src/chart-globals.js",
+              "../Nexus/wwwroot/js/chart.js",
+              "../Nexus/wwwroot/js/chart.webgpu.shaders.js",
+              "../Nexus/wwwroot/js/chart.webgpu.lifecycle.js",
+              "../Nexus/wwwroot/js/chart.webgpu.data.js",
+              "../Nexus/wwwroot/js/chart.webgpu.js"
+            ],
             "styles": ["src/index.css"]
           },
           "configurations": {

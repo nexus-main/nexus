@@ -249,7 +249,7 @@ export function hydrateSelections(
   return { selections, references: retained, unresolved, period }
 }
 
-function dateTicks(value: string): bigint | null {
+export function dateTicks(value: string): bigint | null {
   const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?(Z|[+-]\d{2}:\d{2})$/.exec(value)
   if (!match || match[1].startsWith('0000-')) return null
   const [, date, fraction, zone] = match

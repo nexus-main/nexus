@@ -1,5 +1,5 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
-import { Component, HostListener, computed, effect, inject, signal } from '@angular/core'
+import { Component, HostListener, OnDestroy, computed, effect, inject, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX } from '@lucide/angular'
 import { MenuItem } from 'primeng/api'
@@ -9,10 +9,14 @@ import { DialogModule } from 'primeng/dialog'
 import { DrawerModule } from 'primeng/drawer'
 import { InputTextModule } from 'primeng/inputtext'
 import { MenuModule } from 'primeng/menu'
+import { ProgressBarModule } from 'primeng/progressbar'
 import { TableModule } from 'primeng/table'
 import { TabsModule } from 'primeng/tabs'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
+import { VisualizationChartComponent } from './charts/visualization-chart.component'
+import { VisualizationData, createVisualizationData, loadVisualizationData } from './charts/visualization-data'
+import { dateTicks } from './resource-selection'
 import { AppHeaderComponent } from './components/app-header.component'
 import { CatalogTreeComponent } from './components/catalog-tree.component'
 import { ExportComposerComponent } from './components/export-composer.component'
@@ -78,15 +82,16 @@ type SelectedResourceGroup = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, TableModule, TabsModule, LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TableModule, TabsModule, LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, VisualizationChartComponent],
   templateUrl: './app.component.html',
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
   private readonly nexus = inject(NexusService)
   private readonly storage = inject(BrowserStorageService)
   private readonly document = inject(DOCUMENT)
   private readonly catalogBundleCache = new Map<string, CatalogBundle>()
   private readonly catalogBundleRequests = new Map<string, Promise<CatalogBundle>>()
+  private readonly childRequests = new Map<string, Promise<void>>()
   private readonly storedSelectionState = readSelectionState(this.storage.getJson<unknown>(selectedResourcesStorageKey, null))
   private readonly selectionReferences = signal(this.storedSelectionState.selections)
   private readonly selectedResourcesRestored = signal(false)
@@ -110,6 +115,15 @@ export class AppComponent {
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
   readonly visualizationOpen = signal(false)
+  readonly wideLayout = signal(window.innerWidth >= 1536)
+  readonly visualizationData = signal<VisualizationData | null>(null)
+  readonly visualizationLoading = signal(false)
+  readonly visualizationProgress = signal(0)
+  readonly visualizationError = signal('')
+  readonly visualizationBeginAtZero = signal(false)
+  readonly visualizationCacheMiB = signal(2048)
+  private visualizationController?: AbortController
+  private readonly loadedVisualizationKey = signal('')
   readonly themeMode = signal<ThemeMode>(getInitialThemeMode(this.storage))
   readonly activeSidebarTab = signal<'catalogs' | 'selectedResources'>('catalogs')
   readonly overviewLoading = signal(true)
@@ -259,14 +273,14 @@ export class AppComponent {
   readonly groupCount = computed(() => new Set(this.resourceRows().flatMap((resource) => resource.groups)).size)
   readonly selectedWriter = computed(() => this.writerDescriptions().find((writer) => writer.type === this.selectedWriterType()) ?? this.writerDescriptions()[0])
   readonly writerOptions = computed(() => Object.entries(this.selectedWriter()?.additionalInformation?.options ?? {}))
-  readonly visualizationResources = computed(() => this.selectedResources().flatMap(resource => resource.kinds.map(kind => ({ id: resource.id, kind, path: requestPath(resource, kind, this.samplePeriod()), valid: kindValid(kind, this.samplePeriod(), resource.basePeriod) }))))
+  readonly visualizationResources = computed(() => this.selectedResources().flatMap(resource => resource.kinds.map(kind => ({ id: resource.id, unit: resource.unit, kind, path: requestPath(resource, kind, this.samplePeriod()), valid: kindValid(kind, this.samplePeriod(), resource.basePeriod) }))))
   readonly exportBeginInput = computed(() => toDateTimeLocalValue(this.exportBegin()))
   readonly exportEndInput = computed(() => toDateTimeLocalValue(this.exportEnd()))
   readonly formattedSamplePeriod = computed(() => formatPeriod(this.samplePeriod()))
   readonly requestPaths = computed(() => this.visualizationResources().map(resource => resource.path))
   readonly selectionError = computed(() => {
     if (this.selectionLoading()) return 'Restoring pinned representations...'
-    if (this.unresolvedSelections().length) return 'Some pinned representations could not be loaded. Retry or clear them before exporting.'
+    if (this.unresolvedSelections().length) return 'Some pinned representations could not be loaded. Retry or clear them before loading data.'
     if (this.periodError()) return this.periodError()
     if (!this.selectedResources().length) return 'Select at least one representation.'
     if (this.visualizationResources().some(resource => !resource.valid)) return 'Remove the invalid methods or choose a compatible Period.'
@@ -280,6 +294,9 @@ export class AppComponent {
     if (!this.apiAvailable()) return 'Connect to the Nexus API before creating an export job.'
     return ''
   })
+  readonly visualizationValidation = computed(() => this.selectionError() || (!this.apiAvailable() ? 'Connect to the Nexus API before visualizing data.' : ''))
+  readonly visualizationKey = computed(() => JSON.stringify([this.exportBegin(), this.exportEnd(), this.samplePeriod().toString(), this.requestPaths()]))
+  readonly visualizationStale = computed(() => !!this.visualizationData() && this.loadedVisualizationKey() !== this.visualizationKey())
   readonly exportPreview = computed(() => buildExportParameters(
     this.exportBegin(),
     this.exportEnd(),
@@ -389,6 +406,89 @@ export class AppComponent {
   @HostListener('window:resize')
   onResize() {
     if (window.innerWidth >= 1024) this.isMobileCatalogOpen.set(false)
+    this.wideLayout.set(window.innerWidth >= 1536)
+    if (!this.wideLayout() && !this.visualizationOpen()) this.cancelVisualization()
+  }
+
+  async visualize(open = true) {
+    if (open) {
+      this.isMobileCatalogOpen.set(false)
+      this.visualizationOpen.set(true)
+    }
+    this.cancelVisualization()
+    this.visualizationError.set('')
+    if (this.visualizationValidation()) {
+      this.visualizationError.set(this.visualizationValidation())
+      return
+    }
+
+    const controller = new AbortController()
+    this.visualizationController = controller
+    const key = this.visualizationKey()
+    const begin = this.exportBegin()
+    const end = this.exportEnd()
+    const resources = this.visualizationResources()
+    this.visualizationData.set(null)
+    this.visualizationProgress.set(0)
+    this.visualizationLoading.set(true)
+    try {
+      const data = createVisualizationData(dateTicks(begin)!, dateTicks(end)!, this.samplePeriod(), resources.map(resource => ({
+        id: resource.path,
+        name: resource.kind === 'Original' ? resource.id : `${resource.id} (${resource.kind.replace(/[A-Z]/g, (letter, index) => `${index ? '_' : ''}${letter.toLowerCase()}`)})`,
+        unit: resource.unit,
+      })))
+      if (data.series.some(series => series.length < 2)) throw new Error('A line chart needs at least two samples. Extend the time range or reduce Period.')
+      // Let Angular dispose the old GPU consumer before publishing the next dataset.
+      await new Promise(resolve => setTimeout(resolve, 0))
+      controller.signal.throwIfAborted()
+      this.loadedVisualizationKey.set(key)
+      this.visualizationData.set(data)
+      const response = await this.nexus.v2.data.getStream({ begin, end, resourcePaths: resources.map(resource => resource.path), precision: V2.Precision.Float32 }, controller.signal)
+      let lastUpdate = 0
+      await loadVisualizationData(response, data, fraction => {
+        const now = performance.now()
+        if (this.visualizationController === controller && (fraction === 1 || now - lastUpdate >= 100)) {
+          this.visualizationProgress.set(Math.floor(fraction * 100))
+          lastUpdate = now
+        }
+      }, controller.signal)
+    } catch (error) {
+      if (this.visualizationController === controller) {
+        this.visualizationData.set(null)
+        if (!controller.signal.aborted) this.visualizationError.set(this.errorMessage(error))
+      }
+    } finally {
+      if (this.visualizationController === controller) {
+        this.visualizationLoading.set(false)
+        this.visualizationController = undefined
+      }
+    }
+  }
+
+  cancelVisualization() {
+    this.visualizationController?.abort()
+    this.visualizationController = undefined
+    if (this.visualizationLoading()) this.visualizationData.set(null)
+    this.visualizationLoading.set(false)
+  }
+
+  closeVisualization() {
+    this.visualizationOpen.set(false)
+    this.cancelVisualization()
+  }
+
+  visualizationGpuFailed(message: string) {
+    if (!this.visualizationLoading()) return
+    this.cancelVisualization()
+    this.visualizationError.set(message)
+  }
+
+  setVisualizationCache(value: number | null) {
+    if (value !== null && Number.isFinite(value) && value >= 16) this.visualizationCacheMiB.set(Math.floor(value))
+  }
+
+  ngOnDestroy() {
+    this.cancelVisualization()
   }
 
   @HostListener('window:popstate')
@@ -407,14 +507,32 @@ export class AppComponent {
     this.overviewError.set(null)
     try {
       this.overview.set(await this.nexus.getSessionOverview())
-      await Promise.all([...this.expandedCatalogNodeKeys()]
-        .filter((key) => key.startsWith('real:'))
-        .map((key) => this.loadChildren(key.slice(5))))
+      const roots = this.overview()?.roots ?? []
+      this.childMap.update((current) => current.has('/') ? current : new Map(current).set('/', roots))
+      await this.loadExpandedDescendants('/', roots)
     } catch (error) {
       this.overviewError.set(error)
       this.nexus.apiAvailable.set(false)
     } finally {
       this.overviewLoading.set(false)
+    }
+  }
+
+  private async loadExpandedDescendants(parentId: string, infos: V1.CatalogInfo[]) {
+    const prepared = prepareChildCatalogs(parentId, infos)
+    for (const node of prepared) {
+      if (!node.id) continue
+      if (node.isFake) {
+        if (this.expandedCatalogNodeKeys().has(node.nodeKey) && node.groupedChildren) {
+          await this.loadExpandedDescendants(node.id, node.groupedChildren)
+        }
+      } else {
+        if (this.expandedCatalogNodeKeys().has(node.nodeKey)) {
+          await this.loadChildren(node.id)
+          const children = this.childMap().get(node.id) ?? []
+          await this.loadExpandedDescendants(node.id, children)
+        }
+      }
     }
   }
 
@@ -553,18 +671,43 @@ export class AppComponent {
   }
 
   async loadCatalogPathChildren(catalogId: string) {
-    await Promise.all(getCatalogAncestorPaths(catalogId).map((path) => this.loadChildren(path)))
+    const ancestors = getCatalogAncestorPaths(catalogId)
+    let currentInfos: V1.CatalogInfo[] = this.rootCatalogInfos()
+    let currentParent = '/'
+    for (const ancestor of ancestors) {
+      const prepared = prepareChildCatalogs(currentParent, currentInfos)
+      const node = prepared.find(n => n.id === ancestor)
+      if (!node) break
+      if (node.isFake) {
+        currentInfos = node.groupedChildren ?? []
+        currentParent = ancestor
+        continue
+      }
+      await this.loadChildren(ancestor)
+      currentInfos = this.childMap().get(ancestor) ?? []
+      currentParent = ancestor
+    }
   }
 
   async loadChildren(catalogId: string) {
     if (!this.apiAvailable() || this.childMap().has(catalogId)) return
 
-    try {
-      const children = await this.nexus.getCatalogChildren(catalogId)
-      this.childMap.update((current) => new Map(current).set(catalogId, children))
-    } catch {
-      this.childMap.update((current) => new Map(current).set(catalogId, []))
-    }
+    const existing = this.childRequests.get(catalogId)
+    if (existing) return existing
+
+    const request = (async () => {
+      try {
+        const children = await this.nexus.getCatalogChildren(catalogId)
+        this.childMap.update((current) => new Map(current).set(catalogId, children))
+      } catch {
+        this.childMap.update((current) => new Map(current).set(catalogId, []))
+      } finally {
+        this.childRequests.delete(catalogId)
+      }
+    })()
+
+    this.childRequests.set(catalogId, request)
+    return request
   }
 
   toggleResource(resource: RepresentationRow) {
