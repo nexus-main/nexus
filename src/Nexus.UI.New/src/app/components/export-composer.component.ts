@@ -6,7 +6,7 @@ import { DialogModule } from 'primeng/dialog'
 import { InputTextModule } from 'primeng/inputtext'
 import { MessageModule } from 'primeng/message'
 import { SelectModule } from 'primeng/select'
-import { ResourceRow, V2, WriterDescription, WriterOption } from '../nexus.service'
+import { V2, WriterDescription, WriterOption } from '../nexus.service'
 import { RestoreFocusDirective } from '../restore-focus.directive'
 
 type QuickRange = {
@@ -66,13 +66,14 @@ type QuickRange = {
         <div class="mt-4">
           <div class="mb-2 text-xs uppercase tracking-[0.18em]">selection payload</div>
           <div class="max-h-32 space-y-1 overflow-auto font-mono text-xs">
-            @for (resource of selectedResources(); track resource.path) { <div class="truncate">{{ resource.path }}</div> }
-            @if (selectedResources().length === 0) { <div>No resources selected yet.</div> }
+            @for (path of exportPreview().resourcePaths; track path) { <div class="truncate" [title]="path">{{ path }}</div> }
+            @if (!exportPreview().resourcePaths?.length) { <div>No resources selected yet.</div> }
           </div>
         </div>
         <pre class="mt-4 max-h-40 overflow-auto text-xs">{{ exportPreview() | json }}</pre>
         @if (exportStatus()) { <p-message severity="info" class="mt-3">{{ exportStatus() }}</p-message> }
-        <button pButton type="button" size="small" class="mt-4 w-full" [disabled]="selectedResources().length === 0 || exportBusy()" (click)="createJob.emit()">{{ exportBusy() ? 'Creating...' : 'Create export job' }}</button>
+        @if (exportError()) { <p-message severity="error" class="mt-3">{{ exportError() }}</p-message> }
+        <button pButton type="button" size="small" class="mt-4 w-full" [disabled]="!!exportError() || exportBusy()" (click)="createJob.emit()">{{ exportBusy() ? 'Creating...' : 'Create export job' }}</button>
     </p-dialog>
   `,
 })
@@ -86,7 +87,7 @@ export class ExportComposerComponent {
   readonly writerOptions = input.required<[string, WriterOption][]>()
   readonly exportConfiguration = input.required<Record<string, unknown>>()
   readonly quickRanges = input.required<QuickRange[]>()
-  readonly selectedResources = input.required<ResourceRow[]>()
+  readonly exportError = input.required<string>()
   readonly exportPreview = input.required<V2.ExportParameters>()
   readonly exportStatus = input.required<string>()
   readonly exportBusy = input.required<boolean>()
