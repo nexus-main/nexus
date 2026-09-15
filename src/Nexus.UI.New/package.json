@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ng serve --proxy-config proxy.conf.cjs",
     "build": "ng build",
-    "lint": "ng build --configuration development"
+    "lint": "ng build --configuration development",
+    "test": "tsc -p tsconfig.selection-tests.json && node --test src/app/resource-selection.test.ts"
   },
   "dependencies": {
     "@angular/cdk": "^21.2.14",

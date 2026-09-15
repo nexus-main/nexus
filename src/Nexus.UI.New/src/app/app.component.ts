@@ -1,7 +1,7 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
 import { Component, HostListener, computed, effect, inject, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideCopy, LucideExternalLink, LucideFileText, LucideX } from '@lucide/angular'
+import { LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX } from '@lucide/angular'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
@@ -16,6 +16,8 @@ import { BrowserStorageService } from './browser-storage.service'
 import { AppHeaderComponent } from './components/app-header.component'
 import { CatalogTreeComponent } from './components/catalog-tree.component'
 import { ExportComposerComponent } from './components/export-composer.component'
+import { PinnedResourceComponent } from './components/pinned-resource.component'
+import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatPeriod, hydrateSelections, kindValid, parsePeriod, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
 import { MarkdownPipe } from './markdown.pipe'
 import { RestoreFocusDirective } from './restore-focus.directive'
 import {
@@ -38,6 +40,7 @@ import { abbreviateMiddle, compactPath, formatNumber, getStringProperty, lastSeg
 
 const defaultCatalogId = '/SAMPLE/LOCAL'
 const catalogExpansionStorageKey = 'nexus.catalog.expandedNodeKeys'
+const selectedResourcesStorageKey = 'nexus.selectedResources'
 const themeModeStorageKey = 'nexus.themeMode'
 type ThemeMode = 'dark' | 'light'
 
@@ -68,19 +71,28 @@ const defaultExportEnd = getUtcMidnightDaysAgo(1)
 
 type SelectedResourceGroup = {
   catalogId: string
-  resources: ResourceRow[]
+  resources: ResourceSelection[]
 }
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, TableModule, TabsModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, TableModule, TabsModule, LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent {
   private readonly nexus = inject(NexusService)
   private readonly storage = inject(BrowserStorageService)
   private readonly document = inject(DOCUMENT)
+  private readonly catalogBundleCache = new Map<string, CatalogBundle>()
+  private readonly catalogBundleRequests = new Map<string, Promise<CatalogBundle>>()
+  private readonly storedSelectionState = readSelectionState(this.storage.getJson<unknown>(selectedResourcesStorageKey, null))
+  private readonly selectionReferences = signal(this.storedSelectionState.selections)
+  private readonly selectedResourcesRestored = signal(false)
+  private catalogLoadGeneration = 0
+  readonly selectionLoading = signal(true)
+  readonly unresolvedSelections = signal<StoredSelectionReference[]>([])
+  readonly pinnedCount = computed(() => this.selectionReferences().length)
 
   readonly selectedCatalogId = signal(getSelectedCatalogIdFromUrl())
   readonly selectedCatalogNodeKey = signal(getRealCatalogNodeKey(getSelectedCatalogIdFromUrl()))
@@ -89,12 +101,13 @@ export class AppComponent {
   readonly searchCollapsedCatalogNodeKeys = signal<ReadonlySet<string>>(new Set())
   readonly catalogSearch = signal('')
   readonly resourceSearch = signal('')
-  readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceRow>>(new Map())
+  readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceSelection>>(new Map())
   readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
   readonly isExportOpen = signal(false)
+  readonly isClearPinnedOpen = signal(false)
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
-  readonly previewBreakoutOpen = signal(false)
+  readonly visualizationOpen = signal(false)
   readonly themeMode = signal<ThemeMode>(getInitialThemeMode(this.storage))
   readonly activeSidebarTab = signal<'catalogs' | 'selectedResources'>('catalogs')
   readonly overviewLoading = signal(true)
@@ -107,7 +120,13 @@ export class AppComponent {
   readonly selectedBundle = signal<CatalogBundle | null>(null)
   readonly exportBegin = signal(defaultExportBegin)
   readonly exportEnd = signal(defaultExportEnd)
-  readonly samplePeriod = signal('00:00:01')
+  readonly samplePeriod = signal(parsePeriod(this.storedSelectionState.period)!)
+  readonly periodDraft = signal(this.storedSelectionState.period)
+  readonly automaticPeriod = signal(this.storedSelectionState.automaticPeriod)
+  readonly periodError = computed(() => {
+    const period = parsePeriod(this.periodDraft())
+    return period === null || period <= 0n ? 'Enter a positive period, for example 100 ms, 1 s, or 10 min (100 ns minimum).' : ''
+  })
   readonly exportFilePeriod = signal('PT0S')
   readonly selectedWriterType = signal('Nexus.Writers.Csv')
   readonly exportConfiguration = signal<Record<string, unknown>>({ 'row-index-format': 'excel', 'significant-figures': 4 })
@@ -211,9 +230,9 @@ export class AppComponent {
   readonly selectedCatalogRange = computed(() => formatRange(this.selectedBundle()?.timeRange))
 
   readonly resourceRows = computed(() => {
-    if (!this.apiAvailable()) return fallbackResources
+    if (!this.apiAvailable()) return representationRows(fallbackResources)
     if (this.isSelectedFake()) return []
-    return mapResources(this.selectedCatalog())
+    return representationRows(mapResources(this.selectedCatalog()))
   })
 
   readonly filteredResources = computed(() => {
@@ -225,34 +244,65 @@ export class AppComponent {
     return rows.sort((a, b) => a.id.localeCompare(b.id))
   })
 
-  readonly activeResource = computed<ResourceRow | undefined>(() => this.resourceRows().find((resource) => resource.path === this.activeResourcePath()) ?? this.filteredResources()[0])
+  readonly activeResource = computed<RepresentationRow | undefined>(() => this.resourceRows().find((resource) => resource.key === this.activeResourcePath()) ?? this.filteredResources()[0])
   readonly selectedResourcePaths = computed(() => new Set(this.selectedResourceRows().keys()))
   readonly selectedResources = computed(() => [...this.selectedResourceRows().values()].sort(compareResources))
   readonly groupedSelectedResources = computed<SelectedResourceGroup[]>(() => {
-    const groups = new Map<string, ResourceRow[]>()
+    const groups = new Map<string, ResourceSelection[]>()
     for (const resource of this.selectedResources()) groups.set(resource.catalogId, [...(groups.get(resource.catalogId) ?? []), resource])
     return [...groups.entries()].map(([catalogId, resources]) => ({ catalogId, resources }))
   })
-  readonly selectedDataTypes = computed(() => new Set(this.selectedResources().flatMap((resource) => resource.representations.map((rep) => rep.dataType).filter(Boolean))))
+  readonly selectedDataTypes = computed(() => new Set(this.selectedResources().map((resource) => resource.representation.dataType)))
   readonly groupCount = computed(() => new Set(this.resourceRows().flatMap((resource) => resource.groups)).size)
   readonly selectedWriter = computed(() => this.writerDescriptions().find((writer) => writer.type === this.selectedWriterType()) ?? this.writerDescriptions()[0])
   readonly writerOptions = computed(() => Object.entries(this.selectedWriter()?.additionalInformation?.options ?? {}))
-  readonly previewResources = computed(() => this.selectedResources().length > 0 ? this.selectedResources() : this.activeResource() ? [this.activeResource()!] : [])
+  readonly visualizationResources = computed(() => this.selectedResources().flatMap(resource => resource.kinds.map(kind => ({ id: resource.id, kind, path: requestPath(resource, kind, this.samplePeriod()), valid: kindValid(kind, this.samplePeriod(), resource.basePeriod) }))))
   readonly exportBeginInput = computed(() => toDateTimeLocalValue(this.exportBegin()))
   readonly exportEndInput = computed(() => toDateTimeLocalValue(this.exportEnd()))
-  readonly formattedSamplePeriod = computed(() => formatSamplePeriod(this.samplePeriod()))
+  readonly formattedSamplePeriod = computed(() => formatPeriod(this.samplePeriod()))
+  readonly requestPaths = computed(() => this.visualizationResources().map(resource => resource.path))
+  readonly selectionError = computed(() => {
+    if (this.selectionLoading()) return 'Restoring pinned representations...'
+    if (this.unresolvedSelections().length) return 'Some pinned representations could not be loaded. Retry or clear them before exporting.'
+    if (this.periodError()) return this.periodError()
+    if (!this.selectedResources().length) return 'Select at least one representation.'
+    if (this.visualizationResources().some(resource => !resource.valid)) return 'Remove the invalid methods or choose a compatible Period.'
+    if (this.selectedResources().some(resource => !this.parametersValid(resource))) return 'A selected representation requires parameter values that this UI cannot edit yet.'
+    return executionRangeError(this.exportBegin(), this.exportEnd(), this.samplePeriod(), this.requestPaths().length)
+  })
+  readonly exportError = computed(() => {
+    if (this.selectionError()) return this.selectionError()
+    const period = parsePeriod(this.exportFilePeriod())
+    if (period === null || period % this.samplePeriod() !== 0n) return 'File period must be zero or an integer multiple of Period.'
+    if (!this.apiAvailable()) return 'Connect to the Nexus API before creating an export job.'
+    return ''
+  })
   readonly exportPreview = computed(() => buildExportParameters(
     this.exportBegin(),
     this.exportEnd(),
-    this.exportFilePeriod(),
+    toTimeSpan(parsePeriod(this.exportFilePeriod()) ?? 0n),
     this.selectedWriter(),
-    this.selectedResources().map((resource) => resource.path),
+    this.requestPaths(),
     this.exportConfiguration(),
     this.exportPrecision(),
   ))
 
   formatSamplePeriod(samplePeriod: string | null | undefined) {
-    return formatSamplePeriod(samplePeriod)
+    const ticks = parsePeriod(samplePeriod ?? '')
+    return ticks === null ? 'no cadence' : formatPeriod(ticks)
+  }
+
+  setPeriod(value: string) {
+    if (this.selectionLoading()) return
+    this.periodDraft.set(value)
+    const period = parsePeriod(value)
+    if (period === null || period <= 0n || period === this.samplePeriod()) return
+    this.samplePeriod.set(period)
+    this.automaticPeriod.set(false)
+  }
+
+  normalizePeriod() {
+    if (!this.periodError()) this.periodDraft.set(formatPeriod(this.samplePeriod()))
   }
 
   setCatalogSearch(value: string) {
@@ -286,8 +336,8 @@ export class AppComponent {
         break
     }
 
-    this.exportBegin.set(begin.toISOString())
-    this.exportEnd.set(end.toISOString())
+    this.exportBegin.set(alignRangeEndpoint(begin.toISOString(), this.samplePeriod()))
+    this.exportEnd.set(alignRangeEndpoint(end.toISOString(), this.samplePeriod()))
   }
 
   toggleTheme() {
@@ -296,7 +346,7 @@ export class AppComponent {
 
   constructor() {
     writeSelectedCatalogToUrl(this.selectedCatalogId(), true)
-    void this.loadOverview()
+    void this.loadOverview().then(() => this.restoreSelectedResources())
 
     effect(() => {
       const catalogId = this.selectedCatalogId()
@@ -307,6 +357,16 @@ export class AppComponent {
 
     effect(() => {
       this.storage.setJson(catalogExpansionStorageKey, [...this.expandedCatalogNodeKeys()].sort())
+    })
+
+    effect(() => {
+      if (!this.selectedResourcesRestored()) return
+      this.storage.setJson(selectedResourcesStorageKey, {
+        version: 1,
+        period: formatPeriod(this.samplePeriod()),
+        automaticPeriod: this.automaticPeriod(),
+        selections: this.selectionReferences(),
+      })
     })
 
     effect(() => {
@@ -356,21 +416,81 @@ export class AppComponent {
   }
 
   async loadSelectedCatalog(catalogId: string, isFake: boolean, apiAvailable: boolean) {
+    const generation = ++this.catalogLoadGeneration
     if (!catalogId || isFake || !apiAvailable) {
+      this.catalogLoading.set(false)
       this.selectedBundle.set(null)
       return
     }
 
+    const cachedBundle = this.catalogBundleCache.get(catalogId)
+    if (cachedBundle) {
+      this.catalogLoading.set(false)
+      this.catalogError.set(null)
+      this.selectedBundle.set(cachedBundle)
+      return
+    }
+
     this.catalogLoading.set(true)
+    this.selectedBundle.set(null)
     this.catalogError.set(null)
     try {
-      this.selectedBundle.set(await this.nexus.getCatalogBundle(catalogId))
+      const bundle = await this.getCatalogBundle(catalogId)
+      if (generation === this.catalogLoadGeneration) this.selectedBundle.set(bundle)
     } catch (error) {
-      this.catalogError.set(error)
-      this.selectedBundle.set(null)
+      if (generation === this.catalogLoadGeneration) {
+        this.catalogError.set(error)
+        this.selectedBundle.set(null)
+      }
     } finally {
-      this.catalogLoading.set(false)
+      if (generation === this.catalogLoadGeneration) this.catalogLoading.set(false)
     }
+  }
+
+  async getCatalogBundle(catalogId: string) {
+    const cachedBundle = this.catalogBundleCache.get(catalogId)
+    if (cachedBundle) return cachedBundle
+
+    const pendingRequest = this.catalogBundleRequests.get(catalogId)
+    if (pendingRequest) return pendingRequest
+
+    const request = this.nexus.getCatalogBundle(catalogId)
+      .then((bundle) => {
+        this.catalogBundleCache.set(catalogId, bundle)
+        return bundle
+      })
+      .finally(() => this.catalogBundleRequests.delete(catalogId))
+
+    this.catalogBundleRequests.set(catalogId, request)
+    return request
+  }
+
+  async restoreSelectedResources() {
+    if (this.selectedResourcesRestored() && this.selectionLoading()) return
+    this.selectionLoading.set(true)
+    const references = this.selectionReferences()
+    const catalogs = new Map<string, RepresentationRow[]>()
+    await Promise.all([...new Set(references.map(reference => reference.catalogId))].map(async catalogId => {
+      try {
+        catalogs.set(catalogId, representationRows(mapResources((await this.getCatalogBundle(catalogId)).catalog)))
+      } catch {
+        // A failed request is not evidence that a saved representation was deleted.
+      }
+    }))
+    const restored = hydrateSelections(references, catalogs, this.samplePeriod(), this.automaticPeriod())
+    this.samplePeriod.set(restored.period)
+    this.periodDraft.set(formatPeriod(restored.period))
+    this.selectedResourceRows.set(restored.selections)
+    this.selectionReferences.set(restored.references)
+    this.unresolvedSelections.set(restored.unresolved)
+    if (!restored.selections.size && !restored.unresolved.length) this.automaticPeriod.set(true)
+    const activeBundle = this.catalogBundleCache.get(this.selectedCatalogId())
+    if (activeBundle && !this.isSelectedFake()) {
+      this.selectedBundle.set(activeBundle)
+      this.catalogError.set(null)
+    }
+    this.selectionLoading.set(false)
+    this.selectedResourcesRestored.set(true)
   }
 
   selectCatalog(catalog: CatalogNode) {
@@ -444,28 +564,82 @@ export class AppComponent {
     }
   }
 
-  toggleResource(resource: ResourceRow) {
-    this.selectedResourceRows.update((current) => {
+  toggleResource(resource: RepresentationRow) {
+    if (this.selectionLoading()) return
+    if (this.resourceSelected(resource)) this.removeResource(resource.key)
+    else {
+      if (this.requiresParameters(resource)) return
+      if (this.pinnedCount() === 0 && this.automaticPeriod()) {
+        this.samplePeriod.set(resource.basePeriod)
+        this.periodDraft.set(formatPeriod(resource.basePeriod))
+      }
+      const selection: ResourceSelection = { ...resource, parameters: {}, kinds: [defaultKind(this.samplePeriod(), resource.basePeriod)] }
+      this.selectedResourceRows.update(current => new Map(current).set(selection.key, selection))
+      this.selectionReferences.update(current => [...current, storeSelectionReference(selection)])
+    }
+    this.activeResourcePath.set(resource.key)
+  }
+
+  removeResource(key: string) {
+    if (this.selectionLoading()) return
+    const selection = this.selectedResourceRows().get(key)
+    if (!selection) return
+    this.selectedResourceRows.update(current => {
       const next = new Map(current)
-      if (next.has(resource.path)) next.delete(resource.path)
-      else next.set(resource.path, resource)
+      next.delete(key)
+      if (!next.size) this.automaticPeriod.set(true)
       return next
     })
-    this.activeResourcePath.set(resource.path)
+    this.selectionReferences.update(current => current.filter(reference => !this.referenceMatches(reference, selection)))
   }
 
-  resourceSelected(resource: ResourceRow) {
-    return this.selectedResourcePaths().has(resource.path)
+  toggleKind(selection: ResourceSelection, kind: RepresentationKind) {
+    if (this.selectionLoading()) return
+    const kinds = selection.kinds.includes(kind) ? selection.kinds.filter(value => value !== kind)
+      : kindValid(kind, this.samplePeriod(), selection.basePeriod) ? [...selection.kinds, kind] : selection.kinds
+    const updated = { ...selection, kinds }
+    this.selectedResourceRows.update(current => new Map(current).set(updated.key, updated))
+    this.selectionReferences.update(current => current.map(reference => this.referenceMatches(reference, selection) ? storeSelectionReference(updated) : reference))
   }
 
-  activateResource(resource: ResourceRow) {
-    this.activeResourcePath.set(resource.path)
+  private referenceMatches(reference: StoredSelectionReference, selection: ResourceSelection) {
+    return reference.catalogId === selection.catalogId && reference.path === selection.path
+      && parsePeriod(reference.basePeriod ?? '') === selection.basePeriod && selectionKey(selection, reference.parameters) === selection.key
+  }
+
+  requiresParameters(resource: RepresentationRow) {
+    return Object.keys(resource.representation.parameters ?? {}).length > 0
+  }
+
+  private parametersValid(resource: ResourceSelection) {
+    return !this.requiresParameters(resource) && Object.keys(resource.parameters).length === 0
+  }
+
+  requestClearPinnedResources() {
+    if (!this.selectionLoading() && this.pinnedCount() > 0) this.isClearPinnedOpen.set(true)
+  }
+
+  clearPinnedResources() {
+    if (this.selectionLoading()) return
+    this.selectedResourceRows.set(new Map())
+    this.selectionReferences.set([])
+    this.unresolvedSelections.set([])
+    this.automaticPeriod.set(true)
+    this.isClearPinnedOpen.set(false)
+  }
+
+  resourceSelected(resource: RepresentationRow) {
+    return this.selectedResourcePaths().has(resource.key)
+  }
+
+  activateResource(resource: RepresentationRow) {
+    this.activeResourcePath.set(resource.key)
   }
 
   applyQuickRange(range: { begin: string; end: string }) {
     const reference = new Date()
-    this.exportBegin.set(resolveRangeEndpoint(range.begin, reference))
-    this.exportEnd.set(resolveRangeEndpoint(range.end, reference))
+    this.exportBegin.set(alignRangeEndpoint(resolveRangeEndpoint(range.begin, reference), this.samplePeriod()))
+    this.exportEnd.set(alignRangeEndpoint(resolveRangeEndpoint(range.end, reference), this.samplePeriod()))
   }
 
   setExportBeginFromInput(value: string) {
@@ -481,8 +655,9 @@ export class AppComponent {
   }
 
   async createExportJob() {
-    if (!this.selectedResources().length || !this.apiAvailable()) {
-      this.exportStatus.set('Select at least one resource and connect to the Nexus API before creating an export job.')
+    if (this.exportBusy()) return
+    if (this.exportError()) {
+      this.exportStatus.set(this.exportError())
       return
     }
 
@@ -719,31 +894,4 @@ function formatCatalogDisplayPath(path: string) {
   if (path === '/') return ''
 
   return path.replaceAll('/', ' / ').replace(/^ \/ /, '')
-}
-
-function formatSamplePeriod(samplePeriod: string | null | undefined) {
-  if (!samplePeriod) return 'no cadence'
-
-  const match = /^(?:(\d+)\.)?(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,7}))?$/.exec(samplePeriod)
-  if (!match) return samplePeriod
-
-  const [, days = '0', hours, minutes, seconds, fraction = ''] = match
-  let ticks = BigInt(days) * 24n * 60n * 60n * 10_000_000n
-  ticks += BigInt(hours) * 60n * 60n * 10_000_000n
-  ticks += BigInt(minutes) * 60n * 10_000_000n
-  ticks += BigInt(seconds) * 10_000_000n
-  ticks += BigInt(fraction.padEnd(7, '0'))
-
-  let currentValue = ticks * 100n
-  const quotients = [1000n, 1000n, 1000n, 60n, 60n, 24n, 1n]
-  const postFixes = ['ns', 'us', 'ms', 's', 'min', 'h', 'd']
-
-  for (let index = 0; index < postFixes.length; index += 1) {
-    const quotient = currentValue / quotients[index]
-    const remainder = currentValue % quotients[index]
-    if (remainder !== 0n) return `${currentValue} ${postFixes[index]}`
-    currentValue = quotient
-  }
-
-  return `${currentValue} ${postFixes.at(-1)}`
 }
