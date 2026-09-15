@@ -32,7 +32,7 @@ export const nexusPreset = definePreset(Aura, {
       950: '{cyan.950}',
     },
     formField: {
-      borderRadius: '0.625rem',
+      borderRadius: '0.375rem',
       sm: { fontSize: '0.8125rem', paddingX: '0.75rem', paddingY: '0.375rem' },
     },
     colorScheme: {
@@ -43,6 +43,47 @@ export const nexusPreset = definePreset(Aura, {
       dark: {
         surface: slateSurface,
         primary: { color: '{cyan.300}', hoverColor: '{cyan.200}', activeColor: '{cyan.100}', contrastColor: '{slate.950}' },
+      },
+    },
+  },
+  components: {
+    button: {
+      root: {
+        borderRadius: '0.375rem',
+      },
+    },
+    checkbox: {
+      root: {
+        borderRadius: '0.25rem',
+      },
+    },
+    dialog: {
+      root: {
+        borderRadius: '0.5rem',
+      },
+    },
+    menu: {
+      root: {
+        borderRadius: '0.375rem',
+      },
+      item: {
+        borderRadius: '0.25rem',
+      },
+    },
+    select: {
+      root: {
+        borderRadius: '0.375rem',
+      },
+      overlay: {
+        borderRadius: '0.375rem',
+      },
+      option: {
+        borderRadius: '0.25rem',
+      },
+    },
+    tabs: {
+      tab: {
+        padding: '0.5rem 0.75rem',
       },
     },
   },
