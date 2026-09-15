@@ -1,7 +1,7 @@
 <div class="min-h-screen text-slate-100">
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
-  <div class="flex h-screen w-full flex-col gap-3 overflow-hidden p-3 sm:p-4 xl:p-5">
+  <div class="flex h-screen w-full flex-col gap-2 overflow-hidden p-2 sm:p-4 xl:p-5">
     <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" />
 
     @if (!apiAvailable() && !overviewLoading()) {
