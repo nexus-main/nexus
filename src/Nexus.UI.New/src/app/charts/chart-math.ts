@@ -4,8 +4,8 @@ export const TICKS_PER_DAY = 864_000_000_000n;
 export const UNIX_EPOCH_TICKS = 621_355_968_000_000_000n;
 export const CHUNK_LENGTH = 4 * 1024 * 1024;
 export const SERIES_COLORS = [
-  [0, 114, 189], [217, 83, 25], [237, 177, 32], [126, 47, 142],
-  [119, 172, 48], [77, 190, 238], [162, 20, 47],
+  [34, 211, 238], [167, 139, 250], [163, 230, 53], [251, 191, 36],
+  [251, 113, 133], [56, 189, 248], [52, 211, 153],
 ] as const;
 
 export interface Viewport { left: number; top: number; right: number; bottom: number }

@@ -159,9 +159,9 @@ describe('Y axes and colors', () => {
     assert.equal(axis.min, uniforms[0]);
     assert.equal(axis.max - axis.min, uniforms[1]);
   });
-  it('preserves engineering notation and all seven MATLAB palette colors', () => {
+  it('preserves engineering notation and all seven UI-accent palette colors', () => {
     for (const [value, expected] of [[0, '0'], [12.34567, '12.35'], [0.00001, '1E-05'], [1000, '1e3'], [12345, '12.35e3'], [-123456, '-123.5e3'], [1234567, '1.235e6']] as const) assert.equal(toEngineering(value), expected);
-    assert.deepEqual(SERIES_COLORS, [[0, 114, 189], [217, 83, 25], [237, 177, 32], [126, 47, 142], [119, 172, 48], [77, 190, 238], [162, 20, 47]]);
+    assert.deepEqual(SERIES_COLORS, [[34, 211, 238], [167, 139, 250], [163, 230, 53], [251, 191, 36], [251, 113, 133], [56, 189, 248], [52, 211, 153]]);
   });
 });
 
