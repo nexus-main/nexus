@@ -38,7 +38,6 @@ import { abbreviateMiddle, lastSegment } from '../utils'
           @if (!node.isFake && node.title) {
             <div class="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
               <span class="truncate">{{ node.title }}</span>
-              @if (node.isWritable) { <span class="shrink-0 rounded-full bg-violet-300/10 px-1.5 py-0.5 text-violet-200">write</span> }
             </div>
           }
         </div>

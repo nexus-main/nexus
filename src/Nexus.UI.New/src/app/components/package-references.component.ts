@@ -1,6 +1,7 @@
 import { Component, ElementRef, afterRenderEffect, computed, inject, output, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucidePencil, LucidePlus, LucideRefreshCw, LucideTrash2 } from '@lucide/angular'
+import { NgClass } from '@angular/common'
+import { LucidePlus, LucideRefreshCw, LucideTrash2 } from '@lucide/angular'
 import { ButtonModule } from 'primeng/button'
 import { DialogModule } from 'primeng/dialog'
 import { InputTextModule } from 'primeng/inputtext'
@@ -15,7 +16,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
 @Component({
   selector: 'app-package-references',
   standalone: true,
-  imports: [FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, SelectModule, RestoreFocusDirective, LucidePencil, LucidePlus, LucideRefreshCw, LucideTrash2],
+  imports: [NgClass, FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, SelectModule, RestoreFocusDirective, LucidePlus, LucideRefreshCw, LucideTrash2],
   template: `
     <p-dialog appRestoreFocus header="Administrator / Package references" [visible]="true" (visibleChange)="!$event && !busy() && close.emit()" [modal]="true" [blockScroll]="true" [dismissableMask]="false" [closeOnEscape]="false" [pt]="dialogPt" [closable]="!busy()" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close package references', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))' }">
       <div #panel tabindex="-1" class="space-y-4" [attr.aria-busy]="loading() || busy()">
@@ -27,15 +28,15 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
           <form class="space-y-3" (ngSubmit)="save()">
             <div>
               <label id="package-provider-label" for="package-provider" class="mb-1 block text-sm">Provider</label>
-              <p-select inputId="package-provider" ariaLabelledBy="package-provider-label" name="provider" class="w-full" appendTo="body" [options]="providers" [ngModel]="provider()" (ngModelChange)="setProvider($event)" [disabled]="busy()" />
+              <p-select inputId="package-provider" ariaLabelledBy="package-provider-label" name="provider" class="w-full" appendTo="body" [options]="providers" [ngModel]="provider()" (ngModelChange)="setProvider($event)" [disabled]="busy()" size="small" />
             </div>
             <div>
               <label for="package-location" class="mb-1 block text-sm">{{ provider() === 'local' ? 'Path on the Nexus server' : 'Repository URL' }}</label>
-              <input pInputText id="package-location" name="location" class="w-full" required [ngModel]="location()" (ngModelChange)="location.set($event)" [disabled]="busy()" />
+              <input pInputText pSize="small" id="package-location" name="location" class="w-full" required [ngModel]="location()" (ngModelChange)="location.set($event)" [disabled]="busy()" />
             </div>
             <div>
               <label for="package-version" class="mb-1 block text-sm">{{ provider() === 'local' ? 'Version folder' : 'Git tag' }}</label>
-              <p-select inputId="package-version" ariaLabel="Package version" name="version" class="w-full" appendTo="body" [editable]="true" [options]="versionOptions()" [loading]="versionsLoading()" [ngModel]="version()" (ngModelChange)="version.set($event)" [disabled]="busy() || versionsLoading()" />
+              <p-select inputId="package-version" ariaLabel="Package version" name="version" class="w-full" appendTo="body" [editable]="true" [options]="versionOptions()" [loading]="versionsLoading()" [ngModel]="version()" (ngModelChange)="version.set($event)" [disabled]="busy() || versionsLoading()" size="small" />
               <div class="mt-1 flex items-center justify-between gap-2 text-xs">
                 @if (versionsLoading()) {
                   <span>Loading available versions...</span>
@@ -51,53 +52,75 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
             </div>
             <div>
               <label for="package-entrypoint" class="mb-1 block text-sm">Entrypoint</label>
-              <input pInputText id="package-entrypoint" name="entrypoint" class="w-full" required aria-describedby="package-entrypoint-help" [ngModel]="entrypoint()" (ngModelChange)="entrypoint.set($event)" [disabled]="busy()" />
+              <input pInputText pSize="small" id="package-entrypoint" name="entrypoint" class="w-full" required aria-describedby="package-entrypoint-help" [ngModel]="entrypoint()" (ngModelChange)="entrypoint.set($event)" [disabled]="busy()" />
               <p id="package-entrypoint-help" class="mt-1 text-xs">Relative path to the extension .csproj file.</p>
             </div>
-            <div class="flex justify-end gap-2">
-              <button pButton type="button" size="small" severity="secondary" [disabled]="busy()" (click)="cancel()">Cancel</button>
-              <button pButton type="submit" size="small" [disabled]="!valid() || busy()">{{ busy() ? 'Saving...' : 'Save package reference' }}</button>
+            <div class="flex justify-between gap-2">
+              @if (editedEntry()) {
+                @if (confirmingDelete()) {
+                  <span class="flex items-center gap-2 text-xs text-rose-300">
+                    <svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg>
+                    Delete this package reference?
+                  </span>
+                  <div class="flex gap-2 ml-auto">
+                    <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="busy()" (click)="confirmingDelete.set(false)">No</button>
+                    <button pButton type="button" size="small" severity="danger" [disabled]="busy()" (click)="remove()">{{ busy() ? 'Deleting...' : 'Yes, delete' }}</button>
+                  </div>
+                } @else {
+                  <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="busy()" (click)="confirmingDelete.set(true)" aria-label="Delete package reference"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
+                  <div class="flex gap-2 ml-auto">
+                    <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="busy()" (click)="cancel()">Cancel</button>
+                    <button pButton type="submit" size="small" [disabled]="!valid() || busy()">{{ busy() ? 'Saving...' : 'Save' }}</button>
+                  </div>
+                }
+              } @else {
+                <div class="flex gap-2 ml-auto">
+                  <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="busy()" (click)="cancel()">Cancel</button>
+                  <button pButton type="submit" size="small" [disabled]="!valid() || busy()">{{ busy() ? 'Saving...' : 'Save' }}</button>
+                </div>
+              }
             </div>
           </form>
-        } @else if (deleting(); as entry) {
-          <h2 class="text-lg font-semibold">Delete package reference?</h2>
-          <p class="break-all font-mono text-sm">{{ entry.reference.configuration?.['repository'] ?? entry.reference.configuration?.['path'] ?? entry.id }}</p>
-          <p class="text-sm">Existing pipelines may depend on this package. This cannot be undone.</p>
-          <div class="flex justify-end gap-2">
-            <button pButton type="button" size="small" severity="secondary" [disabled]="busy()" (click)="cancel()">Cancel</button>
-            <button pButton type="button" size="small" severity="danger" [disabled]="busy()" (click)="remove()">{{ busy() ? 'Deleting...' : 'Delete package reference' }}</button>
-          </div>
         } @else {
-          <p class="text-sm">Manage extension packages available to Nexus. Saving references does not reload running extensions until you refresh the database.</p>
-          <div class="flex flex-wrap justify-end gap-2">
-            <button pButton type="button" size="small" severity="secondary" [disabled]="loading() || refreshing()" (click)="load()">Reload list</button>
-            <button pButton type="button" size="small" severity="secondary" [disabled]="loading() || refreshing()" (click)="refreshDatabase()"><svg lucideRefreshCw class="h-4 w-4" aria-hidden="true"></svg>{{ refreshButtonLabel() }}</button>
-            <button pButton type="button" size="small" [disabled]="loading() || !!error()" (click)="edit()"><svg lucidePlus class="h-4 w-4" aria-hidden="true"></svg>Add package reference</button>
+          <p class="text-sm text-slate-400">Manage extension packages available to Nexus. Saving references does not reload running extensions until you refresh the database.</p>
+          <div class="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+            <div class="flex items-center gap-3">
+              <div class="grid h-9 w-9 place-items-center rounded-xl bg-cyan-300/10 text-cyan-200">
+                <svg lucideRefreshCw class="h-4 w-4" [class.animate-spin]="refreshing()" aria-hidden="true"></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-white">Extension database</div>
+                @if (refreshStatus()) {
+                  <p class="truncate text-xs text-slate-400" role="status">{{ refreshStatus() }}</p>
+                } @else {
+                  <p class="text-xs text-slate-500">Click to reload installed extensions.</p>
+                }
+              </div>
+            </div>
+            <button pButton type="button" size="small" [outlined]="true" [disabled]="loading() || refreshing()" (click)="refreshDatabase()">{{ refreshButtonLabel() }}</button>
           </div>
-          @if (refreshStatus()) {
-            <p class="text-sm" role="status">{{ refreshStatus() }}</p>
-          }
           @if (loading()) {
             <p class="text-sm" role="status">Loading package references...</p>
           } @else if (!error()) {
-            @for (entry of entries(); track entry.id) {
-              <article class="rounded-xl border border-white/10 p-3">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <h2 class="break-all font-mono text-sm font-semibold">{{ entry.reference.configuration?.['repository'] ?? entry.reference.configuration?.['path'] ?? 'Package reference' }}</h2>
-                    <p class="mt-1 text-xs">{{ entry.reference.provider }} / {{ entry.reference.configuration?.['tag'] ?? entry.reference.configuration?.['version'] }}</p>
+            <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));">
+              @for (entry of entries(); track entry.id) {
+                <article class="group relative cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-3 transition-all hover:border-white/25 hover:bg-white/[0.06]" role="button" tabindex="0" [attr.aria-label]="'Edit package reference ' + entry.id" (click)="edit(entry)" (keydown.enter)="edit(entry)" (keydown.space)="edit(entry)">
+                  <div class="pointer-events-none absolute -right-4 -top-4 h-16 w-16 rounded-full opacity-40 transition-opacity group-hover:opacity-70" [ngClass]="entry.reference.provider === 'local' ? 'bg-violet-400/20 blur-2xl' : 'bg-cyan-400/20 blur-2xl'"></div>
+                  <div class="relative">
+                    <h2 class="truncate font-mono text-sm font-semibold text-white">{{ packageName(entry) }}</h2>
+                    <div class="mt-2 flex items-center gap-2">
+                      <span class="rounded-full border px-2 py-0.5 text-xs" [ngClass]="entry.reference.provider === 'local' ? 'border-violet-300/20 bg-violet-300/10 text-violet-100' : 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100'">{{ entry.reference.provider }}</span>
+                      <span class="rounded-lg bg-white/[0.06] px-2 py-0.5 font-mono text-xs text-slate-300">{{ entry.reference.configuration?.['tag'] ?? entry.reference.configuration?.['version'] }}</span>
+                    </div>
                   </div>
-                  <div class="flex shrink-0 gap-1">
-                    <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="!providers.includes(entry.reference.provider ?? '')" (click)="edit(entry)" [attr.aria-label]="'Edit package reference ' + entry.id"><svg lucidePencil class="h-4 w-4" aria-hidden="true"></svg></button>
-                    <button pButton type="button" size="small" severity="danger" [text]="true" (click)="confirmDelete(entry)" [attr.aria-label]="'Delete package reference ' + entry.id"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
-                  </div>
-                </div>
-                <p class="mt-2 break-all font-mono text-xs">{{ entry.reference.configuration?.['entrypoint'] }}</p>
-                @if (!providers.includes(entry.reference.provider ?? '')) { <p class="mt-2 text-xs">Editing this provider is not supported.</p> }
+                </article>
+              } @empty {
+                <p class="py-6 text-center text-sm">No package references configured.</p>
+              }
+              <article class="flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-white/15 p-3 text-slate-400 transition-colors hover:border-white/30 hover:text-white" role="button" tabindex="0" [attr.aria-label]="'Add package reference'" (click)="edit()" (keydown.enter)="edit()" (keydown.space)="edit()">
+                <svg lucidePlus class="h-5 w-5" aria-hidden="true"></svg>
               </article>
-            } @empty {
-              <p class="py-6 text-center text-sm">No package references configured.</p>
-            }
+            </div>
           }
         }
       </div>
@@ -128,7 +151,7 @@ export class PackageReferencesComponent {
   readonly status = signal('')
   readonly editing = signal(false)
   readonly editedEntry = signal<PackageEntry | null>(null)
-  readonly deleting = signal<PackageEntry | null>(null)
+  readonly confirmingDelete = signal(false)
   readonly provider = signal('git-tag')
   readonly location = signal('')
   readonly version = signal('')
@@ -144,7 +167,6 @@ export class PackageReferencesComponent {
   constructor() {
     afterRenderEffect(() => {
       this.editing()
-      this.deleting()
       // View changes remove the focused action; keep keyboard focus inside the dialog.
       if (!this.loading() && !this.busy()) this.panel()?.nativeElement.focus()
     })
@@ -166,6 +188,7 @@ export class PackageReferencesComponent {
   edit(entry: PackageEntry | null = null) {
     this.error.set('')
     this.status.set('')
+    this.confirmingDelete.set(false)
     this.editedEntry.set(entry)
     this.provider.set(entry?.reference.provider ?? 'git-tag')
     const config = entry?.reference.configuration
@@ -208,16 +231,10 @@ export class PackageReferencesComponent {
     }
   }
 
-  confirmDelete(entry: PackageEntry) {
-    this.error.set('')
-    this.status.set('')
-    this.deleting.set(entry)
-  }
-
   cancel() {
     this.error.set('')
+    this.confirmingDelete.set(false)
     this.editing.set(false)
-    this.deleting.set(null)
   }
 
   async save() {
@@ -236,11 +253,11 @@ export class PackageReferencesComponent {
       if (entry) {
         await this.api.update(reference, entry.id)
         this.editing.set(false)
+        this.status.set('Package reference updated.')
       } else {
-        const id = await this.api.create(reference)
-        this.edit({ id, reference })
+        await this.api.create(reference)
+        this.editing.set(false)
       }
-      this.status.set(entry ? 'Package reference updated.' : 'Package reference created.')
       await this.load()
     } catch (error) {
       this.showError('save the package reference', error)
@@ -250,13 +267,14 @@ export class PackageReferencesComponent {
   }
 
   async remove() {
-    const entry = this.deleting()
+    const entry = this.editedEntry()
     if (!entry || this.busy()) return
     this.busy.set(true)
     this.error.set('')
     try {
       await this.api.delete(entry.id)
-      this.deleting.set(null)
+      this.confirmingDelete.set(false)
+      this.editing.set(false)
       this.status.set('Package reference deleted.')
       await this.load()
     } catch (error) {
@@ -297,6 +315,12 @@ export class PackageReferencesComponent {
     } finally {
       this.refreshing.set(false)
     }
+  }
+
+  packageName(entry: PackageEntry): string {
+    const config = entry.reference.configuration
+    const url = config?.['repository'] ?? config?.['path'] ?? entry.id
+    return url.split('/').pop() || url
   }
 
   private showError(action: string, error: unknown) {
