@@ -6,5 +6,5 @@
     "types": ["node"]
   },
   "files": ["src/app/resource-selection.test.ts"],
-  "include": []
+  "include": ["src/app/charts/*.test.ts"]
 }
