@@ -438,11 +438,7 @@ export class AppComponent implements OnDestroy {
         unit: resource.unit,
       })))
       if (data.series.some(series => series.length < 2)) throw new Error('A line chart needs at least two samples. Extend the time range or reduce Period.')
-      // Let Angular dispose the old GPU consumer before publishing the next dataset.
-      await new Promise(resolve => setTimeout(resolve, 0))
       controller.signal.throwIfAborted()
-      this.loadedVisualizationKey.set(key)
-      this.visualizationData.set(data)
       const response = await this.nexus.v2.data.getStream({ begin, end, resourcePaths: resources.map(resource => resource.path), precision: V2.Precision.Float32 }, controller.signal)
       let lastUpdate = 0
       await loadVisualizationData(response, data, fraction => {
@@ -452,6 +448,9 @@ export class AppComponent implements OnDestroy {
           lastUpdate = now
         }
       }, controller.signal)
+      controller.signal.throwIfAborted()
+      this.loadedVisualizationKey.set(key)
+      this.visualizationData.set(data)
     } catch (error) {
       if (this.visualizationController === controller) {
         this.visualizationData.set(null)
