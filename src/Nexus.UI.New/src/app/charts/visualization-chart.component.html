@@ -1,0 +1,88 @@
+<div class="chart-container" [class.webgpu-unavailable]="errorTitle">
+  <div #chartElement [id]="'chart_' + chartId" class="chart">
+    <canvas [id]="'series_' + chartId" class="series-layer" aria-hidden="true"></canvas>
+    <canvas #axisCanvas class="axis-layer" aria-hidden="true"></canvas>
+    @if (errorTitle) {
+      <div class="webgpu-error" role="alert">
+        <div class="webgpu-error-content">
+          <strong>{{ errorTitle }}</strong>
+          <span>{{ errorMessage }}</span>
+          <button type="button" (click)="retry()" [disabled]="retrying">{{ retrying ? 'Retrying...' : 'Retry WebGPU' }}</button>
+        </div>
+      </div>
+    }
+    <div [id]="'overlay_' + chartId" class="overlay"
+      [attr.data-zoom-left]="viewport.left" [attr.data-zoom-top]="viewport.top"
+      [attr.data-zoom-right]="viewport.right" [attr.data-zoom-bottom]="viewport.bottom"
+      [attr.data-minimum-horizontal-zoom]="minimumHorizontalZoom"
+      (dblclick)="resetZoom($event)"
+      aria-label="Time series plot. Drag to zoom; middle-button or modifier-drag to pan; wheel to zoom time; Shift-wheel to zoom values; double-click to reset.">
+      <div [id]="'crosshairs-x_' + chartId" class="crosshairs-x" style="display: none"></div>
+      <div [id]="'crosshairs-y_' + chartId" class="crosshairs-y" style="display: none"></div>
+      <div [id]="'selection_' + chartId" class="selection"></div>
+      @for (item of series; track item.id; let index = $index) {
+        <div [id]="'pointer_' + item.id + '_' + chartId" class="pointer" style="display: none" [style.background]="color(index)"></div>
+      }
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item legend-time">
+      <div [id]="'name_datetime_' + chartId" class="name">Time:</div>
+      <div [id]="'value_datetime_' + chartId">--</div>
+    </div>
+    @for (item of series; track item.id; let index = $index) {
+      <button type="button" class="legend-item" [class.inactive]="hidden.has(item.id)"
+        [attr.aria-pressed]="!hidden.has(item.id)" (click)="toggleSeries(item)">
+        <span class="color-box" [style.border-color]="color(index)"></span>
+        <span [id]="'name_' + item.id + '_' + chartId" class="name">{{ item.name }}:</span>
+        <span [id]="'value_' + item.id + '_' + chartId">--</span>
+      </button>
+    }
+  </div>
+
+  <div class="navigator-shell">
+    <div class="navigator-heading">
+      <span>Full range</span>
+      <span class="navigator-range">{{ rangeLabel }}</span>
+    </div>
+    <div [id]="'navigator-track_' + chartId" class="navigator-track navigator-overview"
+      data-domain-left="0" data-domain-right="1" [attr.data-begin]="beginIso" [attr.data-end]="endIso">
+      <canvas [id]="'navigator-overview-series_' + chartId" class="navigator-series" aria-hidden="true"></canvas>
+      <div class="navigator-shade navigator-shade-left" [style.width.%]="viewport.left * 100"></div>
+      <div class="navigator-shade navigator-shade-right" [style.left.%]="viewport.right * 100"></div>
+      <div [id]="'navigator-window_' + chartId" class="navigator-window" role="slider" tabindex="0"
+        aria-label="Visible time range" aria-valuemin="0" aria-valuemax="100"
+        [attr.aria-valuenow]="viewport.left * 100" [attr.aria-valuetext]="rangeLabel"
+        [attr.data-left]="viewport.left" [attr.data-right]="viewport.right"
+        [style.left.%]="viewport.left * 100" [style.width.%]="(viewport.right - viewport.left) * 100">
+        <div [id]="'navigator-handle-left_' + chartId" class="navigator-handle navigator-handle-left"></div>
+        <div [id]="'navigator-handle-right_' + chartId" class="navigator-handle navigator-handle-right"></div>
+        <span class="navigator-duration">{{ durationLabel }}</span>
+      </div>
+    </div>
+
+    <div class="navigator-detail" [class.visible]="detail.visible" [attr.aria-hidden]="!detail.visible">
+      <div class="navigator-heading navigator-detail-heading">
+        <span>Precision view</span>
+        <span class="navigator-range">{{ detailRangeLabel }}</span>
+      </div>
+      <div [id]="'navigator-detail-track_' + chartId" class="navigator-track"
+        [attr.data-domain-left]="detail.left" [attr.data-domain-right]="detail.right"
+        [attr.data-begin]="beginIso" [attr.data-end]="endIso">
+        <canvas [id]="'navigator-detail-series_' + chartId" class="navigator-series" aria-hidden="true"></canvas>
+        <div class="navigator-shade navigator-shade-left" [style.width.%]="detail.windowLeft * 100"></div>
+        <div class="navigator-shade navigator-shade-right" [style.left.%]="detail.windowRight * 100"></div>
+        <div [id]="'navigator-detail-window_' + chartId" class="navigator-window navigator-detail-window"
+          role="slider" [tabIndex]="detail.visible ? 0 : -1" aria-label="Visible time range precision control"
+          aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="viewport.left * 100" [attr.aria-valuetext]="rangeLabel"
+          [attr.data-left]="viewport.left" [attr.data-right]="viewport.right"
+          [style.left.%]="detail.windowLeft * 100" [style.width.%]="(detail.windowRight - detail.windowLeft) * 100">
+          <div [id]="'navigator-detail-handle-left_' + chartId" class="navigator-handle navigator-handle-left"></div>
+          <div [id]="'navigator-detail-handle-right_' + chartId" class="navigator-handle navigator-handle-right"></div>
+          <span class="navigator-duration">{{ durationLabel }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

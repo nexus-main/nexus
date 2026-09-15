@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "files": ["src/app/resource-selection.test.ts"],
+  "include": ["src/app/charts/*.test.ts"]
+}

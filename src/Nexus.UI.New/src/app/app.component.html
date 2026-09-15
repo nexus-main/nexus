@@ -1,0 +1,311 @@
+<div class="min-h-screen text-slate-100">
+  <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
+
+  <div class="flex h-screen w-full flex-col gap-2 overflow-hidden p-2 sm:p-4 xl:p-5">
+    <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" />
+
+    @if (!apiAvailable() && !overviewLoading()) {
+      <section class="rounded-3xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+        The Angular UI is showing sample data because the local Nexus API proxy is not connected. Start with <span class="font-mono">./dev-with-local-credentials.sh</span> to use live data.
+      </section>
+    }
+
+    @if (overviewError() || catalogError()) {
+      <section class="rounded-3xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+        {{ errorMessage(overviewError() || catalogError()) }}
+      </section>
+    }
+
+    <main class="grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[420px_minmax(0,1fr)] 2xl:grid-cols-[480px_minmax(0,1fr)]">
+      <aside class="hidden min-h-0 lg:block">
+        <ng-container [ngTemplateOutlet]="catalogBrowser"></ng-container>
+      </aside>
+
+      <section class="flex min-h-0 flex-col gap-3 overflow-x-hidden overflow-y-auto">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          <section class="glass-panel overflow-hidden rounded-xl">
+            <div class="relative p-4 sm:p-5">
+              <div class="absolute right-0 top-0 h-40 w-72 rounded-full bg-cyan-300/10 blur-3xl"></div>
+              <div class="relative flex min-w-0 flex-col gap-3">
+                <div class="flex min-w-0 items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.24em] text-violet-200/80">
+                      @if (catalogLoading()) { <span class="rounded-full bg-cyan-300/10 px-2 py-0.5 text-cyan-200">syncing</span> }
+                      @if (isSelectedFake()) { <span class="rounded-full bg-violet-300/10 px-2 py-0.5 text-violet-200">virtual folder</span> }
+                    </div>
+                    <h1 class="mt-2 min-w-0 break-words font-mono text-base font-semibold tracking-[-0.03em] text-white sm:text-lg">{{ selectedCatalogDisplayPath() }}</h1>
+                    @if (selectedCatalogTitle()) {
+                      <p class="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{{ selectedCatalogTitle() }}</p>
+                    }
+                  </div>
+                  <div class="flex shrink-0 items-center gap-2 pt-2">
+                    @if (selectedCatalogReadme()) {
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="sm:hidden" (click)="isReadmeOpen.set(true)" aria-label="Open catalog readme" title="Open catalog readme"><svg lucideFileText class="h-4 w-4" aria-hidden="true"></svg></button>
+                    }
+                    <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="copyCatalogPath()" aria-label="Copy catalog path" title="Copy catalog path"><svg lucideCopy class="h-4 w-4" aria-hidden="true"></svg></button>
+                  </div>
+                </div>
+                @if (selectedCatalogRange() || selectedCatalogReadme()) {
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                    @if (selectedCatalogRange()) {
+                    <span class="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1">{{ selectedCatalogRange() }}</span>
+                    }
+                    @if (selectedCatalogReadme()) {
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="hidden sm:inline-flex" (click)="activeCatalogDetailsOpen.update((value) => !value)" [attr.aria-expanded]="activeCatalogDetailsOpen()" aria-controls="active-catalog-readme"><svg lucideFileText class="h-4 w-4" aria-hidden="true"></svg>{{ activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme' }}</button>
+                    }
+                  </div>
+                }
+                @if (activeCatalogDetailsOpen()) {
+                  <div id="active-catalog-readme" class="markdown-body max-h-[40vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4 text-sm leading-6 text-slate-300 sm:p-5">
+                    @if (selectedCatalogReadme()) {
+                      <div [innerHTML]="selectedCatalogReadme() | markdown"></div>
+                    } @else {
+                      <p class="text-slate-500">No catalog readme is available.</p>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          </section>
+
+          <div class="grid min-h-0 min-w-0 flex-1 grid-rows-1 gap-3 2xl:grid-cols-2">
+          <section class="glass-panel h-full min-h-0 min-w-0 overflow-hidden rounded-xl">
+            <div class="flex h-full min-h-0 flex-col">
+              <div class="border-b border-white/10 p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="text-xs uppercase tracking-[0.24em] text-cyan-200/80">resource matrix</div>
+                    <button pButton type="button" size="small" [outlined]="true" (click)="visualize()" aria-label="Open visualization" title="Open visualization"><svg lucideChartLine class="h-4 w-4" aria-hidden="true"></svg>Visualize</button>
+                  </div>
+                  <input pInputText pSize="small" type="search" class="w-full min-w-0 sm:w-64" aria-label="Filter resources, groups, units" placeholder="Filter resources, groups, units" [ngModel]="resourceSearch()" (ngModelChange)="resourceSearch.set($event)" />
+                </div>
+              </div>
+
+              <div class="flex h-full min-h-0 flex-1 flex-col">
+                <p-table [value]="filteredResources().slice(0, 450)" dataKey="key" size="small" [scrollable]="true" scrollHeight="flex" class="h-full min-h-0 flex-1" styleClass="h-full text-sm" [tableStyle]="{ 'min-width': '760px' }">
+                  <ng-template #header>
+                    <tr class="text-xs uppercase tracking-[0.18em]">
+                      <th scope="col" class="w-12"><span class="sr-only">Select resource</span></th>
+                      <th scope="col">Resource</th>
+                      <th scope="col">Group</th>
+                      <th scope="col">Unit</th>
+                      <th scope="col">Representation</th>
+                    </tr>
+                  </ng-template>
+                  <ng-template #body let-resource>
+                      <tr class="transition hover:bg-white/[0.035]" [ngClass]="{ 'bg-cyan-300/[0.055]': activeResource()?.key === resource.key, 'outline outline-1 -outline-offset-1 outline-cyan-300/20': resourceSelected(resource) }" (click)="activateResource(resource)">
+                        <td class="border-b border-white/5 p-3 align-top">
+                          <p-checkbox [binary]="true" [disabled]="selectionLoading() || requiresParameters(resource)" [ngModel]="resourceSelected(resource)" (onChange)="toggleResource(resource)" (click)="$event.stopPropagation()" [ariaLabel]="'Select ' + resource.path + ', ' + formatSamplePeriod(resource.representation.samplePeriod)" />
+                        </td>
+                        <td class="border-b border-white/5 p-3 align-top">
+                          <button pButton type="button" size="small" severity="secondary" [text]="true" class="p-0 text-left font-mono text-[13px] font-semibold" (click)="$event.stopPropagation(); activateResource(resource)" [attr.aria-label]="'Inspect ' + resource.path">{{ resource.id }}</button>
+                          <div class="mt-1 max-w-[420px] truncate text-xs text-slate-500">{{ resource.description }}</div>
+                        </td>
+                        <td class="border-b border-white/5 p-3 align-top">
+                          <div class="flex flex-wrap gap-1">
+                            @for (group of (resource.groups.length ? resource.groups : ['ungrouped']).slice(0, 3); track group) {
+                              <span class="rounded-full border border-violet-300/20 bg-violet-300/10 px-2 py-0.5 text-xs text-violet-100">{{ group }}</span>
+                            }
+                          </div>
+                        </td>
+                        <td class="border-b border-white/5 p-3 align-top text-slate-300">{{ resource.unit }}</td>
+                        <td class="border-b border-white/5 p-3 align-top">
+                          <span class="rounded-lg bg-cyan-300/10 px-2 py-1 font-mono text-xs text-cyan-100">{{ formatSamplePeriod(resource.representation.samplePeriod) }}</span>
+                          <span class="ml-2 text-xs text-slate-400">{{ resource.representation.dataType }}</span>
+                          @if (requiresParameters(resource)) { <div class="mt-1 text-xs text-amber-200">Parameter input is not supported yet.</div> }
+                        </td>
+                      </tr>
+                  </ng-template>
+                  <ng-template #emptymessage>
+                    <tr><td colspan="5"><div class="grid min-h-48 place-items-center p-6 text-center text-sm text-slate-500">No resources found for this catalog or filter.</div></td></tr>
+                  </ng-template>
+                </p-table>
+                @if (filteredResources().length > 450) {
+                  <div class="shrink-0 border-t border-white/10 bg-slate-950/80 p-3 text-center text-xs text-slate-500">Showing the first 450 filtered resources. Narrow the search to reduce rows.</div>
+                }
+              </div>
+            </div>
+          </section>
+
+          <section class="glass-panel hidden min-h-0 h-full overflow-hidden rounded-xl 2xl:flex 2xl:flex-col">
+            <div class="flex shrink-0 flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">visualization</div>
+                <div class="mt-1 text-xl font-semibold tracking-[-0.03em] text-white">Time Series</div>
+              </div>
+              <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" (click)="visualizationOpen.set(true)" aria-label="Open visualization" title="Open visualization">
+                <svg lucideExternalLink class="h-4 w-4" aria-hidden="true"></svg>
+              </button>
+            </div>
+            @if (!visualizationOpen() && wideLayout()) {
+              <ng-container [ngTemplateOutlet]="visualizationContent" [ngTemplateOutletContext]="{ $implicit: false }"></ng-container>
+            }
+          </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+@if (isAdministrator() && isPackageReferencesOpen()) {
+  <app-package-references (close)="isPackageReferencesOpen.set(false)" />
+}
+
+<ng-template #visualizationContent let-breakout>
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+    <div class="flex flex-wrap items-center gap-3 text-xs">
+      <label class="flex items-center gap-2"><p-checkbox [binary]="true" [ngModel]="visualizationBeginAtZero()" (ngModelChange)="visualizationBeginAtZero.set($event)" ariaLabel="Begin value axes at zero" />Begin at zero</label>
+      <label class="flex items-center gap-2">GPU cache (MiB)<input pInputText pSize="small" type="number" min="16" step="16" class="w-24" [ngModel]="visualizationCacheMiB()" (ngModelChange)="setVisualizationCache($event)" /></label>
+      @if (visualizationData() && !visualizationLoading()) {
+        <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize(false)" [disabled]="!!visualizationValidation()">Reload</button>
+      }
+    </div>
+    <div class="relative min-w-0 flex-1 rounded-lg bg-slate-950/60 p-2 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
+      @if (visualizationData(); as data) {
+        <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" (gpuFailed)="visualizationGpuFailed($event)" />
+      }
+      @if (visualizationLoading()) {
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-950/80 p-6 backdrop-blur-sm">
+          <div class="w-full max-w-sm space-y-4 text-center text-slate-200" role="status" aria-live="polite">
+            <p>Loading data...</p>
+            <p-progressbar [value]="visualizationProgress()" ariaLabel="Loading time series data" />
+            <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="cancelVisualization()">Cancel</button>
+          </div>
+        </div>
+      } @else if (visualizationError() || !visualizationData() || visualizationStale()) {
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-950/80 p-6 text-center backdrop-blur-sm">
+          <div class="max-w-lg space-y-4 text-slate-300">
+            <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || (visualizationStale() ? 'The time range or selected representations have changed. Reload to visualize the new selection.' : visualizationValidation() || 'Visualize the pinned representations using the selected UTC range and Period.') }}</p>
+            <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Reload' : 'Visualize' }}</button>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</ng-template>
+
+<p-dialog appRestoreFocus header="Visualization" [visible]="visualizationOpen()" (visibleChange)="closeVisualization()" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close visualization', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'calc(100vw - 2rem)', height: 'calc(100dvh - 2rem)', maxHeight: 'calc(100dvh - 2rem)' }" [contentStyle]="{ display: 'flex', flexDirection: 'column', minHeight: '0', padding: '0' }">
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  @if (visualizationOpen()) {
+    <ng-container [ngTemplateOutlet]="visualizationContent" [ngTemplateOutletContext]="{ $implicit: true }"></ng-container>
+  }
+</p-dialog>
+
+<p-drawer [appRestoreFocus]="isMobileCatalogOpen()" header="Catalog browser" [visible]="isMobileCatalogOpen()" (visibleChange)="isMobileCatalogOpen.set($event)" [fullScreen]="true" [modal]="true" [blockScroll]="true" [dismissible]="true" [closeOnEscape]="false" [pt]="catalogDrawerPt" appendTo="body" ariaCloseLabel="Close catalog browser" [closeButtonProps]="{ ariaLabel: 'Close catalog browser', severity: 'secondary', text: true, rounded: true }" styleClass="[&_.p-drawer-content]:flex [&_.p-drawer-content]:min-h-0 [&_.p-drawer-content]:flex-col [&_.p-drawer-content]:overflow-hidden" [dt]="{ content: { padding: '0' } }">
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  @if (isMobileCatalogOpen()) {
+    <ng-container [ngTemplateOutlet]="catalogBrowser"></ng-container>
+  }
+</p-drawer>
+
+<p-dialog appRestoreFocus [visible]="isReadmeOpen()" (visibleChange)="isReadmeOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close readme', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">
+  <ng-template #header let-ariaLabelledBy="ariaLabelledBy">
+    <div class="min-w-0">
+      <p [id]="ariaLabelledBy" class="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">Catalog readme</p>
+      @if (selectedCatalogTitle()) {
+        <h2 class="mt-2 truncate text-lg font-semibold text-white">{{ selectedCatalogTitle() }}</h2>
+      }
+      <p class="mt-1 truncate font-mono text-xs text-slate-500">{{ selectedCatalogId() }}</p>
+    </div>
+  </ng-template>
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  <div class="markdown-body space-y-3 text-sm leading-6 text-slate-300" [innerHTML]="selectedCatalogReadme() | markdown"></div>
+</p-dialog>
+
+@if (isExportOpen()) {
+  <app-export-composer [writerDescriptions]="writerDescriptions()" [selectedWriterType]="selectedWriterType()" [exportBegin]="exportBegin()" [exportEnd]="exportEnd()" [exportFilePeriod]="exportFilePeriod()" [exportPrecision]="exportPrecision()" [writerOptions]="writerOptions()" [exportConfiguration]="exportConfiguration()" [quickRanges]="quickRanges" [exportError]="exportError()" [exportPreview]="exportPreview()" [exportStatus]="exportStatus()" [exportBusy]="exportBusy()" (close)="isExportOpen.set(false)" (selectedWriterTypeChange)="selectedWriterType.set($event)" (exportBeginChange)="exportBegin.set($event)" (exportEndChange)="exportEnd.set($event)" (exportFilePeriodChange)="exportFilePeriod.set($event)" (exportPrecisionChange)="exportPrecision.set($event)" (configChanged)="updateConfig($event.key, $event.value)" (quickRangeApplied)="applyQuickRange($event)" (createJob)="createExportJob()" />
+}
+
+<p-dialog appRestoreFocus header="Clear pinned resources?" [visible]="isClearPinnedOpen()" (visibleChange)="isClearPinnedOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close clear pinned resources confirmation', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(28rem, calc(100vw - 2rem))' }">
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  <p class="text-sm leading-6 text-slate-300">Remove all {{ pinnedCount() }} pinned representations, including any unavailable entries, from this browser?</p>
+  <div class="mt-5 flex justify-end gap-2">
+    <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="isClearPinnedOpen.set(false)">Cancel</button>
+    <button pButton type="button" size="small" severity="danger" (click)="clearPinnedResources()">Clear</button>
+  </div>
+</p-dialog>
+
+<ng-template #catalogBrowser>
+  <section class="glass-panel flex h-full min-h-0 flex-col overflow-hidden rounded-none lg:rounded-xl">
+    <p-tabs class="flex h-full min-h-0 flex-col" [value]="activeSidebarTab()" (valueChange)="setSidebarTab($event)" [selectOnFocus]="true">
+      <div class="border-b border-white/10 p-3 sm:p-4">
+        <div class="mb-3 p-2">
+          <div class="grid gap-2">
+            <label class="block min-w-0">
+              <span class="mb-1 block text-xs text-slate-400">From (UTC)</span>
+              <input pInputText pSize="small" type="datetime-local" step="1" class="w-full min-w-0" [ngModel]="exportBeginInput()" (ngModelChange)="setExportBeginFromInput($event)" />
+            </label>
+            <label class="block min-w-0">
+              <span class="mb-1 block text-xs text-slate-400">To (UTC)</span>
+              <input pInputText pSize="small" type="datetime-local" step="1" class="w-full min-w-0" [ngModel]="exportEndInput()" (ngModelChange)="setExportEndFromInput($event)" />
+            </label>
+            <div class="flex min-w-0 items-end gap-2">
+              <label class="block min-w-0 flex-1">
+                <span class="mb-1 block text-xs text-slate-400">Period</span>
+                <input pInputText pSize="small" class="w-full" [disabled]="selectionLoading()" [invalid]="!!periodError()" [attr.aria-invalid]="!!periodError()" [ngModel]="periodDraft()" (ngModelChange)="setPeriod($event)" (blur)="normalizePeriod()" placeholder="1 s" />
+              </label>
+              <button pButton type="button" size="small" [outlined]="true" class="shrink-0" (click)="rangeMenu.toggle($event)" [attr.aria-expanded]="rangeMenu.visible" [attr.aria-controls]="rangeMenu.id" aria-haspopup="menu" aria-label="Open quick time ranges" title="Quick time ranges">Range</button>
+            </div>
+            @if (periodError()) { <p class="text-xs text-rose-400" role="alert">{{ periodError() }}</p> }
+          </div>
+        </div>
+        @if (overviewLoading()) { <div class="mb-2 flex justify-end"><span class="rounded-full bg-cyan-300/10 px-2 py-1 text-xs text-cyan-100">Syncing</span></div> }
+        <p-tablist>
+          <p-tab value="catalogs" class="min-w-0 flex-1 whitespace-normal text-center">Catalogs</p-tab>
+          <p-tab value="selectedResources" class="min-w-0 flex-1 whitespace-normal text-center">Pinned ({{ pinnedCount() }})</p-tab>
+        </p-tablist>
+        @if (activeSidebarTab() === 'catalogs') {
+          <div class="mt-3 flex items-center gap-2">
+            <input pInputText pSize="small" type="search" class="w-full min-w-0" aria-label="Search catalogs" placeholder="Search catalogs..." [ngModel]="catalogSearch()" (ngModelChange)="setCatalogSearch($event)" />
+            @if (catalogSearch()) {
+              <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" (click)="setCatalogSearch('')" aria-label="Clear catalog search" title="Clear search"><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></button>
+            }
+          </div>
+        } @else {
+          <div class="mt-3 flex items-center justify-end gap-3 text-xs text-slate-500">
+            <div class="flex items-center gap-2">
+              <button pButton type="button" size="small" severity="secondary" [outlined]="true" [disabled]="pinnedCount() === 0 || selectionLoading()" (click)="requestClearPinnedResources()">Clear</button>
+              <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize()">Visualize</button>
+              <button pButton type="button" size="small" [outlined]="true" [disabled]="!!selectionError()" (click)="isExportOpen.set(true)">Export</button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <p-tabpanels class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-1.5 lg:p-2">
+        <p-tabpanel value="catalogs">
+          <app-catalog-tree [nodes]="filteredCatalogNodes()" [selectedNodeKey]="selectedCatalogNodeKey()" [expandedNodeKeys]="expandedFilteredNodeKeys()" [expandableNodeKeys]="expandableFilteredNodeKeys()" (activate)="activateCatalogNode($event)" (toggle)="toggleExpanded($event)" />
+        </p-tabpanel>
+        <p-tabpanel value="selectedResources">
+          @if (selectionLoading()) { <p class="p-2 text-xs text-slate-400" role="status">Restoring pinned representations...</p> }
+          @if (unresolvedSelections().length) {
+            <div class="mb-3 rounded-lg border border-amber-300/20 p-2 text-xs text-amber-200" role="status">
+              <p>{{ unresolvedSelections().length }} saved representations could not be loaded. They remain saved in this browser.</p>
+              @for (reference of unresolvedSelections(); track $index) { <div class="mt-1 truncate font-mono" [title]="reference.path">{{ reference.path }}</div> }
+              <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="selectionLoading()" (click)="restoreSelectedResources()">Retry restore</button>
+            </div>
+          }
+          @if (selectedResources().length && selectionError() && !selectionLoading() && !unresolvedSelections().length) {
+            <p class="mb-2 px-2 text-xs text-rose-400" role="status">{{ selectionError() }}</p>
+          }
+          @for (group of groupedSelectedResources(); track group.catalogId) {
+            <section class="mb-3">
+              <div class="mb-1.5 flex items-center justify-between gap-2 border-b border-white/5 px-1 pb-1.5 text-[11px] text-slate-500">
+                <span class="min-w-0 truncate font-mono text-slate-500" [title]="group.catalogId">{{ compactPath(group.catalogId, 3) }}</span>
+                <span class="shrink-0 rounded-full bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-slate-500">{{ group.resources.length }}</span>
+              </div>
+              @for (resource of group.resources; track resource.key) {
+                <app-pinned-resource [selection]="resource" [period]="samplePeriod()" [disabled]="selectionLoading()" (kindToggled)="toggleKind(resource, $event)" (removed)="removeResource(resource.key)" />
+              }
+            </section>
+          } @empty {
+            @if (!pinnedCount() && !selectionLoading()) { <div class="grid h-full min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">Select representations from the matrix to pin them here.</div> }
+          }
+        </p-tabpanel>
+      </p-tabpanels>
+    </p-tabs>
+  </section>
+</ng-template>
+
+<p-menu #rangeMenu styleClass="range-menu" [model]="timeRangeMenuItems" [popup]="true" appendTo="body" />

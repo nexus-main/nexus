@@ -1,0 +1,63 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "nexus-ui-new": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "nexus",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/nexus-ui-new",
+            "index": "index.html",
+            "browser": "src/main.ts",
+            "tsConfig": "tsconfig.app.json",
+            "inlineStyleLanguage": "css",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
+            ],
+            "scripts": [
+              "src/chart-globals.js",
+              "../Nexus/wwwroot/js/chart.js",
+              "../Nexus/wwwroot/js/chart.webgpu.shaders.js",
+              "../Nexus/wwwroot/js/chart.webgpu.lifecycle.js",
+              "../Nexus/wwwroot/js/chart.webgpu.data.js",
+              "../Nexus/wwwroot/js/chart.webgpu.js"
+            ],
+            "styles": ["src/index.css"]
+          },
+          "configurations": {
+            "production": {
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "nexus-ui-new:build:production"
+            },
+            "development": {
+              "buildTarget": "nexus-ui-new:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        }
+      }
+    }
+  }
+}
