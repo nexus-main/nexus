@@ -1,4 +1,5 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, Input, OnChanges, OnDestroy, ViewChild, inject, output } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import type { VisualizationData, VisualizationSeries } from './visualization-data.ts';
 import { getChartInterop } from './chart-interop';
 import type { ChartCallbacks, ChartCallbackAdapter, ChartInterop, GpuRange, SeriesPayload } from './chart-interop';
@@ -37,6 +38,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   retrying = false;
   readonly hidden = new Set<string>();
   private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly document = inject(DOCUMENT);
   private api?: ChartInterop;
   private ready = false;
   private disposed = false;
@@ -310,7 +312,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     if (!context) throw new Error('The browser could not create the chart axis canvas.');
     context.scale(dpr, dpr);
     context.font = 'bold 12px "Nexus Chart", "Courier New", monospace';
-    context.fillStyle = '#555555';
+    const lightTheme = this.document.documentElement.dataset['theme'] === 'light';
+    context.fillStyle = lightTheme ? '#334155' : '#94a3b8';
     const yMin = 20;
     const yMax = Math.max(51, height - 55);
     const plotTop = 50;
@@ -325,7 +328,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       const textWidth = characterWidth * maxChars;
       if (this.series.some(series => series.unit === axis.unit && !this.hidden.has(series.id))) {
         context.fillText(axis.unit, xMin + (maxChars - axis.unit.length) * characterWidth, yMin);
-        context.strokeStyle = '#dddddd';
+        context.strokeStyle = lightTheme ? '#dddddd' : 'rgba(148, 163, 184, 0.25)';
         ticks.forEach((tick, index) => {
           if (tick < axis.min || tick > axis.max) return;
           const y = yMax - (tick - axis.min) * (yMax - plotTop) / (axis.max - axis.min);
@@ -344,7 +347,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       this.cursorFormat = config.cursor;
       let previous = 0n;
       context.textAlign = 'center';
-      context.strokeStyle = '#d3d3d3';
+      context.strokeStyle = lightTheme ? '#d3d3d3' : 'rgba(148, 163, 184, 0.25)';
       for (const tick of ticks) {
         const x = xMin + Number(tick - begin) / Number(end - begin) * (width - xMin);
         line(x, plotTop, x, yMax + 10);

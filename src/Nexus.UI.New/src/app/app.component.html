@@ -161,21 +161,21 @@
         <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize(false)" [disabled]="!!visualizationValidation()">Reload</button>
       }
     </div>
-    <div class="relative min-w-0 flex-1 rounded-lg bg-white p-2 text-[#555555]" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
+    <div class="relative min-w-0 flex-1 rounded-lg bg-slate-950/60 p-2 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
       @if (visualizationData(); as data) {
         <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" (gpuFailed)="visualizationGpuFailed($event)" />
       }
       @if (visualizationLoading()) {
-        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 p-6 backdrop-blur-sm">
-          <div class="w-full max-w-sm space-y-4 text-center" role="status" aria-live="polite">
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-950/80 p-6 backdrop-blur-sm">
+          <div class="w-full max-w-sm space-y-4 text-center text-slate-200" role="status" aria-live="polite">
             <p>Loading data...</p>
             <p-progressbar [value]="visualizationProgress()" ariaLabel="Loading time series data" />
             <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="cancelVisualization()">Cancel</button>
           </div>
         </div>
       } @else if (visualizationError() || !visualizationData() || visualizationStale()) {
-        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 p-6 text-center backdrop-blur-sm">
-          <div class="max-w-lg space-y-4">
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-950/80 p-6 text-center backdrop-blur-sm">
+          <div class="max-w-lg space-y-4 text-slate-300">
             <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || (visualizationStale() ? 'The time range or selected representations have changed. Reload to visualize the new selection.' : visualizationValidation() || 'Visualize the pinned representations using the selected UTC range and Period.') }}</p>
             <button pButton type="button" size="small" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Reload' : 'Visualize' }}</button>
           </div>
