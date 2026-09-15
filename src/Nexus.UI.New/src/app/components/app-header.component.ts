@@ -1,5 +1,5 @@
 import { Component, input, output } from '@angular/core'
-import { LucideMapPin, LucideSettings } from '@lucide/angular'
+import { LucideMapPin, LucideMoon, LucideSettings, LucideSun } from '@lucide/angular'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { MenuModule } from 'primeng/menu'
@@ -9,7 +9,7 @@ type ThemeMode = 'dark' | 'light'
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [ButtonModule, MenuModule, LucideMapPin, LucideSettings],
+  imports: [ButtonModule, MenuModule, LucideMapPin, LucideMoon, LucideSettings, LucideSun],
   template: `
     <header class="glass-panel overflow-hidden rounded-xl">
       <div class="relative flex items-center justify-between gap-2 p-2.5 sm:gap-3 sm:p-3 lg:p-4">
@@ -35,7 +35,11 @@ type ThemeMode = 'dark' | 'light'
             <p-menu #adminMenu [model]="adminMenuItems" [popup]="true" appendTo="body" />
           }
           <button pButton type="button" size="small" severity="secondary" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
-            <span aria-hidden="true">{{ themeMode() === 'dark' ? '☾' : '☀' }}</span>
+            @if (themeMode() === 'dark') {
+              <svg lucideMoon class="h-4 w-4" aria-hidden="true"></svg>
+            } @else {
+              <svg lucideSun class="h-4 w-4" aria-hidden="true"></svg>
+            }
             <span class="hidden sm:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
           </button>
           <button pButton type="button" size="small" severity="secondary" class="hidden sm:flex" aria-label="Open jobs menu" title="Open jobs menu">
