@@ -1,10 +1,23 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
 import { Component, HostListener, computed, effect, inject, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
+import { LucideCopy, LucideExternalLink, LucideFileText, LucideX } from '@lucide/angular'
+import { MenuItem } from 'primeng/api'
+import { ButtonModule } from 'primeng/button'
+import { CheckboxModule } from 'primeng/checkbox'
+import { DialogModule } from 'primeng/dialog'
+import { DrawerModule } from 'primeng/drawer'
+import { InputTextModule } from 'primeng/inputtext'
+import { MenuModule } from 'primeng/menu'
+import { SelectButtonModule } from 'primeng/selectbutton'
+import { TableModule } from 'primeng/table'
+import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
 import { AppHeaderComponent } from './components/app-header.component'
+import { CatalogTreeComponent } from './components/catalog-tree.component'
 import { ExportComposerComponent } from './components/export-composer.component'
 import { MarkdownPipe } from './markdown.pipe'
+import { RestoreFocusDirective } from './restore-focus.directive'
 import {
   CatalogBundle,
   CatalogNode,
@@ -61,7 +74,7 @@ type SelectedResourceGroup = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, MarkdownPipe, AppHeaderComponent, ExportComposerComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, SelectButtonModule, TableModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent {
@@ -78,7 +91,6 @@ export class AppComponent {
   readonly resourceSearch = signal('')
   readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceRow>>(new Map())
   readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
-  readonly quickRangeMenuOpen = signal(false)
   readonly isExportOpen = signal(false)
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
@@ -104,7 +116,20 @@ export class AppComponent {
   readonly exportBusy = signal(false)
 
   readonly quickRanges = quickRanges
-  readonly timeRangePresets = timeRangePresets
+  readonly timeRangeMenuItems: MenuItem[] = timeRangePresets.flatMap((preset) => {
+    const item: MenuItem = { label: preset.label, command: () => this.applyTimeRangePreset(preset) }
+    return preset.kind === 'calendarToNow' ? [{ separator: true }, item] : [item]
+  })
+  readonly catalogDrawerPt: DrawerPassThrough = {
+    root: {
+      // Keep Escape local; the drawer's document listener also closes nested overlays.
+      onkeydown: (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        this.isMobileCatalogOpen.set(false)
+      },
+    },
+  }
   readonly apiAvailable = this.nexus.apiAvailable.asReadonly()
 
   readonly rootCatalogInfos = computed(() => this.overview()?.roots ?? fallbackCatalogInfos)
@@ -174,6 +199,9 @@ export class AppComponent {
     return nodes.filter((node) => includedNodeKeys.has(node.nodeKey) && !hasCollapsedSearchAncestor(node, nodeById, collapsedNodeKeys))
   })
 
+  readonly expandedFilteredNodeKeys = computed(() => new Set(this.filteredCatalogNodes().filter((node) => this.catalogNodeIsExpanded(node)).map((node) => node.nodeKey)))
+  readonly expandableFilteredNodeKeys = computed(() => new Set(this.filteredCatalogNodes().filter((node) => this.catalogHasExpandableChildren(node)).map((node) => node.nodeKey)))
+
   readonly selectedNode = computed(() => this.catalogNodes().find((node) => node.nodeKey === this.selectedCatalogNodeKey()))
   readonly isSelectedFake = computed(() => this.selectedNode()?.isFake ?? this.selectedCatalogNodeKey().startsWith('fake:'))
   readonly selectedCatalog = computed(() => this.selectedBundle()?.catalog)
@@ -200,6 +228,10 @@ export class AppComponent {
   readonly activeResource = computed<ResourceRow | undefined>(() => this.resourceRows().find((resource) => resource.path === this.activeResourcePath()) ?? this.filteredResources()[0])
   readonly selectedResourcePaths = computed(() => new Set(this.selectedResourceRows().keys()))
   readonly selectedResources = computed(() => [...this.selectedResourceRows().values()].sort(compareResources))
+  readonly sidebarOptions = computed(() => [
+    { label: 'Catalog atlas', value: 'catalogs' },
+    { label: `Selected resources (${this.selectedResources().length})`, value: 'selectedResources' },
+  ])
   readonly groupedSelectedResources = computed<SelectedResourceGroup[]>(() => {
     const groups = new Map<string, ResourceRow[]>()
     for (const resource of this.selectedResources()) groups.set(resource.catalogId, [...(groups.get(resource.catalogId) ?? []), resource])
@@ -232,6 +264,10 @@ export class AppComponent {
     this.searchCollapsedCatalogNodeKeys.set(new Set())
   }
 
+  setSidebarTab(value: unknown) {
+    if (value === 'catalogs' || value === 'selectedResources') this.activeSidebarTab.set(value)
+  }
+
   applyTimeRangePreset(preset: TimeRangePreset) {
     const reference = new Date()
     let begin: Date
@@ -256,7 +292,6 @@ export class AppComponent {
 
     this.exportBegin.set(begin.toISOString())
     this.exportEnd.set(end.toISOString())
-    this.quickRangeMenuOpen.set(false)
   }
 
   toggleTheme() {
@@ -292,6 +327,11 @@ export class AppComponent {
     })
   }
 
+  @HostListener('window:resize')
+  onResize() {
+    if (window.innerWidth >= 1024) this.isMobileCatalogOpen.set(false)
+  }
+
   @HostListener('window:popstate')
   onPopState() {
     const catalogId = getSelectedCatalogIdFromUrl()
@@ -303,21 +343,14 @@ export class AppComponent {
     this.activeResourcePath.set('')
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent) {
-    if (!this.quickRangeMenuOpen()) return
-
-    const target = event.target
-    if (target instanceof Element && target.closest('[data-range-menu-root]')) return
-
-    this.quickRangeMenuOpen.set(false)
-  }
-
   async loadOverview() {
     this.overviewLoading.set(true)
     this.overviewError.set(null)
     try {
       this.overview.set(await this.nexus.getSessionOverview())
+      await Promise.all([...this.expandedCatalogNodeKeys()]
+        .filter((key) => key.startsWith('real:'))
+        .map((key) => this.loadChildren(key.slice(5))))
     } catch (error) {
       this.overviewError.set(error)
       this.nexus.apiAvailable.set(false)
