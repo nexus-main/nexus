@@ -75,7 +75,7 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div class="flex items-center gap-2">
                     <div class="text-xs uppercase tracking-[0.24em] text-cyan-200/80">resource matrix</div>
-                    <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize()" aria-label="Open visualization" title="Open visualization"><svg lucideChartLine class="h-4 w-4" aria-hidden="true"></svg>Visualize</button>
+                    <button pButton type="button" size="small" [outlined]="true" (click)="visualize()" aria-label="Open visualization" title="Open visualization"><svg lucideChartLine class="h-4 w-4" aria-hidden="true"></svg>Visualize</button>
                   </div>
                   <input pInputText pSize="small" type="search" class="w-full min-w-0 sm:w-64" aria-label="Filter resources, groups, units" placeholder="Filter resources, groups, units" [ngModel]="resourceSearch()" (ngModelChange)="resourceSearch.set($event)" />
                 </div>
@@ -177,7 +177,7 @@
         <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-950/80 p-6 text-center backdrop-blur-sm">
           <div class="max-w-lg space-y-4 text-slate-300">
             <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || (visualizationStale() ? 'The time range or selected representations have changed. Reload to visualize the new selection.' : visualizationValidation() || 'Visualize the pinned representations using the selected UTC range and Period.') }}</p>
-            <button pButton type="button" size="small" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Reload' : 'Visualize' }}</button>
+            <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Reload' : 'Visualize' }}</button>
           </div>
         </div>
       }
@@ -266,8 +266,8 @@
           <div class="mt-3 flex items-center justify-end gap-3 text-xs text-slate-500">
             <div class="flex items-center gap-2">
               <button pButton type="button" size="small" severity="secondary" [outlined]="true" [disabled]="pinnedCount() === 0 || selectionLoading()" (click)="requestClearPinnedResources()">Clear</button>
-              <button pButton type="button" size="small" [disabled]="!!visualizationValidation()" (click)="visualize()">Visualize</button>
-              <button pButton type="button" size="small" [disabled]="!!selectionError()" (click)="isExportOpen.set(true)">Export</button>
+              <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize()">Visualize</button>
+              <button pButton type="button" size="small" [outlined]="true" [disabled]="!!selectionError()" (click)="isExportOpen.set(true)">Export</button>
             </div>
           </div>
         }
