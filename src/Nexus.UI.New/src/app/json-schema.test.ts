@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
   configurationResetNeedsConfirmation, configurationText, configurationWithRawMember, createSchemaValue, getSchemaView, parseJsonSafely,
-  SchemaNumberSession, schemaPointer, schemaPresenceOptions, setConfigurationProperty, validateConfiguration,
+  SchemaNumberSession, schemaPointer, setConfigurationProperty, validateConfiguration,
 } from './json-schema.ts'
 
 const draft4 = 'http://json-schema.org/draft-04/schema#'
@@ -228,9 +228,6 @@ describe('Draft 4 configuration validation', () => {
       const property = view.properties[0]
       assert.equal(property.required, required)
       assert.equal(getSchemaView(schema, property.paths).nullable, nullable)
-      assert.deepEqual(schemaPresenceOptions(required, nullable).map(option => option.value), [
-        ...(!required ? ['unset'] : []), ...(nullable ? ['null'] : []), 'value',
-      ])
     }
   })
 
@@ -243,7 +240,6 @@ describe('Draft 4 configuration validation', () => {
     const circular: Record<string, unknown> = {}
     circular['self'] = circular
     assert.equal(validateConfiguration({}, circular).valid, false)
-    assert.deepEqual(schemaPresenceOptions(true, true).map(option => option.value), ['null', 'value'])
   })
 
   it('fails closed for absent/malformed schemas and unresolved references, repeatedly', () => {

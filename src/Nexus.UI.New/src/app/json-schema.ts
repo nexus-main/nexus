@@ -423,11 +423,3 @@ export function createSchemaValue(view: SchemaView): unknown {
     default: return {}
   }
 }
-
-export function schemaPresenceOptions(required: boolean, nullable: boolean): { label: string; value: string }[] {
-  return [
-    ...(!required ? [{ label: 'Not set', value: 'unset' }] : []),
-    ...(nullable ? [{ label: 'Null', value: 'null' }] : []),
-    { label: 'Value', value: 'value' },
-  ]
-}
