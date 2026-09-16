@@ -18,7 +18,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
   standalone: true,
   imports: [NgClass, FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, SelectModule, RestoreFocusDirective, LucidePlus, LucideRefreshCw, LucideTrash2],
   template: `
-    <p-dialog appRestoreFocus header="Administrator / Package references" [visible]="true" (visibleChange)="!$event && !busy() && close.emit()" [modal]="true" [blockScroll]="true" [dismissableMask]="false" [closeOnEscape]="false" [pt]="dialogPt" [closable]="!busy()" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close package references', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))' }">
+    <p-dialog appRestoreFocus header="Administrator / Package references" [visible]="true" (visibleChange)="!$event && !busy() && close.emit()" [modal]="true" [blockScroll]="true" [dismissableMask]="false" [closeOnEscape]="false" [pt]="dialogPt" [closable]="!busy()" [draggable]="false" [resizable]="false" appendTo="body" styleClass="package-references-dialog" [closeButtonProps]="{ ariaLabel: 'Close package references', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))' }">
       <div #panel tabindex="-1" class="space-y-4" [attr.aria-busy]="loading() || busy()">
         @if (error()) { <p-message severity="error">{{ error() }}</p-message> }
         @if (status()) { <p-message severity="success">{{ status() }}</p-message> }
