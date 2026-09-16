@@ -22,8 +22,6 @@
 .webgpu-error-content { display: flex; width: min(34rem, 100%); flex-direction: column; align-items: center; gap: 0.7rem; color: #f8fafc; text-align: center; }
 .webgpu-error-content strong { font-size: 1rem; }
 .webgpu-error-content span { color: #94a3b8; font-size: 0.85rem; line-height: 1.45; overflow-wrap: anywhere; }
-.webgpu-error-content button { padding: 0.45rem 0.8rem; color: #050712; background: #22d3ee; border: 0; border-radius: 3px; cursor: pointer; font: inherit; }
-.webgpu-error-content button:disabled { cursor: wait; opacity: 0.65; }
 .webgpu-unavailable .overlay, .webgpu-unavailable .navigator-shell { pointer-events: none; }
 .webgpu-unavailable .navigator-series { opacity: 0; }
 .overlay { position: absolute; z-index: 2; touch-action: none; }
@@ -64,7 +62,6 @@
 :root[data-theme='light'] .webgpu-error { background: rgba(248, 250, 252, 0.92); }
 :root[data-theme='light'] .webgpu-error-content { color: #0f172a; }
 :root[data-theme='light'] .webgpu-error-content span { color: #475569; }
-:root[data-theme='light'] .webgpu-error-content button { color: white; background: #0891b2; }
 :root[data-theme='light'] .crosshairs-x { border-bottom-color: #607d8b; }
 :root[data-theme='light'] .crosshairs-y { border-right-color: #607d8b; }
 :root[data-theme='light'] .selection { background: rgba(8, 145, 178, 0.12); border-color: rgba(8, 145, 178, 0.9); }

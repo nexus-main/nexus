@@ -10,25 +10,25 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
   imports: [CommonModule, ButtonModule, PopoverModule],
   host: { class: 'block min-w-0' },
   template: `
-    <div class="mb-1.5 min-w-0 cursor-pointer rounded-sm border border-cyan-300/10 bg-cyan-300/[0.035] p-2 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
+    <div class="mb-1 min-w-0 cursor-pointer rounded-sm border border-cyan-300/10 bg-cyan-300/[0.035] p-1 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
       [attr.aria-label]="'Select catalog for ' + resourceLabel()" (click)="activated.emit()" (keydown.enter)="activated.emit()" (keydown.space)="$event.preventDefault(); activated.emit()">
-      <div class="flex min-w-0 items-start justify-between gap-2">
+      <div class="flex min-w-0 items-center justify-between gap-1">
         <div class="min-w-0">
-          <div class="truncate font-mono text-sm font-semibold text-slate-100" [title]="selection().path">{{ selection().id }}</div>
+          <div class="truncate font-mono text-xs font-semibold leading-4 text-slate-100" [title]="selection().path">{{ selection().id }}</div>
           @for (parameter of parameters(); track parameter[0]) {
             <div class="break-all font-mono text-[11px] text-slate-400">{{ parameter[0] }}={{ parameter[1] }}</div>
           }
         </div>
         <button pButton type="button" size="small" severity="secondary" [text]="true"
-          class="shrink-0 p-1" [disabled]="disabled()" [attr.aria-label]="'Deselect ' + resourceLabel()"
+          class="shrink-0 p-0.5" [disabled]="disabled()" [attr.aria-label]="'Deselect ' + resourceLabel()"
           [title]="'Deselect ' + resourceLabel()" (click)="$event.stopPropagation(); removed.emit()">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m6 6 12 12M6 18 18 6" /></svg>
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m6 6 12 12M6 18 18 6" /></svg>
         </button>
       </div>
 
-      <div class="mt-2 flex flex-wrap items-center gap-1">
+      <div class="mt-0.5 flex flex-wrap items-center gap-1">
         @for (kind of selection().kinds; track kind) {
-          <span class="group relative inline-flex min-w-20 justify-center overflow-hidden rounded-md border text-[11px] font-medium leading-4 transition-colors"
+          <span class="group relative inline-flex min-w-16 justify-center overflow-hidden rounded-md border text-[11px] font-medium leading-4 transition-colors"
             [ngClass]="methodChipClass(kind)">
             <span class="flex w-full items-center justify-center px-1.5 py-0.5 text-center transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">{{ displayKind(kind) }}</span>
             <span class="pointer-events-none absolute inset-0 grid grid-cols-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">

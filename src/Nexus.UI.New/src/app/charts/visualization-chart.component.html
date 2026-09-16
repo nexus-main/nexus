@@ -7,7 +7,6 @@
         <div class="webgpu-error-content">
           <strong>{{ errorTitle }}</strong>
           <span>{{ errorMessage }}</span>
-          <button type="button" (click)="retry()" [disabled]="retrying">{{ retrying ? 'Retrying...' : 'Retry WebGPU' }}</button>
         </div>
       </div>
     }
@@ -28,7 +27,7 @@
 
   <div class="legend">
     <div class="legend-time">
-      <span>Cursor (UTC)</span>
+      <span>Time</span>
       <span [id]="'value_datetime_' + chartId" class="legend-timestamp">--</span>
     </div>
     <div class="legend-grid" role="group" aria-label="Series visibility and cursor values">
