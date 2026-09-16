@@ -203,6 +203,14 @@ export class NexusService {
     const text = await response.text()
     if (!text) return undefined as T
 
+    // Reject unrepresentable configuration numbers before JSON.parse can round a saved value.
+    if (method === 'GET' && url.split('?')[0] === '/api/v1/sources/pipelines') {
+      const { parseJsonSafely } = await import('./json-schema')
+      const parsed = parseJsonSafely(text)
+      if (!parsed.valid) throw new Error(`Cannot safely edit these pipelines: ${parsed.errors.join(' ')}`)
+      return parsed.value as T
+    }
+
     return accept?.includes('json') ? JSON.parse(text) as T : text as T
   }
 }

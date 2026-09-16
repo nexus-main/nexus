@@ -21,6 +21,7 @@ import { CatalogTreeComponent } from './components/catalog-tree.component'
 import { ExportComposerComponent } from './components/export-composer.component'
 import { PinnedResourceComponent } from './components/pinned-resource.component'
 import { PackageReferencesComponent } from './components/package-references.component'
+import { DataSourcePipelinesComponent } from './components/data-source-pipelines.component'
 import { ResourceMatrixComponent } from './components/resource-matrix.component'
 import { MetadataDrafts, mergeResourceMetadata } from './resource-matrix'
 import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatPeriod, hydrateSelections, kindValid, parsePeriod, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
@@ -83,7 +84,7 @@ type SelectedResourceGroup = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnDestroy {
@@ -97,6 +98,9 @@ export class AppComponent implements OnDestroy {
   private readonly selectionReferences = signal(this.storedSelectionState.selections)
   private readonly selectedResourcesRestored = signal(false)
   private catalogLoadGeneration = 0
+  private catalogCacheGeneration = 0
+  private selectionRestoreGeneration: number | null = null
+  private readonly refreshController = new AbortController()
   private catalogHistoryPosition = 0
   private restoreHistory: (() => void) | null = null
   private acceptedHistoryNavigation = false
@@ -117,6 +121,7 @@ export class AppComponent implements OnDestroy {
   readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
   readonly isExportOpen = signal(false)
   readonly isPackageReferencesOpen = signal(false)
+  readonly isDataSourcePipelinesOpen = signal(false)
   readonly isClearPinnedOpen = signal(false)
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
@@ -540,6 +545,48 @@ export class AppComponent implements OnDestroy {
 
   ngOnDestroy() {
     this.cancelVisualization()
+    this.refreshController.abort()
+  }
+
+  openDataSourcePipelines() {
+    if (this.isAdministrator()) this.requestCatalogNavigation(() => this.isDataSourcePipelinesOpen.set(true))
+  }
+
+  readonly refreshPipelineDatabase = async (): Promise<boolean> => {
+    // Metadata drafts are guarded before opening the pipeline dialog, not beneath its modal.
+    if (this.resourceMatrix()?.hasUnsavedChanges() || this.resourceMatrix()?.saving())
+      throw new Error('Close this dialog and save or discard resource metadata edits before refreshing.')
+    const signal = this.refreshController.signal
+    const job = await this.nexus.v1.jobs.refreshDatabase(signal)
+    if (!job.id) throw new Error('The refresh job did not return an ID.')
+    for (;;) {
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => { clearTimeout(timer); reject(signal.reason) }
+        const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve() }, 1000)
+        signal.addEventListener('abort', abort, { once: true })
+        if (signal.aborted) abort()
+      })
+      const status = await this.nexus.v1.jobs.getJobStatus(job.id, signal)
+      if (status.status === V1.TaskStatus.RanToCompletion) break
+      if (status.status === V1.TaskStatus.Canceled) throw new Error('Database refresh was canceled.')
+      if (status.status === V1.TaskStatus.Faulted) throw new Error(status.exceptionMessage || 'Database refresh failed.')
+    }
+    this.catalogCacheGeneration++
+    this.catalogLoadGeneration++
+    this.catalogBundleCache.clear()
+    this.catalogBundleRequests.clear()
+    this.childRequests.clear()
+    this.childMap.set(new Map())
+    this.selectedCatalogInfo.set(null)
+    this.selectedBundle.set(null)
+    this.cancelVisualization()
+    this.visualizationData.set(null)
+    this.loadedVisualizationKey.set('')
+    await this.loadOverview()
+    if (this.overviewError()) throw new Error(`Database refreshed, but catalogs could not be reloaded: ${this.errorMessage(this.overviewError())}`)
+    await this.loadSelectedCatalog(this.selectedCatalogId(), this.isSelectedFake(), this.apiAvailable())
+    await this.restoreSelectedResources()
+    return true
   }
 
   @HostListener('window:popstate')
@@ -589,24 +636,30 @@ export class AppComponent implements OnDestroy {
   }
 
   async loadOverview() {
+    const generation = this.catalogCacheGeneration
     this.overviewLoading.set(true)
     this.overviewError.set(null)
     try {
-      this.overview.set(await this.nexus.getSessionOverview())
+      const overview = await this.nexus.getSessionOverview()
+      if (generation !== this.catalogCacheGeneration) return
+      this.overview.set(overview)
       const roots = this.overview()?.roots ?? []
       this.childMap.update((current) => current.has('/') ? current : new Map(current).set('/', roots))
       await this.loadExpandedDescendants('/', roots)
     } catch (error) {
+      if (generation !== this.catalogCacheGeneration) return
       this.overviewError.set(error)
       this.nexus.apiAvailable.set(false)
     } finally {
-      this.overviewLoading.set(false)
+      if (generation === this.catalogCacheGeneration) this.overviewLoading.set(false)
     }
   }
 
   private async loadExpandedDescendants(parentId: string, infos: V1.CatalogInfo[]) {
+    const generation = this.catalogCacheGeneration
     const prepared = prepareChildCatalogs(parentId, infos)
     for (const node of prepared) {
+      if (generation !== this.catalogCacheGeneration) return
       if (!node.id) continue
       if (node.isFake) {
         if (this.expandedCatalogNodeKeys().has(node.nodeKey) && node.groupedChildren) {
@@ -615,6 +668,7 @@ export class AppComponent implements OnDestroy {
       } else {
         if (this.expandedCatalogNodeKeys().has(node.nodeKey)) {
           await this.loadChildren(node.id)
+          if (generation !== this.catalogCacheGeneration) return
           const children = this.childMap().get(node.id) ?? []
           await this.loadExpandedDescendants(node.id, children)
         }
@@ -661,12 +715,13 @@ export class AppComponent implements OnDestroy {
     const pendingRequest = this.catalogBundleRequests.get(catalogId)
     if (pendingRequest) return pendingRequest
 
+    const generation = this.catalogCacheGeneration
     const request = this.nexus.getCatalogBundle(catalogId)
       .then((bundle) => {
-        this.catalogBundleCache.set(catalogId, bundle)
+        if (generation === this.catalogCacheGeneration) this.catalogBundleCache.set(catalogId, bundle)
         return bundle
       })
-      .finally(() => this.catalogBundleRequests.delete(catalogId))
+      .finally(() => { if (this.catalogBundleRequests.get(catalogId) === request) this.catalogBundleRequests.delete(catalogId) })
 
     this.catalogBundleRequests.set(catalogId, request)
     return request
@@ -708,7 +763,9 @@ export class AppComponent implements OnDestroy {
   }
 
   async restoreSelectedResources() {
-    if (this.selectedResourcesRestored() && this.selectionLoading()) return
+    const generation = this.catalogCacheGeneration
+    if (this.selectionRestoreGeneration === generation) return
+    this.selectionRestoreGeneration = generation
     this.selectionLoading.set(true)
     const references = this.selectionReferences()
     const catalogs = new Map<string, RepresentationRow[]>()
@@ -719,6 +776,7 @@ export class AppComponent implements OnDestroy {
         // A failed request is not evidence that a saved representation was deleted.
       }
     }))
+    if (generation !== this.catalogCacheGeneration) return
     const restored = hydrateSelections(references, catalogs, this.samplePeriod(), this.automaticPeriod())
     this.samplePeriod.set(restored.period)
     this.periodDraft.set(formatPeriod(restored.period))
@@ -732,6 +790,7 @@ export class AppComponent implements OnDestroy {
       this.catalogError.set(null)
     }
     this.selectionLoading.set(false)
+    this.selectionRestoreGeneration = null
     this.selectedResourcesRestored.set(true)
   }
 
@@ -819,6 +878,7 @@ export class AppComponent implements OnDestroy {
   }
 
   async loadCatalogPathChildren(catalogId: string) {
+    const generation = this.catalogCacheGeneration
     const ancestors = getCatalogAncestorPaths(catalogId)
     let currentInfos: V1.CatalogInfo[] = this.rootCatalogInfos()
     let currentParent = '/'
@@ -832,6 +892,7 @@ export class AppComponent implements OnDestroy {
         continue
       }
       await this.loadChildren(ancestor)
+      if (generation !== this.catalogCacheGeneration) return
       currentInfos = this.childMap().get(ancestor) ?? []
       currentParent = ancestor
     }
@@ -843,14 +904,15 @@ export class AppComponent implements OnDestroy {
     const existing = this.childRequests.get(catalogId)
     if (existing) return existing
 
+    const generation = this.catalogCacheGeneration
     const request = (async () => {
       try {
         const children = await this.nexus.getCatalogChildren(catalogId)
-        this.childMap.update((current) => new Map(current).set(catalogId, children))
+        if (generation === this.catalogCacheGeneration) this.childMap.update((current) => new Map(current).set(catalogId, children))
       } catch {
-        this.childMap.update((current) => new Map(current).set(catalogId, []))
+        if (generation === this.catalogCacheGeneration) this.childMap.update((current) => new Map(current).set(catalogId, []))
       } finally {
-        this.childRequests.delete(catalogId)
+        if (generation === this.catalogCacheGeneration) this.childRequests.delete(catalogId)
       }
     })()
 

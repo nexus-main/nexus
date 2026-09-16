@@ -2,7 +2,7 @@
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
   <div class="flex h-dvh w-full flex-col gap-2 overflow-hidden p-2 sm:p-4 xl:p-5">
-    <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" />
+    <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" (openDataSourcePipelines)="openDataSourcePipelines()" />
 
     @if (!apiAvailable() && !overviewLoading()) {
       <section class="rounded-lg border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
@@ -95,6 +95,14 @@
 
 @if (isAdministrator() && isPackageReferencesOpen()) {
   <app-package-references (close)="isPackageReferencesOpen.set(false)" />
+}
+
+@defer (when isAdministrator() && isDataSourcePipelinesOpen()) {
+  @if (isAdministrator() && isDataSourcePipelinesOpen()) {
+    <app-data-source-pipelines [refreshDatabase]="refreshPipelineDatabase" (close)="isDataSourcePipelinesOpen.set(false)" />
+  }
+} @error {
+  <p role="alert">Could not load the pipeline editor. Reload the page to retry.</p>
 }
 
 <ng-template #visualizationContent let-breakout>

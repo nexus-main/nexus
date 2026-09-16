@@ -42,14 +42,13 @@ internal class AppStateManager(
         IProgress<double> progress,
         CancellationToken cancellationToken)
     {
+        Task refreshDatabaseTask;
+
         await _refreshDatabaseSemaphore.WaitAsync(cancellationToken);
 
         try
         {
-            // TODO: make atomic
-            var refreshDatabaseTask = AppState.ReloadPackagesTask;
-
-            if (refreshDatabaseTask is null)
+            if (AppState.ReloadPackagesTask is null)
             {
                 /* create new catalog state */
                 AppState.CatalogState = new CatalogState(
@@ -60,32 +59,47 @@ internal class AppStateManager(
                 /* load packages */
                 _logger.LogInformation("Load packages");
 
-                var packageReferenceMap = await _packageService.GetAllAsync();
-
-                refreshDatabaseTask = Task.Run(async () =>
+                AppState.ReloadPackagesTask = Task.Run(async () =>
                 {
-                    try
-                    {
-                        await _sourcesExtensionHive
-                            .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+                    var packageReferenceMap = await _packageService.GetAllAsync();
 
-                        await _upgradeConfigurationService.UpgradeAsync();
+                    await _sourcesExtensionHive
+                        .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
 
-                        await _writersExtensionHive
-                            .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+                    await _upgradeConfigurationService.UpgradeAsync();
 
-                        LoadDataWriters();
-                    }
-                    finally
-                    {
-                        AppState.ReloadPackagesTask = default;
-                    }
+                    await _writersExtensionHive
+                        .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
+
+                    LoadDataWriters();
                 });
             }
+
+            refreshDatabaseTask = AppState.ReloadPackagesTask;
         }
         finally
         {
             _refreshDatabaseSemaphore.Release();
+        }
+
+        // Join the refresh outside the semaphore so concurrent callers share its outcome.
+        try
+        {
+            await refreshDatabaseTask;
+        }
+        finally
+        {
+            await _refreshDatabaseSemaphore.WaitAsync();
+
+            try
+            {
+                if (ReferenceEquals(AppState.ReloadPackagesTask, refreshDatabaseTask))
+                    AppState.ReloadPackagesTask = null;
+            }
+            finally
+            {
+                _refreshDatabaseSemaphore.Release();
+            }
         }
     }
 
