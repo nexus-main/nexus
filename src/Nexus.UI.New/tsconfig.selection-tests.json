@@ -5,6 +5,6 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "files": ["src/app/resource-selection.test.ts"],
+  "files": ["src/app/resource-selection.test.ts", "src/app/resource-matrix.test.ts"],
   "include": ["src/app/charts/*.test.ts"]
 }

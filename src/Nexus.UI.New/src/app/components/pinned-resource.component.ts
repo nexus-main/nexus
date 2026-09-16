@@ -10,7 +10,7 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
   imports: [CommonModule, ButtonModule, PopoverModule],
   host: { class: 'block min-w-0' },
   template: `
-    <div class="mb-1.5 min-w-0 cursor-pointer rounded-lg border border-cyan-300/10 bg-cyan-300/[0.035] p-2 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
+    <div class="mb-1.5 min-w-0 cursor-pointer rounded-sm border border-cyan-300/10 bg-cyan-300/[0.035] p-2 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
       [attr.aria-label]="'Select catalog for ' + resourceLabel()" (click)="activated.emit()" (keydown.enter)="activated.emit()" (keydown.space)="$event.preventDefault(); activated.emit()">
       <div class="flex min-w-0 items-start justify-between gap-2">
         <div class="min-w-0">

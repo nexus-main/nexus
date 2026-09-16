@@ -83,9 +83,9 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
           </form>
         } @else {
           <p class="text-sm text-slate-400">Manage extension packages available to Nexus. Saving references does not reload running extensions until you refresh the database.</p>
-          <div class="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+          <div class="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-3">
             <div class="flex items-center gap-3">
-              <div class="grid h-9 w-9 place-items-center rounded-xl bg-cyan-300/10 text-cyan-200">
+              <div class="grid h-9 w-9 place-items-center rounded-md bg-cyan-300/10 text-cyan-200">
                 <svg lucideRefreshCw class="h-4 w-4" [class.animate-spin]="refreshing()" aria-hidden="true"></svg>
               </div>
               <div class="min-w-0">
@@ -104,20 +104,20 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
           } @else if (!error()) {
             <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));">
               @for (entry of entries(); track entry.id) {
-                <article class="group relative cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-3 transition-all hover:border-white/25 hover:bg-white/[0.06]" role="button" tabindex="0" [attr.aria-label]="'Edit package reference ' + entry.id" (click)="edit(entry)" (keydown.enter)="edit(entry)" (keydown.space)="edit(entry)">
+                <article class="group relative cursor-pointer overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-3 transition-all hover:border-white/25 hover:bg-white/[0.06]" role="button" tabindex="0" [attr.aria-label]="'Edit package reference ' + entry.id" (click)="edit(entry)" (keydown.enter)="edit(entry)" (keydown.space)="edit(entry)">
                   <div class="pointer-events-none absolute -right-4 -top-4 h-16 w-16 rounded-full opacity-40 transition-opacity group-hover:opacity-70" [ngClass]="entry.reference.provider === 'local' ? 'bg-violet-400/20 blur-2xl' : 'bg-cyan-400/20 blur-2xl'"></div>
                   <div class="relative">
                     <h2 class="truncate font-mono text-sm font-semibold text-white">{{ packageName(entry) }}</h2>
                     <div class="mt-2 flex items-center gap-2">
                       <span class="rounded-full border px-2 py-0.5 text-xs" [ngClass]="entry.reference.provider === 'local' ? 'border-violet-300/20 bg-violet-300/10 text-violet-100' : 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100'">{{ entry.reference.provider }}</span>
-                      <span class="rounded-lg bg-white/[0.06] px-2 py-0.5 font-mono text-xs text-slate-300">{{ entry.reference.configuration?.['tag'] ?? entry.reference.configuration?.['version'] }}</span>
+                      <span class="rounded-sm bg-white/[0.06] px-2 py-0.5 font-mono text-xs text-slate-300">{{ entry.reference.configuration?.['tag'] ?? entry.reference.configuration?.['version'] }}</span>
                     </div>
                   </div>
                 </article>
               } @empty {
                 <p class="py-6 text-center text-sm">No package references configured.</p>
               }
-              <article class="flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-white/15 p-3 text-slate-400 transition-colors hover:border-white/30 hover:text-white" role="button" tabindex="0" [attr.aria-label]="'Add package reference'" (click)="edit()" (keydown.enter)="edit()" (keydown.space)="edit()">
+              <article class="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/15 p-3 text-slate-400 transition-colors hover:border-white/30 hover:text-white" role="button" tabindex="0" [attr.aria-label]="'Add package reference'" (click)="edit()" (keydown.enter)="edit()" (keydown.space)="edit()">
                 <svg lucidePlus class="h-5 w-5" aria-hidden="true"></svg>
               </article>
             </div>

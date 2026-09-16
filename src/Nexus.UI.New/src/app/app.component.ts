@@ -1,7 +1,7 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
-import { Component, HostListener, OnDestroy, computed, effect, inject, signal } from '@angular/core'
+import { Component, HostListener, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX } from '@lucide/angular'
+import { LucideCopy, LucideExternalLink, LucideFileText, LucideX } from '@lucide/angular'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
@@ -10,7 +10,6 @@ import { DrawerModule } from 'primeng/drawer'
 import { InputTextModule } from 'primeng/inputtext'
 import { MenuModule } from 'primeng/menu'
 import { ProgressBarModule } from 'primeng/progressbar'
-import { TableModule } from 'primeng/table'
 import { TabsModule } from 'primeng/tabs'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
@@ -22,6 +21,8 @@ import { CatalogTreeComponent } from './components/catalog-tree.component'
 import { ExportComposerComponent } from './components/export-composer.component'
 import { PinnedResourceComponent } from './components/pinned-resource.component'
 import { PackageReferencesComponent } from './components/package-references.component'
+import { ResourceMatrixComponent } from './components/resource-matrix.component'
+import { MetadataDrafts, mergeResourceMetadata } from './resource-matrix'
 import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatPeriod, hydrateSelections, kindValid, parsePeriod, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
 import { MarkdownPipe } from './markdown.pipe'
 import { RestoreFocusDirective } from './restore-focus.directive'
@@ -82,7 +83,7 @@ type SelectedResourceGroup = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TableModule, TabsModule, LucideChartLine, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, VisualizationChartComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, VisualizationChartComponent, ResourceMatrixComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnDestroy {
@@ -96,6 +97,12 @@ export class AppComponent implements OnDestroy {
   private readonly selectionReferences = signal(this.storedSelectionState.selections)
   private readonly selectedResourcesRestored = signal(false)
   private catalogLoadGeneration = 0
+  private catalogHistoryPosition = 0
+  private restoreHistory: (() => void) | null = null
+  private acceptedHistoryNavigation = false
+  private readonly resourceMatrix = viewChild(ResourceMatrixComponent)
+  readonly revealResourceKey = signal('')
+  readonly revealResourceSequence = signal(0)
   readonly selectionLoading = signal(true)
   readonly unresolvedSelections = signal<StoredSelectionReference[]>([])
   readonly pinnedCount = computed(() => this.selectionReferences().length)
@@ -106,7 +113,6 @@ export class AppComponent implements OnDestroy {
   readonly expandedCatalogNodeKeys = signal<ReadonlySet<string>>(getInitialExpandedCatalogNodeKeys(this.storage, getSelectedCatalogIdFromUrl()))
   readonly searchCollapsedCatalogNodeKeys = signal<ReadonlySet<string>>(new Set())
   readonly catalogSearch = signal('')
-  readonly resourceSearch = signal('')
   readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceSelection>>(new Map())
   readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
   readonly isExportOpen = signal(false)
@@ -245,6 +251,13 @@ export class AppComponent implements OnDestroy {
   readonly selectedCatalogReadme = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'readme') ?? this.selectedCatalogInfo()?.readme ?? this.selectedNode()?.readme ?? '')
   readonly selectedCatalogDisplayPath = computed(() => formatCatalogDisplayPath(this.selectedCatalogId()))
   readonly selectedCatalogRange = computed(() => formatRange(this.selectedBundle()?.timeRange))
+  readonly resourceMetadataWritable = computed(() => {
+    const id = this.selectedCatalogId()
+    const info = [...this.rootCatalogInfos(), ...[...this.childMap().values()].flat(), this.selectedCatalogInfo()]
+      .find(info => info?.id === id)
+    return this.apiAvailable() && !this.isSelectedFake() && this.selectedCatalog()?.id === id
+      && info?.isReadable === true && info.isWritable === true
+  })
 
   readonly resourceRows = computed(() => {
     if (!this.apiAvailable()) return representationRows(fallbackResources)
@@ -252,16 +265,6 @@ export class AppComponent implements OnDestroy {
     return representationRows(mapResources(this.selectedCatalog()))
   })
 
-  readonly filteredResources = computed(() => {
-    const term = this.resourceSearch().trim().toLowerCase()
-    const rows = term
-      ? this.resourceRows().filter((row) => `${row.id} ${row.path} ${row.description} ${row.groups.join(' ')} ${row.unit}`.toLowerCase().includes(term))
-      : [...this.resourceRows()]
-
-    return rows.sort((a, b) => a.id.localeCompare(b.id))
-  })
-
-  readonly activeResource = computed<RepresentationRow | undefined>(() => this.resourceRows().find((resource) => resource.key === this.activeResourcePath()) ?? this.filteredResources()[0])
   readonly selectedResourcePaths = computed(() => new Set(this.selectedResourceRows().keys()))
   readonly selectedResources = computed(() => [...this.selectedResourceRows().values()].sort(compareResources))
   readonly groupedSelectedResources = computed<SelectedResourceGroup[]>(() => {
@@ -270,7 +273,6 @@ export class AppComponent implements OnDestroy {
     return [...groups.entries()].map(([catalogId, resources]) => ({ catalogId, resources }))
   })
   readonly selectedDataTypes = computed(() => new Set(this.selectedResources().map((resource) => resource.representation.dataType)))
-  readonly groupCount = computed(() => new Set(this.resourceRows().flatMap((resource) => resource.groups)).size)
   readonly selectedWriter = computed(() => this.writerDescriptions().find((writer) => writer.type === this.selectedWriterType()) ?? this.writerDescriptions()[0])
   readonly writerOptions = computed(() => Object.entries(this.selectedWriter()?.additionalInformation?.options ?? {}))
   readonly visualizationResources = computed(() => this.selectedResources().flatMap(resource => resource.kinds.map(kind => ({ id: resource.id, unit: resource.unit, kind, path: requestPath(resource, kind, this.samplePeriod()), valid: kindValid(kind, this.samplePeriod(), resource.basePeriod) }))))
@@ -365,7 +367,7 @@ export class AppComponent implements OnDestroy {
   }
 
   constructor() {
-    writeSelectedCatalogToUrl(this.selectedCatalogId(), true)
+    this.catalogHistoryPosition = writeSelectedCatalogToUrl(this.selectedCatalogId(), true)
     void this.loadOverview().then(() => this.restoreSelectedResources())
 
     effect(() => {
@@ -492,6 +494,8 @@ export class AppComponent implements OnDestroy {
       }
 
       this.loadedVisualizationKey.set(key)
+      const currentUnits = new Map(this.visualizationResources().map(resource => [resource.path, resource.unit]))
+      for (const series of data.series) series.unit = currentUnits.get(series.id) ?? series.unit
       this.visualizationData.set(data)
     } catch (error) {
       if (this.visualizationController === controller) {
@@ -534,13 +538,48 @@ export class AppComponent implements OnDestroy {
 
   @HostListener('window:popstate')
   onPopState() {
+    if (this.restoreHistory) {
+      const restored = this.restoreHistory
+      this.restoreHistory = null
+      restored()
+      return
+    }
     const catalogId = getSelectedCatalogIdFromUrl()
+    const position = window.history.state?.nexusCatalogPosition ?? 0
+    const delta = position - this.catalogHistoryPosition
+    const matrix = this.resourceMatrix()
+    if (!this.acceptedHistoryNavigation && delta && (matrix?.hasUnsavedChanges() || matrix?.saving())) {
+      // Return to the original entry before asking; Stay must not overwrite the destination.
+      this.restoreHistory = () => this.requestCatalogNavigation(() => {
+        this.acceptedHistoryNavigation = true
+        window.history.go(delta)
+      })
+      window.history.go(-delta)
+      return
+    }
+    this.acceptedHistoryNavigation = false
+    this.catalogHistoryPosition = position
     this.selectedCatalogId.set(catalogId)
     this.selectedCatalogNodeKey.set(getRealCatalogNodeKey(catalogId))
     this.selectedCatalogInfo.set(null)
     this.expandCatalogPath(catalogId)
     this.isMobileCatalogOpen.set(false)
     this.activeResourcePath.set('')
+    this.revealResourceKey.set('')
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent) {
+    if (!this.resourceMatrix()?.hasUnsavedChanges()) return
+    event.preventDefault()
+    event.returnValue = ''
+  }
+
+  private requestCatalogNavigation(action: () => void) {
+    this.isMobileCatalogOpen.set(false)
+    const matrix = this.resourceMatrix()
+    if (matrix) matrix.requestNavigation(action)
+    else action()
   }
 
   async loadOverview() {
@@ -627,6 +666,41 @@ export class AppComponent implements OnDestroy {
     return request
   }
 
+  readonly saveResourceMetadata = async (catalogId: string, drafts: MetadataDrafts): Promise<{ warning?: string }> => {
+    if (catalogId !== this.selectedCatalogId() || !this.resourceMetadataWritable())
+      throw new Error('This catalog is not writable.')
+
+    // Never use the optional bundle metadata: a failed GET must not erase existing overrides.
+    const metadata = await this.nexus.v1.catalogs.getMetadata(catalogId)
+    const updated = mergeResourceMetadata(metadata, catalogId, drafts)
+    await this.nexus.v1.catalogs.setMetadata(catalogId, updated)
+
+    // Drain older loads before invalidating, so they cannot repopulate the cache after saving.
+    await this.catalogBundleRequests.get(catalogId)?.catch(() => undefined)
+    this.catalogBundleCache.delete(catalogId)
+    try {
+      const bundle = await this.getCatalogBundle(catalogId)
+      if (this.selectedCatalogId() === catalogId) this.selectedBundle.set(bundle)
+      const rows = new Map(mapResources(bundle.catalog).map(row => [row.id, row]))
+      this.selectedResourceRows.update(current => new Map([...current].map(([key, selection]) => {
+        const row = selection.catalogId === catalogId ? rows.get(selection.id) : undefined
+        return [key, row ? { ...selection, unit: row.unit, description: row.description, warning: row.warning } : selection]
+      })))
+      const units = new Map(this.visualizationResources().map(resource => [resource.path, resource.unit]))
+      this.visualizationData.update(data => data ? {
+        ...data, series: data.series.map(series => units.has(series.id) ? { ...series, unit: units.get(series.id)! } : series),
+      } : data)
+      return {}
+    } catch (error) {
+      // Persistence succeeded: report refresh separately rather than inviting another write.
+      if (this.selectedCatalogId() === catalogId) {
+        this.selectedBundle.set(null)
+        this.catalogError.set(new Error('Metadata saved, but catalog refresh failed. Select the catalog again to retry.'))
+      }
+      return { warning: `Could not refresh catalog metadata: ${this.errorMessage(error)} Select the catalog again to retry.` }
+    }
+  }
+
   async restoreSelectedResources() {
     if (this.selectedResourcesRestored() && this.selectionLoading()) return
     this.selectionLoading.set(true)
@@ -662,12 +736,19 @@ export class AppComponent implements OnDestroy {
     }
 
     const catalogId = catalog.id ?? '/'
-    this.selectedCatalogId.set(catalogId)
-    this.selectedCatalogNodeKey.set(catalog.nodeKey)
-    this.selectedCatalogInfo.set(catalog)
-    writeSelectedCatalogToUrl(catalogId)
-    this.isMobileCatalogOpen.set(false)
-    this.activeResourcePath.set('')
+    const select = () => {
+      this.selectedCatalogId.set(catalogId)
+      this.selectedCatalogNodeKey.set(catalog.nodeKey)
+      this.selectedCatalogInfo.set(catalog)
+      this.catalogHistoryPosition = writeSelectedCatalogToUrl(catalogId)
+      this.isMobileCatalogOpen.set(false)
+      this.activeResourcePath.set('')
+      this.revealResourceKey.set('')
+      if (!this.selectedBundle() && !this.catalogLoading())
+        void this.loadSelectedCatalog(catalogId, false, this.apiAvailable())
+    }
+    if (catalogId === this.selectedCatalogId()) select()
+    else this.requestCatalogNavigation(select)
   }
 
   activateCatalogNode(catalog: CatalogNode) {
@@ -682,18 +763,22 @@ export class AppComponent implements OnDestroy {
 
   selectPinnedResourceCatalog(resource: ResourceSelection) {
     const catalogId = resource.catalogId
-    const catalog = this.catalogNodes().find(node => !node.isFake && (node.id ?? '/') === catalogId)
-    if (catalog) this.selectCatalog(catalog)
-    else {
+    const select = () => {
+      const catalog = this.searchableCatalogNodes().find(node => !node.isFake && node.id === catalogId)
       this.selectedCatalogId.set(catalogId)
       this.selectedCatalogNodeKey.set(getRealCatalogNodeKey(catalogId))
-      this.selectedCatalogInfo.set(null)
-      writeSelectedCatalogToUrl(catalogId)
+      this.selectedCatalogInfo.set(catalog ?? null)
+      this.catalogHistoryPosition = writeSelectedCatalogToUrl(catalogId)
       this.isMobileCatalogOpen.set(false)
       this.expandCatalogPath(catalogId)
       if (this.apiAvailable()) void this.loadCatalogPathChildren(catalogId)
+      const key = selectionKey(resource, {})
+      this.activeResourcePath.set(key)
+      this.revealResourceKey.set(key)
+      this.revealResourceSequence.update(value => value + 1)
     }
-    this.activeResourcePath.set(resource.path)
+    if (catalogId === this.selectedCatalogId()) select()
+    else this.requestCatalogNavigation(select)
   }
 
   catalogHasExpandableChildren(catalog: CatalogNode) {
@@ -1023,10 +1108,12 @@ function getCatalogSegments(catalogId: string) {
 
 function writeSelectedCatalogToUrl(catalogId: string, replace = false) {
   const url = new URL(window.location.href)
-  if (url.searchParams.get('catalog') === catalogId) return
-
+  const position = window.history.state?.nexusCatalogPosition ?? 0
+  if (url.searchParams.get('catalog') === catalogId && window.history.state?.nexusCatalogPosition !== undefined) return position
+  const nextPosition = replace ? position : position + 1
   url.searchParams.set('catalog', catalogId)
-  window.history[replace ? 'replaceState' : 'pushState'](null, '', `${url.pathname}${url.search}${url.hash}`)
+  window.history[replace ? 'replaceState' : 'pushState']({ ...window.history.state, nexusCatalogPosition: nextPosition }, '', `${url.pathname}${url.search}${url.hash}`)
+  return nextPosition
 }
 
 function toggleSetValue<T>(current: ReadonlySet<T>, value: T) {

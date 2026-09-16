@@ -220,9 +220,19 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                     relativeX,
                     e.deltaY < 0 ? 0.85 : 1 / 0.85,
                     overlay.dataset.minimumHorizontalZoom);
+                let top = clamp(finiteNumber(overlay.dataset.zoomTop, 0), 0, 1);
+                let bottom = clamp(finiteNumber(overlay.dataset.zoomBottom, 1), top, 1);
+                if (e.deltaY > 0 && viewport[0] === 0 && viewport[1] === 1) {
+                    [top, bottom] = zoomInterval(top, bottom, relativeY, 1 / 0.85, 1e-6);
+                    top = Math.fround(top);
+                    bottom = Math.fround(bottom);
+                }
+                // Keep the complete viewport so coalesced wheel events retain both axes.
                 overlay.dataset.zoomLeft = viewport[0].toString();
                 overlay.dataset.zoomRight = viewport[1].toString();
-                invokeZoom("NavigatorZoom", viewport);
+                overlay.dataset.zoomTop = top.toString();
+                overlay.dataset.zoomBottom = bottom.toString();
+                invokeZoom("SetViewport", [viewport[0], top, viewport[1], bottom]);
             }
         }, { passive: false });
 
