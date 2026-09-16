@@ -22,8 +22,8 @@
       </aside>
 
       <section class="flex min-h-0 flex-col gap-3 overflow-x-hidden overflow-y-auto">
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-          <section class="glass-panel overflow-hidden rounded-xl">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 2xl:grid 2xl:grid-cols-2 2xl:grid-rows-[auto_minmax(0,1fr)]">
+          <section class="glass-panel overflow-hidden rounded-xl 2xl:col-start-1 2xl:row-start-1">
             <div class="relative p-4 sm:p-5">
               <div class="absolute right-0 top-0 h-40 w-72 rounded-full bg-cyan-300/10 blur-3xl"></div>
               <div class="relative flex min-w-0 flex-col gap-3">
@@ -68,8 +68,7 @@
             </div>
           </section>
 
-          <div class="grid min-h-0 min-w-0 flex-1 grid-rows-1 gap-3 2xl:grid-cols-2">
-          <section class="glass-panel h-full min-h-0 min-w-0 overflow-hidden rounded-xl">
+          <section class="glass-panel h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl 2xl:col-start-1 2xl:row-start-2">
             <div class="flex h-full min-h-0 flex-col">
               <div class="border-b border-white/10 p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -127,7 +126,7 @@
             </div>
           </section>
 
-          <section class="glass-panel hidden min-h-0 h-full overflow-hidden rounded-xl 2xl:flex 2xl:flex-col">
+          <section class="glass-panel hidden min-h-0 h-full overflow-hidden rounded-xl 2xl:flex 2xl:flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2">
             <div class="flex shrink-0 flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">visualization</div>
@@ -141,7 +140,6 @@
               <ng-container [ngTemplateOutlet]="visualizationContent" [ngTemplateOutletContext]="{ $implicit: false }"></ng-container>
             }
           </section>
-          </div>
         </div>
       </section>
     </main>
