@@ -10,7 +10,8 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
   imports: [CommonModule, ButtonModule, PopoverModule],
   host: { class: 'block min-w-0' },
   template: `
-    <div class="mb-1.5 min-w-0 rounded-lg border border-cyan-300/10 bg-cyan-300/[0.035] p-2">
+    <div class="mb-1.5 min-w-0 cursor-pointer rounded-lg border border-cyan-300/10 bg-cyan-300/[0.035] p-2 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
+      [attr.aria-label]="'Select catalog for ' + resourceLabel()" (click)="activated.emit()" (keydown.enter)="activated.emit()" (keydown.space)="$event.preventDefault(); activated.emit()">
       <div class="flex min-w-0 items-start justify-between gap-2">
         <div class="min-w-0">
           <div class="truncate font-mono text-sm font-semibold text-slate-100" [title]="selection().path">{{ selection().id }}</div>
@@ -20,7 +21,7 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
         </div>
         <button pButton type="button" size="small" severity="secondary" [text]="true"
           class="shrink-0 p-1" [disabled]="disabled()" [attr.aria-label]="'Deselect ' + resourceLabel()"
-          [title]="'Deselect ' + resourceLabel()" (click)="removed.emit()">
+          [title]="'Deselect ' + resourceLabel()" (click)="$event.stopPropagation(); removed.emit()">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m6 6 12 12M6 18 18 6" /></svg>
         </button>
       </div>
@@ -33,12 +34,12 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
             <span class="pointer-events-none absolute inset-0 grid grid-cols-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
               <button type="button" class="flex items-center justify-center border-r border-current/25 bg-current/10 text-current hover:bg-current/20"
                 [disabled]="disabled()" [attr.aria-label]="'Copy ' + displayKind(kind) + ' resource path for ' + resourceLabel()"
-                (click)="copyMethodPath(kind)">
+                (click)="$event.stopPropagation(); copyMethodPath(kind)">
                 <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
               </button>
               <button type="button" class="flex items-center justify-center bg-current/10 text-current hover:bg-current/20"
                 [disabled]="disabled()" [attr.aria-label]="'Remove ' + displayKind(kind) + ' method from ' + resourceLabel()"
-                (click)="kindToggled.emit(kind)">
+                (click)="$event.stopPropagation(); kindToggled.emit(kind)">
                 <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m6 6 12 12M6 18 18 6" /></svg>
               </button>
             </span>
@@ -48,7 +49,7 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
           class="px-1.5 py-0.5" [hidden]="!validKinds().length" [disabled]="disabled()"
           [attr.aria-label]="'Add methods for ' + resourceLabel()" aria-haspopup="dialog"
           [title]="'Add methods for ' + resourceLabel()"
-          [attr.aria-expanded]="methods.overlayVisible" (click)="methods.toggle($event, methodsOpener)"
+          [attr.aria-expanded]="methods.overlayVisible" (click)="$event.stopPropagation(); methods.toggle($event, methodsOpener)"
           (keydown.escape)="methods.overlayVisible && closeMethods($event, methods)">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" /></svg>
         </button>
@@ -86,6 +87,7 @@ export class PinnedResourceComponent {
   readonly disabled = input(false)
   readonly kindToggled = output<RepresentationKind>()
   readonly removed = output<void>()
+  readonly activated = output<void>()
   readonly formatPeriod = formatPeriod
   readonly parameters = computed(() => Object.entries(this.selection().parameters).sort(([a], [b]) => a.localeCompare(b)))
   readonly resourceLabel = computed(() => `${this.selection().path}, native period ${formatPeriod(this.selection().basePeriod)}`)
