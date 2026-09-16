@@ -11,7 +11,7 @@ type ThemeMode = 'dark' | 'light'
   standalone: true,
   imports: [ButtonModule, MenuModule, LucideMapPin, LucideMoon, LucideSettings, LucideSun],
   template: `
-    <header class="glass-panel overflow-hidden rounded-xl">
+    <header class="glass-panel overflow-hidden rounded-md">
       <div class="relative flex items-center justify-between gap-2 p-2.5 sm:gap-3 sm:p-3 lg:p-4">
         <div class="pointer-events-none order-1 min-w-0 flex-1 text-center">
           <span class="bg-gradient-to-r from-[#3dd9ef] to-cyan-400 bg-clip-text font-mono text-base font-light uppercase leading-none tracking-[0.12em] text-transparent opacity-80 sm:text-3xl sm:tracking-[0.2em] lg:text-4xl">Nexus</span>
@@ -21,7 +21,7 @@ type ThemeMode = 'dark' | 'light'
           <span class="text-xl leading-none">☰</span>
         </button>
 
-        <div class="hidden items-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-100 sm:flex">
+        <div class="hidden items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-100 sm:flex">
           <svg lucideMapPin class="h-4 w-4 shrink-0" aria-hidden="true"></svg>
           <span class="max-w-48 truncate font-mono">{{ endpointHost() }}</span>
         </div>

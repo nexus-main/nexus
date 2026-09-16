@@ -17,6 +17,7 @@ export type ResourceRow = {
   id: string
   path: string
   description: string
+  warning?: string
   unit: string
   groups: string[]
   representations: V1.Representation[]
@@ -41,7 +42,7 @@ export type WriterDescription = V1.ExtensionDescription & {
 export type CatalogBundle = {
   catalog: V1.ResourceCatalog
   timeRange?: V1.CatalogTimeRange
-  metadata?: unknown
+  metadata?: V1.CatalogMetadata
   attachments: string[]
 }
 
@@ -255,8 +256,9 @@ export function mapResources(catalog: V1.ResourceCatalog | undefined): ResourceR
       catalogId,
       id: resource.id ?? 'unnamed-resource',
       path: `${catalogId}/${resource.id ?? ''}`.replace(/\/+/g, '/'),
-      description: getString(properties, 'description') ?? 'No description supplied',
-      unit: getString(properties, 'unit') ?? '-',
+      description: getString(properties, 'description') ?? '',
+      warning: getString(properties, 'warning') ?? '',
+      unit: getString(properties, 'unit') ?? '',
       groups: getStringArray(properties, 'groups'),
       representations: resource.representations ?? [],
     }

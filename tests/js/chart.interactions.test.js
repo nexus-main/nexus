@@ -130,8 +130,10 @@ test('main wheel zooms out from a collapsed billion-point viewport', async () =>
     });
     await environment.frames.shift()();
 
-    const [method, left, right] = environment.calls[0];
-    assert.equal(method, 'NavigatorZoom');
+    const [method, left, top, right, bottom] = environment.calls[0];
+    assert.equal(method, 'SetViewport');
+    assert.equal(top, 0);
+    assert.equal(bottom, 1);
     assert.ok(left < right);
     assert.ok(right - left > 2e-16);
     assert.equal(right, 1);
@@ -153,8 +155,10 @@ test('main wheel sends finite values when viewport data is missing', async () =>
     });
     await environment.frames.shift()();
 
-    const [method, left, right] = environment.calls[0];
-    assert.equal(method, 'NavigatorZoom');
+    const [method, left, top, right, bottom] = environment.calls[0];
+    assert.equal(method, 'SetViewport');
+    assert.equal(top, 0);
+    assert.equal(bottom, 1);
     assert.equal(Number.isFinite(left), true);
     assert.equal(Number.isFinite(right), true);
     assert.ok(left < right);
@@ -187,4 +191,55 @@ test('main wheel zooms out after repeatedly reaching the billion-point limit', a
     await environment.frames.shift()();
     const widthAfterZoomOut = parseFloat(overlay.dataset.zoomRight) - parseFloat(overlay.dataset.zoomLeft);
     assert.ok(widthAfterZoomOut > widthAtLimit);
+});
+
+test('main wheel restores time first, then values, including at plot edges', async () => {
+    for (const anchor of [0, 50, 100]) {
+        const environment = createEnvironment();
+        const overlay = environment.context.document.getElementById('overlay_chart');
+        Object.assign(overlay.dataset, { zoomLeft: '0.25', zoomRight: '0.75', zoomTop: '0.25', zoomBottom: '0.75' });
+        const wheel = environment.listeners.get('overlay_chart:wheel');
+        for (let index = 0; index < 20; index++) {
+            wheel({ clientX: anchor, clientY: anchor, deltaY: 1, shiftKey: false });
+            await environment.frames.shift()();
+            const [method, left, top, right, bottom] = environment.calls.at(-1);
+            assert.equal(method, 'SetViewport');
+            if (left > 0 || right < 1) {
+                assert.equal(top, 0.25);
+                assert.equal(bottom, 0.75);
+            } else {
+                assert.ok(bottom - top > 0.5);
+            }
+        }
+        assert.deepEqual(environment.calls.at(-1), ['SetViewport', 0, 0, 1, 1]);
+    }
+});
+
+test('coalesced wheel events retain vertical expansion when time reaches full width', async () => {
+    const environment = createEnvironment();
+    const overlay = environment.context.document.getElementById('overlay_chart');
+    Object.assign(overlay.dataset, { zoomLeft: '0.02', zoomRight: '0.98', zoomTop: '0.25', zoomBottom: '0.75' });
+    const wheel = environment.listeners.get('overlay_chart:wheel');
+    wheel({ clientX: 50, clientY: 50, deltaY: 1, shiftKey: false });
+    const firstHeight = Number(overlay.dataset.zoomBottom) - Number(overlay.dataset.zoomTop);
+    assert.ok(firstHeight > 0.5);
+    wheel({ clientX: 50, clientY: 50, deltaY: 1, shiftKey: false });
+    const top = Number(overlay.dataset.zoomTop);
+    const bottom = Number(overlay.dataset.zoomBottom);
+    assert.ok(bottom - top > firstHeight);
+    wheel({ clientX: 50, clientY: 50, deltaY: -1, shiftKey: false });
+    assert.equal(environment.frames.length, 1);
+    await environment.frames.shift()();
+    assert.deepEqual(environment.calls, [['SetViewport', Number(overlay.dataset.zoomLeft), top, Number(overlay.dataset.zoomRight), bottom]]);
+    assert.ok(Number(overlay.dataset.zoomLeft) > 0);
+});
+
+test('Shift-wheel keeps the existing vertical-only callback', async () => {
+    const environment = createEnvironment();
+    const wheel = environment.listeners.get('overlay_chart:wheel');
+    for (const deltaY of [-1, 1]) {
+        wheel({ clientX: 30, clientY: 70, deltaY, shiftKey: true });
+        await environment.frames.shift()();
+        assert.deepEqual(environment.calls.at(-1), ['WheelZoom', 0.3, 0.7, deltaY, true]);
+    }
 });

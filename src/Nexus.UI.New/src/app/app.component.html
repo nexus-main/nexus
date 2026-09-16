@@ -1,17 +1,17 @@
 <div class="min-h-screen text-slate-100">
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
-  <div class="flex h-screen w-full flex-col gap-2 overflow-hidden p-2 sm:p-4 xl:p-5">
+  <div class="flex h-dvh w-full flex-col gap-2 overflow-hidden p-2 sm:p-4 xl:p-5">
     <app-header [endpointHost]="endpointHost()" [jobCount]="jobs().length" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" />
 
     @if (!apiAvailable() && !overviewLoading()) {
-      <section class="rounded-3xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+      <section class="rounded-lg border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
         The Angular UI is showing sample data because the local Nexus API proxy is not connected. Start with <span class="font-mono">./dev-with-local-credentials.sh</span> to use live data.
       </section>
     }
 
     @if (overviewError() || catalogError()) {
-      <section class="rounded-3xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+      <section class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
         {{ errorMessage(overviewError() || catalogError()) }}
       </section>
     }
@@ -21,9 +21,9 @@
         <ng-container [ngTemplateOutlet]="catalogBrowser"></ng-container>
       </aside>
 
-      <section class="flex min-h-0 flex-col gap-3 overflow-x-hidden overflow-y-auto">
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 2xl:grid 2xl:grid-cols-2 2xl:grid-rows-[auto_minmax(0,1fr)]">
-          <section class="glass-panel overflow-hidden rounded-xl 2xl:col-start-1 2xl:row-start-1">
+      <section class="flex min-h-0 flex-col gap-3 overflow-y-auto">
+        <div class="grid min-h-full min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(20rem,1fr)] gap-3 2xl:grid-cols-2">
+          <section class="glass-panel overflow-hidden rounded-sm 2xl:col-start-1 2xl:row-start-1">
             <div class="relative p-4 sm:p-5">
               <div class="absolute right-0 top-0 h-40 w-72 rounded-full bg-cyan-300/10 blur-3xl"></div>
               <div class="relative flex min-w-0 flex-col gap-3">
@@ -56,7 +56,7 @@
                   </div>
                 }
                 @if (activeCatalogDetailsOpen()) {
-                  <div id="active-catalog-readme" class="markdown-body max-h-[40vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4 text-sm leading-6 text-slate-300 sm:p-5">
+                  <div id="active-catalog-readme" class="markdown-body rounded-sm border border-white/10 bg-slate-950/35 p-4 text-sm leading-6 text-slate-300 sm:p-5">
                     @if (selectedCatalogReadme()) {
                       <div [innerHTML]="selectedCatalogReadme() | markdown"></div>
                     } @else {
@@ -68,70 +68,18 @@
             </div>
           </section>
 
-          <section class="glass-panel h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl 2xl:col-start-1 2xl:row-start-2">
-            <div class="flex h-full min-h-0 flex-col">
-              <div class="border-b border-white/10 p-4">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div class="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
-                    <div class="text-xs uppercase tracking-[0.24em] text-cyan-200/80">resource matrix</div>
-                    <button pButton type="button" size="small" [text]="true" (click)="visualize()" aria-label="Open visualization" title="Open visualization"><svg lucideChartLine class="h-4 w-4 shrink-0" aria-hidden="true"></svg><span>Visualize</span></button>
-                  </div>
-                  <input pInputText pSize="small" type="search" class="w-full min-w-0 sm:w-64" aria-label="Filter resources, groups, units" placeholder="Filter resources, groups, units" [ngModel]="resourceSearch()" (ngModelChange)="resourceSearch.set($event)" />
-                </div>
-              </div>
+          <app-resource-matrix class="2xl:col-start-1 2xl:row-start-2"
+            [catalogId]="apiAvailable() ? selectedCatalogId() : '/SAMPLE/LOCAL'" [rows]="resourceRows()"
+            [selectedKeys]="selectedResourcePaths()" [activeKey]="activeResourcePath()"
+            [revealKey]="revealResourceKey()" [revealSequence]="revealResourceSequence()"
+            [writable]="resourceMetadataWritable()" [loading]="catalogLoading()" [selectionLoading]="selectionLoading()"
+            [visualizationPanelVisible]="wideLayout()"
+            [saveMetadata]="saveResourceMetadata" (toggle)="toggleResource($event)"
+            (activate)="activateResource($event)" (visualize)="visualize()" />
 
-              <div class="flex h-full min-h-0 flex-1 flex-col">
-                <p-table [value]="filteredResources().slice(0, 450)" dataKey="key" size="small" [scrollable]="true" scrollHeight="flex" class="h-full min-h-0 flex-1" styleClass="h-full text-sm" [tableStyle]="{ 'min-width': '760px' }">
-                  <ng-template #header>
-                    <tr class="text-xs uppercase tracking-[0.18em]">
-                      <th scope="col" class="w-12"><span class="sr-only">Select resource</span></th>
-                      <th scope="col">Resource</th>
-                      <th scope="col">Group</th>
-                      <th scope="col">Unit</th>
-                      <th scope="col">Representation</th>
-                    </tr>
-                  </ng-template>
-                  <ng-template #body let-resource>
-                      <tr class="transition hover:bg-white/[0.035]" [ngClass]="{ 'bg-cyan-300/[0.055]': activeResource()?.key === resource.key, 'outline outline-1 -outline-offset-1 outline-cyan-300/20': resourceSelected(resource) }" (click)="activateResource(resource)">
-                        <td class="border-b border-white/5 p-3 align-top">
-                          <p-checkbox [binary]="true" [disabled]="selectionLoading() || requiresParameters(resource)" [ngModel]="resourceSelected(resource)" (onChange)="toggleResource(resource)" (click)="$event.stopPropagation()" [ariaLabel]="'Select ' + resource.path + ', ' + formatSamplePeriod(resource.representation.samplePeriod)" />
-                        </td>
-                        <td class="border-b border-white/5 p-3 align-top">
-                          <button pButton type="button" size="small" severity="secondary" [text]="true" class="p-0 text-left font-mono text-[13px] font-semibold" (click)="$event.stopPropagation(); activateResource(resource)" [attr.aria-label]="'Inspect ' + resource.path">{{ resource.id }}</button>
-                          <div class="mt-1 max-w-[420px] truncate text-xs text-slate-500">{{ resource.description }}</div>
-                        </td>
-                        <td class="border-b border-white/5 p-3 align-top">
-                          <div class="flex flex-wrap gap-1">
-                            @for (group of (resource.groups.length ? resource.groups : ['ungrouped']).slice(0, 3); track group) {
-                              <span class="rounded-full border border-violet-300/20 bg-violet-300/10 px-2 py-0.5 text-xs text-violet-100">{{ group }}</span>
-                            }
-                          </div>
-                        </td>
-                        <td class="border-b border-white/5 p-3 align-top text-slate-300">{{ resource.unit }}</td>
-                        <td class="border-b border-white/5 p-3 align-top">
-                          <span class="rounded-lg bg-cyan-300/10 px-2 py-1 font-mono text-xs text-cyan-100">{{ formatSamplePeriod(resource.representation.samplePeriod) }}</span>
-                          <span class="ml-2 text-xs text-slate-400">{{ resource.representation.dataType }}</span>
-                          @if (requiresParameters(resource)) { <div class="mt-1 text-xs text-amber-200">Parameter input is not supported yet.</div> }
-                        </td>
-                      </tr>
-                  </ng-template>
-                  <ng-template #emptymessage>
-                    <tr><td colspan="5"><div class="grid min-h-48 place-items-center p-6 text-center text-sm text-slate-500">No resources found for this catalog or filter.</div></td></tr>
-                  </ng-template>
-                </p-table>
-                @if (filteredResources().length > 450) {
-                  <div class="shrink-0 border-t border-white/10 bg-slate-950/80 p-3 text-center text-xs text-slate-500">Showing the first 450 filtered resources. Narrow the search to reduce rows.</div>
-                }
-              </div>
-            </div>
-          </section>
-
-          <section class="glass-panel hidden min-h-0 h-full overflow-hidden rounded-xl 2xl:flex 2xl:flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2">
+          <section class="glass-panel hidden min-h-0 h-full overflow-hidden rounded-sm 2xl:flex 2xl:flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2">
             <div class="flex shrink-0 flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">visualization</div>
-                <div class="mt-1 text-xl font-semibold tracking-[-0.03em] text-white">Time Series</div>
-              </div>
+              <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">visualization</div>
               <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" (click)="visualizationOpen.set(true)" aria-label="Open visualization" title="Open visualization">
                 <svg lucideExternalLink class="h-4 w-4" aria-hidden="true"></svg>
               </button>
@@ -159,12 +107,12 @@
         <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize(false)" [disabled]="!!visualizationValidation()">Update</button>
       }
     </div>
-    <div class="relative min-w-0 flex-1 rounded-lg bg-slate-950/60 p-2 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
+    <div class="relative min-w-0 flex-1 rounded-sm bg-slate-950/60 p-2 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
       @if (visualizationData(); as data) {
         <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" (gpuFailed)="visualizationGpuFailed($event)" />
       }
       @if (visualizationLoading()) {
-        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-950/80 p-6 backdrop-blur-sm">
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-slate-950/80 p-6 backdrop-blur-sm">
           <div class="w-full max-w-sm space-y-4 text-center text-slate-200" role="status" aria-live="polite">
             <p>Loading data...</p>
             <p-progressbar [value]="visualizationProgress()" ariaLabel="Loading time series data" />
@@ -172,7 +120,7 @@
           </div>
         </div>
       } @else if (visualizationError() || !visualizationData() || visualizationStale()) {
-        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-950/80 p-6 text-center backdrop-blur-sm">
+        <div class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-slate-950/80 p-6 text-center backdrop-blur-sm">
           <div class="max-w-lg space-y-4 text-slate-300">
             <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || (visualizationStale() ? 'The time range or selected representations have changed. Update to visualize the new selection.' : visualizationValidation() || 'Visualize the pinned representations using the selected UTC range and Period.') }}</p>
             <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Update' : 'Visualize' }}</button>
@@ -225,10 +173,10 @@
 </p-dialog>
 
 <ng-template #catalogBrowser>
-  <section class="glass-panel flex h-full min-h-0 flex-col overflow-hidden rounded-none lg:rounded-xl">
+  <section class="glass-panel flex h-full min-h-0 flex-col overflow-hidden rounded-sm">
     <p-tabs class="flex h-full min-h-0 flex-col" [value]="activeSidebarTab()" (valueChange)="setSidebarTab($event)" [selectOnFocus]="true">
       <div class="border-b border-white/10 p-3 sm:p-4">
-        <div class="mb-3 p-2">
+        <div class="mb-3 rounded-sm py-2">
           <div class="grid gap-2">
             <label class="block min-w-0">
               <span class="mb-1 block text-xs text-slate-400">From (UTC)</span>
@@ -255,7 +203,7 @@
         </p-tablist>
         @if (activeSidebarTab() === 'catalogs') {
           <div class="mt-3 flex items-center gap-2">
-            <input pInputText pSize="small" type="search" class="w-full min-w-0" aria-label="Search catalogs" placeholder="Search catalogs..." [ngModel]="catalogSearch()" (ngModelChange)="setCatalogSearch($event)" />
+            <input pInputText pSize="small" type="text" class="w-full min-w-0" aria-label="Search catalogs" placeholder="Search catalogs..." [ngModel]="catalogSearch()" (ngModelChange)="setCatalogSearch($event)" />
             @if (catalogSearch()) {
               <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" (click)="setCatalogSearch('')" aria-label="Clear catalog search" title="Clear search"><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></button>
             }
@@ -278,7 +226,7 @@
         <p-tabpanel value="selectedResources">
           @if (selectionLoading()) { <p class="p-2 text-xs text-slate-400" role="status">Restoring pinned representations...</p> }
           @if (unresolvedSelections().length) {
-            <div class="mb-3 rounded-lg border border-amber-300/20 p-2 text-xs text-amber-200" role="status">
+            <div class="mb-3 rounded-sm border border-amber-300/20 p-2 text-xs text-amber-200" role="status">
               <p>{{ unresolvedSelections().length }} saved representations could not be loaded. They remain saved in this browser.</p>
               @for (reference of unresolvedSelections(); track $index) { <div class="mt-1 truncate font-mono" [title]="reference.path">{{ reference.path }}</div> }
               <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="selectionLoading()" (click)="restoreSelectedResources()">Retry restore</button>
@@ -298,7 +246,7 @@
               }
             </section>
           } @empty {
-            @if (!pinnedCount() && !selectionLoading()) { <div class="grid h-full min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">Select representations from the matrix to pin them here.</div> }
+            @if (!pinnedCount() && !selectionLoading()) { <div class="grid h-full min-h-48 place-items-center rounded-lg border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">Select representations from the matrix to pin them here.</div> }
           }
         </p-tabpanel>
       </p-tabpanels>

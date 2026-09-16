@@ -7,7 +7,7 @@
     "dev": "ng serve --proxy-config proxy.conf.cjs",
     "build": "ng build",
     "lint": "ng build --configuration development",
-    "test": "tsc -p tsconfig.selection-tests.json && node --test src/app/resource-selection.test.ts src/app/charts/*.test.ts"
+    "test": "tsc -p tsconfig.selection-tests.json && node --test src/app/resource-selection.test.ts src/app/resource-matrix.test.ts src/app/charts/*.test.ts"
   },
   "dependencies": {
     "@angular/cdk": "^21.2.14",

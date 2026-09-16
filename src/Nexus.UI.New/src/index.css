@@ -29,6 +29,12 @@ app-root {
   display: block;
 }
 
+/* CDK owns this wrapper; constrain it so long row content cannot widen the list. */
+app-resource-matrix .cdk-virtual-scroll-content-wrapper {
+  width: 100%;
+  max-width: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -164,22 +170,6 @@ button {
 :root[data-theme='light'] .bg-slate-950,
 :root[data-theme='light'] [class*="bg-slate-950/"] {
   background-color: rgba(248, 250, 252, 0.92);
-}
-
-.rounded-lg {
-  border-radius: 0.25rem;
-}
-
-.rounded-xl {
-  border-radius: 0.375rem;
-}
-
-.rounded-2xl {
-  border-radius: 0.5rem;
-}
-
-.rounded-3xl {
-  border-radius: 0.625rem;
 }
 
 .p-tab {
