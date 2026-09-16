@@ -1,13 +1,15 @@
 import { NgTemplateOutlet } from '@angular/common'
 import { Component, computed, input, linkedSignal, output, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
+import { LucideInfo } from '@lucide/angular'
 import { ButtonModule } from 'primeng/button'
 import { InputTextModule } from 'primeng/inputtext'
+import { PopoverModule } from 'primeng/popover'
 import { SelectModule } from 'primeng/select'
 import { TextareaModule } from 'primeng/textarea'
 import {
   configurationText, configurationWithRawMember, createSchemaValue, getSchemaView,
-  isJsonObject, parseJsonSafely, SchemaNumberSession, schemaPresenceOptions, setConfigurationProperty,
+  isJsonObject, parseJsonSafely, SchemaNumberSession, setConfigurationProperty,
 } from '../json-schema'
 
 export interface SchemaFieldChange { present: boolean; value: unknown }
@@ -16,21 +18,38 @@ export interface SchemaRawChange { text: string; editingNumber?: boolean }
 @Component({
   selector: 'app-schema-field',
   standalone: true,
-  imports: [NgTemplateOutlet, FormsModule, ButtonModule, InputTextModule, SelectModule, TextareaModule],
+  imports: [NgTemplateOutlet, FormsModule, LucideInfo, ButtonModule, InputTextModule, PopoverModule, SelectModule, TextareaModule],
   template: `
     <section class="min-w-0 space-y-2" [class.rounded]="!hideHeader()" [class.border]="!hideHeader()" [class.p-3]="!hideHeader()" [style.border-color]="hideHeader() ? null : 'var(--p-content-border-color)'">
       @if (!hideHeader()) {
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="text-sm font-semibold">{{ view().title || label() }}{{ required() ? ' *' : '' }}</span>
-          <p-select [ariaLabel]="label() + ' presence'" [options]="presenceOptions()" optionLabel="label" optionValue="value"
-            [ngModel]="presence()" (ngModelChange)="changePresence($event)" appendTo="body" />
+          <div class="flex flex-wrap items-center gap-1">
+            @if (view().description) {
+              <button pButton type="button" size="small" severity="secondary" [text]="true" [rounded]="true"
+                [attr.aria-label]="'Show ' + label() + ' description'" (click)="descriptionPopover.toggle($event)">
+                <svg lucideInfo class="h-4 w-4" aria-hidden="true"></svg>
+              </button>
+              <p-popover #descriptionPopover appendTo="body">
+                <p class="m-0 max-w-80 text-sm">{{ view().description }}</p>
+              </p-popover>
+            }
+            @if (present() && value() !== null && view().nullable) {
+              <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="setNull()">Set to null</button>
+            }
+          </div>
         </div>
-        @if (view().description) { <p class="text-sm">{{ view().description }}</p> }
       }
       @if (!present()) {
-        <p class="text-sm">Not set{{ required() ? ' (required)' : '' }}. Select Value to create explicitly.</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <p class="text-sm">Not set{{ required() ? ' (required)' : '' }}.</p>
+          <button pButton type="button" size="small" severity="secondary" (click)="createValue()">Create value</button>
+        </div>
       } @else if (value() === null) {
-        <p class="text-sm">Null{{ view().nullable ? '' : ' (not allowed by this schema)' }}.</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <p class="text-sm">Null{{ view().nullable ? '' : ' (not allowed by this schema)' }}.</p>
+          <button pButton type="button" size="small" severity="secondary" (click)="createValue()">Create value</button>
+        </div>
       } @else if (useRaw()) {
         <textarea pTextarea class="w-full font-mono text-sm" rows="5" [attr.aria-label]="label() + ' JSON'"
           [ngModel]="draft()" (ngModelChange)="editJson($event)"></textarea>
@@ -128,8 +147,6 @@ export class SchemaFieldComponent {
   })
   readonly newKey = signal('')
   readonly booleanOptions = [{ label: 'True', value: true }, { label: 'False', value: false }]
-  readonly presenceOptions = computed(() => schemaPresenceOptions(this.required(), this.view().nullable))
-  readonly presence = computed(() => !this.present() ? 'unset' : this.value() === null ? 'null' : 'value')
   readonly objectValue = computed(() => isJsonObject(this.value()) ? this.value() as Record<string, unknown> : {})
   readonly arrayValue = computed(() => Array.isArray(this.value()) ? this.value() as unknown[] : [])
   readonly additionalKeys = computed(() => Object.keys(this.objectValue()).filter(key => !this.view().properties.some(property => property.key === key)))
@@ -150,10 +167,14 @@ export class SchemaFieldComponent {
 
   hasProperty(key: string): boolean { return Object.hasOwn(this.objectValue(), key) }
 
-  changePresence(presence: string): void {
-    if (presence === this.presence()) return
+  createValue(): void {
     this.localError.set('')
-    this.changed.emit({ present: presence !== 'unset', value: presence === 'null' ? null : presence === 'unset' ? undefined : createSchemaValue(this.view()) })
+    this.changed.emit({ present: true, value: createSchemaValue(this.view()) })
+  }
+
+  setNull(): void {
+    this.localError.set('')
+    this.changed.emit({ present: true, value: null })
   }
 
   resetValue(): void {
