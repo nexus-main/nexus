@@ -74,7 +74,7 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div class="flex items-center gap-2">
                     <div class="text-xs uppercase tracking-[0.24em] text-cyan-200/80">resource matrix</div>
-                    <button pButton type="button" size="small" [outlined]="true" (click)="visualize()" aria-label="Open visualization" title="Open visualization"><svg lucideChartLine class="h-4 w-4" aria-hidden="true"></svg>Visualize</button>
+                    <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize()" aria-label="Open visualization" title="Open visualization"><svg lucideChartLine class="h-4 w-4" aria-hidden="true"></svg>Visualize</button>
                   </div>
                   <input pInputText pSize="small" type="search" class="w-full min-w-0 sm:w-64" aria-label="Filter resources, groups, units" placeholder="Filter resources, groups, units" [ngModel]="resourceSearch()" (ngModelChange)="resourceSearch.set($event)" />
                 </div>
