@@ -23,17 +23,16 @@
 
       <section class="flex min-h-0 flex-col gap-3 overflow-y-auto">
         <div class="grid min-h-full min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(20rem,1fr)] gap-3" [class.2xl:grid-cols-2]="visualizationPanelVisible()">
-          <section class="glass-panel overflow-hidden rounded-sm 2xl:col-start-1 2xl:row-start-1">
+          <section class="content-panel overflow-hidden rounded-sm 2xl:col-start-1 2xl:row-start-1">
             <div class="relative p-4 sm:p-5">
-              <div class="absolute right-0 top-0 h-40 w-72 rounded-full bg-cyan-300/10 blur-3xl"></div>
               <div class="relative flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-start justify-between gap-3">
                   <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.24em] text-violet-200/80">
+                    <div class="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.24em] text-slate-400">
                       @if (catalogLoading()) { <span class="rounded-full bg-cyan-300/10 px-2 py-0.5 text-cyan-200">syncing</span> }
-                      @if (isSelectedFake()) { <span class="rounded-full bg-violet-300/10 px-2 py-0.5 text-violet-200">virtual folder</span> }
+                      @if (isSelectedFake()) { <span class="rounded-full bg-slate-300/10 px-2 py-0.5 text-slate-300">virtual folder</span> }
                     </div>
-                    <h1 class="mt-2 min-w-0 break-words font-mono text-base font-semibold tracking-[-0.03em] text-white sm:text-lg">{{ selectedCatalogDisplayPath() }}</h1>
+                    <h1 class="catalog-title mt-2 min-w-0 break-words font-mono text-base font-semibold tracking-[-0.03em] text-white sm:text-lg">{{ selectedCatalogDisplayPath() }}</h1>
                     @if (selectedCatalogTitle()) {
                       <p class="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{{ selectedCatalogTitle() }}</p>
                     }
@@ -77,7 +76,7 @@
             [saveMetadata]="saveResourceMetadata" (toggle)="toggleResource($event)"
             (activate)="activateResource($event)" (visualize)="visualize()" />
 
-          <section class="glass-panel min-h-0 h-full overflow-hidden rounded-sm flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2" [class.hidden]="!visualizationPanelVisible()" [class.flex]="visualizationPanelVisible()">
+          <section class="content-panel min-h-0 h-full overflow-hidden rounded-sm flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2" [class.hidden]="!visualizationPanelVisible()" [class.flex]="visualizationPanelVisible()">
             <div class="flex shrink-0 flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">visualization</div>
               <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" (click)="visualizationOpen.set(true)" aria-label="Open visualization" title="Open visualization">
@@ -104,9 +103,9 @@
       <label class="flex items-center gap-2"><p-checkbox [binary]="true" [ngModel]="visualizationBeginAtZero()" (ngModelChange)="visualizationBeginAtZero.set($event)" ariaLabel="Begin value axes at zero" />Begin at zero</label>
       <label class="flex items-center gap-2">GPU cache (MiB)<input pInputText pSize="small" type="number" min="16" step="16" class="w-24" [ngModel]="visualizationCacheMiB()" (ngModelChange)="setVisualizationCache($event)" /></label>
     </div>
-    <div class="relative min-w-0 flex-1 bg-slate-950/60 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
+    <div class="chart-surface relative min-w-0 flex-1 bg-slate-950/60 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
       @if (visualizationData(); as data) {
-        <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" (gpuFailed)="visualizationGpuFailed($event)" />
+        <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" [themeMode]="themeMode()" (gpuFailed)="visualizationGpuFailed($event)" />
       }
       @if (visualizationLoading()) {
         <div class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-slate-950/80 p-6 backdrop-blur-sm">
@@ -119,8 +118,10 @@
       } @else if (visualizationError() || !visualizationData() || visualizationStale()) {
         <div class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-slate-950/80 p-6 text-center backdrop-blur-sm">
           <div class="max-w-lg space-y-4 text-slate-300">
-            <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || (visualizationStale() ? 'The time range or selected representations have changed. Update to visualize the new selection.' : visualizationValidation() || 'Visualize the pinned representations using the selected UTC range and Period.') }}</p>
-            <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Update' : 'Visualize' }}</button>
+            <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || visualizationValidation() || (visualizationStale() ? 'The time range or selected representations have changed. Update to visualize the new selection.' : 'Visualize the selected representations using the selected UTC range and Period.') }}</p>
+            @if (!visualizationValidation()) {
+              <button pButton type="button" size="small" [outlined]="true" (click)="visualize(false)">{{ visualizationStale() ? 'Update' : 'Visualize' }}</button>
+            }
           </div>
         </div>
       }
@@ -145,7 +146,7 @@
 <p-dialog appRestoreFocus [visible]="isReadmeOpen()" (visibleChange)="isReadmeOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close readme', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">
   <ng-template #header let-ariaLabelledBy="ariaLabelledBy">
     <div class="min-w-0">
-      <p [id]="ariaLabelledBy" class="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">Catalog readme</p>
+      <p [id]="ariaLabelledBy" class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Catalog readme</p>
       @if (selectedCatalogTitle()) {
         <h2 class="mt-2 truncate text-lg font-semibold text-white">{{ selectedCatalogTitle() }}</h2>
       }
@@ -170,7 +171,7 @@
 </p-dialog>
 
 <ng-template #catalogBrowser>
-  <section class="glass-panel flex h-full min-h-0 flex-col overflow-hidden rounded-sm">
+  <section class="content-panel flex h-full min-h-0 flex-col overflow-hidden rounded-sm">
     <p-tabs class="flex h-full min-h-0 flex-col" [value]="activeSidebarTab()" (valueChange)="setSidebarTab($event)" [selectOnFocus]="true">
       <div class="border-b border-white/10 p-3 sm:p-4">
         <div class="mb-3 rounded-sm py-2">
@@ -243,7 +244,7 @@
               }
             </section>
           } @empty {
-            @if (!pinnedCount() && !selectionLoading()) { <div class="grid h-full min-h-48 place-items-center rounded-lg border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">Select representations from the matrix to pin them here.</div> }
+            @if (!pinnedCount() && !selectionLoading()) { <div class="grid h-full min-h-48 place-items-center rounded-lg border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">Add from the resource browser.</div> }
           }
         </p-tabpanel>
       </p-tabpanels>

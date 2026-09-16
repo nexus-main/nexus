@@ -89,6 +89,19 @@ button {
   background: rgba(103, 232, 249, 0.32);
 }
 
+:root[data-theme='light'] ::-webkit-scrollbar-track {
+  background: #eef2f7;
+}
+
+:root[data-theme='light'] ::-webkit-scrollbar-thumb {
+  border-color: #eef2f7;
+  background: #94a3b8;
+}
+
+:root[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 @theme {
   --color-void: #050712;
   --color-panel: #0b1120;
@@ -101,16 +114,9 @@ button {
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 }
 
-.glass-panel {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(8, 13, 26, 0.98));
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-:root[data-theme='light'] .glass-panel {
-  border-color: rgba(51, 65, 85, 0.14);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 245, 249, 0.96));
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+.content-panel {
+  border: 1px solid var(--p-content-border-color);
+  background: var(--p-content-background);
 }
 
 .backdrop-blur,
@@ -144,23 +150,31 @@ button {
   color: #64748b;
 }
 
+:root[data-theme='light'] .catalog-title {
+  color: #475569;
+}
+
 :root[data-theme='light'] .text-cyan-100,
-:root[data-theme='light'] .text-cyan-200 {
+:root[data-theme='light'] .text-cyan-200,
+:root[data-theme='light'] .text-cyan-200\/80 {
   color: #0369a1;
 }
 
 :root[data-theme='light'] .text-violet-100,
-:root[data-theme='light'] .text-violet-200 {
+:root[data-theme='light'] .text-violet-200,
+:root[data-theme='light'] .text-violet-200\/70,
+:root[data-theme='light'] .text-violet-200\/80 {
   color: #6d28d9;
 }
 
 :root[data-theme='light'] .text-lime-100,
-:root[data-theme='light'] .text-lime-200 {
+:root[data-theme='light'] .text-lime-200,
+:root[data-theme='light'] .text-lime-200\/80 {
   color: #3f6212;
 }
 
 :root[data-theme='light'] [class*="border-white/"] {
-  border-color: rgba(51, 65, 85, 0.14);
+  border-color: #cbd5e1;
 }
 
 :root[data-theme='light'] [class*="bg-white/"] {
@@ -170,6 +184,71 @@ button {
 :root[data-theme='light'] .bg-slate-950,
 :root[data-theme='light'] [class*="bg-slate-950/"] {
   background-color: rgba(248, 250, 252, 0.92);
+}
+
+:root[data-theme='light'] .chart-surface {
+  background-color: #ffffff;
+}
+
+:root[data-theme='light'] .ring-white\/10 {
+  --tw-ring-color: #d7dee8;
+}
+
+:root[data-theme='light'] .text-amber-100,
+:root[data-theme='light'] .text-amber-200 {
+  color: #92400e;
+}
+
+:root[data-theme='light'] .text-rose-100,
+:root[data-theme='light'] .text-rose-200,
+:root[data-theme='light'] .text-rose-400 {
+  color: #9f1239;
+}
+
+:root[data-theme='light'] .selected-resource-card {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+  outline-color: #0e7490;
+}
+
+:root[data-theme='light'] .selected-resource-card:hover {
+  border-color: #0e7490;
+  background-color: #ecfeff;
+}
+
+/* Global so method options retain their colors when the popover moves to body. */
+:root[data-theme='light'] .method-original {
+  color: #155e75;
+  border-color: #67e8f9;
+  background-color: #cffafe;
+}
+
+:root[data-theme='light'] .method-resampled {
+  color: #3f6212;
+  border-color: #bef264;
+  background-color: #ecfccb;
+}
+
+:root[data-theme='light'] .method-aggregated {
+  color: #9a3412;
+  border-color: #fdba74;
+  background-color: #ffedd5;
+}
+
+:root[data-theme='light'] .method-invalid {
+  color: #9f1239;
+  border-color: #fda4af;
+  background-color: #ffe4e6;
+}
+
+:root[data-theme='light'] .method-unselected {
+  color: #334155;
+  border-color: #cbd5e1;
+  background-color: transparent;
+}
+
+:root[data-theme='light'] .method-unselected:enabled:hover {
+  background-color: #e2e8f0;
 }
 
 .p-tab {
@@ -226,4 +305,20 @@ button {
 .markdown-body ul {
   list-style: disc;
   padding-left: 1.25rem;
+}
+
+:root[data-theme='light'] .markdown-body h1,
+:root[data-theme='light'] .markdown-body h2,
+:root[data-theme='light'] .markdown-body h3 {
+  color: #0f172a;
+}
+
+:root[data-theme='light'] .markdown-body a,
+:root[data-theme='light'] .markdown-body code {
+  color: #0369a1;
+}
+
+:root[data-theme='light'] .markdown-body pre {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
 }

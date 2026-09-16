@@ -30,7 +30,7 @@ import { abbreviateMiddle, lastSegment } from '../utils'
         @let node = treeNode.data;
         <div class="min-w-0" [title]="node.id ?? '/'">
           <div class="flex min-w-0 items-center">
-            <span class="truncate font-mono text-[13px] leading-5" [class.text-violet-100]="node.isFake" [class.text-slate-100]="!node.isFake">
+            <span class="truncate font-mono text-[13px] leading-5 text-slate-100">
               <span class="sm:hidden">{{ abbreviateMiddle(treeNode.label, 28) }}</span>
               <span class="hidden sm:inline">{{ treeNode.label }}</span>
             </span>

@@ -22,6 +22,7 @@
 }
 
 .matrix > :not(.list-shell) { flex-shrink: 0; }
+:host-context([data-theme='light']) .matrix { border-color: #cbd5e1; }
 .matrix.inline-editing { --columns: 36px minmax(130px, 1.25fr) minmax(65px, 9ch) minmax(100px, 1.5fr) minmax(100px, 1.2fr); }
 .matrix-messages { max-height: min(144px, 20dvh); overflow-y: auto; overscroll-behavior: contain; }
 .matrix-messages:focus-visible { outline: 2px solid var(--p-primary-color); outline-offset: -2px; }

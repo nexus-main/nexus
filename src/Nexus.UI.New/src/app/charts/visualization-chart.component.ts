@@ -10,6 +10,7 @@ import { LegendNameDirective } from './legend-name.directive';
 import { formatLegendValue } from './legend-text';
 
 let nextChartId = 0;
+type ThemeMode = 'dark' | 'light';
 
 interface SeriesState {
   source: VisualizationSeries;
@@ -30,6 +31,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   @Input() data: VisualizationData | null = null;
   @Input() beginAtZero = false;
   @Input() cacheBudgetBytes = 2048 * 1024 * 1024;
+  @Input() themeMode: ThemeMode = 'dark';
   readonly gpuFailed = output<string>();
   @ViewChild('axisCanvas') private axisCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('chartElement') private chartElement!: ElementRef<HTMLElement>;
