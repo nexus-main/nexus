@@ -93,6 +93,7 @@ export const nexusPreset = definePreset(Aura, {
     select: {
       root: {
         borderRadius: '0.375rem',
+        sm: { fontSize: '0.8125rem' },
       },
       overlay: {
         borderRadius: '0.375rem',

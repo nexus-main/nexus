@@ -75,139 +75,149 @@
 
     @if (loaded() && administrator()) {
       <div class="pipeline-workspace" [class.show-list]="mobileView() === 'list'" [class.show-pipeline]="mobileView() === 'pipeline'" [class.show-registration]="mobileView() === 'registration'">
-        <aside class="pipeline-list" aria-label="Current-user pipelines">
-          <div class="section-heading">
-            <h2>Pipelines <span class="muted">{{ entries().length }}</span></h2>
-            <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="request({ kind: 'pipeline', id: null })">New</button>
-          </div>
-          @if (draft(); as current) {
-            @if (dirty()) {
-              <button type="button" class="pipeline-entry draft-entry" [disabled]="editingLocked()" (click)="navigate('pipeline')">
-                <strong>{{ current.id ? 'Continue unsaved edits' : 'New pipeline draft' }}</strong>
-                <span>{{ current.registrations.length }} registrations / Not saved</span>
-              </button>
-            }
-          }
-          @for (entry of entries(); track entry.id) {
-            <button type="button" class="pipeline-entry" [class.selected]="draft()?.id === entry.id"
-              [attr.aria-current]="draft()?.id === entry.id ? 'true' : null" [disabled]="editingLocked()"
-              (click)="request({ kind: 'pipeline', id: entry.id })">
-              <strong>{{ pipelineLabel(entry.pipeline) }}</strong>
-              <span>{{ entry.pipeline.registrations?.length ?? 0 }} registrations</span>
-              <code>{{ entry.id }}</code>
-            </button>
-          } @empty {
-            <p class="help">No saved pipelines. Create a pipeline, then add its data source registrations in processing order.</p>
-          }
-        </aside>
-
-        @if (draft(); as current) {
-          <section class="pipeline-editor" aria-label="Pipeline editor">
-            <div class="section-heading">
-              <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
-                [disabled]="editingLocked()" (click)="navigate('list')">Back to pipelines</button>
-              <h2>{{ current.id ? 'Pipeline' : 'New pipeline' }}</h2>
-              <span class="muted">{{ dirty() ? 'Unsaved changes' : 'Saved' }}</span>
+        <div class="pipeline-tabs-column">
+          <p-tabs [value]="pipelineTab()" (valueChange)="setPipelineTab($event)" [selectOnFocus]="true" [showNavigators]="false">
+            <div class="tab-bar">
+              <p-tablist>
+                <p-tab value="pipelines" class="min-w-0 flex-1 whitespace-normal text-center">Pipelines</p-tab>
+                <p-tab value="pipeline" class="min-w-0 flex-1 whitespace-normal text-center">Pipeline</p-tab>
+              </p-tablist>
             </div>
-            @if (current.id) { <code class="pipeline-id">{{ current.id }}</code> }
-            <fieldset [disabled]="editingLocked()">
-              <legend>Catalog metadata</legend>
-              <div class="field">
-                <label for="pipeline-release">Release pattern</label>
-                <label class="nullable"><input type="checkbox" [ngModel]="current.releasePattern === null"
-                  (ngModelChange)="setPattern('releasePattern', $event ? null : '')" /> Null (select all catalogs)</label>
-                <input pInputText pSize="small" id="pipeline-release" [disabled]="current.releasePattern === null"
-                  [ngModel]="current.releasePattern" (ngModelChange)="setPattern('releasePattern', $event)" aria-describedby="pipeline-pattern-help" />
-              </div>
-              <div class="field">
-                <label for="pipeline-visibility">Visibility pattern</label>
-                <label class="nullable"><input type="checkbox" [ngModel]="current.visibilityPattern === null"
-                  (ngModelChange)="setPattern('visibilityPattern', $event ? null : '')" /> Null (show all catalogs)</label>
-                <input pInputText pSize="small" id="pipeline-visibility" [disabled]="current.visibilityPattern === null"
-                  [ngModel]="current.visibilityPattern" (ngModelChange)="setPattern('visibilityPattern', $event)" aria-describedby="pipeline-pattern-help" />
-              </div>
-              <p id="pipeline-pattern-help" class="help">Patterns select catalog IDs using server-evaluated .NET regular expressions. Null selects all; empty text is an explicit pattern. Neither flag grants access. Release applies only when the owner can release the catalog. Visibility controls listing; readable catalogs are always visible.</p>
-            </fieldset>
-            <div class="section-heading">
-              <h3>Registrations</h3>
-              <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="addStage()">Add registration</button>
-            </div>
-            <p class="help">Run in the listed order. Repeated source types are separate stages. Configuration edits stay with each stage when reordered.</p>
-            <ol class="registrations">
-              @for (registration of current.registrations; track registration.key; let index = $index) {
-                <li [class.selected]="selectedKey() === registration.key">
-                  <button type="button" class="stage-select" [disabled]="editingLocked()" [attr.aria-current]="selectedKey() === registration.key ? 'true' : null" (click)="navigate('registration', registration.key)">
-                    <span class="stage-number">{{ index + 1 }}</span>
-                    <span>{{ registration.type || 'Select a source type' }}
-                      @if (hasIssue(registration.key)) { <small class="invalid-label">Needs attention</small> }
-                    </span>
+            <p-tabpanels class="tab-panels">
+              <p-tabpanel value="pipelines">
+                <div class="pipeline-list" aria-label="Current-user pipelines">
+                  <button type="button" class="pipeline-entry new-pipeline" [disabled]="editingLocked()" (click)="request({ kind: 'pipeline', id: null })">
+                    <svg lucidePlus class="h-4 w-4" aria-hidden="true"></svg>
                   </button>
-                  <div class="stage-actions">
-                    <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="editingLocked() || index === 0" [attr.aria-label]="'Move registration ' + (index + 1) + ' up'" (click)="moveStage(registration.key, -1)">Up</button>
-                    <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="editingLocked() || index === current.registrations.length - 1" [attr.aria-label]="'Move registration ' + (index + 1) + ' down'" (click)="moveStage(registration.key, 1)">Down</button>
-                    <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked()" [attr.aria-label]="'Remove registration ' + (index + 1)" (click)="removeStage(registration.key)">Remove</button>
-                  </div>
-                  @if (removingKey() === registration.key) {
-                    <section class="decision" role="alertdialog" aria-modal="false" aria-labelledby="registration-remove-title">
-                      <h3 id="registration-remove-title">Remove registration {{ index + 1 }}?</h3>
-                      <p>This removes this stage and its configuration edits from the draft. Other stages are kept. Save the pipeline to apply the removal.</p>
-                      <div class="actions">
-                        <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="confirmRemoveStage()">Remove registration</button>
-                        <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="removingKey.set(null)">Keep registration</button>
-                      </div>
-                    </section>
+                  @if (draft(); as current) {
+                    @if (dirty()) {
+                      <button type="button" class="pipeline-entry draft-entry" [disabled]="editingLocked()" (click)="navigate('pipeline')">
+                        <strong>{{ current.id ? 'Continue unsaved edits' : 'New pipeline draft' }}</strong>
+                        <span class="not-saved">Not saved</span>
+                        @for (registration of current.registrations; track registration.key) {
+                          <span class="registration-line">
+                            <span class="registration-type">{{ registration.type || 'Untyped' }}</span>
+                            @if (registration.resourceLocator) { <span class="registration-locator">{{ displayLocator(registration.resourceLocator) }}</span> }
+                          </span>
+                        } @empty { <span class="registration-line"><span class="registration-type">Empty pipeline</span></span> }
+                      </button>
+                    }
                   }
-                </li>
-              } @empty { <li class="help">Add at least one registration before saving.</li> }
-            </ol>
-          </section>
-
-          <section class="registration-editor" aria-label="Registration editor">
-            <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
-              [disabled]="editingLocked()" (click)="navigate('pipeline')">Back to pipeline</button>
-            @for (registration of selected() ? [selected()!] : []; track registration.key) {
-              <h2>Registration configuration</h2>
-              <fieldset [disabled]="editingLocked()">
-                <legend class="sr-only">Source registration</legend>
-                <div class="field">
-                  <label id="pipeline-source-type-label" for="pipeline-source-type">Source type</label>
-                  <p-select inputId="pipeline-source-type" ariaLabelledBy="pipeline-source-type-label" appendTo="body"
-                    [options]="typeOptions()" [ngModel]="registration.type" [disabled]="editingLocked()"
-                    (ngModelChange)="editRegistration(registration.key, 'type', $event)" placeholder="Select installed source" size="small" />
-                  <p class="help">Changing type keeps the existing configuration; it does not insert defaults. The selected type's schema must validate before saving.</p>
+                  @for (entry of entries(); track entry.id) {
+                    <button type="button" class="pipeline-entry" [class.selected]="draft()?.id === entry.id"
+                      [attr.aria-current]="draft()?.id === entry.id ? 'true' : null" [disabled]="editingLocked()"
+                      (click)="request({ kind: 'pipeline', id: entry.id })">
+                      @for (registration of entry.pipeline.registrations ?? []; track $index) {
+                        <span class="registration-line">
+                          <span class="registration-type">{{ registration.type || 'Untyped' }}</span>
+                          @if (registration.resourceLocator) { <span class="registration-locator">{{ displayLocator(registration.resourceLocator) }}</span> }
+                        </span>
+                      } @empty { <span class="registration-line"><span class="registration-type">Empty pipeline</span></span> }
+                    </button>
+                  } @empty {
+                    <p class="help">No saved pipelines. Create a pipeline, then add its data source registrations in processing order.</p>
+                  }
                 </div>
-                @if (selectedDescription(); as description) {
-                  <div class="source-description">
-                    <span class="owner-label">Version {{ description.version || 'not supplied' }}</span>
-                    <p>{{ description.description || 'No description supplied.' }}</p>
+              </p-tabpanel>
+              <p-tabpanel value="pipeline">
+                @if (draft(); as current) {
+                  <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
+                    [disabled]="editingLocked()" (click)="navigate('list')">Back to pipelines</button>
+                  <div class="pipeline-editor" aria-label="Pipeline editor">
+                    <span class="save-indicator {{ dirty() ? 'not-saved' : 'saved' }}">{{ dirty() ? 'Unsaved changes' : 'Saved' }}</span>
+                    <fieldset [disabled]="editingLocked()">
+                      <div class="field">
+                        <label for="pipeline-release">Release pattern</label>
+                        <label class="nullable"><input type="checkbox" [ngModel]="current.releasePattern === null"
+                          (ngModelChange)="setPattern('releasePattern', $event ? null : '')" /> Null (select all catalogs)</label>
+                        <input pInputText pSize="small" id="pipeline-release" [disabled]="current.releasePattern === null"
+                          [ngModel]="current.releasePattern" (ngModelChange)="setPattern('releasePattern', $event)" aria-describedby="pipeline-release-help" />
+                        <p id="pipeline-release-help" class="help">Selects catalog IDs using server-evaluated .NET regular expressions. Null selects all; empty text is an explicit pattern. Applies only when the owner can release the catalog.</p>
+                      </div>
+                      <div class="field">
+                        <label for="pipeline-visibility">Visibility pattern</label>
+                        <label class="nullable"><input type="checkbox" [ngModel]="current.visibilityPattern === null"
+                          (ngModelChange)="setPattern('visibilityPattern', $event ? null : '')" /> Null (show all catalogs)</label>
+                        <input pInputText pSize="small" id="pipeline-visibility" [disabled]="current.visibilityPattern === null"
+                          [ngModel]="current.visibilityPattern" (ngModelChange)="setPattern('visibilityPattern', $event)" aria-describedby="pipeline-visibility-help" />
+                        <p id="pipeline-visibility-help" class="help">Selects catalog IDs using server-evaluated .NET regular expressions. Null selects all; empty text is an explicit pattern. Controls listing; readable catalogs are always visible. Neither flag grants access.</p>
+                      </div>
+                    </fieldset>
+                    <div class="section-heading">
+                      <h3>Registrations</h3>
+                      <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="addStage()">Add registration</button>
+                    </div>
+                    <ol class="registrations">
+                      @for (registration of current.registrations; track registration.key; let index = $index) {
+                        <li [class.selected]="selectedKey() === registration.key">
+                          <div class="registration-header">
+                            <button type="button" class="stage-select" [disabled]="editingLocked()" [attr.aria-current]="selectedKey() === registration.key ? 'true' : null" (click)="navigate('registration', registration.key)">
+                              <span class="stage-number">{{ index + 1 }}</span>
+                              <span>{{ registration.type || 'Select a source type' }}
+                                @if (hasIssue(registration.key)) { <small class="invalid-label">Needs attention</small> }
+                              </span>
+                            </button>
+                            <div class="stage-actions">
+                              <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="editingLocked() || index === 0" [attr.aria-label]="'Move registration ' + (index + 1) + ' up'" (click)="moveStage(registration.key, -1)">Up</button>
+                              <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="editingLocked() || index === current.registrations.length - 1" [attr.aria-label]="'Move registration ' + (index + 1) + ' down'" (click)="moveStage(registration.key, 1)">Down</button>
+                              <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked()" [attr.aria-label]="'Remove registration ' + (index + 1)" (click)="removeStage(registration.key)">Remove</button>
+                            </div>
+                          </div>
+                          <fieldset [disabled]="editingLocked()">
+                            <div class="field">
+                              <label id="reg-type-label-{{ registration.key }}" for="reg-type-{{ registration.key }}">Source type</label>
+                              <p-select [inputId]="'reg-type-' + registration.key" [ariaLabelledBy]="'reg-type-label-' + registration.key" appendTo="body"
+                                [options]="typeOptions()" [ngModel]="registration.type" [disabled]="editingLocked() || !!registration.type"
+                                (ngModelChange)="editRegistration(registration.key, 'type', $event)" placeholder="Select installed source" size="small" />
+                            </div>
+                            <div class="field">
+                              <label [for]="'reg-locator-' + registration.key">Resource locator</label>
+                              <label class="nullable"><input type="checkbox" [ngModel]="registration.resourceLocator === null"
+                                (ngModelChange)="editRegistration(registration.key, 'resourceLocator', $event ? null : '')" /> Null (not supplied)</label>
+                              <input pInputText pSize="small" [id]="'reg-locator-' + registration.key" [disabled]="registration.resourceLocator === null"
+                                [ngModel]="registration.resourceLocator" (ngModelChange)="editRegistration(registration.key, 'resourceLocator', $event)" />
+                            </div>
+                            <div class="field">
+                              <label [for]="'reg-info-url-' + registration.key">Info URL</label>
+                              <label class="nullable"><input type="checkbox" [ngModel]="registration.infoUrl === null"
+                                (ngModelChange)="editRegistration(registration.key, 'infoUrl', $event ? null : '')" /> Null (not supplied)</label>
+                              <input pInputText pSize="small" [id]="'reg-info-url-' + registration.key" [disabled]="registration.infoUrl === null"
+                                [ngModel]="registration.infoUrl" (ngModelChange)="editRegistration(registration.key, 'infoUrl', $event)" />
+                            </div>
+                          </fieldset>
+                          @if (removingKey() === registration.key) {
+                            <section class="decision" role="alertdialog" aria-modal="false" aria-labelledby="registration-remove-title">
+                              <h3 id="registration-remove-title">Remove registration {{ index + 1 }}?</h3>
+                              <p>This removes this stage and its configuration edits from the draft. Other stages are kept. Save the pipeline to apply the removal.</p>
+                              <div class="actions">
+                                <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="confirmRemoveStage()">Remove registration</button>
+                                <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="removingKey.set(null)">Keep registration</button>
+                              </div>
+                            </section>
+                          }
+                        </li>
+                      } @empty { <li class="help">Add at least one registration before saving.</li> }
+                    </ol>
                   </div>
-                } @else { <p class="help">No description available for this type. Raw configuration remains available; saving is blocked.</p> }
-                <div class="field">
-                  <label for="pipeline-locator">Resource locator</label>
-                  <label class="nullable"><input type="checkbox" [ngModel]="registration.resourceLocator === null"
-                    (ngModelChange)="editRegistration(registration.key, 'resourceLocator', $event ? null : '')" /> Null (not supplied)</label>
-                  <input pInputText pSize="small" id="pipeline-locator" [disabled]="registration.resourceLocator === null"
-                    [ngModel]="registration.resourceLocator" (ngModelChange)="editRegistration(registration.key, 'resourceLocator', $event)" aria-describedby="pipeline-locator-help" />
-                  <p id="pipeline-locator-help" class="help">Relative or absolute resource locator pointing to source data. Validation, supported schemes, and access are determined by the server and source.</p>
-                </div>
-                <div class="field">
-                  <label for="pipeline-info-url">Info URL</label>
-                  <label class="nullable"><input type="checkbox" [ngModel]="registration.infoUrl === null"
-                    (ngModelChange)="editRegistration(registration.key, 'infoUrl', $event ? null : '')" /> Null (not supplied)</label>
-                  <input pInputText pSize="small" id="pipeline-info-url" [disabled]="registration.infoUrl === null"
-                    [ngModel]="registration.infoUrl" (ngModelChange)="editRegistration(registration.key, 'infoUrl', $event)" />
-                  <p class="help">Optional information about this data source. Null and an explicit empty string remain distinct.</p>
-                </div>
-                <div [attr.inert]="editingLocked() ? '' : null">
-                  <app-json-schema-editor [schema]="selectedSchema()" [value]="registration.configuration" [rawText]="registration.rawText"
-                    (rawTextChange)="editText(registration.key, $event)" />
-                </div>
-              </fieldset>
-            } @empty {
-              <p class="help">Select a registration to inspect its source description and edit its configuration.</p>
-            }
-          </section>
-        } @else { <p class="empty-editor help">Select a pipeline or create a new one.</p> }
+                } @else { <p class="help empty-pipeline">Select a pipeline or create a new one.</p> }
+              </p-tabpanel>
+            </p-tabpanels>
+          </p-tabs>
+        </div>
+
+        <section class="registration-editor" aria-label="Registration configuration">
+          <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
+            [disabled]="editingLocked()" (click)="navigate('pipeline')">Back to pipeline</button>
+          @for (registration of selected() ? [selected()!] : []; track registration.key) {
+            <h2>Registration configuration</h2>
+            <div [attr.inert]="editingLocked() ? '' : null">
+              <app-json-schema-editor [schema]="selectedSchema()" [value]="registration.configuration" [rawText]="registration.rawText"
+                (rawTextChange)="editText(registration.key, $event)" />
+            </div>
+          } @empty {
+            <p class="help">Select a registration to edit its configuration.</p>
+          }
+        </section>
       </div>
     }
     @if (draft()) {

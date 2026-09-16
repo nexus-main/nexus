@@ -44,7 +44,7 @@ import type { SchemaRawChange } from './schema-field.component'
         }
       } @else {
         <app-schema-field [schema]="schema()" [value]="formValue()" [present]="true" [required]="true"
-          [allowReset]="false"
+          [allowReset]="false" [hideHeader]="true"
           (changed)="editValue($event.value)" (rawChange)="editFieldRaw($event)" />
       }
       @if (!validity().valid) {

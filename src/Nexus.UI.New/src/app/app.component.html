@@ -97,12 +97,8 @@
   <app-package-references (close)="isPackageReferencesOpen.set(false)" />
 }
 
-@defer (when isAdministrator() && isDataSourcePipelinesOpen()) {
-  @if (isAdministrator() && isDataSourcePipelinesOpen()) {
-    <app-data-source-pipelines [refreshDatabase]="refreshPipelineDatabase" (close)="isDataSourcePipelinesOpen.set(false)" />
-  }
-} @error {
-  <p role="alert">Could not load the pipeline editor. Reload the page to retry.</p>
+@if (isAdministrator() && isDataSourcePipelinesOpen()) {
+  <app-data-source-pipelines [refreshDatabase]="refreshPipelineDatabase" (close)="isDataSourcePipelinesOpen.set(false)" />
 }
 
 <ng-template #visualizationContent let-breakout>

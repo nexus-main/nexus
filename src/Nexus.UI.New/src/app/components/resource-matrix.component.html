@@ -21,9 +21,6 @@
   </div>
 
   <div class="group-bar" [class.expanded]="expanded()" [class.can-scroll-back]="canScrollGroupsBack()" [class.can-scroll-forward]="canScrollGroupsForward()">
-    @if (!narrow() && !expanded() && groups().length > 1) {
-      <button pButton type="button" size="small" severity="secondary" [text]="true" class="scroll-groups" aria-label="Scroll to previous groups" [attr.aria-controls]="groupStripId" [disabled]="saving() || !canScrollGroupsBack()" (click)="scrollGroups(-1)"><svg lucideChevronLeft aria-hidden="true"></svg></button>
-    }
     <div #groupStrip [id]="groupStripId" class="group-strip" role="group" aria-label="Resource groups" (scroll)="updateGroupScroll()" (wheel)="scrollCollapsedGroups($event)">
       @for (group of groups(); track group.key) {
         <button pButton type="button" severity="secondary" size="small" class="group-chip" [text]="true" [attr.aria-pressed]="activeGroup()?.key === group.key" [attr.aria-label]="group.name + ', ' + group.rows.length + ' representations'" [title]="group.name" [disabled]="saving()" (click)="selectGroup(group.key)">
@@ -31,9 +28,6 @@
         </button>
       } @empty { <span class="group-empty">No matching groups</span> }
     </div>
-    @if (!narrow() && !expanded() && groups().length > 1) {
-      <button pButton type="button" size="small" severity="secondary" [text]="true" class="scroll-groups" aria-label="Scroll to next groups" [attr.aria-controls]="groupStripId" [disabled]="saving() || !canScrollGroupsForward()" (click)="scrollGroups(1)"><svg lucideChevronRight aria-hidden="true"></svg></button>
-    }
     <button pButton type="button" size="small" severity="secondary" [text]="true" class="expand-groups" [attr.aria-controls]="groupStripId" [attr.aria-expanded]="expanded()" [attr.aria-label]="expanded() ? 'Collapse group list' : 'Expand group list'" [title]="expanded() ? 'Collapse groups' : 'Expand groups'" [disabled]="saving() || !groups().length" (click)="expanded.set(!expanded())">
       @if (expanded()) { <svg lucideChevronUp aria-hidden="true"></svg> } @else { <svg lucideChevronDown aria-hidden="true"></svg> }
     </button>
