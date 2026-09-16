@@ -329,7 +329,8 @@ button {
 
 /* Package references dialog: fullscreen on mobile. */
 @media (max-width: 640px) {
-  .package-references-dialog {
+  .package-references-dialog,
+  .data-source-pipelines-dialog {
     width: 100vw !important;
     max-width: 100vw !important;
     height: 100dvh !important;

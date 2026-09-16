@@ -4,6 +4,7 @@
 using Apollo3zehn.PackageManagement.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Namotion.Reflection;
 using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Extensibility;
@@ -14,6 +15,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Controllers.V1;
@@ -42,11 +44,79 @@ internal class SourcesController(
 
     private static readonly SystemTextJsonSchemaGeneratorSettings _jsonSchemaGeneratorSettings = new()
     {
+        ReflectionService = new ConfigurationSchemaReflectionService(),
+        SchemaProcessors = { new ConfigurationSchemaProcessor() },
         SerializerOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         }
     };
+
+    private sealed class ConfigurationSchemaProcessor : ISchemaProcessor
+    {
+        public void Process(SchemaProcessorContext context)
+        {
+            var type = context.ContextualType.Type;
+            var schema = context.Schema;
+
+            if (type.IsEnum && type.IsDefined(typeof(FlagsAttribute), inherit: false) &&
+                schema.Type.HasFlag(JsonObjectType.Integer))
+            {
+                // System.Text.Json accepts any integer in the underlying range, not just
+                // named flags or combinations of known bits. Labels are renderer metadata.
+                schema.ExtensionData ??= new Dictionary<string, object?>();
+                schema.ExtensionData.TryAdd("x-enumValues", schema.Enumeration.ToArray());
+                schema.Enumeration.Clear();
+                schema.Format = null;
+                (schema.Minimum, schema.Maximum) = Type.GetTypeCode(Enum.GetUnderlyingType(type)) switch
+                {
+                    TypeCode.SByte => (sbyte.MinValue, sbyte.MaxValue),
+                    TypeCode.Byte => (byte.MinValue, byte.MaxValue),
+                    TypeCode.Int16 => (short.MinValue, short.MaxValue),
+                    TypeCode.UInt16 => (ushort.MinValue, ushort.MaxValue),
+                    TypeCode.Int32 => (int.MinValue, int.MaxValue),
+                    TypeCode.UInt32 => (uint.MinValue, uint.MaxValue),
+                    TypeCode.Int64 => ((decimal)long.MinValue, (decimal)long.MaxValue),
+                    TypeCode.UInt64 => ((decimal)ulong.MinValue, (decimal)ulong.MaxValue),
+                    _ => throw new NotSupportedException("Unsupported flags enum underlying type.")
+                };
+            }
+            else if (type == typeof(byte) && schema.Type.HasFlag(JsonObjectType.Integer))
+            {
+                // OpenAPI/Ajv's byte format denotes a base64 string, not a CLR byte number.
+                schema.Format = null;
+                schema.Minimum = byte.MinValue;
+                schema.Maximum = byte.MaxValue;
+            }
+        }
+    }
+
+    private sealed class ConfigurationSchemaReflectionService : SystemTextJsonReflectionService
+    {
+        public override void GenerateProperties(
+            JsonSchema schema,
+            ContextualType contextualType,
+            SystemTextJsonSchemaGeneratorSettings settings,
+            JsonSchemaGenerator schemaGenerator,
+            JsonSchemaResolver schemaResolver)
+        {
+            base.GenerateProperties(schema, contextualType, settings, schemaGenerator, schemaResolver);
+
+            // NJsonSchema 11.1 does not recognize System.Text.Json's required members.
+            // Presence is independent of whether the property's value may be null.
+            var typeInfo = new DefaultJsonTypeInfoResolver().GetTypeInfo(contextualType.Type, settings.SerializerOptions);
+
+            foreach (var property in typeInfo.Properties)
+            {
+                if (property.IsRequired &&
+                    schema.Properties.ContainsKey(property.Name) &&
+                    !schema.RequiredProperties.Contains(property.Name))
+                {
+                    schema.RequiredProperties.Add(property.Name);
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// Gets the list of source descriptions.
@@ -145,8 +215,21 @@ internal class SourcesController(
     {
         return extensions.Select(dataSourceType =>
         {
-            var configurationType = DataSourceController.GetConfigurationType(dataSourceType);
-            var sourceConfigurationSchema = JsonSchema.FromType(configurationType, _jsonSchemaGeneratorSettings);
+            var configurationType = ConfigurationTypeResolver.Resolve(dataSourceType);
+            var sourceConfigurationSchema = new JsonSchema();
+            var generator = new JsonSchemaGenerator(_jsonSchemaGeneratorSettings);
+            var resolver = new JsonSchemaResolver(sourceConfigurationSchema, _jsonSchemaGeneratorSettings);
+
+            if (configurationType.Nullability == Nullability.Nullable && configurationType.Type != typeof(object))
+            {
+                // Keep the non-null definition strict, including recursive references to it.
+                sourceConfigurationSchema.AnyOf.Add(new JsonSchema { Type = JsonObjectType.Null });
+                sourceConfigurationSchema.AnyOf.Add(generator.GenerateWithReference<JsonSchema>(configurationType, resolver));
+            }
+            else
+            {
+                generator.Generate(sourceConfigurationSchema, configurationType, resolver);
+            }
 
             var additionalInformation = new Dictionary<string, JsonElement>
             {

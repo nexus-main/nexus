@@ -1,0 +1,239 @@
+<p-dialog appRestoreFocus header="Administrator / Data source pipelines" [visible]="true"
+  (visibleChange)="!$event && request({ kind: 'close' })" [modal]="true" [blockScroll]="true"
+  [dismissableMask]="false" [closeOnEscape]="false" [pt]="dialogPt" [closable]="!locked() && removingKey() === null"
+  [draggable]="false" [resizable]="false" appendTo="body" styleClass="data-source-pipelines-dialog"
+  [closeButtonProps]="{ ariaLabel: 'Close data source pipelines', severity: 'secondary', text: true, rounded: true }"
+  [style]="{ width: 'min(82rem, calc(100vw - 2rem))' }">
+  <div #panel tabindex="-1" class="pipelines-panel" [attr.aria-busy]="locked()">
+    <div class="pipeline-toolbar">
+      <div>
+        <p class="owner-label">Owned by {{ owner() }} (current user)</p>
+        <p class="help">Only your pipelines are shown. Saved changes require a database refresh to affect catalogs.</p>
+      </div>
+      <button pButton type="button" size="small" severity="secondary" [outlined]="true"
+        [disabled]="editingLocked() || !loaded()" (click)="request({ kind: 'refresh' })">
+        {{ refreshing() ? 'Refreshing database...' : 'Refresh database' }}
+      </button>
+    </div>
+    @if (!administrator()) {
+      <p-message severity="error">Administrator permission is required to manage current-user pipelines.</p-message>
+    }
+    @if (error()) { <p-message severity="error">{{ error() }}</p-message> }
+    @if (draft()?.serverDiverged) {
+      <p-message severity="warn">This pipeline changed or was removed on the server. Your edits are retained, but saving is blocked to avoid overwriting server changes. Reload and confirm discarding local edits to use the latest pipeline.</p-message>
+      <button pButton type="button" size="small" severity="secondary"
+        [disabled]="locked() || !!pending() || confirmingDelete() || removingKey() !== null || !administrator()"
+        (click)="request({ kind: 'reload' })">Reload latest pipeline</button>
+    }
+    @if (descriptionError()) {
+      <p-message severity="warn">{{ descriptionError() }}</p-message>
+      <button pButton type="button" size="small" severity="secondary"
+        [disabled]="locked() || !!pending() || confirmingDelete() || removingKey() !== null || !administrator()"
+        (click)="request({ kind: 'descriptions' })">Retry source descriptions</button>
+    }
+    @if (status()) { <p-message severity="success" role="status">{{ status() }}</p-message> }
+    @if (loading()) { <p role="status">Loading pipelines and source descriptions...</p> }
+    @if (!loaded() && !loading() && administrator()) {
+      <button pButton type="button" size="small" [disabled]="locked() || !!pending() || confirmingDelete() || removingKey() !== null" (click)="request({ kind: 'reload' })">Retry loading</button>
+    }
+
+    @if (pending()) {
+      <section class="decision" role="alertdialog" aria-modal="false" aria-labelledby="pipeline-unsaved-title" aria-describedby="pipeline-unsaved-help">
+        <h2 id="pipeline-unsaved-title">Unsaved pipeline changes</h2>
+        <p id="pipeline-unsaved-help">
+          @if (pending()?.kind === 'descriptions') {
+            Retry source descriptions and revalidate your draft? All edits and raw JSON buffers will be retained, even if the retry fails.
+          } @else if (pending()?.kind === 'refresh' || pending()?.kind === 'reload') {
+            Save first or reload without saving. Unsaved edits are replaced only after pipelines and descriptions reload successfully; cancellation or failure retains your draft.
+          } @else {
+            Save before continuing, discard these edits, or stay here. Saving validates every registration.
+          }
+        </p>
+        <div class="actions">
+          @if (pending()?.kind === 'descriptions') {
+            <button pButton type="button" size="small" [disabled]="locked()" (click)="retryDescriptions()">Retry and keep edits</button>
+          } @else {
+            <button pButton type="button" size="small" [disabled]="locked() || !administrator() || !loaded() || !prepared()?.valid" (click)="choose('save')">Save and continue</button>
+            <button pButton type="button" size="small" severity="danger" [outlined]="true" [disabled]="locked()" (click)="choose('discard')">
+              {{ pending()?.kind === 'refresh' || pending()?.kind === 'reload' ? 'Continue without saving' : 'Discard and continue' }}
+            </button>
+          }
+          <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="choose('stay')">Stay</button>
+        </div>
+      </section>
+    }
+    @if (confirmingDelete()) {
+      <section class="decision" role="alertdialog" aria-modal="false" aria-labelledby="pipeline-delete-title">
+        <h2 id="pipeline-delete-title">Delete this pipeline?</h2>
+        <p>This removes the saved pipeline and discards its local edits. Refresh the database afterward to apply the deletion.</p>
+        <div class="actions">
+          <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="remove()">Delete pipeline</button>
+          <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="confirmingDelete.set(false)">Keep pipeline</button>
+        </div>
+      </section>
+    }
+
+    @if (loaded() && administrator()) {
+      <div class="pipeline-workspace" [class.show-list]="mobileView() === 'list'" [class.show-pipeline]="mobileView() === 'pipeline'" [class.show-registration]="mobileView() === 'registration'">
+        <aside class="pipeline-list" aria-label="Current-user pipelines">
+          <div class="section-heading">
+            <h2>Pipelines <span class="muted">{{ entries().length }}</span></h2>
+            <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="request({ kind: 'pipeline', id: null })">New</button>
+          </div>
+          @if (draft(); as current) {
+            @if (dirty()) {
+              <button type="button" class="pipeline-entry draft-entry" [disabled]="editingLocked()" (click)="navigate('pipeline')">
+                <strong>{{ current.id ? 'Continue unsaved edits' : 'New pipeline draft' }}</strong>
+                <span>{{ current.registrations.length }} registrations / Not saved</span>
+              </button>
+            }
+          }
+          @for (entry of entries(); track entry.id) {
+            <button type="button" class="pipeline-entry" [class.selected]="draft()?.id === entry.id"
+              [attr.aria-current]="draft()?.id === entry.id ? 'true' : null" [disabled]="editingLocked()"
+              (click)="request({ kind: 'pipeline', id: entry.id })">
+              <strong>{{ pipelineLabel(entry.pipeline) }}</strong>
+              <span>{{ entry.pipeline.registrations?.length ?? 0 }} registrations</span>
+              <code>{{ entry.id }}</code>
+            </button>
+          } @empty {
+            <p class="help">No saved pipelines. Create a pipeline, then add its data source registrations in processing order.</p>
+          }
+        </aside>
+
+        @if (draft(); as current) {
+          <section class="pipeline-editor" aria-label="Pipeline editor">
+            <div class="section-heading">
+              <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
+                [disabled]="editingLocked()" (click)="navigate('list')">Back to pipelines</button>
+              <h2>{{ current.id ? 'Pipeline' : 'New pipeline' }}</h2>
+              <span class="muted">{{ dirty() ? 'Unsaved changes' : 'Saved' }}</span>
+            </div>
+            @if (current.id) { <code class="pipeline-id">{{ current.id }}</code> }
+            <fieldset [disabled]="editingLocked()">
+              <legend>Catalog metadata</legend>
+              <div class="field">
+                <label for="pipeline-release">Release pattern</label>
+                <label class="nullable"><input type="checkbox" [ngModel]="current.releasePattern === null"
+                  (ngModelChange)="setPattern('releasePattern', $event ? null : '')" /> Null (select all catalogs)</label>
+                <input pInputText pSize="small" id="pipeline-release" [disabled]="current.releasePattern === null"
+                  [ngModel]="current.releasePattern" (ngModelChange)="setPattern('releasePattern', $event)" aria-describedby="pipeline-pattern-help" />
+              </div>
+              <div class="field">
+                <label for="pipeline-visibility">Visibility pattern</label>
+                <label class="nullable"><input type="checkbox" [ngModel]="current.visibilityPattern === null"
+                  (ngModelChange)="setPattern('visibilityPattern', $event ? null : '')" /> Null (show all catalogs)</label>
+                <input pInputText pSize="small" id="pipeline-visibility" [disabled]="current.visibilityPattern === null"
+                  [ngModel]="current.visibilityPattern" (ngModelChange)="setPattern('visibilityPattern', $event)" aria-describedby="pipeline-pattern-help" />
+              </div>
+              <p id="pipeline-pattern-help" class="help">Patterns select catalog IDs using server-evaluated .NET regular expressions. Null selects all; empty text is an explicit pattern. Neither flag grants access. Release applies only when the owner can release the catalog. Visibility controls listing; readable catalogs are always visible.</p>
+            </fieldset>
+            <div class="section-heading">
+              <h3>Registrations</h3>
+              <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="addStage()">Add registration</button>
+            </div>
+            <p class="help">Run in the listed order. Repeated source types are separate stages. Configuration edits stay with each stage when reordered.</p>
+            <ol class="registrations">
+              @for (registration of current.registrations; track registration.key; let index = $index) {
+                <li [class.selected]="selectedKey() === registration.key">
+                  <button type="button" class="stage-select" [disabled]="editingLocked()" [attr.aria-current]="selectedKey() === registration.key ? 'true' : null" (click)="navigate('registration', registration.key)">
+                    <span class="stage-number">{{ index + 1 }}</span>
+                    <span>{{ registration.type || 'Select a source type' }}
+                      @if (hasIssue(registration.key)) { <small class="invalid-label">Needs attention</small> }
+                    </span>
+                  </button>
+                  <div class="stage-actions">
+                    <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="editingLocked() || index === 0" [attr.aria-label]="'Move registration ' + (index + 1) + ' up'" (click)="moveStage(registration.key, -1)">Up</button>
+                    <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="editingLocked() || index === current.registrations.length - 1" [attr.aria-label]="'Move registration ' + (index + 1) + ' down'" (click)="moveStage(registration.key, 1)">Down</button>
+                    <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked()" [attr.aria-label]="'Remove registration ' + (index + 1)" (click)="removeStage(registration.key)">Remove</button>
+                  </div>
+                  @if (removingKey() === registration.key) {
+                    <section class="decision" role="alertdialog" aria-modal="false" aria-labelledby="registration-remove-title">
+                      <h3 id="registration-remove-title">Remove registration {{ index + 1 }}?</h3>
+                      <p>This removes this stage and its configuration edits from the draft. Other stages are kept. Save the pipeline to apply the removal.</p>
+                      <div class="actions">
+                        <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="confirmRemoveStage()">Remove registration</button>
+                        <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="removingKey.set(null)">Keep registration</button>
+                      </div>
+                    </section>
+                  }
+                </li>
+              } @empty { <li class="help">Add at least one registration before saving.</li> }
+            </ol>
+          </section>
+
+          <section class="registration-editor" aria-label="Registration editor">
+            <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
+              [disabled]="editingLocked()" (click)="navigate('pipeline')">Back to pipeline</button>
+            @for (registration of selected() ? [selected()!] : []; track registration.key) {
+              <h2>Registration configuration</h2>
+              <fieldset [disabled]="editingLocked()">
+                <legend class="sr-only">Source registration</legend>
+                <div class="field">
+                  <label id="pipeline-source-type-label" for="pipeline-source-type">Source type</label>
+                  <p-select inputId="pipeline-source-type" ariaLabelledBy="pipeline-source-type-label" appendTo="body"
+                    [options]="typeOptions()" [ngModel]="registration.type" [disabled]="editingLocked()"
+                    (ngModelChange)="editRegistration(registration.key, 'type', $event)" placeholder="Select installed source" size="small" />
+                  <p class="help">Changing type keeps the existing configuration; it does not insert defaults. The selected type's schema must validate before saving.</p>
+                </div>
+                @if (selectedDescription(); as description) {
+                  <div class="source-description">
+                    <span class="owner-label">Version {{ description.version || 'not supplied' }}</span>
+                    <p>{{ description.description || 'No description supplied.' }}</p>
+                  </div>
+                } @else { <p class="help">No description available for this type. Raw configuration remains available; saving is blocked.</p> }
+                <div class="field">
+                  <label for="pipeline-locator">Resource locator</label>
+                  <label class="nullable"><input type="checkbox" [ngModel]="registration.resourceLocator === null"
+                    (ngModelChange)="editRegistration(registration.key, 'resourceLocator', $event ? null : '')" /> Null (not supplied)</label>
+                  <input pInputText pSize="small" id="pipeline-locator" [disabled]="registration.resourceLocator === null"
+                    [ngModel]="registration.resourceLocator" (ngModelChange)="editRegistration(registration.key, 'resourceLocator', $event)" aria-describedby="pipeline-locator-help" />
+                  <p id="pipeline-locator-help" class="help">Relative or absolute resource locator pointing to source data. Validation, supported schemes, and access are determined by the server and source.</p>
+                </div>
+                <div class="field">
+                  <label for="pipeline-info-url">Info URL</label>
+                  <label class="nullable"><input type="checkbox" [ngModel]="registration.infoUrl === null"
+                    (ngModelChange)="editRegistration(registration.key, 'infoUrl', $event ? null : '')" /> Null (not supplied)</label>
+                  <input pInputText pSize="small" id="pipeline-info-url" [disabled]="registration.infoUrl === null"
+                    [ngModel]="registration.infoUrl" (ngModelChange)="editRegistration(registration.key, 'infoUrl', $event)" />
+                  <p class="help">Optional information about this data source. Null and an explicit empty string remain distinct.</p>
+                </div>
+                <div [attr.inert]="editingLocked() ? '' : null">
+                  <app-json-schema-editor [schema]="selectedSchema()" [value]="registration.configuration" [rawText]="registration.rawText"
+                    (rawTextChange)="editText(registration.key, $event)" />
+                </div>
+              </fieldset>
+            } @empty {
+              <p class="help">Select a registration to inspect its source description and edit its configuration.</p>
+            }
+          </section>
+        } @else { <p class="empty-editor help">Select a pipeline or create a new one.</p> }
+      </div>
+    }
+    @if (draft()) {
+      @if (prepared(); as result) {
+        @if (!result.valid) {
+          <details class="validation-summary" open>
+            <summary>Saving blocked: {{ result.issues.length }} validation issues across this pipeline</summary>
+            <ul>
+              @for (issue of result.issues; track $index) {
+                <li>
+                  @if (issue.key !== undefined) {
+                    <button type="button" [disabled]="editingLocked()" (click)="navigate('registration', issue.key)">{{ issue.message }}</button>
+                  } @else { {{ issue.message }} }
+                </li>
+              }
+            </ul>
+          </details>
+        }
+      }
+      <div class="pipeline-footer">
+        <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked() || !draft()?.id" (click)="confirmingDelete.set(true)">Delete pipeline</button>
+        <div class="actions">
+          <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="request({ kind: 'close' })">Close</button>
+          <button pButton type="button" size="small" [disabled]="editingLocked() || !dirty() || !prepared()?.valid" (click)="save()">{{ busy() ? 'Working...' : 'Save pipeline' }}</button>
+        </div>
+      </div>
+    }
+  </div>
+</p-dialog>

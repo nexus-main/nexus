@@ -77,8 +77,10 @@ export class AppHeaderComponent {
   readonly themeMode = input.required<ThemeMode>()
   readonly isAdministrator = input(false)
   readonly openPackageReferences = output<void>()
+  readonly openDataSourcePipelines = output<void>()
   readonly adminMenuItems: MenuItem[] = [
     { label: 'Package references', command: () => this.openPackageReferences.emit() },
+    { label: 'Data source pipelines', command: () => this.openDataSourcePipelines.emit() },
   ]
   readonly openCatalog = output<void>()
   readonly toggleTheme = output<void>()
