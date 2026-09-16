@@ -294,7 +294,7 @@
                 <span class="shrink-0 rounded-full bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-slate-500">{{ group.resources.length }}</span>
               </div>
               @for (resource of group.resources; track resource.key) {
-                <app-pinned-resource [selection]="resource" [period]="samplePeriod()" [disabled]="selectionLoading()" (kindToggled)="toggleKind(resource, $event)" (removed)="removeResource(resource.key)" />
+                <app-pinned-resource [selection]="resource" [period]="samplePeriod()" [disabled]="selectionLoading()" (activated)="selectPinnedResourceCatalog(resource)" (kindToggled)="toggleKind(resource, $event)" (removed)="removeResource(resource.key)" />
               }
             </section>
           } @empty {

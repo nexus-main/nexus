@@ -680,6 +680,22 @@ export class AppComponent implements OnDestroy {
     if (this.catalogHasExpandableChildren(catalog)) this.toggleExpanded(catalog)
   }
 
+  selectPinnedResourceCatalog(resource: ResourceSelection) {
+    const catalogId = resource.catalogId
+    const catalog = this.catalogNodes().find(node => !node.isFake && (node.id ?? '/') === catalogId)
+    if (catalog) this.selectCatalog(catalog)
+    else {
+      this.selectedCatalogId.set(catalogId)
+      this.selectedCatalogNodeKey.set(getRealCatalogNodeKey(catalogId))
+      this.selectedCatalogInfo.set(null)
+      writeSelectedCatalogToUrl(catalogId)
+      this.isMobileCatalogOpen.set(false)
+      this.expandCatalogPath(catalogId)
+      if (this.apiAvailable()) void this.loadCatalogPathChildren(catalogId)
+    }
+    this.activeResourcePath.set(resource.path)
+  }
+
   catalogHasExpandableChildren(catalog: CatalogNode) {
     if (catalog.isFake) return (catalog.groupedChildren?.length ?? 0) > 0
     if (!catalog.id || !this.apiAvailable()) return false
