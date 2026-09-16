@@ -133,6 +133,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
     let pendingZoom = null;
     let pointerInvokePending = false;
     let pendingPointer = null;
+    let hoveredPointer = null;
     let disposed = false;
 
     function invokeZoom(method, values) {
@@ -147,8 +148,12 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             pendingZoom = null;
 
             try {
-                if (!disposed && next)
+                if (!disposed && next) {
                     await dotNetHelper.invokeMethodAsync(next.method, ...next.values);
+                    // Refresh the stationary pointer against the updated viewport.
+                    if (!disposed && hoveredPointer)
+                        invokePointer(...hoveredPointer);
+                }
             } catch (error) {
                 console.error('[chart] zoom update failed', error);
             } finally {
@@ -189,17 +194,20 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
     if (overlay && selection) {
         let drag = null;
+        let lastTap = null;
         const axisLockRatio = 1 / Math.tan(15 * Math.PI / 180);
 
         listen(overlay, "mousemove", e => {
             const rect = overlay.getBoundingClientRect();
             if (rect.width <= 0 || rect.height <= 0)
                 return;
-            invokePointer(
+            hoveredPointer = [
                 clamp((e.clientX - rect.left) / rect.width, 0, 1),
-                clamp((e.clientY - rect.top) / rect.height, 0, 1));
+                clamp((e.clientY - rect.top) / rect.height, 0, 1)];
+            invokePointer(...hoveredPointer);
         });
         listen(overlay, "mouseleave", () => {
+            hoveredPointer = null;
             pendingPointer = null;
             if (!disposed)
                 nexus.chart.clearAuxiliary(chartId);
@@ -242,13 +250,31 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
             if (e.cancelable)
                 e.preventDefault();
-            overlay.setPointerCapture(e.pointerId);
             const rect = overlay.getBoundingClientRect();
+            const startX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+            const startY = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+            if (e.pointerType === "touch" || e.pointerType === "pen") {
+                const now = finiteNumber(e.timeStamp, Date.now());
+                const previous = lastTap;
+                lastTap = { time: now, x: e.clientX, y: e.clientY };
+                if (previous && now - previous.time <= 350 && Math.hypot(e.clientX - previous.x, e.clientY - previous.y) <= 24) {
+                    lastTap = null;
+                    overlay.dataset.zoomLeft = "0";
+                    overlay.dataset.zoomRight = "1";
+                    overlay.dataset.zoomTop = "0";
+                    overlay.dataset.zoomBottom = "1";
+                    selection.style.display = "none";
+                    drag = null;
+                    invokeZoom("SetViewport", [0, 0, 1, 1]);
+                    return;
+                }
+            }
+            overlay.setPointerCapture(e.pointerId);
             drag = {
                 pointerId: e.pointerId,
                 rect,
-                startX: clamp((e.clientX - rect.left) / rect.width, 0, 1),
-                startY: clamp((e.clientY - rect.top) / rect.height, 0, 1),
+                startX,
+                startY,
                 currentX: 0,
                 currentY: 0,
                 pan: e.button === 1 || e.altKey || e.ctrlKey || e.metaKey,

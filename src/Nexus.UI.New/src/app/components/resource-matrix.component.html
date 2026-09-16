@@ -1,4 +1,4 @@
-<section class="matrix" aria-label="Catalog resources" [attr.aria-busy]="loading() || saving()">
+<section class="matrix" [class.inline-editing]="editing() && !narrow()" [style.--row-height]="itemSize() + 'px'" aria-label="Catalog resources" [attr.aria-busy]="loading() || saving()">
   <header class="toolbar">
     <div class="text-xs uppercase tracking-[0.24em] text-cyan-200/80">resource browser</div>
     <div class="toolbar-actions">
@@ -42,7 +42,7 @@
   @if (editing() || error() || status()) {
     <div class="matrix-messages" tabindex="0" role="region" aria-label="Metadata editing guidance and status">
       @if (editing()) {
-        <p class="edit-help">Edits apply to every representation and group of a resource. Leave a field blank to remove its override and restore the source value after saving. Search uses the original metadata.</p>
+        <p class="edit-help">Leave a field blank to remove its override and restore the source value after saving.</p>
         @if (!writable()) { <p class="notice warning" role="alert">Editing permission is no longer available. Drafts are retained, but cannot be saved.</p> }
       }
       @if (error()) { <p class="notice error" role="alert">Save failed: {{ error() }} Your drafts are retained.</p> }
@@ -51,30 +51,31 @@
   }
 
   <div class="list-summary" role="status"><strong>{{ loading() ? 'Loading resources...' : (activeGroup()?.name ?? 'Resources') }}</strong></div>
-  @if (!narrow()) {
-    <div class="column-head" aria-hidden="true"><span></span><span>Resource ID / period</span><span>Unit</span><span>Description</span><span>Warning</span><span></span></div>
+  @if (editing() && !narrow()) {
+    <div class="column-head" aria-hidden="true"><span></span><span>Resource ID / period</span><span>Unit</span><span>Description</span><span>Warning</span></div>
   }
   <div class="list-shell">
     <cdk-virtual-scroll-viewport class="resource-viewport" [itemSize]="itemSize()" [minBufferPx]="itemSize() * 3" [maxBufferPx]="itemSize() * 6" role="list" aria-label="Resource representations">
       <div *cdkVirtualFor="let row of visibleRows(); let index = index; trackBy: trackRow" class="resource-row" [class.active]="activeKey() === row.key" [class.selected]="selectedKeys().has(row.key)" [attr.data-row-key]="row.key" role="listitem" [attr.aria-posinset]="index + 1" [attr.aria-setsize]="visibleRows().length" [attr.aria-current]="activeKey() === row.key ? 'true' : null">
-        <label class="selection-control" [title]="selectionLabel(row)"><input type="checkbox" [checked]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [attr.aria-label]="selectionLabel(row)" (change)="toggleRow(row)" /></label>
-        <button type="button" class="resource-identity" [disabled]="saving()" [title]="row.path" [attr.aria-label]="'Activate ' + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row)">
-          <strong>{{ row.id }}</strong><span class="period">{{ formatPeriod(row.basePeriod) }}<span class="active-label">{{ activeKey() === row.key ? 'Active' : '' }}</span></span>
-        </button>
+        <label class="selection-control" [title]="selectionLabel(row)"><p-checkbox [binary]="true" [ngModel]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [ariaLabel]="selectionLabel(row)" (ngModelChange)="toggleRow(row)" /></label>
         @if (editing() && !narrow()) {
+          <button type="button" class="resource-identity" [disabled]="saving()" [title]="row.path" [attr.aria-label]="'Activate ' + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
+            <strong>{{ row.id }}</strong><span class="period">{{ formatPeriod(row.basePeriod) }}</span>
+          </button>
           @for (field of fields; track field) {
             <div class="field-cell" [class.warning]="field === 'warning'">
-              <input pInputText pSize="small" [attr.aria-label]="field + ' for ' + row.id + ', ' + formatPeriod(row.basePeriod)" [placeholder]="field === 'warning' ? 'No warning' : 'Source value'" [ngModel]="value(row, field)" (ngModelChange)="setField(row, field, $event)" [disabled]="!canEdit()" />
+              <input pInputText pSize="small" [attr.aria-label]="field + ' for ' + row.id + ', ' + formatPeriod(row.basePeriod)" [ngModel]="value(row, field)" (ngModelChange)="setField(row, field, $event)" [disabled]="!canEdit()" />
             </div>
           }
         } @else {
-          <div class="unit preview" [title]="value(row, 'unit')"><span class="mobile-label">Unit: </span>{{ value(row, 'unit') || '-' }}</div>
-          <div class="description preview" [title]="value(row, 'description')">{{ value(row, 'description') }}</div>
-          <div class="warning preview" [title]="value(row, 'warning')">
-            @if (value(row, 'warning')) { <svg lucideTriangleAlert aria-hidden="true"></svg><span>Warning: {{ value(row, 'warning') }}</span> }
-          </div>
+          <button type="button" class="resource-identity" [disabled]="saving()" [attr.aria-haspopup]="narrow() ? 'dialog' : null" [attr.aria-label]="(narrow() ? (editing() && writable() ? 'Edit metadata for ' : 'Read details for ') : 'Activate ') + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
+            <span class="resource-line">
+              <span class="resource-name"><strong [title]="row.path">{{ row.id }}</strong>@if (value(row, 'unit')) { <span class="unit" [title]="value(row, 'unit')">{{ value(row, 'unit') }}</span> }</span>
+              @if (value(row, 'warning')) { <span class="warning" [title]="'Warning: ' + value(row, 'warning')"><svg lucideTriangleAlert aria-hidden="true"></svg><span>{{ value(row, 'warning') }}</span></span> }
+            </span>
+            <span class="resource-line secondary-line"><span class="period">{{ formatPeriod(row.basePeriod) }}</span><span class="description" [title]="value(row, 'description')">{{ value(row, 'description') }}</span></span>
+          </button>
         }
-        <button pButton type="button" size="small" severity="secondary" [text]="true" class="detail-button" aria-haspopup="dialog" [disabled]="saving()" [attr.aria-label]="(editing() && writable() ? 'Edit full metadata for ' : 'Read full metadata for ') + row.id + ', ' + formatPeriod(row.basePeriod)" [title]="editing() && writable() ? 'Edit full metadata' : 'Read full metadata'" (click)="openDetail(row, $event)"><svg lucideExpand aria-hidden="true"></svg></button>
       </div>
     </cdk-virtual-scroll-viewport>
     @if (!visibleRows().length) {

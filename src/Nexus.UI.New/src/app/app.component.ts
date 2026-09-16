@@ -121,7 +121,12 @@ export class AppComponent implements OnDestroy {
   readonly isReadmeOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
   readonly visualizationOpen = signal(false)
+  readonly compactLayout = signal(window.innerWidth < 640)
   readonly wideLayout = signal(window.innerWidth >= 1536)
+  readonly visualizationPanelVisible = computed(() => this.wideLayout() && !this.resourceMatrix()?.editing())
+  readonly visualizationDialogStyle = computed(() => this.compactLayout()
+    ? { width: '100vw', height: '100dvh', maxHeight: '100dvh', margin: '0', borderRadius: '0' }
+    : { width: 'calc(100vw - 2rem)', height: 'calc(100dvh - 2rem)', maxHeight: 'calc(100dvh - 2rem)' })
   readonly visualizationData = signal<VisualizationData | null>(null)
   readonly visualizationLoading = signal(false)
   readonly visualizationProgress = signal(0)
@@ -408,6 +413,7 @@ export class AppComponent implements OnDestroy {
   @HostListener('window:resize')
   onResize() {
     if (window.innerWidth >= 1024) this.isMobileCatalogOpen.set(false)
+    this.compactLayout.set(window.innerWidth < 640)
     this.wideLayout.set(window.innerWidth >= 1536)
     if (!this.wideLayout() && !this.visualizationOpen()) this.cancelVisualization()
   }

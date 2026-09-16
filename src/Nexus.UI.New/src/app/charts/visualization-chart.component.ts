@@ -3,9 +3,11 @@ import { DOCUMENT } from '@angular/common';
 import type { VisualizationData, VisualizationSeries } from './visualization-data.ts';
 import { getChartInterop } from './chart-interop';
 import type { ChartCallbacks, ChartCallbackAdapter, ChartInterop, GpuRange, SeriesPayload } from './chart-interop';
-import { CHUNK_LENGTH, FULL_VIEWPORT, SERIES_COLORS, TIME_AXIS_CONFIGS, applyZoom, clamp, createAxis, detailWindow, formatDuration, formatRange, formatTime, getTimeTicks, getYTicks, isSlowTickRequired, roundAway, scaleTicks, setViewport, toEngineering, toTime } from './chart-math';
+import { CHUNK_LENGTH, FULL_VIEWPORT, SERIES_COLORS, applyZoom, clamp, createAxis, detailWindow, formatDuration, formatRange, formatTime, getTimeTicks, getYTicks, isSlowTickRequired, roundAway, scaleTicks, setViewport, toEngineering, toTime } from './chart-math';
 import type { Axis, Viewport } from './chart-math';
 import { provideSeriesChunk, uploadSeries } from './chart-upload';
+import { LegendNameDirective } from './legend-name.directive';
+import { formatLegendValue } from './legend-text';
 
 let nextChartId = 0;
 
@@ -19,6 +21,7 @@ interface SeriesState {
 @Component({
   selector: 'nexus-visualization-chart',
   standalone: true,
+  imports: [LegendNameDirective],
   templateUrl: './visualization-chart.component.html',
   styleUrl: './visualization-chart.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,7 +53,6 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   private pollTimer: ReturnType<typeof setTimeout> | undefined;
   private resizeObserver?: ResizeObserver;
   private dprQuery?: MediaQueryList;
-  private cursorFormat = TIME_AXIS_CONFIGS[0].cursor;
   private readonly onResize = (): void => this.scheduleDraw();
   private readonly onDprChange = (): void => { this.watchDpr(); this.scheduleDraw(); };
 
@@ -261,7 +263,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     if (!next || this.errorTitle || !this.data) return;
     this.viewport = next;
     this.rebuildAxes();
-    this.api?.chart.clearAuxiliary(this.chartId);
+    // Keep the readout visible until the post-zoom pointer refresh replaces it.
     this.changeDetector.markForCheck();
     this.scheduleDraw();
   }
@@ -279,10 +281,10 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       const pointY = value === undefined ? NaN : (value - axis.min) / (axis.max - axis.min);
       const visible = !this.hidden.has(series.id) && Number.isFinite(pointX) && pointX >= 0 && pointX <= 1 && Number.isFinite(pointY) && pointY >= 0 && pointY <= 1;
       const digits = clamp(-roundAway(Math.log10(axis.max - axis.min)) + 2, 0, 100);
-      const text = visible ? `${value!.toFixed(digits)}${series.unit.trim() ? ` ${series.unit}` : ''}` : '--';
+      const text = visible ? formatLegendValue(value!, digits) : '--';
       return { id: series.id, visible, x: pointX, y: 1 - pointY, text };
     });
-    this.api.chart.updateAuxiliary(this.chartId, x, y, formatTime(time, this.cursorFormat), updates);
+    this.api.chart.updateAuxiliary(this.chartId, x, y, formatTime(time), updates);
   }
 
   private scheduleDraw(): void {
@@ -344,7 +346,6 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       const begin = this.zoomedBegin;
       const end = this.zoomedEnd;
       const { config, ticks } = getTimeTicks(begin, end, Math.max(1, roundAway((width - xMin) / 130)));
-      this.cursorFormat = config.cursor;
       let previous = 0n;
       context.textAlign = 'center';
       context.strokeStyle = lightTheme ? '#d3d3d3' : 'rgba(148, 163, 184, 0.25)';

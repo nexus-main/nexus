@@ -22,7 +22,7 @@
       </aside>
 
       <section class="flex min-h-0 flex-col gap-3 overflow-y-auto">
-        <div class="grid min-h-full min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(20rem,1fr)] gap-3 2xl:grid-cols-2">
+        <div class="grid min-h-full min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(20rem,1fr)] gap-3" [class.2xl:grid-cols-2]="visualizationPanelVisible()">
           <section class="glass-panel overflow-hidden rounded-sm 2xl:col-start-1 2xl:row-start-1">
             <div class="relative p-4 sm:p-5">
               <div class="absolute right-0 top-0 h-40 w-72 rounded-full bg-cyan-300/10 blur-3xl"></div>
@@ -73,11 +73,11 @@
             [selectedKeys]="selectedResourcePaths()" [activeKey]="activeResourcePath()"
             [revealKey]="revealResourceKey()" [revealSequence]="revealResourceSequence()"
             [writable]="resourceMetadataWritable()" [loading]="catalogLoading()" [selectionLoading]="selectionLoading()"
-            [visualizationPanelVisible]="wideLayout()"
+            [visualizationPanelVisible]="visualizationPanelVisible()"
             [saveMetadata]="saveResourceMetadata" (toggle)="toggleResource($event)"
             (activate)="activateResource($event)" (visualize)="visualize()" />
 
-          <section class="glass-panel hidden min-h-0 h-full overflow-hidden rounded-sm 2xl:flex 2xl:flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2">
+          <section class="glass-panel min-h-0 h-full overflow-hidden rounded-sm flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2" [class.hidden]="!visualizationPanelVisible()" [class.flex]="visualizationPanelVisible()">
             <div class="flex shrink-0 flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div class="text-xs uppercase tracking-[0.24em] text-lime-200/80">visualization</div>
               <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" (click)="visualizationOpen.set(true)" aria-label="Open visualization" title="Open visualization">
@@ -99,15 +99,12 @@
 }
 
 <ng-template #visualizationContent let-breakout>
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 sm:p-4">
-    <div class="flex flex-wrap items-center gap-3 text-xs">
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 pt-3 sm:pt-4">
+    <div class="flex flex-wrap items-center gap-3 px-3 text-xs sm:px-4">
       <label class="flex items-center gap-2"><p-checkbox [binary]="true" [ngModel]="visualizationBeginAtZero()" (ngModelChange)="visualizationBeginAtZero.set($event)" ariaLabel="Begin value axes at zero" />Begin at zero</label>
       <label class="flex items-center gap-2">GPU cache (MiB)<input pInputText pSize="small" type="number" min="16" step="16" class="w-24" [ngModel]="visualizationCacheMiB()" (ngModelChange)="setVisualizationCache($event)" /></label>
-      @if (visualizationData() && !visualizationLoading()) {
-        <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize(false)" [disabled]="!!visualizationValidation()">Update</button>
-      }
     </div>
-    <div class="relative min-w-0 flex-1 rounded-sm bg-slate-950/60 p-2 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
+    <div class="relative min-w-0 flex-1 bg-slate-950/60 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
       @if (visualizationData(); as data) {
         <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" (gpuFailed)="visualizationGpuFailed($event)" />
       }
@@ -131,7 +128,7 @@
   </div>
 </ng-template>
 
-<p-dialog appRestoreFocus header="Visualization" [visible]="visualizationOpen()" (visibleChange)="closeVisualization()" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close visualization', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'calc(100vw - 2rem)', height: 'calc(100dvh - 2rem)', maxHeight: 'calc(100dvh - 2rem)' }" [contentStyle]="{ display: 'flex', flexDirection: 'column', minHeight: '0', padding: '0' }">
+<p-dialog appRestoreFocus header="Visualization" [visible]="visualizationOpen()" (visibleChange)="closeVisualization()" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close visualization', severity: 'secondary', text: true, rounded: true }" [style]="visualizationDialogStyle()" [contentStyle]="{ display: 'flex', flexDirection: 'column', minHeight: '0', padding: '0' }">
   <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
   @if (visualizationOpen()) {
     <ng-container [ngTemplateOutlet]="visualizationContent" [ngTemplateOutletContext]="{ $implicit: true }"></ng-container>
