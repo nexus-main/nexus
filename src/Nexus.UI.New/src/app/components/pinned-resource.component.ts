@@ -10,7 +10,7 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
   imports: [CommonModule, ButtonModule, PopoverModule],
   host: { class: 'block min-w-0' },
   template: `
-    <div class="mb-1 min-w-0 cursor-pointer rounded-sm border border-cyan-300/10 bg-cyan-300/[0.035] p-1 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
+    <div class="selected-resource-card mb-1 min-w-0 cursor-pointer rounded-sm border border-cyan-300/10 bg-cyan-300/[0.035] p-1 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
       [attr.aria-label]="'Select catalog for ' + resourceLabel()" (click)="activated.emit()" (keydown.enter)="activated.emit()" (keydown.space)="$event.preventDefault(); activated.emit()">
       <div class="flex min-w-0 items-center justify-between gap-1">
         <div class="min-w-0">
@@ -117,23 +117,23 @@ export class PinnedResourceComponent {
   }
 
   methodChipClass(kind: RepresentationKind): string {
-    if (!this.valid(kind)) return '!border-rose-400/55 !bg-rose-500/15 !text-rose-100'
-    if (kind === 'Original') return '!border-cyan-300/45 !bg-cyan-300/15 !text-cyan-100'
-    if (kind === 'Resampled') return '!border-lime-300/45 !bg-lime-300/15 !text-lime-100'
-    return '!border-orange-400/60 !bg-orange-500/20 !text-orange-100'
+    if (!this.valid(kind)) return 'method-invalid border-rose-400/55 bg-rose-500/15 text-rose-100'
+    if (kind === 'Original') return 'method-original border-cyan-300/45 bg-cyan-300/15 text-cyan-100'
+    if (kind === 'Resampled') return 'method-resampled border-lime-300/45 bg-lime-300/15 text-lime-100'
+    return 'method-aggregated border-orange-400/60 bg-orange-500/20 text-orange-100'
   }
 
   methodOptionClass(kind: RepresentationKind): string {
     const selected = this.methodSelected(kind)
     if (kind === 'Original') return selected
-      ? '!border-cyan-300/60 !bg-cyan-300/25 !text-cyan-50'
-      : '!border-slate-500/45 !bg-transparent !text-slate-200'
+      ? 'method-original border-cyan-300/60 bg-cyan-300/25 text-cyan-50'
+      : 'method-unselected border-slate-500/45 bg-transparent text-slate-200'
     if (kind === 'Resampled') return selected
-      ? '!border-lime-300/60 !bg-lime-300/25 !text-lime-50'
-      : '!border-slate-500/45 !bg-transparent !text-slate-200'
+      ? 'method-resampled border-lime-300/60 bg-lime-300/25 text-lime-50'
+      : 'method-unselected border-slate-500/45 bg-transparent text-slate-200'
     return selected
-      ? '!border-orange-400/70 !bg-orange-500/30 !text-orange-50'
-      : '!border-slate-500/45 !bg-transparent !text-slate-200'
+      ? 'method-aggregated border-orange-400/70 bg-orange-500/30 text-orange-50'
+      : 'method-unselected border-slate-500/45 bg-transparent text-slate-200'
   }
 
   methodSelected(kind: RepresentationKind): boolean {
