@@ -38,7 +38,6 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   viewport: Viewport = { ...FULL_VIEWPORT };
   errorTitle: string | null = null;
   errorMessage = '';
-  retrying = false;
   readonly hidden = new Set<string>();
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly document = inject(DOCUMENT);
@@ -96,7 +95,6 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       this.hidden.clear();
       this.viewport = { ...FULL_VIEWPORT };
       this.errorTitle = null;
-      this.retrying = false;
     }
     // A same-reference input update is also used for settings and stream progress.
     // Neither changes the source identity or invalidates GPU-resident overviews.
@@ -161,45 +159,13 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     this.cancelSession();
     this.errorTitle = title;
     this.errorMessage = message;
-    this.retrying = false;
     this.api?.chart.clearAuxiliary(this.chartId);
     this.changeDetector.markForCheck();
     this.gpuFailed.emit(`${title}: ${message}`);
   }
 
-  async retry(): Promise<void> {
-    if (this.retrying || this.disposed) return;
-    this.cancelSession();
-    const signal = this.controller.signal;
-    const id = this.chartId;
-    this.retrying = true;
-    this.changeDetector.markForCheck();
-    try {
-      // Drain cancelled operations before retry resets the JS instance's upload tokens.
-      await Promise.all([...this.states.values()].map(state => state.task));
-      if (signal.aborted || this.disposed || id !== this.chartId) return;
-      if (!this.api) {
-        this.changeDetector.detectChanges();
-        this.initialize();
-      }
-      const api = this.api!;
-      api.chartWebGpu.setCacheBudget(id, this.cacheBudgetBytes);
-      if (!await api.chartWebGpu.retry(id)) throw new Error('WebGPU initialization was superseded.');
-      if (signal.aborted || this.disposed || id !== this.chartId) return;
-      this.states.clear();
-      this.errorTitle = null;
-      this.errorMessage = '';
-      this.rebuildAxes();
-      this.scheduleDraw();
-    } catch (error) {
-      if (!signal.aborted && !this.disposed && id === this.chartId) this.fail('WebGPU initialization failed', String(error));
-    } finally {
-      if (!this.disposed && id === this.chartId) { this.retrying = false; this.changeDetector.markForCheck(); }
-    }
-  }
-
   private ensureUploads(): void {
-    if (!this.api || !this.data || this.errorTitle || this.retrying) return;
+    if (!this.api || !this.data || this.errorTitle) return;
     const api = this.api.chartWebGpu;
     const id = this.chartId;
     const signal = this.controller.signal;
@@ -342,15 +308,16 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       xMin += textWidth + 20;
     }
     xMin = clamp(xMin - 5, 0, Math.max(0, width - 1));
+    const xMax = Math.max(xMin + 1, width - 8);
     if (this.data && this.duration > 0n) {
       const begin = this.zoomedBegin;
       const end = this.zoomedEnd;
-      const { config, ticks } = getTimeTicks(begin, end, Math.max(1, roundAway((width - xMin) / 130)));
+      const { config, ticks } = getTimeTicks(begin, end, Math.max(1, roundAway((xMax - xMin) / 130)));
       let previous = 0n;
       context.textAlign = 'center';
       context.strokeStyle = lightTheme ? '#d3d3d3' : 'rgba(148, 163, 184, 0.25)';
       for (const tick of ticks) {
-        const x = xMin + Number(tick - begin) / Number(end - begin) * (width - xMin);
+        const x = xMin + Number(tick - begin) / Number(end - begin) * (xMax - xMin);
         line(x, plotTop, x, yMax + 10);
         context.fillText(formatTime(tick, config.fast), x, yMax + 25);
         if (isSlowTickRequired(previous, tick, config.trigger)) {
@@ -360,9 +327,9 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         previous = tick;
       }
     }
-    const plot = { left: xMin / width, top: Math.min(1, plotTop / height), right: 1, bottom: Math.min(1, yMax / height) };
+    const plot = { left: xMin / width, top: Math.min(1, plotTop / height), right: Math.min(1, xMax / width), bottom: Math.min(1, yMax / height) };
     this.api!.chart.resize(this.chartId, 'overlay', plot.left, plot.top, plot.right, plot.bottom);
-    if (this.errorTitle || this.retrying) return;
+    if (this.errorTitle) return;
     const series: SeriesPayload[] = this.series.flatMap((source, index) => {
       if (this.hidden.has(source.id)) return [];
       const state = this.states.get(source.id);
