@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common'
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling'
 import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideChevronUp, LucidePencil, LucideTriangleAlert, LucideX } from '@lucide/angular'
+import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucidePencil, LucideTriangleAlert, LucideX } from '@lucide/angular'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
 import { DialogModule } from 'primeng/dialog'
@@ -17,7 +17,7 @@ import type { RepresentationRow } from '../resource-selection'
   selector: 'app-resource-matrix',
   standalone: true,
   imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, InputTextModule, TextareaModule,
-    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideChevronUp, LucidePencil, LucideTriangleAlert, LucideX],
+    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucidePencil, LucideTriangleAlert, LucideX],
   templateUrl: './resource-matrix.component.html',
   styleUrl: './resource-matrix.component.css',
   host: { '[class.narrow]': 'narrow()' },
@@ -247,12 +247,6 @@ export class ResourceMatrixComponent {
 
     this.canScrollGroupsBack.set(strip.scrollLeft > 1)
     this.canScrollGroupsForward.set(strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1)
-  }
-
-  scrollGroups(direction: number): void {
-    if (this.saving()) return
-    const strip = this.groupStrip()?.nativeElement
-    strip?.scrollBy({ left: direction * strip.clientWidth * .8 })
   }
 
   scrollCollapsedGroups(event: WheelEvent): void {

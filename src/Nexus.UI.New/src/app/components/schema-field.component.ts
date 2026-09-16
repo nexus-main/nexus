@@ -18,13 +18,15 @@ export interface SchemaRawChange { text: string; editingNumber?: boolean }
   standalone: true,
   imports: [NgTemplateOutlet, FormsModule, ButtonModule, InputTextModule, SelectModule, TextareaModule],
   template: `
-    <section class="min-w-0 space-y-2 rounded border p-3" style="border-color: var(--p-content-border-color)">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <span class="text-sm font-semibold">{{ view().title || label() }}{{ required() ? ' *' : '' }}</span>
-        <p-select [ariaLabel]="label() + ' presence'" [options]="presenceOptions()" optionLabel="label" optionValue="value"
-          [ngModel]="presence()" (ngModelChange)="changePresence($event)" appendTo="body" />
-      </div>
-      @if (view().description) { <p class="text-sm">{{ view().description }}</p> }
+    <section class="min-w-0 space-y-2" [class.rounded]="!hideHeader()" [class.border]="!hideHeader()" [class.p-3]="!hideHeader()" [style.border-color]="hideHeader() ? null : 'var(--p-content-border-color)'">
+      @if (!hideHeader()) {
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-sm font-semibold">{{ view().title || label() }}{{ required() ? ' *' : '' }}</span>
+          <p-select [ariaLabel]="label() + ' presence'" [options]="presenceOptions()" optionLabel="label" optionValue="value"
+            [ngModel]="presence()" (ngModelChange)="changePresence($event)" appendTo="body" />
+        </div>
+        @if (view().description) { <p class="text-sm">{{ view().description }}</p> }
+      }
       @if (!present()) {
         <p class="text-sm">Not set{{ required() ? ' (required)' : '' }}. Select Value to create explicitly.</p>
       } @else if (value() === null) {
@@ -114,6 +116,7 @@ export class SchemaFieldComponent {
   readonly label = input('Configuration')
   readonly depth = input(0)
   readonly allowReset = input(true)
+  readonly hideHeader = input(false)
   readonly changed = output<SchemaFieldChange>()
   readonly rawChange = output<SchemaRawChange>()
   readonly view = computed(() => getSchemaView(this.schema(), this.paths()))

@@ -42,7 +42,7 @@ type ThemeMode = 'dark' | 'light'
           <span class="max-w-48 truncate font-mono">{{ endpointHost() }}</span>
         </div>
 
-        <p-menu #adminMenu [model]="adminMenuItems" [popup]="true" appendTo="body" />
+        <p-menu #adminMenu styleClass="header-menu" [model]="adminMenuItems" [popup]="true" appendTo="body" />
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           @if (isAdministrator()) {
             <button pButton type="button" size="small" severity="secondary" (click)="adminMenu.toggle($event)" aria-label="Administrator" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">

@@ -5,7 +5,9 @@ import { DialogModule } from 'primeng/dialog'
 import { InputTextModule } from 'primeng/inputtext'
 import { MessageModule } from 'primeng/message'
 import { SelectModule } from 'primeng/select'
+import { TabsModule } from 'primeng/tabs'
 import type { DialogPassThrough } from 'primeng/types/dialog'
+import { LucidePlus } from '@lucide/angular'
 import { NexusService, V1 } from '../nexus.service'
 import { RestoreFocusDirective } from '../restore-focus.directive'
 import { JsonSchemaEditorComponent } from './json-schema-editor.component'
@@ -19,7 +21,7 @@ type PipelineEntry = { id: string; pipeline: V1.DataSourcePipeline }
 @Component({
   selector: 'app-data-source-pipelines',
   standalone: true,
-  imports: [FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, SelectModule, RestoreFocusDirective, JsonSchemaEditorComponent],
+  imports: [FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucidePlus],
   templateUrl: './data-source-pipelines.component.html',
   styleUrl: './data-source-pipelines.component.css',
 })
@@ -40,6 +42,7 @@ export class DataSourcePipelinesComponent {
   readonly descriptions = signal<V1.ExtensionDescription[]>([])
   readonly draft = signal<PipelineDraft | null>(null)
   readonly selectedKey = signal<number | null>(null)
+  readonly pipelineTab = signal<'pipelines' | 'pipeline'>('pipelines')
   readonly mobileView = signal<'list' | 'pipeline' | 'registration'>('list')
   readonly loading = signal(false)
   readonly busy = signal(false)
@@ -56,7 +59,6 @@ export class DataSourcePipelinesComponent {
   readonly editingLocked = computed(() => this.locked() || !this.loaded() || !!this.pending() || this.confirmingDelete() || this.removingKey() !== null || !this.administrator())
   readonly prepared = computed(() => { const draft = this.draft(); return draft ? preparePipeline(draft, this.descriptions()) : null })
   readonly selected = computed(() => this.draft()?.registrations.find(registration => registration.key === this.selectedKey()))
-  readonly selectedDescription = computed(() => this.descriptions().find(description => description.type === this.selected()?.type))
   readonly selectedSchema = computed(() => sourceSchema(this.descriptions(), this.selected()?.type ?? ''))
   readonly typeOptions = computed(() => {
     const types = this.descriptions().flatMap(description => description.type ? [description.type] : [])
@@ -97,11 +99,11 @@ export class DataSourcePipelinesComponent {
     void this.load()
   }
 
-  pipelineLabel(pipeline: V1.DataSourcePipeline): string {
-    return pipeline.registrations?.map(registration => registration.type?.split('.').pop() || 'Untyped').join(' / ') || 'Empty pipeline'
-  }
-
   hasIssue(key: number): boolean { return this.prepared()?.issues.some(issue => issue.key === key) ?? false }
+
+  displayLocator(url: string | null | undefined): string {
+    return url ? url.replace(/^file:\/\//i, '') : ''
+  }
 
   private async load(descriptionsOnly = false): Promise<boolean> {
     if (!this.administrator() || this.destroyed) return false
@@ -131,7 +133,7 @@ export class DataSourcePipelinesComponent {
         // Full reloads are guarded; partial reloads retain dirty buffers but reconcile clean drafts.
         const next = reconcilePipelineDraft(previous, pipelines.value, descriptions.status === 'fulfilled')
         this.draft.set(next)
-        if (next === null) { this.selectedKey.set(null); this.mobileView.set('list') }
+        if (next === null) { this.selectedKey.set(null); this.pipelineTab.set('pipelines'); this.mobileView.set('list') }
         else if (next.registrations !== previous?.registrations) {
           this.selectedKey.set(next.registrations[0]?.key ?? null)
         }
@@ -150,7 +152,7 @@ export class DataSourcePipelinesComponent {
     if (destination.kind !== 'close' && (!this.administrator() || (!this.loaded() && destination.kind !== 'reload' && destination.kind !== 'descriptions'))) return
     if (destination.kind === 'pipeline' && destination.id !== null && destination.id === this.draft()?.id) {
       if (this.draft()?.serverDiverged) destination = { kind: 'reload' }
-      else { this.mobileView.set('pipeline'); return }
+      else { this.pipelineTab.set('pipeline'); this.mobileView.set('pipeline'); return }
     }
     if (this.dirty()) this.pending.set(destination)
     else void this.proceed(destination)
@@ -185,15 +187,25 @@ export class DataSourcePipelinesComponent {
     const draft = createPipelineDraft(id, entry?.pipeline)
     this.draft.set(draft)
     this.selectedKey.set(draft.registrations[0]?.key ?? null)
+    this.pipelineTab.set('pipeline')
     this.mobileView.set('pipeline')
     this.confirmingDelete.set(false)
     this.error.set('')
+  }
+
+  setPipelineTab(value: string | number | undefined): void {
+    if (value === 'pipelines' || value === 'pipeline') {
+      this.pipelineTab.set(value)
+      this.mobileView.set(value === 'pipelines' ? 'list' : 'pipeline')
+    }
   }
 
   navigate(view: 'list' | 'pipeline' | 'registration', key = this.selectedKey()): void {
     if (this.editingLocked()) return
     this.selectedKey.set(key)
     this.mobileView.set(view)
+    if (view === 'list') this.pipelineTab.set('pipelines')
+    else if (view === 'pipeline') this.pipelineTab.set('pipeline')
   }
 
   setPattern(field: 'releasePattern' | 'visibilityPattern', value: string | null): void {
@@ -271,6 +283,7 @@ export class DataSourcePipelinesComponent {
       this.entries.update(entries => entries.filter(entry => entry.id !== id))
       this.draft.set(null)
       this.selectedKey.set(null)
+      this.pipelineTab.set('pipelines')
       this.mobileView.set('list')
       this.confirmingDelete.set(false)
       this.status.set('Deleted. Refresh the database to apply pipeline changes to catalogs.')

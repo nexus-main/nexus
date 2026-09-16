@@ -61,8 +61,7 @@ button:disabled, input:disabled { cursor: not-allowed; }
 .group-chip[aria-pressed="true"] { color: var(--p-primary-color); text-shadow: 0 0 0 currentColor; }
 .group-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .group-count { font-size: 10px; font-variant-numeric: tabular-nums; opacity: .8; }
-.expand-groups { flex: 0 0 32px; width: 32px; height: 32px; }
-.scroll-groups { flex: 0 0 32px; width: 32px; height: 32px; }
+  .expand-groups { flex: 0 0 32px; width: 32px; height: 32px; }
 .expanded .group-strip { flex-wrap: wrap; max-height: min(163px, 28dvh); overflow-x: hidden; overflow-y: auto; }
 .group-empty { padding: 9px; color: var(--p-text-muted-color); font-size: 12px; }
 .edit-help { margin: 0; padding: 10px 16px; color: var(--p-text-muted-color); font-size: 12px; line-height: 1.5; }
