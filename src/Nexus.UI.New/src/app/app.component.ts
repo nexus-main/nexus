@@ -407,13 +407,17 @@ export class AppComponent implements OnDestroy {
   onResize() {
     if (window.innerWidth >= 1024) this.isMobileCatalogOpen.set(false)
     this.wideLayout.set(window.innerWidth >= 1536)
-    if (!this.wideLayout() && !this.visualizationOpen()) this.cancelVisualization()
+    if (!this.wideLayout() && !this.visualizationOpen()) {
+      if (this.visualizationData() || this.visualizationController) this.visualizationOpen.set(true)
+      else this.cancelVisualization()
+    }
   }
 
   async visualize(open = true) {
     if (open) {
       this.isMobileCatalogOpen.set(false)
       this.visualizationOpen.set(true)
+      if (this.visualizationData() && !this.visualizationStale()) return
     }
     this.cancelVisualization()
     this.visualizationError.set('')
