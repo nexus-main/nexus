@@ -156,7 +156,7 @@
       <label class="flex items-center gap-2"><p-checkbox [binary]="true" [ngModel]="visualizationBeginAtZero()" (ngModelChange)="visualizationBeginAtZero.set($event)" ariaLabel="Begin value axes at zero" />Begin at zero</label>
       <label class="flex items-center gap-2">GPU cache (MiB)<input pInputText pSize="small" type="number" min="16" step="16" class="w-24" [ngModel]="visualizationCacheMiB()" (ngModelChange)="setVisualizationCache($event)" /></label>
       @if (visualizationData() && !visualizationLoading()) {
-        <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize(false)" [disabled]="!!visualizationValidation()">Reload</button>
+        <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="visualize(false)" [disabled]="!!visualizationValidation()">Update</button>
       }
     </div>
     <div class="relative min-w-0 flex-1 rounded-lg bg-slate-950/60 p-2 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
@@ -174,8 +174,8 @@
       } @else if (visualizationError() || !visualizationData() || visualizationStale()) {
         <div class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-950/80 p-6 text-center backdrop-blur-sm">
           <div class="max-w-lg space-y-4 text-slate-300">
-            <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || (visualizationStale() ? 'The time range or selected representations have changed. Reload to visualize the new selection.' : visualizationValidation() || 'Visualize the pinned representations using the selected UTC range and Period.') }}</p>
-            <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Reload' : 'Visualize' }}</button>
+            <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || (visualizationStale() ? 'The time range or selected representations have changed. Update to visualize the new selection.' : visualizationValidation() || 'Visualize the pinned representations using the selected UTC range and Period.') }}</p>
+            <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize(false)">{{ visualizationStale() ? 'Update' : 'Visualize' }}</button>
           </div>
         </div>
       }

@@ -428,28 +428,69 @@ export class AppComponent implements OnDestroy {
     const key = this.visualizationKey()
     const begin = this.exportBegin()
     const end = this.exportEnd()
+    const samplePeriod = this.samplePeriod()
     const resources = this.visualizationResources()
+    const descriptors = resources.map(resource => ({
+      id: resource.path,
+      name: resource.kind === 'Original' ? resource.id : `${resource.id} (${resource.kind.replace(/[A-Z]/g, (letter, index) => `${index ? '_' : ''}${letter.toLowerCase()}`)})`,
+      unit: resource.unit,
+    }))
+    const existing = this.visualizationData()
     this.visualizationData.set(null)
     this.visualizationProgress.set(0)
     this.visualizationLoading.set(true)
     try {
-      const data = createVisualizationData(dateTicks(begin)!, dateTicks(end)!, this.samplePeriod(), resources.map(resource => ({
-        id: resource.path,
-        name: resource.kind === 'Original' ? resource.id : `${resource.id} (${resource.kind.replace(/[A-Z]/g, (letter, index) => `${index ? '_' : ''}${letter.toLowerCase()}`)})`,
-        unit: resource.unit,
-      })))
+      const data = createVisualizationData(dateTicks(begin)!, dateTicks(end)!, samplePeriod, descriptors)
       if (data.series.some(series => series.length < 2)) throw new Error('A line chart needs at least two samples. Extend the time range or reduce Period.')
       controller.signal.throwIfAborted()
-      const response = await this.nexus.v2.data.getStream({ begin, end, resourcePaths: resources.map(resource => resource.path), precision: V2.Precision.Float32 }, controller.signal)
-      let lastUpdate = 0
-      await loadVisualizationData(response, data, fraction => {
-        const now = performance.now()
-        if (this.visualizationController === controller && (fraction === 1 || now - lastUpdate >= 100)) {
-          this.visualizationProgress.set(Math.floor(fraction * 100))
-          lastUpdate = now
+
+      const canIncremental = !!existing
+        && existing.begin === data.begin
+        && existing.end === data.end
+        && existing.series[0]?.samplePeriod === samplePeriod
+      const loadedIds = canIncremental
+        ? new Set(existing!.series.filter(s => s.complete).map(s => s.id))
+        : new Set<string>()
+
+      if (canIncremental) {
+        for (const series of data.series) {
+          const existingSeries = existing!.series.find(s => s.id === series.id)
+          if (existingSeries && existingSeries.complete) {
+            series.chunks = existingSeries.chunks
+            series.availableLength = existingSeries.availableLength
+            series.version = existingSeries.version
+            series.complete = true
+          }
         }
-      }, controller.signal)
-      controller.signal.throwIfAborted()
+      }
+
+      const newDescriptors = descriptors.filter(d => !loadedIds.has(d.id))
+      if (newDescriptors.length > 0) {
+        const newPaths = resources.filter(r => !loadedIds.has(r.path)).map(r => r.path)
+        const newData = createVisualizationData(dateTicks(begin)!, dateTicks(end)!, samplePeriod, newDescriptors)
+        const response = await this.nexus.v2.data.getStream({ begin, end, resourcePaths: newPaths, precision: V2.Precision.Float32 }, controller.signal)
+        let lastUpdate = 0
+        await loadVisualizationData(response, newData, fraction => {
+          const now = performance.now()
+          if (this.visualizationController === controller && (fraction === 1 || now - lastUpdate >= 100)) {
+            this.visualizationProgress.set(Math.floor(fraction * 100))
+            lastUpdate = now
+          }
+        }, controller.signal)
+        controller.signal.throwIfAborted()
+        for (const loaded of newData.series) {
+          const target = data.series.find(s => s.id === loaded.id)
+          if (target) {
+            target.chunks = loaded.chunks
+            target.availableLength = loaded.availableLength
+            target.version = loaded.version
+            target.complete = true
+          }
+        }
+      } else {
+        this.visualizationProgress.set(100)
+      }
+
       this.loadedVisualizationKey.set(key)
       this.visualizationData.set(data)
     } catch (error) {
