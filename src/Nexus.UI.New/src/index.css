@@ -5,6 +5,8 @@
   color: #f8fafc;
   background: #020617;
   color-scheme: dark;
+  --nexus-logo-from: #3dd9ef;
+  --nexus-logo-to: #22d3ee;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-synthesis: none;
@@ -17,6 +19,8 @@
   color: #0f172a;
   background: #f8fafc;
   color-scheme: light;
+  --nexus-logo-from: #0e7490;
+  --nexus-logo-to: #164e63;
 }
 
 html,
@@ -321,4 +325,17 @@ button {
 :root[data-theme='light'] .markdown-body pre {
   border-color: #cbd5e1;
   background: #f1f5f9;
+}
+
+/* Package references dialog: fullscreen on mobile. */
+@media (max-width: 640px) {
+  .package-references-dialog {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
 }
