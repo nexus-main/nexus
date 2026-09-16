@@ -2,8 +2,9 @@ import { DOCUMENT } from '@angular/common'
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling'
 import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideChevronUp, LucideExpand, LucidePencil, LucideTriangleAlert, LucideX } from '@lucide/angular'
+import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideChevronUp, LucidePencil, LucideTriangleAlert, LucideX } from '@lucide/angular'
 import { ButtonModule } from 'primeng/button'
+import { CheckboxModule } from 'primeng/checkbox'
 import { DialogModule } from 'primeng/dialog'
 import { InputTextModule } from 'primeng/inputtext'
 import { TextareaModule } from 'primeng/textarea'
@@ -15,8 +16,8 @@ import type { RepresentationRow } from '../resource-selection'
 @Component({
   selector: 'app-resource-matrix',
   standalone: true,
-  imports: [ScrollingModule, FormsModule, ButtonModule, DialogModule, InputTextModule, TextareaModule,
-    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideChevronUp, LucideExpand, LucidePencil, LucideTriangleAlert, LucideX],
+  imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, InputTextModule, TextareaModule,
+    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideChevronUp, LucidePencil, LucideTriangleAlert, LucideX],
   templateUrl: './resource-matrix.component.html',
   styleUrl: './resource-matrix.component.css',
   host: { '[class.narrow]': 'narrow()' },
@@ -55,7 +56,7 @@ export class ResourceMatrixComponent {
   private dialogDraft: MetadataDrafts[string] | undefined
   private frame: number | null = null
   private requestedIndex: number | null = null
-  private previousItemSize = 88
+  private previousItemSize = 48
 
   readonly search = signal('')
   readonly expanded = signal(false)
@@ -63,8 +64,8 @@ export class ResourceMatrixComponent {
   readonly canScrollGroupsForward = signal(false)
   readonly groupKey = signal('')
   readonly narrow = signal(false)
-  readonly itemSize = computed(() => this.narrow() ? 112 : 88)
   readonly editing = signal(false)
+  readonly itemSize = computed(() => this.editing() && !this.narrow() ? 56 : 48)
   readonly saving = signal(false)
   readonly drafts = signal<MetadataDrafts>({})
   readonly dirtyCount = computed(() => Object.keys(this.drafts()).length)
@@ -184,13 +185,21 @@ export class ResourceMatrixComponent {
       onCleanup(() => observer.disconnect())
     })
 
+    afterRenderEffect(() => {
+      const size = this.itemSize()
+      const viewport = this.viewport()
+      if (!viewport || size === this.previousItemSize) return
+      const index = Math.floor(viewport.measureScrollOffset() / this.previousItemSize)
+      this.previousItemSize = size
+      this.resizeViewport(this.requestedIndex ?? index)
+    })
+
     afterRenderEffect(onCleanup => {
       const viewport = this.viewport()
       if (!viewport || typeof ResizeObserver === 'undefined') return
       const observer = new ResizeObserver(() => {
         const index = Math.floor(viewport.measureScrollOffset() / this.previousItemSize)
-        this.narrow.set(this.host.nativeElement.getBoundingClientRect().width < 760)
-        this.previousItemSize = this.itemSize()
+        this.narrow.set(window.innerWidth < 640 || this.host.nativeElement.getBoundingClientRect().width < 560)
         this.resizeViewport(this.requestedIndex ?? index)
       })
       observer.observe(this.host.nativeElement)
@@ -272,8 +281,10 @@ export class ResourceMatrixComponent {
     if (!this.selectionDisabled(row)) this.toggle.emit(row)
   }
 
-  activateRow(row: RepresentationRow): void {
-    if (!this.saving()) this.activate.emit(row)
+  activateRow(row: RepresentationRow, event: Event): void {
+    if (this.saving()) return
+    this.activate.emit(row)
+    if (this.narrow()) this.openDetail(row, event)
   }
 
   value(row: RepresentationRow, field: MetadataField): string {

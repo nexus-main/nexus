@@ -83,6 +83,31 @@ test('pointer leave clears auxiliary state without calling .NET', () => {
     assert.deepEqual(environment.calls, []);
 });
 
+test('zoom refreshes the stationary hovered readout after applying the viewport', async () => {
+    const environment = createEnvironment();
+    environment.listeners.get('overlay_chart:mousemove')({ clientX: 30, clientY: 70 });
+    await environment.frames.shift()();
+    environment.calls.length = 0;
+    environment.listeners.get('overlay_chart:wheel')({ clientX: 30, clientY: 70, deltaY: -1, shiftKey: false });
+    await environment.frames.shift()();
+    assert.equal(environment.calls[0][0], 'SetViewport');
+    await environment.frames.shift()();
+    assert.deepEqual(environment.calls[1], ['PointerMoved', 0.3, 0.7]);
+});
+
+test('leaving the plot suppresses the readout refresh queued by zoom', async () => {
+    const environment = createEnvironment();
+    environment.listeners.get('overlay_chart:mousemove')({ clientX: 30, clientY: 70 });
+    await environment.frames.shift()();
+    environment.calls.length = 0;
+    environment.listeners.get('overlay_chart:wheel')({ clientX: 30, clientY: 70, deltaY: -1, shiftKey: false });
+    await environment.frames.shift()();
+    environment.listeners.get('overlay_chart:mouseleave')();
+    await environment.frames.shift()();
+    assert.equal(environment.calls.length, 1);
+    assert.equal(environment.calls[0][0], 'SetViewport');
+});
+
 test('disposing interactions suppresses queued zoom callbacks', async () => {
     const environment = createEnvironment();
     environment.listeners.get('overlay_chart:wheel')({
@@ -97,6 +122,35 @@ test('disposing interactions suppresses queued zoom callbacks', async () => {
     await environment.frames.shift()();
 
     assert.deepEqual(environment.calls, []);
+});
+
+test('touch double-tap resets the main chart viewport', async () => {
+    const environment = createEnvironment();
+    const overlay = environment.context.document.getElementById('overlay_chart');
+    overlay.dataset.zoomLeft = '0.25';
+    overlay.dataset.zoomRight = '0.75';
+    overlay.dataset.zoomTop = '0.2';
+    overlay.dataset.zoomBottom = '0.8';
+    const down = environment.listeners.get('overlay_chart:pointerdown');
+    down({ button: 0, pointerId: 1, pointerType: 'touch', clientX: 40, clientY: 60, timeStamp: 100, cancelable: true, preventDefault() {} });
+    down({ button: 0, pointerId: 2, pointerType: 'touch', clientX: 45, clientY: 62, timeStamp: 320, cancelable: true, preventDefault() {} });
+    await environment.frames.shift()();
+
+    assert.deepEqual(environment.calls, [['SetViewport', 0, 0, 1, 1]]);
+    assert.equal(overlay.dataset.zoomLeft, '0');
+    assert.equal(overlay.dataset.zoomRight, '1');
+    assert.equal(overlay.dataset.zoomTop, '0');
+    assert.equal(overlay.dataset.zoomBottom, '1');
+});
+
+test('touch taps too far apart do not reset the viewport', () => {
+    const environment = createEnvironment();
+    const down = environment.listeners.get('overlay_chart:pointerdown');
+    down({ button: 0, pointerId: 1, pointerType: 'touch', clientX: 10, clientY: 10, timeStamp: 100, cancelable: true, preventDefault() {} });
+    down({ button: 0, pointerId: 2, pointerType: 'touch', clientX: 60, clientY: 60, timeStamp: 250, cancelable: true, preventDefault() {} });
+
+    assert.deepEqual(environment.calls, []);
+    assert.equal(environment.frames.length, 0);
 });
 
 test('navigator zoom-out preserves expansion at a domain edge', async () => {
