@@ -811,19 +811,10 @@ export class AppComponent implements OnDestroy {
       this.revealResourceKey.set('')
       if (!this.selectedBundle() && !this.catalogLoading())
         void this.loadSelectedCatalog(catalogId, false, this.apiAvailable())
+      void this.loadChildren(catalogId)
     }
     if (catalogId === this.selectedCatalogId()) select()
     else this.requestCatalogNavigation(select)
-  }
-
-  activateCatalogNode(catalog: CatalogNode) {
-    if (catalog.isFake) {
-      this.toggleExpanded(catalog)
-      return
-    }
-
-    this.selectCatalog(catalog)
-    if (this.catalogHasExpandableChildren(catalog)) this.toggleExpanded(catalog)
   }
 
   selectPinnedResourceCatalog(resource: ResourceSelection) {

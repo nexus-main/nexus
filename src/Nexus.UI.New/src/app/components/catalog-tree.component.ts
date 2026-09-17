@@ -1,13 +1,14 @@
 import { Component, computed, input, output } from '@angular/core'
 import { TreeNode } from 'primeng/api'
 import { Tree, TreeModule } from 'primeng/tree'
+import { TooltipModule } from 'primeng/tooltip'
 import { CatalogNode } from '../nexus.service'
 import { abbreviateMiddle, lastSegment } from '../utils'
 
 @Component({
   selector: 'app-catalog-tree',
   standalone: true,
-  imports: [TreeModule],
+  imports: [TreeModule, TooltipModule],
   host: { class: 'block min-w-0' },
   template: `
     <p-tree
@@ -20,7 +21,7 @@ import { abbreviateMiddle, lastSegment } from '../utils'
       [filter]="false"
       ariaLabel="Catalogs"
       emptyMessage="No catalogs match your search."
-      styleClass="w-full min-w-0 bg-transparent p-0 [&_.p-treenode]:py-0 [&_.p-tree-node-content]:min-w-0 [&_.p-tree-node-content]:py-0.5 [&_.p-tree-node-label]:min-w-0 [&_.p-tree-node-label]:flex-1"
+      styleClass="w-full min-w-0 bg-transparent p-0 [&_.p-treenode]:py-0 [&_.p-tree-node-content]:min-w-0 [&_.p-tree-node-content]:rounded-md [&_.p-tree-node-content]:border-l-2 [&_.p-tree-node-content]:border-l-transparent [&_.p-tree-node-content]:py-0.5 [&_.p-tree-node-content]:transition-colors [&_.p-tree-node-content.p-tree-node-selected]:border-l-[var(--p-primary-color)] [&_.p-tree-node-label]:min-w-0 [&_.p-tree-node-label]:flex-1 [&_.p-tree-node-toggle-button]:h-4 [&_.p-tree-node-toggle-button]:w-4 [&_.p-tree-node-leaf_.p-tree-node-toggle-button]:invisible [&_.p-tree-node-toggle-icon]:h-2 [&_.p-tree-node-toggle-icon]:w-2 [&_.p-tree-node-toggle-icon]:opacity-70"
       (onNodeSelect)="activateNode($event.node, tree)"
       (onNodeUnselect)="activateNode($event.node, tree)"
       (onNodeExpand)="toggle.emit($event.node.data!)"
@@ -28,13 +29,14 @@ import { abbreviateMiddle, lastSegment } from '../utils'
     >
       <ng-template pTemplate="default" let-treeNode>
         @let node = treeNode.data;
-        <div class="flex min-w-0 items-center gap-2" [title]="node.isFake ? (node.id ?? '/') : (node.title || node.id || '/')">
-          <span class="shrink-0 truncate font-mono text-[13px] leading-5 text-slate-100">
+        <div class="flex min-w-0 items-center gap-2" [pTooltip]="node.title" [tooltipDisabled]="!node.title" [showDelay]="1000" tooltipStyleClass="!text-xs !px-2 !py-1 !rounded-md !border-0">
+          <span class="shrink-0 truncate font-mono text-[13px] font-semibold leading-5 text-[var(--p-text-color)]">
             <span class="sm:hidden">{{ abbreviateMiddle(treeNode.label, 28) }}</span>
             <span class="hidden sm:inline">{{ treeNode.label }}</span>
           </span>
           @if (!node.isFake && node.title) {
-            <span class="min-w-0 truncate text-xs text-slate-500">{{ node.title }}</span>
+            <span class="shrink-0 text-[10px] text-[var(--p-text-muted-color)]" aria-hidden="true">·</span>
+            <span class="min-w-0 truncate text-xs text-[var(--p-text-muted-color)] opacity-90">{{ node.title }}</span>
           }
         </div>
       </ng-template>

@@ -193,7 +193,7 @@
                 <span class="mb-1 block text-xs text-slate-400">Period</span>
                 <input pInputText pSize="small" class="w-full" [disabled]="selectionLoading()" [invalid]="!!periodError()" [attr.aria-invalid]="!!periodError()" [ngModel]="periodDraft()" (ngModelChange)="setPeriod($event)" (blur)="normalizePeriod()" placeholder="1 s" />
               </label>
-              <button pButton type="button" size="small" [outlined]="true" class="shrink-0" (click)="rangeMenu.toggle($event)" [attr.aria-expanded]="rangeMenu.visible" [attr.aria-controls]="rangeMenu.id" aria-haspopup="menu" aria-label="Open quick time ranges" title="Quick time ranges">Range</button>
+              <button pButton type="button" size="small" [outlined]="true" [severity]="rangeMenu.visible ? 'primary' : 'secondary'" class="shrink-0 transition-colors" (click)="rangeMenu.toggle($event)" [attr.aria-expanded]="rangeMenu.visible" [attr.aria-controls]="rangeMenu.id" aria-haspopup="menu" aria-label="Open quick time ranges" title="Quick time ranges">Range</button>
             </div>
             @if (periodError()) { <p class="text-xs text-rose-400" role="alert">{{ periodError() }}</p> }
           </div>
@@ -223,7 +223,7 @@
 
       <p-tabpanels class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-1.5 lg:p-2">
         <p-tabpanel value="catalogs">
-          <app-catalog-tree [nodes]="filteredCatalogNodes()" [selectedNodeKey]="selectedCatalogNodeKey()" [expandedNodeKeys]="expandedFilteredNodeKeys()" [expandableNodeKeys]="expandableFilteredNodeKeys()" (activate)="activateCatalogNode($event)" (toggle)="toggleExpanded($event)" />
+          <app-catalog-tree [nodes]="filteredCatalogNodes()" [selectedNodeKey]="selectedCatalogNodeKey()" [expandedNodeKeys]="expandedFilteredNodeKeys()" [expandableNodeKeys]="expandableFilteredNodeKeys()" (activate)="selectCatalog($event)" (toggle)="toggleExpanded($event)" />
         </p-tabpanel>
         <p-tabpanel value="selectedResources">
           @if (selectionLoading()) { <p class="p-2 text-xs text-slate-400" role="status">Restoring pinned representations...</p> }

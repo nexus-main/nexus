@@ -1,12 +1,12 @@
 import { Component, input } from '@angular/core'
-import { LucideMapPin, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideWorkflow } from '@lucide/angular'
+import { LucideMapPin, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideWaypoints } from '@lucide/angular'
 
-export type AppIconName = 'map-pin' | 'moon' | 'package' | 'settings' | 'sun' | 'workflow'
+export type AppIconName = 'map-pin' | 'moon' | 'package' | 'settings' | 'sun' | 'waypoints'
 
 @Component({
   selector: 'app-icon',
   standalone: true,
-  imports: [LucideMapPin, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideWorkflow],
+  imports: [LucideMapPin, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideWaypoints],
   template: `
     @switch (name()) {
       @case ('map-pin') { <svg lucideMapPin aria-hidden="true"></svg> }
@@ -14,7 +14,7 @@ export type AppIconName = 'map-pin' | 'moon' | 'package' | 'settings' | 'sun' | 
       @case ('package') { <svg lucidePackage aria-hidden="true"></svg> }
       @case ('settings') { <svg lucideSettings aria-hidden="true"></svg> }
       @case ('sun') { <svg lucideSun aria-hidden="true"></svg> }
-      @case ('workflow') { <svg lucideWorkflow aria-hidden="true"></svg> }
+      @case ('waypoints') { <svg lucideWaypoints aria-hidden="true"></svg> }
     }
   `,
   styles: [`

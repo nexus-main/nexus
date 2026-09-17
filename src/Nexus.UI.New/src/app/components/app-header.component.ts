@@ -33,7 +33,7 @@ type ThemeMode = 'dark' | 'light'
           </svg>
         </div>
 
-        <button pButton type="button" size="small" [outlined]="true" class="h-9 shrink-0 lg:hidden" (click)="openCatalog.emit()" aria-label="Open catalog browser">
+        <button pButton type="button" size="small" [outlined]="true" class="h-9 shrink-0 px-2.5 transition-colors lg:hidden" (click)="openCatalog.emit()" aria-label="Open catalog browser">
           <span class="text-xl leading-none">☰</span>
         </button>
 
@@ -47,7 +47,7 @@ type ThemeMode = 'dark' | 'light'
             <div class="flex cursor-pointer items-center gap-2 px-3 py-2">
               @switch (item.icon) {
                 @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
-                @case ('workflow') { <app-icon name="workflow" class="h-4 w-4 shrink-0" /> }
+                @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
               }
               <span>{{ item.label }}</span>
             </div>
@@ -55,12 +55,12 @@ type ThemeMode = 'dark' | 'light'
         </p-menu>
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           @if (isAdministrator()) {
-            <button pButton type="button" size="small" severity="secondary" class="h-9" (click)="adminMenu.toggle($event)" aria-label="Administrator" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
+            <button pButton type="button" size="small" [outlined]="true" [severity]="adminMenu.visible ? 'primary' : 'secondary'" class="h-9 gap-2 px-2.5 transition-colors" (click)="adminMenu.toggle($event)" aria-label="Administrator" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
               <app-icon name="settings" class="h-4 w-4" />
               <span class="hidden lg:inline">Administrator</span>
             </button>
           }
-          <button pButton type="button" size="small" severity="secondary" class="h-9" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
+          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="h-9 gap-2 px-2.5 transition-colors" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
             @if (themeMode() === 'dark') {
               <app-icon name="moon" class="h-4 w-4" />
             } @else {
@@ -68,8 +68,8 @@ type ThemeMode = 'dark' | 'light'
             }
             <span class="hidden lg:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
           </button>
-          <button pButton type="button" size="small" severity="secondary" class="hidden h-9 sm:flex" aria-label="Open jobs menu" title="Open jobs menu">
-            <span>{{ jobCount() }}</span>
+          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="hidden h-9 gap-2 px-2.5 transition-colors sm:flex" aria-label="Open jobs menu" title="Open jobs menu">
+            <span class="tabular-nums">{{ jobCount() }}</span>
             <span>Jobs</span>
           </button>
           <div class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100" aria-label="Signed-in user initials">
@@ -90,7 +90,7 @@ export class AppHeaderComponent {
   readonly openDataSourcePipelines = output<void>()
   readonly adminMenuItems: MenuItem[] = [
     { label: 'Package references', icon: 'package', command: () => this.openPackageReferences.emit() },
-    { label: 'Data source pipelines', icon: 'workflow', command: () => this.openDataSourcePipelines.emit() },
+    { label: 'Data source pipelines', icon: 'waypoints', command: () => this.openDataSourcePipelines.emit() },
   ]
   readonly openCatalog = output<void>()
   readonly toggleTheme = output<void>()
