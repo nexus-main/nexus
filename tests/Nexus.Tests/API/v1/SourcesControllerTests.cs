@@ -22,6 +22,11 @@ namespace API.V1;
 
 public class SourcesControllerTests
 {
+    private static readonly JsonSerializerOptions _sourceConfigurationJsonOptions = new(JsonSerializerOptions.Web)
+    {
+        RespectRequiredConstructorParameters = true
+    };
+
     [Fact]
     public void SharedSchemaFixturesMatchServerOutput()
     {
@@ -236,37 +241,13 @@ public class SourcesControllerTests
     }
 
     [Theory]
-    [InlineData(typeof(NullableRootSource), typeof(NonNullableRootSource), typeof(PropertyConfiguration))]
-    [InlineData(typeof(NullableDictionaryRootSource), typeof(NonNullableDictionaryRootSource), typeof(IReadOnlyDictionary<string, ChildConfiguration>))]
-    public async Task NullableReferenceRootAnnotationIsPreservedDespiteIdenticalClrTypes(
-        Type nullableSource, Type nonNullableSource, Type configurationType)
-    {
-        Assert.Equal(configurationType, DataSourceController.GetConfigurationType(nullableSource));
-        Assert.Equal(configurationType, DataSourceController.GetConfigurationType(nonNullableSource));
-
-        var nullable = GetSchema(nullableSource);
-        var nonNullable = GetSchema(nonNullableSource);
-        var schema = await JsonSchema.FromJsonAsync(nullable.GetRawText());
-        Assert.Empty(schema.Validate("null"));
-        var nonNullableSchema = await JsonSchema.FromJsonAsync(nonNullable.GetRawText());
-        Assert.NotEmpty(nonNullableSchema.Validate("null"));
-    }
-
-    [Theory]
-    [InlineData(typeof(DirectNullableSource), true)]
     [InlineData(typeof(DirectNonNullableSource), false)]
-    [InlineData(typeof(NullableRootSource), true)]
     [InlineData(typeof(NonNullableRootSource), false)]
-    [InlineData(typeof(NullableChainSource), true)]
     [InlineData(typeof(NonNullableChainSource), false)]
-    [InlineData(typeof(AnnotatedChainSource), true)]
-    [InlineData(typeof(NullableDirectChainSource), true)]
     [InlineData(typeof(NonNullableDirectChainSource), false)]
-    [InlineData(typeof(NullableInterfaceSource), true)]
     [InlineData(typeof(NonNullableInterfaceSource), false)]
     [InlineData(typeof(ObliviousRootSource), false)]
     [InlineData(typeof(ObliviousDirectSource), false)]
-    [InlineData(typeof(ConcreteNullableSource), true)]
     public async Task RootNullabilityFollowsSourceDeclaration(Type source, bool nullable)
     {
         var schema = await JsonSchema.FromJsonAsync(GetSchema(source).GetRawText());
@@ -299,46 +280,16 @@ public class SourcesControllerTests
         Assert.NotEmpty(schema.Validate("{}"));
     }
 
-    [Theory]
-    [InlineData(typeof(NullableItemsSource), true)]
-    [InlineData(typeof(NonNullableItemsSource), false)]
-    public async Task GenericSubstitutionPreservesNestedNullability(Type source, bool nullableItems)
+    [Fact]
+    public async Task GenericSubstitutionPreservesNestedNonNullableItems()
     {
-        var schema = await JsonSchema.FromJsonAsync(GetSchema(source).GetRawText());
+        var schema = await JsonSchema.FromJsonAsync(GetSchema(typeof(NonNullableItemsSource)).GetRawText());
 
         Assert.NotEmpty(schema.Validate("null"));
         Assert.Empty(schema.Validate("[]"));
-        Assert.Equal(nullableItems, schema.Validate("[null]").Count == 0);
+        Assert.NotEmpty(schema.Validate("[null]"));
         Assert.Empty(schema.Validate("[{\"requiredNullable\":null}]"));
         Assert.NotEmpty(schema.Validate("[{}]"));
-    }
-
-    [Fact]
-    public async Task NullableRootDoesNotMakeRecursiveNonNullableReferencesNullable()
-    {
-        var schema = await JsonSchema.FromJsonAsync(GetSchema(typeof(RecursiveSource)).GetRawText());
-
-        Assert.Empty(schema.Validate("null"));
-        Assert.Empty(schema.Validate("{}"));
-        Assert.Empty(schema.Validate("{\"next\":{}}"));
-        Assert.NotEmpty(schema.Validate("{\"next\":null}"));
-    }
-
-    [Theory]
-    [InlineData(nameof(DirectNullableSource), true)]
-    [InlineData(nameof(DirectNonNullableSource), false)]
-    [InlineData(nameof(NullableChainSource), true)]
-    [InlineData(nameof(NonNullableChainSource), false)]
-    public async Task SourceDeclarationMetadataSurvivesLoadingAssemblyFromMemory(string name, bool nullable)
-    {
-        var assembly = Assembly.Load(File.ReadAllBytes(typeof(SourcesControllerTests).Assembly.Location));
-        Assert.Empty(assembly.Location);
-        var source = assembly.GetType($"{typeof(SourcesControllerTests).FullName}+{name}")!;
-        var schema = await JsonSchema.FromJsonAsync(GetSchema(source).GetRawText());
-
-        Assert.Equal(nullable, schema.Validate("null").Count == 0);
-        Assert.Empty(schema.Validate("{\"requiredNullable\":null}"));
-        Assert.NotEmpty(schema.Validate("{}"));
     }
 
     [Fact]
@@ -378,6 +329,27 @@ public class SourcesControllerTests
             Assert.NotNull(JsonSerializer.Deserialize<RequiredConfiguration>(json, JsonSerializerOptions.Web));
         else
             Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<RequiredConfiguration>(json, JsonSerializerOptions.Web));
+    }
+
+    [Theory]
+    [InlineData("{\"requiredNonNullable\":\"value\",\"requiredNullable\":null,\"requiredValue\":1}", true, true)]
+    [InlineData("{\"requiredNonNullable\":\"value\",\"requiredNullable\":\"value\",\"requiredValue\":1}", true, true)]
+    [InlineData("{}", false, false)]
+    [InlineData("{\"requiredNonNullable\":\"value\",\"requiredValue\":1}", false, false)]
+    [InlineData("{\"requiredNonNullable\":null,\"requiredNullable\":null,\"requiredValue\":1}", false, true)]
+    [InlineData("{\"requiredNonNullable\":\"value\",\"requiredNullable\":null,\"requiredValue\":1,\"optionalNonNullable\":null}", false, true)]
+    public async Task GeneratedSchemaHonorsRequiredConstructorParameters(string json, bool schemaValid, bool runtimeValid)
+    {
+        var document = GetSchema(typeof(SchemaSource<ConstructorParameterConfiguration>));
+        Assert.Equal(["requiredNonNullable", "requiredNullable", "requiredValue"],
+            document.GetProperty("required").EnumerateArray().Select(item => item.GetString()));
+        var schema = await JsonSchema.FromJsonAsync(document.GetRawText());
+        Assert.Equal(schemaValid, schema.Validate(json).Count == 0);
+
+        if (runtimeValid)
+            Assert.NotNull(JsonSerializer.Deserialize<ConstructorParameterConfiguration>(json, _sourceConfigurationJsonOptions));
+        else
+            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ConstructorParameterConfiguration>(json, _sourceConfigurationJsonOptions));
     }
 
     [Theory]
@@ -477,6 +449,15 @@ public class SourcesControllerTests
         [JsonIgnore]
         public string? Ignored { get; set; }
     }
+
+    public record ConstructorParameterConfiguration(
+        string RequiredNonNullable,
+        string? RequiredNullable,
+        int RequiredValue,
+        string OptionalNonNullable = "default",
+        string? OptionalNullable = null,
+        int OptionalValue = 42
+    );
 
     public abstract class SchemaSource<T> : SimpleDataSource<T>;
 

@@ -63,6 +63,11 @@ internal class DataSourceController(
     ILogger<DataSourceController> logger
 ) : IDataSourceController
 {
+    private static readonly JsonSerializerOptions _sourceConfigurationJsonOptions = new(JsonSerializerOptions.Web)
+    {
+        RespectRequiredConstructorParameters = true
+    };
+
     private const int MaximumPipeWriteByteCount = 4 * 1024 * 1024;
 
     internal readonly IReadOnlyDictionary<string, JsonElement>? _requestConfiguration = requestConfiguration;
@@ -1223,7 +1228,7 @@ internal class DataSourceController(
     {
         var sourceConfiguration = JsonSerializer.Deserialize<T>(
             registration.Configuration,
-            JsonSerializerOptions.Web
+            _sourceConfigurationJsonOptions
         );
 
         var context = new DataSourceContext<T?>(

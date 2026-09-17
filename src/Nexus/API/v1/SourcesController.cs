@@ -15,7 +15,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
+using System.Text.Json.Serialization;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Controllers.V1;
@@ -44,11 +44,11 @@ internal class SourcesController(
 
     private static readonly SystemTextJsonSchemaGeneratorSettings _jsonSchemaGeneratorSettings = new()
     {
-        ReflectionService = new ConfigurationSchemaReflectionService(),
         SchemaProcessors = { new ConfigurationSchemaProcessor() },
         SerializerOptions = new JsonSerializerOptions
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            RespectRequiredConstructorParameters = true
         }
     };
 
@@ -58,6 +58,8 @@ internal class SourcesController(
         {
             var type = context.ContextualType.Type;
             var schema = context.Schema;
+
+            AddRequiredConstructorParameters(type, schema);
 
             if (type.IsEnum && type.IsDefined(typeof(FlagsAttribute), inherit: false) &&
                 schema.Type.HasFlag(JsonObjectType.Integer))
@@ -89,32 +91,54 @@ internal class SourcesController(
                 schema.Maximum = byte.MaxValue;
             }
         }
-    }
 
-    private sealed class ConfigurationSchemaReflectionService : SystemTextJsonReflectionService
-    {
-        public override void GenerateProperties(
-            JsonSchema schema,
-            ContextualType contextualType,
-            SystemTextJsonSchemaGeneratorSettings settings,
-            JsonSchemaGenerator schemaGenerator,
-            JsonSchemaResolver schemaResolver)
+        private static void AddRequiredConstructorParameters(Type type, JsonSchema schema)
         {
-            base.GenerateProperties(schema, contextualType, settings, schemaGenerator, schemaResolver);
-
-            // NJsonSchema 11.1 does not recognize System.Text.Json's required members.
-            // Presence is independent of whether the property's value may be null.
-            var typeInfo = new DefaultJsonTypeInfoResolver().GetTypeInfo(contextualType.Type, settings.SerializerOptions);
-
-            foreach (var property in typeInfo.Properties)
+            if (!schema.Type.HasFlag(JsonObjectType.Object))
             {
-                if (property.IsRequired &&
-                    schema.Properties.ContainsKey(property.Name) &&
-                    !schema.RequiredProperties.Contains(property.Name))
-                {
-                    schema.RequiredProperties.Add(property.Name);
-                }
+                return;
             }
+
+            var constructor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public)
+                .Where(constructor => constructor.GetParameters().Length > 0)
+                .OrderByDescending(constructor => constructor.GetParameters().Length)
+                .FirstOrDefault();
+
+            if (constructor is null)
+            {
+                return;
+            }
+
+            foreach (var parameter in constructor.GetParameters())
+            {
+                if (parameter.HasDefaultValue || parameter.Name is null)
+                {
+                    continue;
+                }
+
+                var propertyName = GetSerializedPropertyName(type, parameter.Name);
+
+                if (propertyName is null || !schema.Properties.ContainsKey(propertyName) || schema.RequiredProperties.Contains(propertyName))
+                {
+                    continue;
+                }
+
+                schema.RequiredProperties.Add(propertyName);
+            }
+        }
+
+        private static string? GetSerializedPropertyName(Type type, string parameterName)
+        {
+            var property = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault(property => string.Equals(property.Name, parameterName, StringComparison.OrdinalIgnoreCase));
+
+            if (property is null || property.GetCustomAttribute<JsonIgnoreAttribute>() is not null)
+            {
+                return null;
+            }
+
+            return property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
+                JsonNamingPolicy.CamelCase.ConvertName(property.Name);
         }
     }
 
@@ -215,7 +239,7 @@ internal class SourcesController(
     {
         return extensions.Select(dataSourceType =>
         {
-            var configurationType = ConfigurationTypeResolver.Resolve(dataSourceType);
+            var configurationType = DataSourceController.GetConfigurationType(dataSourceType).ToContextualType([]);
             var sourceConfigurationSchema = new JsonSchema();
             var generator = new JsonSchemaGenerator(_jsonSchemaGeneratorSettings);
             var resolver = new JsonSchemaResolver(sourceConfigurationSchema, _jsonSchemaGeneratorSettings);
