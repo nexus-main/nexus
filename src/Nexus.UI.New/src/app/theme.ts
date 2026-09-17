@@ -107,5 +107,35 @@ export const nexusPreset = definePreset(Aura, {
         padding: '0.5rem 0.75rem',
       },
     },
+    tree: {
+      colorScheme: {
+        light: {
+          node: {
+            selectedBackground: 'color-mix(in srgb, {cyan.100} 50%, {slate.50})',
+            selectedColor: '{slate.700}',
+          },
+          nodeIcon: {
+            selectedColor: '{cyan.700}',
+          },
+          nodeToggleButton: {
+            selectedHoverBackground: '{cyan.100}',
+            selectedHoverColor: '{cyan.800}',
+          },
+        },
+        dark: {
+          node: {
+            selectedBackground: 'color-mix(in srgb, {cyan.300} 10%, {slate.900})',
+            selectedColor: '{slate.200}',
+          },
+          nodeIcon: {
+            selectedColor: '{cyan.300}',
+          },
+          nodeToggleButton: {
+            selectedHoverBackground: 'color-mix(in srgb, {cyan.300} 18%, {slate.900})',
+            selectedHoverColor: '{cyan.200}',
+          },
+        },
+      },
+    },
   },
 })
