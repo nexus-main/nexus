@@ -14,7 +14,7 @@ type ThemeMode = 'dark' | 'light'
     <header class="content-panel overflow-hidden rounded-md">
       <div class="relative flex items-center justify-between gap-2 p-2.5 sm:gap-3 sm:p-3 lg:p-4">
         <div class="pointer-events-none order-1 min-w-0 flex-1 text-center">
-          <svg class="nexus-logo inline h-6 w-auto opacity-80 sm:h-9 lg:h-10" viewBox="0 0 34.53199 8.4074602" role="img" aria-label="Nexus" xmlns="http://www.w3.org/2000/svg">
+          <svg class="nexus-logo inline h-6 w-auto opacity-80" viewBox="0 0 34.53199 8.4074602" role="img" aria-label="Nexus" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <linearGradient id="nexusLogoGradient" gradientUnits="userSpaceOnUse" x1="136.16373" y1="135.48936" x2="92.778351" y2="135.62166" gradientTransform="matrix(0.72736381,0,0,0.72736381,45.515429,35.533905)">
                 <stop offset="0" stop-color="var(--nexus-logo-from)" />

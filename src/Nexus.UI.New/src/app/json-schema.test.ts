@@ -502,7 +502,7 @@ describe('generic schema scaffolds', () => {
     const before = structuredClone(schema)
     const value = createSchemaScaffold(schema)
     assert.deepEqual(value, { mappings: { example_key: { example_key: [{
-      path: '', interval: '00:00:00', timestamp: '2000-01-01T00:00:00', mode: 'read',
+      path: '', interval: '00:00:00', timestamp: '2000-01-01T00:00:00Z', mode: 'read',
     }] } }, optional: false })
     assert.equal(validateConfiguration(schema, value).valid, true)
     assert.deepEqual(schema, before)
@@ -512,7 +512,7 @@ describe('generic schema scaffolds', () => {
   it('includes every declared optional/required field and required dictionary keys', () => {
     const value = createSchemaScaffold(registrationSchema)
     assert.deepEqual(value, { name: 'not injected', optional: '', requiredNullable: '', optionalNullable: '', mode: 'read',
-      start: '2000-01-01T00:00:00', samples: [1], labels: { example_key: '' } })
+      start: '2000-01-01T00:00:00Z', samples: [1], labels: { example_key: '' } })
     assert.equal(validateConfiguration(registrationSchema, value).valid, true)
     assert.deepEqual(createSchemaScaffold({ type: 'object', required: ['actual_key'], additionalProperties: { type: 'integer' } }), { actual_key: 0 })
     assert.deepEqual(createSchemaScaffold({ type: 'object', additionalProperties: false }), {})

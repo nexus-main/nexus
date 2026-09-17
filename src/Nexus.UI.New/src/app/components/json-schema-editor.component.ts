@@ -81,6 +81,7 @@ export class JsonSchemaEditorComponent {
   readonly valueChange = output<unknown>()
   readonly rawTextChange = output<string>()
   readonly validityChange = output<ConfigurationValidation>()
+  readonly saveRequested = output<void>()
 
   readonly text = linkedSignal(() => this.rawText() ?? configurationYamlText(this.value()))
   readonly parsed = computed(() => parseConfigurationText(this.text()))
@@ -115,6 +116,7 @@ export class JsonSchemaEditorComponent {
     this.defineThemes()
     this.applyTheme()
     editor.setValue(this.text())
+    if (this.monaco) editor.addCommand(this.monaco.KeyMod.CtrlCmd | this.monaco.KeyCode.KeyS, () => this.requestSave())
     editor.onDidChangeModelContent(() => {
       if (!this.editor || this.suppressChange) return
       this.applyText(editor.getValue(), false)
@@ -135,6 +137,11 @@ export class JsonSchemaEditorComponent {
 
   formatDocument(): void {
     void this.editor?.getAction('editor.action.formatDocument')?.run()
+  }
+
+  private requestSave(): void {
+    if (this.editor) this.applyText(this.editor.getValue(), false)
+    this.saveRequested.emit()
   }
 
   private applyText(text: string, updateEditor = true): void {

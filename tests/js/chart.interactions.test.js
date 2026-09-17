@@ -297,3 +297,38 @@ test('Shift-wheel keeps the existing vertical-only callback', async () => {
         assert.deepEqual(environment.calls.at(-1), ['WheelZoom', 0.3, 0.7, deltaY, true]);
     }
 });
+
+async function dragMainChart(environment, from, to) {
+    environment.listeners.get('overlay_chart:pointerdown')({
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: from.x,
+        clientY: from.y,
+        cancelable: true,
+        preventDefault() {},
+    });
+    environment.listeners.get('overlay_chart:pointermove')({ pointerId: 1, clientX: to.x, clientY: to.y });
+    environment.listeners.get('overlay_chart:pointerup')({ pointerId: 1 });
+    await environment.frames.shift()();
+}
+
+test('main drag treats large rectangular selections as rectangular zooms', async () => {
+    const environment = createEnvironment();
+
+    await dragMainChart(environment, { x: 5, y: 35 }, { x: 95, y: 65 });
+
+    assert.deepEqual(environment.calls, [['DragZoom', 0.05, 0.35, 0.95, 0.65]]);
+});
+
+test('main drag locks to one axis only for line-like selections', async () => {
+    const environment = createEnvironment();
+
+    await dragMainChart(environment, { x: 5, y: 40 }, { x: 95, y: 48 });
+    await dragMainChart(environment, { x: 30, y: 5 }, { x: 38, y: 95 });
+
+    assert.deepEqual(environment.calls, [
+        ['DragZoom', 0.05, 0, 0.95, 1],
+        ['DragZoom', 0, 0.05, 1, 0.95],
+    ]);
+});

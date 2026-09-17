@@ -195,7 +195,19 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
     if (overlay && selection) {
         let drag = null;
         let lastTap = null;
-        const axisLockRatio = 1 / Math.tan(15 * Math.PI / 180);
+        const axisLockThickness = 20;
+        const dragBounds = (startX, startY, currentX, currentY, rect) => {
+            const dx = Math.abs(currentX - startX) * rect.width;
+            const dy = Math.abs(currentY - startY) * rect.height;
+            const horizontal = dx > dy && dy <= axisLockThickness;
+            const vertical = dy > dx && dx <= axisLockThickness;
+            return {
+                left: horizontal || !vertical ? Math.min(startX, currentX) : 0,
+                right: horizontal || !vertical ? Math.max(startX, currentX) : 1,
+                top: vertical || !horizontal ? Math.min(startY, currentY) : 0,
+                bottom: vertical || !horizontal ? Math.max(startY, currentY) : 1,
+            };
+        };
 
         listen(overlay, "mousemove", e => {
             const rect = overlay.getBoundingClientRect();
@@ -307,14 +319,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                 return;
             }
 
-            const dx = Math.abs(x - drag.startX) * drag.rect.width;
-            const dy = Math.abs(y - drag.startY) * drag.rect.height;
-            const horizontal = dx > dy * axisLockRatio;
-            const vertical = dy > dx * axisLockRatio;
-            const left = horizontal || !vertical ? Math.min(drag.startX, x) : 0;
-            const right = horizontal || !vertical ? Math.max(drag.startX, x) : 1;
-            const top = vertical || !horizontal ? Math.min(drag.startY, y) : 0;
-            const bottom = vertical || !horizontal ? Math.max(drag.startY, y) : 1;
+            const { left, top, right, bottom } = dragBounds(drag.startX, drag.startY, x, y, drag.rect);
             Object.assign(selection.style, {
                 display: "block",
                 left: `${left * 100}%`, top: `${top * 100}%`,
@@ -339,13 +344,12 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             if (Math.hypot(dx, dy) < 6)
                 return;
 
-            const horizontal = dx > dy * axisLockRatio;
-            const vertical = dy > dx * axisLockRatio;
+            const { left, top, right, bottom } = dragBounds(finished.startX, finished.startY, finished.currentX, finished.currentY, finished.rect);
             invokeZoom("DragZoom", [
-                horizontal || !vertical ? Math.min(finished.startX, finished.currentX) : 0,
-                vertical || !horizontal ? Math.min(finished.startY, finished.currentY) : 0,
-                horizontal || !vertical ? Math.max(finished.startX, finished.currentX) : 1,
-                vertical || !horizontal ? Math.max(finished.startY, finished.currentY) : 1,
+                left,
+                top,
+                right,
+                bottom,
             ]);
         };
         listen(overlay, "pointerup", finishDrag);

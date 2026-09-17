@@ -99,7 +99,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
             </div>
             <button pButton type="button" size="small" [outlined]="true" [disabled]="loading() || refreshing()" (click)="refreshDatabase()">{{ refreshButtonLabel() }}</button>
           </div>
-          @if (loading()) {
+          @if (loading() && entries().length === 0) {
             <p class="text-sm" role="status">Loading package references...</p>
           } @else if (!error()) {
             <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));">
