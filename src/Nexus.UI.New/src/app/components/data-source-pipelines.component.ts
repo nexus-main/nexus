@@ -17,6 +17,7 @@ import type { PipelineDraft, UnsavedChoice } from '../data-source-pipelines'
 
 type Destination = { kind: 'pipeline'; id: string | null } | { kind: 'close' } | { kind: 'refresh' } | { kind: 'descriptions' } | { kind: 'reload' }
 type PipelineEntry = { id: string; pipeline: V1.DataSourcePipeline }
+type ThemeMode = 'dark' | 'light'
 
 @Component({
   selector: 'app-data-source-pipelines',
@@ -35,6 +36,7 @@ export class DataSourcePipelinesComponent {
   private readGeneration = 0
   private destroyed = false
   readonly refreshDatabase = input.required<() => Promise<boolean>>()
+  readonly themeMode = input.required<ThemeMode>()
   readonly close = output<void>()
   readonly administrator = computed(() => this.nexus.currentUser()?.user?.claims?.some(claim => claim.type === 'role' && claim.value === 'Administrator') ?? false)
   readonly owner = computed(() => this.nexus.currentUser()?.user?.name ?? this.nexus.currentUser()?.userId ?? 'Current user')

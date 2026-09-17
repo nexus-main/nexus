@@ -2,8 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
-  configurationResetNeedsConfirmation, configurationText, configurationWithRawMember, createSchemaValue, getSchemaView, parseJsonSafely,
-  SchemaNumberSession, schemaPointer, setConfigurationProperty, validateConfiguration,
+  configurationText, configurationYamlText, createSchemaScaffold, createSchemaValue, getSchemaView, parseConfigurationText, parseJsonSafely, schemaPointer, validateConfiguration,
 } from './json-schema.ts'
 
 const draft4 = 'http://json-schema.org/draft-04/schema#'
@@ -86,34 +85,6 @@ const registrationSchema = {
   additionalProperties: false,
   definitions: { sample: { type: 'number', minimum: 0, exclusiveMinimum: true } },
 }
-
-describe('numeric field sessions', () => {
-  it('does not finalize untouched fields or repeated blurs', () => {
-    const session = new SchemaNumberSession()
-    assert.equal(session.finish(), null)
-    assert.equal(session.finish(), null)
-  })
-
-  it('finalizes valid edits exactly once, even when the token returns to its original value', () => {
-    const session = new SchemaNumberSession()
-    session.edit('2')
-    session.edit('1')
-    assert.equal(session.finish(), '1')
-    assert.equal(session.finish(), null)
-    session.edit('1.00')
-    assert.equal(session.finish(), '1.00')
-    assert.equal(session.finish(), null)
-  })
-
-  it('preserves empty, incomplete and unsafe edited tokens on blur', () => {
-    const session = new SchemaNumberSession()
-    for (const text of ['', '-', '1.', '1e', '9007199254740993']) {
-      session.edit(text)
-      assert.equal(session.finish(), text)
-      assert.equal(session.finish(), null)
-    }
-  })
-})
 
 describe('Draft 4 configuration validation', () => {
   it('supports NJsonSchema guid, uint64 and decimal formats without blocking absent optional fields', () => {
@@ -517,83 +488,276 @@ describe('conservative schema form projection', () => {
   })
 })
 
-describe('immutable configuration edits and drafts', () => {
-  it('preserves incomplete decimal typing through recursive raw envelopes until repaired', () => {
-    const snapshot = { items: [{ number: 1, unknown: 'retained' }] }
-    for (const token of ['1', '1.', '1.2', '1.2e', '1.2e-2', '']) {
-      const item = configurationWithRawMember(snapshot.items[0], 'number', token)
-      const items = configurationWithRawMember(snapshot.items, 0, item)
-      const draft = configurationWithRawMember(snapshot, 'items', items)
-      const parsed = parseJsonSafely(draft)
-      assert.equal(parsed.valid, ['1', '1.2', '1.2e-2'].includes(token), token)
-      assert.ok(draft.includes(token))
-      if (parsed.valid) assert.deepEqual(parsed.value, { items: [{ number: Number(token), unknown: 'retained' }] })
-      assert.deepEqual(snapshot, { items: [{ number: 1, unknown: 'retained' }] })
-    }
+describe('generic schema scaffolds', () => {
+  it('expands nested dictionary/dictionary/array refs without domain-specific names or annotations', () => {
+    const schema = { $schema: draft4, type: 'object', properties: {
+      mappings: { type: 'object', additionalProperties: { type: 'object', additionalProperties: {
+        type: 'array', items: { $ref: '#/definitions/entry' },
+      } } },
+      optional: { type: 'boolean' },
+    }, definitions: { entry: { type: 'object', properties: {
+      path: { type: 'string' }, interval: { type: 'string', format: 'duration' },
+      timestamp: { type: 'string', format: 'date-time' }, mode: { enum: ['read', 'write'] },
+    } } } }
+    const before = structuredClone(schema)
+    const value = createSchemaScaffold(schema)
+    assert.deepEqual(value, { mappings: { example_key: { example_key: [{
+      path: '', interval: '00:00:00', timestamp: '2000-01-01T00:00:00', mode: 'read',
+    }] } }, optional: false })
+    assert.equal(validateConfiguration(schema, value).valid, true)
+    assert.deepEqual(schema, before)
+    assert.deepEqual(createSchemaScaffold(schema), value)
   })
-  it('requires reset confirmation for every existing root value or raw buffer, including empty drafts', () => {
-    assert.equal(configurationResetNeedsConfirmation(undefined, undefined), false)
-    for (const value of [null, '', false, 0, {}, [], { populated: true }]) {
-      assert.equal(configurationResetNeedsConfirmation(value, undefined), true)
-    }
-    for (const text of ['', ' ', '{', 'null', '{"unsafe":9007199254740993}']) {
-      assert.equal(configurationResetNeedsConfirmation(undefined, text), true)
+
+  it('includes every declared optional/required field and required dictionary keys', () => {
+    const value = createSchemaScaffold(registrationSchema)
+    assert.deepEqual(value, { name: 'not injected', optional: '', requiredNullable: '', optionalNullable: '', mode: 'read',
+      start: '2000-01-01T00:00:00', samples: [1], labels: { example_key: '' } })
+    assert.equal(validateConfiguration(registrationSchema, value).valid, true)
+    assert.deepEqual(createSchemaScaffold({ type: 'object', required: ['actual_key'], additionalProperties: { type: 'integer' } }), { actual_key: 0 })
+    assert.deepEqual(createSchemaScaffold({ type: 'object', additionalProperties: false }), {})
+    assert.deepEqual(createSchemaScaffold({ type: 'object', additionalProperties: true }), { example_key: null })
+    assert.deepEqual(createSchemaScaffold({ type: 'object', additionalProperties: { type: 'string' }, maxProperties: 0 }), {})
+  })
+
+  it('prefers validated defaults, then examples, then enum values without sharing mutable values', () => {
+    for (const [schema, expected] of [
+      [{ type: 'string', default: 'default', examples: ['example'], enum: ['enum', 'default', 'example'] }, 'default'],
+      [{ type: 'integer', minimum: 2, default: 1, examples: ['bad', 3, 4] }, 3],
+      [{ type: 'string', pattern: '^ok$', default: 'bad', examples: ['bad', 'ok'] }, 'ok'],
+      [{ type: 'boolean', default: false, examples: [true] }, false],
+      [{ type: 'string', example: 'example' }, 'example'],
+      [{ enum: [null, 'first', 'second'] }, 'first'],
+      [{ type: 'integer', enum: [1, 2, 3], minimum: 2 }, 2],
+      [{ enum: [null] }, null],
+      [{ type: ['null', 'string'], default: null }, ''],
+      [{ type: 'integer', default: Infinity, examples: [9007199254740992, -0] }, 0],
+    ] as const) assert.deepEqual(createSchemaScaffold(schema), expected)
+    const literal = { nested: ['kept'] }
+    const schema = { enum: [literal] }
+    const value = createSchemaScaffold(schema) as typeof literal
+    value.nested.push('changed')
+    assert.deepEqual(literal, { nested: ['kept'] })
+    const object = { type: 'object', default: { name: 'chosen' }, properties: {
+      name: { type: 'string' }, optional: { type: 'integer', default: 7 },
+    } }
+    assert.deepEqual(createSchemaScaffold(object), { name: 'chosen' })
+    assert.deepEqual(object.default, { name: 'chosen' })
+  })
+
+  it('preserves complete valid annotations instead of imposing the first union branch or type', () => {
+    for (const keyword of ['default', 'examples', 'example']) {
+      const literal = { kind: 'b', y: 42 }
+      const annotation = { [keyword]: keyword === 'examples' ? [null, { kind: 'bad' }, literal] : literal }
+      for (const union of ['oneOf', 'anyOf']) {
+        const schema = { ...annotation, [union]: [
+          { type: 'object', properties: { kind: { enum: ['a'] }, x: { type: 'string' } }, required: ['kind', 'x'], additionalProperties: false },
+          { $ref: '#/definitions/b' },
+        ], definitions: { b: { type: 'object', properties: {
+          kind: { enum: ['b'] }, y: { type: 'integer' }, optional: { type: 'boolean' },
+        }, required: ['kind', 'y'], additionalProperties: false } } }
+        const before = structuredClone(schema)
+        const value = createSchemaScaffold(schema) as typeof literal
+        assert.deepEqual(value, literal)
+        assert.equal(validateConfiguration(schema, value).valid, true)
+        value.y = 99
+        assert.deepEqual(schema, before)
+        const nested = { type: 'object', properties: { choice: { $ref: '#/definitions/choice' } },
+          definitions: { ...schema.definitions, choice: schema } }
+        assert.deepEqual(createSchemaScaffold(nested), { choice: literal })
+      }
+      assert.deepEqual(createSchemaScaffold({ type: ['string', 'object'], [keyword]: keyword === 'examples' ? [literal] : literal }), literal)
+      assert.equal(createSchemaScaffold({ type: ['object', 'string'], [keyword]: keyword === 'examples' ? ['chosen'] : 'chosen' }), 'chosen')
     }
   })
 
-  it('does not reinterpret an invalid single field draft as array deletion/insertion or object keys', () => {
-    for (const [value, key, token] of [
-      [[1], 0, ''], [[1], 0, '1,2'], [[1], 0, '1],"injected":[2'], [{ x: 1 }, 'x', '1,"y":2'],
-    ] as const) {
-      const draft = configurationWithRawMember(structuredClone(value) as unknown[] | Record<string, unknown>, key, token)
-      assert.equal(parseJsonSafely(draft).valid, false, draft)
-      assert.ok(draft.includes(token))
-      const nested = configurationWithRawMember({ items: value }, 'items', draft)
-      assert.equal(parseJsonSafely(nested).valid, false, nested)
+  it('clones nested object and array examples literally, including empty collections and null members', () => {
+    for (const literal of [{}, { child: { kind: 'b', y: 42 }, items: [null, { value: 7 }] }, [], [{ nested: [1, 2] }, null]]) {
+      const schema = { type: ['object', 'array'], properties: { optional: { type: 'boolean' } },
+        additionalProperties: true, items: {}, examples: [literal] }
+      const before = structuredClone(schema)
+      const value = createSchemaScaffold(schema)
+      assert.deepEqual(value, literal)
+      assert.notEqual(value, literal)
+      assert.equal(validateConfiguration(schema, value).valid, true)
+      if (Array.isArray(value)) {
+        if (value[0]) value[0].nested.push(99)
+        value.push(null)
+      }
+      else {
+        const object = value as { child?: { y: number }; items?: unknown[]; changed?: boolean }
+        if (object.child) object.child.y = 99
+        object.items?.push('changed')
+        object.changed = true
+      }
+      assert.deepEqual(schema, before)
     }
   })
 
-  it('distinguishes cleared strings, cleared numbers, explicit null and absent properties', () => {
-    const initial = { field: 'before', unknown: 3 }
-    assert.deepEqual(setConfigurationProperty(initial, 'field', ''), { field: '', unknown: 3 })
-    assert.deepEqual(setConfigurationProperty(initial, 'field', null), { field: null, unknown: 3 })
-    assert.deepEqual(setConfigurationProperty(initial, 'field', undefined, false), { unknown: 3 })
-    for (const token of ['', '-', '1e', '9007199254740993']) {
-      assert.equal(parseJsonSafely(configurationWithRawMember({ field: 1 }, 'field', token)).valid, false)
-    }
-    const nullable = getSchemaView({ type: ['string', 'null'], default: 'never injected' })
-    assert.equal(nullable.kind, 'string')
-    assert.equal(nullable.nullable, true)
-    assert.equal(createSchemaValue(nullable), '')
+  it('still generates all generic fields when annotations are invalid or null', () => {
+    const schema = { type: 'object', default: { name: 42 }, examples: [null, { name: false }], properties: {
+      name: { type: 'string' }, optional: { type: 'boolean' }, items: { type: 'array', items: { type: 'integer' } },
+    } }
+    assert.deepEqual(createSchemaScaffold(schema), { name: '', optional: false, items: [0] })
   })
-  it('preserves unknown fields and safely supports prototype-like and empty dictionary keys', () => {
-    const parsed = parseJsonSafely('{"__proto__":{"polluted":true},"constructor":"a","prototype":1,"":null,"unknown":{"nested":2}}')
-    assert.equal(parsed.valid, true)
-    if (!parsed.valid) return
-    const original = parsed.value as Record<string, unknown>
-    const updated = setConfigurationProperty(original, '__proto__', { changed: true })
-    assert.equal(Object.getPrototypeOf(updated), Object.prototype)
-    assert.equal(Object.hasOwn(updated, '__proto__'), true)
+
+  it('chooses the first non-null union branch, including references and multiple alternatives', () => {
+    for (const union of ['oneOf', 'anyOf']) {
+      const schema = { [union]: [{ $ref: '#/definitions/nil' }, { $ref: '#/definitions/value' }, { type: 'integer' }],
+        definitions: { nil: { type: 'null' }, value: { type: 'object', properties: { name: { type: 'string' } } } } }
+      assert.deepEqual(createSchemaScaffold(schema), { name: '' })
+      assert.equal(validateConfiguration(schema, createSchemaScaffold(schema)).valid, true)
+      assert.equal(createSchemaScaffold({ [union]: [{ type: 'null' }, { type: 'string' }] }), '')
+      assert.equal(createSchemaScaffold({ [union]: [{ type: 'string' }, { type: 'null' }] }), '')
+    }
+    assert.equal(createSchemaScaffold({ type: ['null', 'integer', 'string'] }), 0)
+    assert.equal(createSchemaScaffold({ oneOf: [{ enum: [null] }, { enum: ['a', 'b'] }] }), 'a')
+  })
+
+  it('combines allOf property constraints, bounds and ref wrappers', () => {
+    const schema = { allOf: [
+      { $ref: '#/definitions/base' },
+      { properties: { count: { minimum: 3 }, other: { type: 'boolean' } } },
+    ], definitions: { base: { type: 'object', properties: { count: { type: 'integer' }, name: { type: 'string' } } } } }
+    assert.deepEqual(createSchemaScaffold(schema), { count: 3, name: '', other: false })
+    assert.equal(validateConfiguration(schema, createSchemaScaffold(schema)).valid, true)
+    assert.deepEqual(createSchemaScaffold({ allOf: [
+      { properties: { value: { type: ['string', 'null'] } } }, { additionalProperties: { enum: ['yes'] } },
+    ] }), { value: 'yes' })
+    assert.equal(createSchemaScaffold({ allOf: [{ type: 'number' }, { type: 'integer', minimum: 1.5 }] }), 2)
+    assert.equal(createSchemaScaffold({ allOf: [{ type: 'string', default: 'bad' }, { enum: ['good'] }] }), 'good')
+  })
+
+  it('preserves valid array defaults, otherwise creates one item or honors forbidden items', () => {
+    assert.deepEqual(createSchemaScaffold({ type: 'array', items: { type: 'integer' }, minItems: 5 }), [0])
+    assert.deepEqual(createSchemaScaffold({ type: 'array', items: { type: 'integer' }, default: [2, 3] }), [2, 3])
+    assert.deepEqual(createSchemaScaffold({ type: 'array', items: { type: 'integer' }, default: [] }), [])
+    assert.deepEqual(createSchemaScaffold({ type: 'array', items: [{ type: 'string' }, { type: 'integer' }] }), [''])
+    assert.deepEqual(createSchemaScaffold({ type: 'array', items: [], additionalItems: false }), [])
+    assert.deepEqual(createSchemaScaffold({ type: 'array', maxItems: 0, default: [1], items: { type: 'integer' } }), [])
+    assert.deepEqual(createSchemaScaffold({ allOf: [{ type: 'array', items: { type: 'string' } }, { maxItems: 0 }] }), [])
+    assert.deepEqual(createSchemaScaffold({ type: 'array' }), [null])
+  })
+
+  it('resolves escaped/URI pointers and ignores Draft 4 ref siblings without mutating frozen schemas', () => {
+    const schema = Object.freeze({ $ref: '#/definitions/a~1b~0c%20d', default: 'ignored', type: 'integer',
+      definitions: Object.freeze({ 'a/b~c d': Object.freeze({ type: 'string' }) }) })
+    assert.equal(createSchemaScaffold(schema), '')
+    const dangerous = JSON.parse('{"type":"object","properties":{"__proto__":{"type":"object","properties":{"polluted":{"type":"boolean"}}},"constructor":{"type":"string"},"prototype":{"type":"integer"},"":{"type":"string"}}}')
+    const value = createSchemaScaffold(dangerous) as Record<string, unknown>
+    assert.equal(Object.getPrototypeOf(value), Object.prototype)
+    assert.equal(Object.hasOwn(value, '__proto__'), true)
+    assert.deepEqual(value['__proto__'], { polluted: false })
     assert.equal(Object.hasOwn(Object.prototype, 'polluted'), false)
-    assert.deepEqual(updated['unknown'], { nested: 2 })
-    assert.deepEqual(original['__proto__'], { polluted: true })
-    assert.equal(Object.hasOwn(setConfigurationProperty(updated, 'constructor', undefined, false), 'constructor'), false)
-    assert.equal(Object.hasOwn(setConfigurationProperty(updated, '', false), ''), true)
-    assert.equal(validateConfiguration({ type: 'object' }, updated).valid, true)
+    assert.deepEqual(Object.keys(value), ['__proto__', 'constructor', 'prototype', ''])
+    assert.equal(createSchemaScaffold({ $ref: '#/definitions/__proto__', definitions: {} }), null)
   })
 
-  it('embeds invalid nested drafts without precision loss or altering adjacent values', () => {
-    const object = { known: 1, unknown: { x: true } }
-    const draft = configurationWithRawMember(object, 'known', '9007199254740993')
-    assert.ok(draft.includes('9007199254740993'))
-    assert.equal(parseJsonSafely(draft).valid, false)
-    const nested = configurationWithRawMember({ items: [1, 2] }, 'items', configurationWithRawMember([1, 2], 1, '1e'))
-    assert.equal(nested, '{"items":[1,1e]}')
-    assert.deepEqual(object, { known: 1, unknown: { x: true } })
-    assert.equal(configurationWithRawMember({}, '__proto__', 'null'), '{"__proto__":null}')
+  it('bounds recursive refs, actual cycles, schema depth, output size and annotations deterministically', () => {
+    const recursive = { type: 'object', properties: { name: { type: 'string' }, next: { $ref: '#' } } }
+    assert.deepEqual(createSchemaScaffold(recursive), { name: '', next: null })
+    const shared = { type: 'object', properties: { first: { $ref: '#/definitions/value' }, second: { $ref: '#/definitions/value' } },
+      definitions: { value: { type: 'object', properties: { name: { type: 'string' } } } } }
+    assert.deepEqual(createSchemaScaffold(shared), { first: { name: '' }, second: { name: '' } })
+    for (const schema of [{ $ref: '#' }, { definitions: { a: { $ref: '#/definitions/b' }, b: { $ref: '#/definitions/a' } }, $ref: '#/definitions/a' }]) {
+      assert.equal(createSchemaScaffold(schema), null)
+    }
+    const cyclic: Record<string, unknown> = { type: 'object' }
+    cyclic['properties'] = { self: cyclic }
+    assert.deepEqual(createSchemaScaffold(cyclic), { self: null })
+    let deep: unknown = { type: 'string' }
+    for (let i = 0; i < 100; i++) deep = { type: 'array', items: deep }
+    const result = createSchemaScaffold(deep)
+    assert.ok(JSON.stringify(result).length < 100)
+    const wide = { type: 'object', properties: Object.fromEntries(Array.from({ length: 10000 }, (_, i) => [`p${i}`, { type: 'boolean' }])) }
+    const value = createSchemaScaffold(wide) as object
+    assert.ok(Object.keys(value).length < 4096)
+    assert.deepEqual(createSchemaScaffold(wide), value)
+    assert.equal((createSchemaScaffold({ type: 'string', minLength: 1e12 }) as string).length, 4096)
+    assert.equal(createSchemaScaffold({ type: 'string', default: 'x'.repeat(10000) }), '')
+    assert.deepEqual(createSchemaScaffold({ type: 'object', default: cyclic }), {})
+  })
+
+  it('uses format-aware strings and feasible numeric/string bounds, without claiming to solve patterns', () => {
+    for (const format of ['duration', 'time-span', 'date', 'date-time', 'time', 'guid', 'uuid', 'email', 'hostname', 'uri', 'ipv4', 'ipv6']) {
+      const schema = { type: 'string', format }
+      assert.equal(validateConfiguration(schema, createSchemaScaffold(schema)).valid, true, format)
+    }
+    for (const schema of [
+      { type: 'integer', minimum: 4, maximum: 10, multipleOf: 3 },
+      { type: 'number', minimum: 0.1, multipleOf: 0.1 },
+      { type: 'number', minimum: 0, exclusiveMinimum: true, maximum: 0.5, exclusiveMaximum: true },
+      { type: 'number', minimum: 0.2, exclusiveMinimum: true, maximum: 0.3, exclusiveMaximum: true },
+      { type: 'integer', maximum: -2, exclusiveMaximum: true },
+      { type: 'string', minLength: 3, maxLength: 4 },
+    ]) assert.equal(validateConfiguration(schema, createSchemaScaffold(schema)).valid, true)
+    const pattern = { type: 'object', patternProperties: { '^only$': { type: 'integer' } } }
+    assert.deepEqual(createSchemaScaffold(pattern), { example_key: 0 })
+    assert.equal(createSchemaScaffold({ type: 'string', pattern: '^only$' }), '')
+    for (const schema of [undefined, null, false, true, [], 'schema', {}, { type: 'bogus' },
+      { $ref: '#/missing' }, { $ref: '#/%invalid' }, { $ref: 'https://example.invalid/schema.json' }]) {
+      assert.equal(createSchemaScaffold(schema), null)
+    }
+  })
+})
+
+describe('configuration YAML drafts', () => {
+  it('serializes JSON-compatible values as YAML and parses them without changing data', () => {
+    const value = { name: 'source', requiredNullable: null, samples: [1.2], labels: { a: 'b', empty: null } }
+    const text = configurationYamlText(value)
+    assert.match(text, /name: source/)
+    const parsed = parseConfigurationText(text)
+    assert.equal(parsed.valid, true)
+    if (parsed.valid) assert.deepEqual(parsed.value, value)
+  })
+
+  it('accepts JSON-compatible raw text so existing drafts can still be repaired', () => {
+    const parsed = parseConfigurationText('{"name":"source","requiredNullable":null,"samples":[1]}')
+    assert.equal(parsed.valid, true)
+    if (parsed.valid) assert.deepEqual(parsed.value, { name: 'source', requiredNullable: null, samples: [1] })
+  })
+
+  it('rejects empty, malformed, duplicate-key and unsafe-number YAML drafts without emitting values', () => {
+    for (const text of ['', ' ', '{', 'name: one\nname: two', 'count: 9007199254740993', 'count: 0.10000000000000001']) {
+      const parsed = parseConfigurationText(text)
+      assert.equal(parsed.valid, false, text)
+      assert.ok(parsed.errors.length, text)
+    }
+  })
+
+  it('checks every numeric scalar source in block/flow collections and mapping keys before conversion', () => {
+    for (const token of ['9007199254740993', '0.10000000000000001', '1.0000000000000001', '1e-400', '1e309',
+      '-0', '-.0', '+0.10000000000000001', '.10000000000000001', '0x20000000000001', '0o400000000000000001', '.inf', '.nan']) {
+      for (const text of [token, `count: ${token} # comment`, `- ${token}`, `{count: ${token}}`, `[${token}]`,
+        `{"nested":[{"count":${token}}]}`, `items:\n  - {count: ${token}}`, `{${token}: value}`, `${token}: value`]) {
+        const parsed = parseConfigurationText(text)
+        assert.equal(parsed.valid, false, text)
+        assert.match(parsed.errors.join(' '), /precision loss/, text)
+        assert.equal(Object.hasOwn(parsed, 'value'), false, text)
+      }
+    }
+  })
+
+  it('accepts safe YAML numeric spellings without treating quoted or block strings as numbers', () => {
+    for (const [text, expected] of [
+      ['[+0.1, .1, 01, 1., 1e3, 0x10, 0o10, 9007199254740991]', [0.1, 0.1, 1, 1, 1000, 16, 8, 9007199254740991]],
+      ['{count: 0.1, items: [1.2, -2.5]} # 9007199254740993', { count: 0.1, items: [1.2, -2.5] }],
+      ['["0.10000000000000001", \'9007199254740993\']', ['0.10000000000000001', '9007199254740993']],
+      ['value: !!str 9007199254740993', { value: '9007199254740993' }],
+      ['value: |\n  9007199254740993\n  count: 0.10000000000000001\n', { value: '9007199254740993\ncount: 0.10000000000000001\n' }],
+      ['value: >-\n  9007199254740993\n  0.10000000000000001\n', { value: '9007199254740993 0.10000000000000001' }],
+    ] as const) {
+      const parsed = parseConfigurationText(text)
+      assert.deepEqual(parsed, { valid: true, value: expected, errors: [] }, text)
+    }
+  })
+
+  it('keeps JSON serialization strict for transport-safe values only', () => {
     assert.equal(configurationText(undefined), '')
+    assert.equal(configurationYamlText(undefined), '')
     for (const value of [NaN, Infinity, -0, new Date(), { omitted: undefined }, 1n]) {
       assert.equal(configurationText(value), '')
+      assert.equal(configurationYamlText(value), '')
     }
   })
 })

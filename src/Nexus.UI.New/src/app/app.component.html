@@ -98,7 +98,7 @@
 }
 
 @if (isAdministrator() && isDataSourcePipelinesOpen()) {
-  <app-data-source-pipelines [refreshDatabase]="refreshPipelineDatabase" (close)="isDataSourcePipelinesOpen.set(false)" />
+  <app-data-source-pipelines [refreshDatabase]="refreshPipelineDatabase" [themeMode]="themeMode()" (close)="isDataSourcePipelinesOpen.set(false)" />
 }
 
 <ng-template #visualizationContent let-breakout>

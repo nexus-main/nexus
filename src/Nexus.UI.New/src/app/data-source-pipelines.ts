@@ -1,5 +1,5 @@
 import type { DataSourcePipeline, DataSourceRegistration, ExtensionDescription } from '../../../clients/typescript/V1.ts'
-import { isJsonObject, parseJsonSafely, validateConfiguration } from './json-schema.ts'
+import { isJsonObject, parseConfigurationText, validateConfiguration } from './json-schema.ts'
 
 const jsonEnvelopeSchema = {}
 
@@ -84,7 +84,7 @@ export function updateRegistration(draft: PipelineDraft, key: number, patch: Par
 }
 
 export function editRegistrationText(draft: PipelineDraft, key: number, rawText: string): PipelineDraft {
-  const parsed = parseJsonSafely(rawText)
+  const parsed = parseConfigurationText(rawText)
   return updateRegistration(draft, key, { rawText, ...(parsed.valid ? { configuration: parsed.value } : {}) })
 }
 
@@ -117,7 +117,7 @@ export function preparePipeline(draft: PipelineDraft, descriptions: ExtensionDes
     const issue = (message: string) => issues.push({ key: registration.key, message: `Registration ${index + 1}: ${message}` })
     if (!registration.type.trim()) issue('Select a source type.')
     else if (!descriptions.some(description => description.type === registration.type)) issue('The source description is unavailable. Configuration is available for inspection, but saving is blocked.')
-    const parsed = registration.rawText === undefined ? { valid: true as const, value: registration.configuration } : parseJsonSafely(registration.rawText)
+    const parsed = registration.rawText === undefined ? { valid: true as const, value: registration.configuration } : parseConfigurationText(registration.rawText)
     const configuration = parsed.valid ? parsed.value : registration.configuration
     if (!parsed.valid) parsed.errors.forEach(issue)
     // Do not substitute {} for missing or invalid schemas, even when the JSON parses.
