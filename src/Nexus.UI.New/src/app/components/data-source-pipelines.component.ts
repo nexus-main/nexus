@@ -6,8 +6,9 @@ import { InputTextModule } from 'primeng/inputtext'
 import { MessageModule } from 'primeng/message'
 import { SelectModule } from 'primeng/select'
 import { TabsModule } from 'primeng/tabs'
+import { TooltipModule } from 'primeng/tooltip'
 import type { DialogPassThrough } from 'primeng/types/dialog'
-import { LucidePlus } from '@lucide/angular'
+import { LucideCircleHelp, LucidePlus } from '@lucide/angular'
 import { NexusService, V1 } from '../nexus.service'
 import { RestoreFocusDirective } from '../restore-focus.directive'
 import { JsonSchemaEditorComponent } from './json-schema-editor.component'
@@ -22,7 +23,7 @@ type ThemeMode = 'dark' | 'light'
 @Component({
   selector: 'app-data-source-pipelines',
   standalone: true,
-  imports: [FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucidePlus],
+  imports: [FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, TooltipModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
   templateUrl: './data-source-pipelines.component.html',
   styleUrl: './data-source-pipelines.component.css',
 })
