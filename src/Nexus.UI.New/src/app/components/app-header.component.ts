@@ -33,7 +33,7 @@ type ThemeMode = 'dark' | 'light'
           </svg>
         </div>
 
-        <button pButton type="button" size="small" [outlined]="true" class="shrink-0 lg:hidden" (click)="openCatalog.emit()" aria-label="Open catalog browser">
+        <button pButton type="button" size="small" [outlined]="true" class="h-9 shrink-0 lg:hidden" (click)="openCatalog.emit()" aria-label="Open catalog browser">
           <span class="text-xl leading-none">☰</span>
         </button>
 
@@ -55,20 +55,20 @@ type ThemeMode = 'dark' | 'light'
         </p-menu>
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           @if (isAdministrator()) {
-            <button pButton type="button" size="small" severity="secondary" (click)="adminMenu.toggle($event)" aria-label="Administrator" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
+            <button pButton type="button" size="small" severity="secondary" class="h-9" (click)="adminMenu.toggle($event)" aria-label="Administrator" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
               <app-icon name="settings" class="h-4 w-4" />
-              <span class="hidden xl:inline">Administrator</span>
+              <span class="hidden lg:inline">Administrator</span>
             </button>
           }
-          <button pButton type="button" size="small" severity="secondary" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
+          <button pButton type="button" size="small" severity="secondary" class="h-9" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
             @if (themeMode() === 'dark') {
               <app-icon name="moon" class="h-4 w-4" />
             } @else {
               <app-icon name="sun" class="h-4 w-4" />
             }
-            <span class="hidden sm:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
+            <span class="hidden lg:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
           </button>
-          <button pButton type="button" size="small" severity="secondary" class="hidden sm:flex" aria-label="Open jobs menu" title="Open jobs menu">
+          <button pButton type="button" size="small" severity="secondary" class="hidden h-9 sm:flex" aria-label="Open jobs menu" title="Open jobs menu">
             <span>{{ jobCount() }}</span>
             <span>Jobs</span>
           </button>
