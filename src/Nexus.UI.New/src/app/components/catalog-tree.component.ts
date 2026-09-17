@@ -20,7 +20,7 @@ import { abbreviateMiddle, lastSegment } from '../utils'
       [filter]="false"
       ariaLabel="Catalogs"
       emptyMessage="No catalogs match your search."
-      styleClass="w-full min-w-0 bg-transparent p-0 [&_.p-tree-node-content]:min-w-0 [&_.p-tree-node-label]:min-w-0 [&_.p-tree-node-label]:flex-1"
+      styleClass="w-full min-w-0 bg-transparent p-0 [&_.p-treenode]:py-0 [&_.p-tree-node-content]:min-w-0 [&_.p-tree-node-content]:py-0.5 [&_.p-tree-node-label]:min-w-0 [&_.p-tree-node-label]:flex-1"
       (onNodeSelect)="activateNode($event.node, tree)"
       (onNodeUnselect)="activateNode($event.node, tree)"
       (onNodeExpand)="toggle.emit($event.node.data!)"
@@ -28,17 +28,13 @@ import { abbreviateMiddle, lastSegment } from '../utils'
     >
       <ng-template pTemplate="default" let-treeNode>
         @let node = treeNode.data;
-        <div class="min-w-0" [title]="node.id ?? '/'">
-          <div class="flex min-w-0 items-center">
-            <span class="truncate font-mono text-[13px] leading-5 text-slate-100">
-              <span class="sm:hidden">{{ abbreviateMiddle(treeNode.label, 28) }}</span>
-              <span class="hidden sm:inline">{{ treeNode.label }}</span>
-            </span>
-          </div>
+        <div class="flex min-w-0 items-center gap-2" [title]="node.isFake ? (node.id ?? '/') : (node.title || node.id || '/')">
+          <span class="shrink-0 truncate font-mono text-[13px] leading-5 text-slate-100">
+            <span class="sm:hidden">{{ abbreviateMiddle(treeNode.label, 28) }}</span>
+            <span class="hidden sm:inline">{{ treeNode.label }}</span>
+          </span>
           @if (!node.isFake && node.title) {
-            <div class="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
-              <span class="truncate">{{ node.title }}</span>
-            </div>
+            <span class="min-w-0 truncate text-xs text-slate-500">{{ node.title }}</span>
           }
         </div>
       </ng-template>
