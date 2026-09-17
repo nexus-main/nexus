@@ -27,46 +27,9 @@
         [disabled]="locked() || !!pending() || confirmingDelete() || removingKey() !== null || !administrator()"
         (click)="request({ kind: 'descriptions' })">Retry source descriptions</button>
     }
-    @if (status()) { <p-message severity="success" role="status">{{ status() }}</p-message> }
     @if (loading()) { <p role="status">Loading pipelines and source descriptions...</p> }
     @if (!loaded() && !loading() && administrator()) {
       <button pButton type="button" size="small" [disabled]="locked() || !!pending() || confirmingDelete() || removingKey() !== null" (click)="request({ kind: 'reload' })">Retry loading</button>
-    }
-
-    @if (pending()) {
-      <section class="decision" role="alertdialog" aria-modal="false" aria-labelledby="pipeline-unsaved-title" aria-describedby="pipeline-unsaved-help">
-        <h2 id="pipeline-unsaved-title">Unsaved pipeline changes</h2>
-        <p id="pipeline-unsaved-help">
-          @if (pending()?.kind === 'descriptions') {
-            Retry source descriptions and revalidate your draft? All edits and raw JSON buffers will be retained, even if the retry fails.
-          } @else if (pending()?.kind === 'refresh' || pending()?.kind === 'reload') {
-            Save first or reload without saving. Unsaved edits are replaced only after pipelines and descriptions reload successfully; cancellation or failure retains your draft.
-          } @else {
-            Save before continuing, discard these edits, or stay here. Saving validates every registration.
-          }
-        </p>
-        <div class="actions">
-          @if (pending()?.kind === 'descriptions') {
-            <button pButton type="button" size="small" [disabled]="locked()" (click)="retryDescriptions()">Retry and keep edits</button>
-          } @else {
-            <button pButton type="button" size="small" [disabled]="locked() || !administrator() || !loaded() || !prepared()?.valid" (click)="choose('save')">Save and continue</button>
-            <button pButton type="button" size="small" severity="danger" [outlined]="true" [disabled]="locked()" (click)="choose('discard')">
-              {{ pending()?.kind === 'refresh' || pending()?.kind === 'reload' ? 'Continue without saving' : 'Discard and continue' }}
-            </button>
-          }
-          <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="choose('stay')">Stay</button>
-        </div>
-      </section>
-    }
-    @if (confirmingDelete()) {
-      <section class="decision" role="alertdialog" aria-modal="false" aria-labelledby="pipeline-delete-title">
-        <h2 id="pipeline-delete-title">Delete this pipeline?</h2>
-        <p>This removes the saved pipeline and discards its local edits. Refresh the database afterward to apply the deletion.</p>
-        <div class="actions">
-          <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="remove()">Delete pipeline</button>
-          <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="confirmingDelete.set(false)">Keep pipeline</button>
-        </div>
-      </section>
     }
 
     @if (loaded() && administrator()) {
@@ -242,7 +205,7 @@
       }
 
       <div class="pipeline-footer">
-        <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked() || !draft()?.id" (click)="confirmingDelete.set(true)">Delete pipeline</button>
+        <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked() || !draft()?.id" (click)="requestDelete()">Delete pipeline</button>
         <div class="actions">
           <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="request({ kind: 'close' })">Close</button>
           <button pButton type="button" size="small" severity="primary" [outlined]="true" [disabled]="editingLocked() || !draft() || !dirty() || !prepared()?.valid" (click)="save()">{{ busy() ? 'Working...' : 'Save pipeline' }}</button>
@@ -251,3 +214,20 @@
     }
   </div>
 </p-dialog>
+
+<p-confirmdialog key="unsavedChanges" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body" />
+
+<p-toast key="deleteConfirm" position="bottom-center" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body">
+  <ng-template pTemplate="headless" let-message>
+    <div class="confirm-delete">
+      <strong>{{ message.summary }}</strong>
+      <p>{{ message.detail }}</p>
+      <div class="actions">
+        <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="remove()">Delete pipeline</button>
+        <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="cancelDelete()">Keep pipeline</button>
+      </div>
+    </div>
+  </ng-template>
+</p-toast>
+
+<p-toast key="status" position="bottom-center" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body" />
