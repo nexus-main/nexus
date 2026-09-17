@@ -1,0 +1,121 @@
+<section class="matrix" [class.inline-editing]="editing() && !narrow()" [style.--row-height]="itemSize() + 'px'" aria-label="Catalog resources" [attr.aria-busy]="loading() || saving()">
+  <header class="toolbar">
+    <div class="text-xs uppercase tracking-[0.24em] text-cyan-200/80">resource browser</div>
+    <div class="toolbar-actions">
+      @if (editing()) {
+        <span class="dirty-count" role="status">{{ dirtyCount() }} resource{{ dirtyCount() === 1 ? '' : 's' }} changed</span>
+        <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="saving()" (click)="cancelEditing()">Cancel</button>
+        <button pButton type="button" size="small" [disabled]="saving() || !writable() || !dirtyCount()" (click)="saveChanges()">{{ saving() ? 'Saving...' : 'Save changes' }}</button>
+      } @else if (writable()) {
+        <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="loading() || saving()" (click)="startEditing()" aria-label="Edit metadata" title="Edit metadata"><svg lucidePencil aria-hidden="true"></svg></button>
+      }
+      @if (!visualizationPanelVisible()) {
+        <button pButton type="button" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size" (click)="visualize.emit()" aria-label="Visualize" title="Visualize"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
+      }
+    </div>
+  </header>
+
+  <div class="search-bar">
+    <input #searchInput pInputText type="text" class="w-full min-w-0" pSize="small" aria-label="Search resources" placeholder="Search resources..." [ngModel]="search()" (ngModelChange)="setSearch($event)" [disabled]="saving()" />
+    @if (search()) { <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" [disabled]="saving()" (click)="setSearch('')" aria-label="Clear resource search" title="Clear search"><svg lucideX aria-hidden="true"></svg></button> }
+  </div>
+
+  <div class="group-bar" [class.expanded]="expanded()" [class.can-scroll-back]="canScrollGroupsBack()" [class.can-scroll-forward]="canScrollGroupsForward()">
+    <div #groupStrip [id]="groupStripId" class="group-strip" role="group" aria-label="Resource groups" (scroll)="updateGroupScroll()" (wheel)="scrollCollapsedGroups($event)">
+      @for (group of groups(); track group.key) {
+        <button pButton type="button" severity="secondary" size="small" class="group-chip" [text]="true" [attr.aria-pressed]="activeGroup()?.key === group.key" [attr.aria-label]="group.name + ', ' + group.rows.length + ' representations'" [title]="group.name" [disabled]="saving()" (click)="selectGroup(group.key)">
+          <span class="group-name">{{ group.name }}</span><span class="group-count">{{ group.rows.length }}</span>
+        </button>
+      } @empty { <span class="group-empty">No matching groups</span> }
+    </div>
+    <button pButton type="button" size="small" severity="secondary" [text]="true" class="expand-groups" [attr.aria-controls]="groupStripId" [attr.aria-expanded]="expanded()" [attr.aria-label]="expanded() ? 'Collapse group list' : 'Expand group list'" [title]="expanded() ? 'Collapse groups' : 'Expand groups'" [disabled]="saving() || !groups().length" (click)="expanded.set(!expanded())">
+      @if (expanded()) { <svg lucideChevronUp aria-hidden="true"></svg> } @else { <svg lucideChevronDown aria-hidden="true"></svg> }
+    </button>
+  </div>
+
+  @if (editing() || error() || status()) {
+    <div class="matrix-messages" tabindex="0" role="region" aria-label="Metadata editing guidance and status">
+      @if (editing()) {
+        <p class="edit-help">Leave a field blank to remove its override and restore the source value after saving.</p>
+        @if (!writable()) { <p class="notice warning" role="alert">Editing permission is no longer available. Drafts are retained, but cannot be saved.</p> }
+      }
+      @if (error()) { <p class="notice error" role="alert">Save failed: {{ error() }} Your drafts are retained.</p> }
+      @if (status()) { <p class="notice" role="status">{{ status() }}</p> }
+    </div>
+  }
+
+  <div class="list-summary" role="status"><strong>{{ loading() ? 'Loading resources...' : (activeGroup()?.name ?? 'Resources') }}</strong></div>
+  @if (editing() && !narrow()) {
+    <div class="column-head" aria-hidden="true"><span></span><span>Resource ID / period</span><span>Unit</span><span>Description</span><span>Warning</span></div>
+  }
+  <div class="list-shell">
+    <cdk-virtual-scroll-viewport class="resource-viewport" [itemSize]="itemSize()" [minBufferPx]="itemSize() * 3" [maxBufferPx]="itemSize() * 6" role="list" aria-label="Resource representations">
+      <div *cdkVirtualFor="let row of visibleRows(); let index = index; trackBy: trackRow" class="resource-row" [class.active]="activeKey() === row.key" [class.selected]="selectedKeys().has(row.key)" [attr.data-row-key]="row.key" role="listitem" [attr.aria-posinset]="index + 1" [attr.aria-setsize]="visibleRows().length" [attr.aria-current]="activeKey() === row.key ? 'true' : null">
+        <label class="selection-control" [title]="selectionLabel(row)"><p-checkbox [binary]="true" [ngModel]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [ariaLabel]="selectionLabel(row)" (ngModelChange)="toggleRow(row)" /></label>
+        @if (editing() && !narrow()) {
+          <button type="button" class="resource-identity" [disabled]="saving()" [title]="row.path" [attr.aria-label]="'Activate ' + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
+            <strong>{{ row.id }}</strong><span class="period">{{ formatPeriod(row.basePeriod) }}</span>
+          </button>
+          @for (field of fields; track field) {
+            <div class="field-cell" [class.warning]="field === 'warning'">
+              <input pInputText pSize="small" [attr.aria-label]="field + ' for ' + row.id + ', ' + formatPeriod(row.basePeriod)" [ngModel]="value(row, field)" (ngModelChange)="setField(row, field, $event)" [disabled]="!canEdit()" />
+            </div>
+          }
+        } @else {
+          <button type="button" class="resource-identity" [disabled]="saving()" [attr.aria-haspopup]="narrow() ? 'dialog' : null" [attr.aria-label]="(narrow() ? (editing() && writable() ? 'Edit metadata for ' : 'Read details for ') : 'Activate ') + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
+            <span class="resource-line">
+              <span class="resource-name"><strong [title]="row.path">{{ row.id }}</strong>@if (value(row, 'unit')) { <span class="unit" [title]="value(row, 'unit')">{{ value(row, 'unit') }}</span> }</span>
+              @if (value(row, 'warning')) { <span class="warning" [title]="'Warning: ' + value(row, 'warning')"><svg lucideTriangleAlert aria-hidden="true"></svg><span>{{ value(row, 'warning') }}</span></span> }
+            </span>
+            <span class="resource-line secondary-line"><span class="period">{{ formatPeriod(row.basePeriod) }}</span><span class="description" [title]="value(row, 'description')">{{ value(row, 'description') }}</span></span>
+          </button>
+        }
+      </div>
+    </cdk-virtual-scroll-viewport>
+    @if (!visibleRows().length) {
+      <div class="empty-state"><strong>{{ loading() ? 'Loading catalog' : search() ? 'No matching resources' : 'No representations available' }}</strong><p>{{ search() ? 'Try a different search, or clear it to see all groups.' : 'Resources with a valid sample period appear here.' }}</p></div>
+    }
+  </div>
+</section>
+
+<p-dialog [header]="(editing() && writable() ? 'Edit metadata: ' : 'Resource details: ') + (detail()?.id ?? '')" [visible]="detailVisible()" (visibleChange)="!$event && closeDetail()" (onHide)="restoreDetailFocus()" [modal]="true" [blockScroll]="true" [dismissableMask]="false" [closeOnEscape]="!saving()" [closable]="!saving()" [draggable]="false" [resizable]="false" appendTo="body" [position]="narrow() ? 'bottom' : 'center'" [style]="{ width: narrow() ? 'calc(100vw - 1rem)' : 'min(48rem, calc(100vw - 1.5rem))', maxHeight: 'calc(100dvh - 1rem)', margin: narrow() ? '0 .5rem .5rem' : '0' }" [closeButtonProps]="{ ariaLabel: editing() ? 'Cancel dialog edits' : 'Close resource details', severity: 'secondary', text: true }">
+  @if (detail(); as row) {
+    <div class="detail-content" [attr.aria-busy]="saving()">
+      <p class="detail-path">{{ row.path }} <span class="period">{{ formatPeriod(row.basePeriod) }}</span></p>
+      @if (editing() && writable()) {
+        <p class="edit-help">Changes are shared by every representation of this resource. Blank removes the override and restores the source value after saving.</p>
+        @for (field of fields; track field) {
+          <label class="detail-field"><span>{{ field }}</span><textarea pTextarea [rows]="field === 'unit' ? 2 : 5" [ngModel]="value(row, field)" (ngModelChange)="setField(row, field, $event)" [disabled]="!canEdit()"></textarea></label>
+        }
+        <p class="edit-help">Keep draft returns to the list without saving, so you can edit other resources. Save changes saves all {{ dirtyCount() }} changed resources in this catalog. Cancel undoes only changes made in this dialog.</p>
+      } @else {
+        @for (field of fields; track field) {
+          @if (field === 'unit' || value(row, field)) {
+            <section class="detail-field" [class.warning]="field === 'warning'"><h3>{{ field }}</h3><p class="full-text">{{ value(row, field) || '-' }}</p></section>
+          }
+        }
+      }
+      @if (error()) { <p class="notice error" role="alert">Save failed: {{ error() }} Your drafts are retained.</p> }
+    </div>
+  }
+  <ng-template #footer>
+    <div class="navigation-actions">
+      <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="saving()" (click)="closeDetail()">{{ editing() ? 'Cancel' : 'Close' }}</button>
+      @if (editing()) { <button pButton type="button" size="small" severity="secondary" [outlined]="true" [disabled]="saving()" (click)="keepDetailDraft()">Keep draft</button> }
+      @if (editing() && writable()) { <button pButton type="button" size="small" [disabled]="saving() || !dirtyCount()" (click)="saveChanges()">{{ saving() ? 'Saving...' : 'Save changes' }}</button> }
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Unsaved metadata changes" [visible]="navigationVisible()" (visibleChange)="!$event && stay()" (onHide)="restoreNavigationFocus()" [modal]="true" [blockScroll]="true" [dismissableMask]="false" [closeOnEscape]="!saving()" [closable]="!saving()" [draggable]="false" [resizable]="false" appendTo="body" [style]="{ width: 'min(32rem, calc(100vw - 1.5rem))' }" [closeButtonProps]="{ ariaLabel: 'Stay and keep editing', severity: 'secondary', text: true }">
+  <p class="full-text">{{ dirtyCount() }} resource{{ dirtyCount() === 1 ? ' has' : 's have' }} unsaved changes. Save before leaving, discard the drafts, or stay here to keep editing.</p>
+  @if (!writable()) { <p class="notice warning">You no longer have permission to save. Stay to keep your drafts, or discard them to leave.</p> }
+  @if (error()) { <p class="notice error" role="alert">Save failed: {{ error() }} Your drafts are retained.</p> }
+  <ng-template #footer>
+    <div class="navigation-actions">
+      <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="saving()" (click)="stay()">Stay</button>
+      <button pButton type="button" size="small" severity="danger" [outlined]="true" [disabled]="saving()" (click)="discardAndNavigate()">Discard</button>
+      <button pButton type="button" size="small" [disabled]="saving() || !writable()" (click)="saveChanges()">{{ saving() ? 'Saving...' : 'Save changes' }}</button>
+    </div>
+  </ng-template>
+</p-dialog>
