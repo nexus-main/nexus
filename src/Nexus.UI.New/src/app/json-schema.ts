@@ -574,7 +574,7 @@ export function createSchemaScaffold(schema: unknown): unknown {
     if (type === 'boolean') return false
     if (type === 'null') return null
     if (type === 'string') {
-      const formats: Record<string, string> = { 'date-time': '2000-01-01T00:00:00', date: '2000-01-01', time: '00:00:00',
+      const formats: Record<string, string> = { 'date-time': '2000-01-01T00:00:00Z', date: '2000-01-01', time: '00:00:00',
         duration: '00:00:00', 'time-span': '00:00:00', uuid: '00000000-0000-0000-0000-000000000000',
         guid: '00000000-0000-0000-0000-000000000000', email: 'user@example.com', hostname: 'example.com',
         uri: 'https://example.com', url: 'https://example.com', ipv4: '127.0.0.1', ipv6: '::1' }
