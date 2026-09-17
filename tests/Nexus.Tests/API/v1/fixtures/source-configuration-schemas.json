@@ -13,22 +13,15 @@
   },
   "nullableRoot": {
     "$schema": "http://json-schema.org/draft-04/schema#",
-    "definitions": {
-      "PropertyConfiguration": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["requiredNullable"],
-        "properties": {
-          "requiredNullable": { "type": ["null", "string"] },
-          "optionalNonNullable": { "type": "string" },
-          "optionalNullable": { "type": ["null", "string"] }
-        }
-      }
-    },
-    "anyOf": [
-      { "type": "null" },
-      { "$ref": "#/definitions/PropertyConfiguration" }
-    ]
+    "title": "PropertyConfiguration",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["requiredNullable"],
+    "properties": {
+      "requiredNullable": { "type": ["null", "string"] },
+      "optionalNonNullable": { "type": "string" },
+      "optionalNullable": { "type": ["null", "string"] }
+    }
   },
   "nullableReference": {
     "$schema": "http://json-schema.org/draft-04/schema#",
