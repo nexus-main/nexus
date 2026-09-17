@@ -122,7 +122,7 @@
       } @else if (visualizationError() || !visualizationData() || visualizationStale()) {
         <div class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-slate-950/80 p-6 text-center backdrop-blur-sm">
           <div class="max-w-lg space-y-4 text-slate-300">
-            <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || visualizationValidation() || (visualizationStale() ? 'The time range or selected representations have changed. Update to visualize the new selection.' : 'Visualize the selected representations using the selected UTC range and Period.') }}</p>
+            <p [attr.role]="visualizationError() ? 'alert' : 'status'">{{ visualizationError() || visualizationValidation() || (visualizationStale() ? 'The time range or selected representations have changed. Update to visualize the new selection.' : 'Visualize the selected representations.') }}</p>
             @if (!visualizationValidation()) {
               <button pButton type="button" size="small" [outlined]="true" (click)="visualize(false)">{{ visualizationStale() ? 'Update' : 'Visualize' }}</button>
             }

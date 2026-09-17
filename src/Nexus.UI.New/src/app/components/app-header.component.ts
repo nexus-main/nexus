@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core'
+import { Component, computed, input, output } from '@angular/core'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { MenuModule } from 'primeng/menu'
@@ -42,24 +42,34 @@ type ThemeMode = 'dark' | 'light'
           <span class="max-w-48 truncate font-mono">{{ endpointHost() }}</span>
         </div>
 
-        <p-menu #adminMenu styleClass="header-menu" [model]="adminMenuItems" [popup]="true" appendTo="body">
+        <p-menu #adminMenu styleClass="header-menu" [model]="adminMenuItems()" [popup]="true" appendTo="body">
           <ng-template pTemplate="item" let-item>
-            <div class="flex cursor-pointer items-center gap-2 px-3 py-2">
-              @switch (item.icon) {
-                @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
-                @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
-              }
-              <span>{{ item.label }}</span>
-            </div>
+            @if (item.url) {
+              <a class="flex cursor-pointer items-center gap-2 px-3 py-2" [href]="item.url" [target]="item.target ?? '_self'" [attr.rel]="item.target === '_blank' ? 'noopener' : null">
+                @switch (item.icon) {
+                  @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
+                  @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
+                  @case ('braces') { <app-icon name="braces" class="h-4 w-4 shrink-0" /> }
+                }
+                <span>{{ item.label }}</span>
+              </a>
+            } @else {
+              <div class="flex cursor-pointer items-center gap-2 px-3 py-2" (click)="item.command?.($event)">
+                @switch (item.icon) {
+                  @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
+                  @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
+                  @case ('braces') { <app-icon name="braces" class="h-4 w-4 shrink-0" /> }
+                }
+                <span>{{ item.label }}</span>
+              </div>
+            }
           </ng-template>
         </p-menu>
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-          @if (isAdministrator()) {
-            <button pButton type="button" size="small" [outlined]="true" [severity]="adminMenu.visible ? 'primary' : 'secondary'" class="h-9 gap-2 px-2.5 transition-colors" (click)="adminMenu.toggle($event)" aria-label="Administrator" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
-              <app-icon name="settings" class="h-4 w-4" />
-              <span class="hidden lg:inline">Administrator</span>
-            </button>
-          }
+          <button pButton type="button" size="small" [outlined]="true" [severity]="adminMenu.visible ? 'primary' : 'secondary'" class="h-9 gap-2 px-2.5 transition-colors" (click)="adminMenu.toggle($event)" aria-label="Settings" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
+            <app-icon name="settings" class="h-4 w-4" />
+            <span class="hidden lg:inline">Settings</span>
+          </button>
           <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="h-9 gap-2 px-2.5 transition-colors" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
             @if (themeMode() === 'dark') {
               <app-icon name="moon" class="h-4 w-4" />
@@ -88,10 +98,15 @@ export class AppHeaderComponent {
   readonly isAdministrator = input(false)
   readonly openPackageReferences = output<void>()
   readonly openDataSourcePipelines = output<void>()
-  readonly adminMenuItems: MenuItem[] = [
-    { label: 'Package references', icon: 'package', command: () => this.openPackageReferences.emit() },
-    { label: 'Data source pipelines', icon: 'waypoints', command: () => this.openDataSourcePipelines.emit() },
-  ]
+  readonly adminMenuItems = computed<MenuItem[]>(() => {
+    const items: MenuItem[] = []
+    if (this.isAdministrator()) {
+      items.push({ label: 'Package references', icon: 'package', command: () => this.openPackageReferences.emit() })
+      items.push({ label: 'Data source pipelines', icon: 'waypoints', command: () => this.openDataSourcePipelines.emit() })
+    }
+    items.push({ label: 'API', icon: 'braces', url: '/api', target: '_blank' })
+    return items
+  })
   readonly openCatalog = output<void>()
   readonly toggleTheme = output<void>()
 }
