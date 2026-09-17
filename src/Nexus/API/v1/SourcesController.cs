@@ -59,35 +59,6 @@ internal class SourcesController(
 
             AddRequiredConstructorParameters(type, schema);
 
-            if (type.IsEnum && type.IsDefined(typeof(FlagsAttribute), inherit: false) &&
-                schema.Type.HasFlag(JsonObjectType.Integer))
-            {
-                // System.Text.Json accepts any integer in the underlying range, not just
-                // named flags or combinations of known bits. Labels are renderer metadata.
-                schema.ExtensionData ??= new Dictionary<string, object?>();
-                schema.ExtensionData.TryAdd("x-enumValues", schema.Enumeration.ToArray());
-                schema.Enumeration.Clear();
-                schema.Format = null;
-                (schema.Minimum, schema.Maximum) = Type.GetTypeCode(Enum.GetUnderlyingType(type)) switch
-                {
-                    TypeCode.SByte => (sbyte.MinValue, sbyte.MaxValue),
-                    TypeCode.Byte => (byte.MinValue, byte.MaxValue),
-                    TypeCode.Int16 => (short.MinValue, short.MaxValue),
-                    TypeCode.UInt16 => (ushort.MinValue, ushort.MaxValue),
-                    TypeCode.Int32 => (int.MinValue, int.MaxValue),
-                    TypeCode.UInt32 => (uint.MinValue, uint.MaxValue),
-                    TypeCode.Int64 => ((decimal)long.MinValue, (decimal)long.MaxValue),
-                    TypeCode.UInt64 => ((decimal)ulong.MinValue, (decimal)ulong.MaxValue),
-                    _ => throw new NotSupportedException("Unsupported flags enum underlying type.")
-                };
-            }
-            else if (type == typeof(byte) && schema.Type.HasFlag(JsonObjectType.Integer))
-            {
-                // OpenAPI/Ajv's byte format denotes a base64 string, not a CLR byte number.
-                schema.Format = null;
-                schema.Minimum = byte.MinValue;
-                schema.Maximum = byte.MaxValue;
-            }
         }
 
         private static void AddRequiredConstructorParameters(Type type, JsonSchema schema)

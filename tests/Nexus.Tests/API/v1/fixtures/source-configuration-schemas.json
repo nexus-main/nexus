@@ -78,51 +78,5 @@
       "time": { "type": "string", "format": "time" },
       "timestamp": { "type": "string", "format": "date-time" }
     }
-  },
-  "flagsAndByte": {
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "title": "FlagsAndByteConfiguration",
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "flags": { "$ref": "#/definitions/ByteFlags" },
-      "nullableFlags": {
-        "oneOf": [
-          { "type": "null" },
-          { "$ref": "#/definitions/ByteFlags" }
-        ]
-      },
-      "value": { "type": "integer", "maximum": 255, "minimum": 0 },
-      "nullableValue": { "type": ["integer", "null"], "maximum": 255, "minimum": 0 }
-    },
-    "definitions": {
-      "ByteFlags": {
-        "type": "integer",
-        "description": "",
-        "maximum": 255,
-        "minimum": 0,
-        "x-enumFlags": true,
-        "x-enumNames": ["First", "Second"],
-        "x-enumValues": [1, 2]
-      }
-    }
-  },
-  "nullableFlagsRoot": {
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "definitions": {
-      "ByteFlags": {
-        "type": "integer",
-        "description": "",
-        "maximum": 255,
-        "minimum": 0,
-        "x-enumFlags": true,
-        "x-enumNames": ["First", "Second"],
-        "x-enumValues": [1, 2]
-      }
-    },
-    "anyOf": [
-      { "type": "null" },
-      { "$ref": "#/definitions/ByteFlags" }
-    ]
   }
 }
