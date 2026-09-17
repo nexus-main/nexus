@@ -211,7 +211,7 @@
           @for (registration of selected() ? [selected()!] : []; track registration.key) {
             <h2>Registration configuration</h2>
             <div [attr.inert]="editingLocked() ? '' : null">
-              <app-json-schema-editor [schema]="selectedSchema()" [value]="registration.configuration" [rawText]="registration.rawText"
+              <app-json-schema-editor [schema]="selectedSchema()" [value]="registration.configuration" [rawText]="registration.rawText" [themeMode]="themeMode()"
                 (rawTextChange)="editText(registration.key, $event)" />
             </div>
           } @empty {

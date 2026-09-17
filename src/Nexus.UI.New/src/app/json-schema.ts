@@ -1,6 +1,7 @@
 import Ajv from 'ajv-draft-04'
 import addFormats from 'ajv-formats'
 import type { ValidateFunction } from 'ajv'
+import { parseDocument, stringify as stringifyYaml, visit } from 'yaml'
 
 export interface ConfigurationValidation {
   valid: boolean
@@ -202,46 +203,37 @@ export function configurationText(value: unknown): string {
   }
 }
 
-export function configurationResetNeedsConfirmation(value: unknown, rawText: string | undefined): boolean {
-  return value !== undefined || rawText !== undefined
+export function parseConfigurationText(text: string): JsonParseResult {
+  if (text.trim() === '') return { valid: false, errors: ['Configuration YAML is empty.'] }
+  try {
+    const document = parseDocument(text, { schema: 'core', uniqueKeys: true })
+    const errors = [...document.errors, ...document.warnings].map(error => error.message)
+    if (errors.length) return { valid: false, errors }
+    // Check scalar sources (including map keys) before toJS can discard rounded tokens.
+    visit(document, { Scalar(_key, node) {
+      if (typeof node.value !== 'number') return
+      const token = node.source!
+      const number = node.value
+      if (!Number.isFinite(number) || (Number.isInteger(number) && !Number.isSafeInteger(number)) ||
+        decimalIdentity(node.format === 'HEX' || node.format === 'OCT' ? BigInt(token).toString() : token.replace(/^\+/, '')) !== decimalIdentity(String(number))) {
+        errors.push(`Number ${token} cannot be represented safely without precision loss (offset ${node.range?.[0]}). Use a string only if the schema permits it.`)
+      }
+    } })
+    if (errors.length) return { valid: false, errors }
+    const value = document.toJS({ maxAliasCount: 0 }) as unknown
+    const error = jsonValueError(value)
+    return error ? { valid: false, errors: [error] } : { valid: true, value, errors: [] }
+  } catch (error) {
+    return { valid: false, errors: [error instanceof Error ? error.message : String(error)] }
+  }
 }
 
-/** null means untouched; an empty string is an edited (invalid) numeric token. */
-export class SchemaNumberSession {
-  private token: string | null = null
-
-  edit(text: string): void {
-    this.token = text
+export function configurationYamlText(value: unknown): string {
+  try {
+    return jsonValueError(value) ? '' : stringifyYaml(value, { indent: 2, lineWidth: 0 })
+  } catch {
+    return ''
   }
-
-  finish(): string | null {
-    const token = this.token
-    this.token = null
-    return token
-  }
-}
-
-/** Own-property copies make __proto__, constructor and prototype ordinary dictionary keys. */
-export function setConfigurationProperty(object: Record<string, unknown>, key: string, value: unknown, present = true): Record<string, unknown> {
-  const entries = Object.entries(object).filter(([name]) => name !== key)
-  if (present) entries.push([key, value])
-  return Object.fromEntries(entries)
-}
-
-/** Embed an invalid field draft in the full document so a parent can retain it verbatim. */
-export function configurationWithRawMember(value: Record<string, unknown> | unknown[], key: string | number, text: string): string {
-  let draft: string
-  if (Array.isArray(value)) draft = `[${value.map((item, index) => index === key ? text : configurationText(item)).join(',')}]`
-  else {
-    const keys = Object.keys(value)
-    if (!Object.hasOwn(value, key)) keys.push(String(key))
-    draft = `{${keys.map(name => `${JSON.stringify(name)}:${name === key ? text : configurationText(value[name])}`).join(',')}}`
-  }
-  // Empty singleton array items or "1,2" must not silently become [] or two items.
-  if (!parseJsonSafely(text).valid && parseJsonSafely(draft).valid) {
-    draft += '\n/* Invalid field JSON: repair the field above and remove this comment. */'
-  }
-  return draft
 }
 
 export interface SchemaProperty {
@@ -422,4 +414,209 @@ export function createSchemaValue(view: SchemaView): unknown {
     case 'null': return null
     default: return {}
   }
+}
+
+/** Creates an editable example, not a guaranteed-valid instance. See json-schema.md. */
+export function createSchemaScaffold(schema: unknown): unknown {
+  const maxDepth = 24
+  const maxNodes = 4096
+  const maxStringLength = 4096
+  let remaining = maxNodes
+  let inspected = 0
+  // Do not hand cyclic JS objects or excessively large schemas/annotations to Ajv or cloning.
+  const bounded = (value: unknown, depth = 0, ancestors = new Set<object>()): boolean => {
+    if (++inspected > maxNodes || depth > maxDepth) return false
+    if (typeof value === 'string') return value.length <= maxStringLength
+    if (value === null || typeof value !== 'object') return true
+    if (ancestors.has(value)) return false
+    const next = new Set(ancestors).add(value)
+    for (const key of Object.keys(value)) {
+      if (key.length > maxStringLength || !bounded((value as Schema)[key], depth + 1, next)) return false
+    }
+    return true
+  }
+  const canValidate = bounded(schema)
+  type Part = { schema: Schema; path: string }
+  const build = (paths: string[], depth: number, ancestors: Set<object>): unknown => {
+    if (depth >= maxDepth || remaining-- <= 0) return null
+    const visited = new Set<object>()
+    const expand = (path: string, trail: Set<object>, level: number): Part[] | null => {
+      if (level >= maxDepth || remaining-- <= 0) return null
+      let node: unknown
+      try { node = atPointer(schema, path) } catch { return null }
+      if (!isJsonObject(node)) return node === true ? [] : null
+      if (trail.has(node) || (path !== '#' && node['id'] !== undefined)) return null
+      visited.add(node)
+      const next = new Set(trail).add(node)
+      if (typeof node['$ref'] === 'string') return expand(node['$ref'], next, level + 1)
+      const parts: Part[] = [{ schema: node, path }]
+      if (Array.isArray(node['allOf'])) {
+        for (let index = 0; index < node['allOf'].length; index++) {
+          const child = expand(schemaPointer(schemaPointer(path, 'allOf'), String(index)), next, level + 1)
+          if (!child) return null
+          parts.push(...child)
+        }
+      }
+      for (const union of ['oneOf', 'anyOf']) {
+        const branches = node[union]
+        if (!Array.isArray(branches)) continue
+        let selected: Part[] | null = null
+        for (let index = 0; index < branches.length && remaining > 0; index++) {
+          const child = expand(schemaPointer(schemaPointer(path, union), String(index)), next, level + 1)
+          if (!child) continue
+          selected ??= child
+          const nullOnly = child.some(part => part.schema['type'] === 'null' ||
+            (Array.isArray(part.schema['type']) && part.schema['type'].every(type => type === 'null')) ||
+            (Array.isArray(part.schema['enum']) && part.schema['enum'].every(value => value === null)))
+          if (!nullOnly) { selected = child; break }
+        }
+        if (!selected) return null
+        parts.push(...selected)
+      }
+      return parts
+    }
+    const parts: Part[] = []
+    for (const path of paths) {
+      const expanded = expand(path, ancestors, depth)
+      if (!expanded) return null
+      parts.push(...expanded)
+    }
+    const next = new Set([...ancestors, ...visited])
+    const accepts = (value: unknown): boolean => {
+      if (!canValidate || remaining <= 0) return false
+      inspected = 0
+      if (!bounded(value, depth)) return false
+      remaining -= inspected
+      return remaining >= 0 && !jsonValueError(value) && validAtPaths(schema, paths, value)
+    }
+    // Valid explicit examples are authoritative literals, not seeds for generic expansion.
+    for (const keyword of ['default', 'examples', 'example']) {
+      for (const part of parts) {
+        const annotation = part.schema[keyword]
+        const candidates = keyword === 'examples' ? (Array.isArray(annotation) ? annotation : []) : [annotation]
+        for (const candidate of candidates) {
+          if (!canValidate || remaining-- <= 0) break
+          if (candidate !== undefined && candidate !== null && accepts(candidate)) return structuredClone(candidate)
+        }
+      }
+    }
+    // Enum members are literal values: expanding an object enum could leave the enumeration.
+    const enumeration = parts.find(part => Array.isArray(part.schema['enum']))?.schema['enum'] as unknown[] | undefined
+    if (enumeration) {
+      for (const candidate of enumeration) {
+        if (!canValidate || remaining-- <= 0) break
+        if (candidate !== null && accepts(candidate)) return structuredClone(candidate)
+      }
+      return null
+    }
+    let types: string[] | undefined
+    for (const part of parts) {
+      const type = part.schema['type']
+      const candidates = typeof type === 'string' ? [type] : Array.isArray(type) ? type.filter((item): item is string => typeof item === 'string') : undefined
+      if (candidates) types = types ? [...new Set(types.flatMap(item => candidates.includes(item) ? [item] :
+        (item === 'integer' && candidates.includes('number')) || (item === 'number' && candidates.includes('integer')) ? ['integer'] : []))] : candidates
+    }
+    const type = types?.find(type => type !== 'null') ?? (types ? 'null' :
+      parts.some(part => ['properties', 'additionalProperties', 'patternProperties', 'required'].some(key => part.schema[key] !== undefined)) ? 'object' :
+        parts.some(part => part.schema['items'] !== undefined) ? 'array' : undefined)
+    if (type === 'object') {
+      const properties = new Map<string, string[]>()
+      const additional: string[] = []
+      const patterns: string[] = []
+      let allowAdditional = true
+      for (const part of parts) {
+        const declared = part.schema['properties']
+        if (isJsonObject(declared)) for (const key of Object.keys(declared)) {
+          if (properties.size >= maxNodes) break
+          const paths = properties.get(key) ?? []
+          paths.push(schemaPointer(schemaPointer(part.path, 'properties'), key))
+          properties.set(key, paths)
+        }
+        if (Array.isArray(part.schema['required'])) for (const key of part.schema['required']) {
+          if (properties.size >= maxNodes) break
+          if (typeof key === 'string' && !properties.has(key)) properties.set(key, [])
+        }
+        if (part.schema['additionalProperties'] === false || part.schema['maxProperties'] === 0) allowAdditional = false
+        if (isJsonObject(part.schema['additionalProperties']) || part.schema['additionalProperties'] === true) {
+          additional.push(schemaPointer(part.path, 'additionalProperties'))
+        }
+        if (isJsonObject(part.schema['patternProperties'])) {
+          const key = Object.keys(part.schema['patternProperties'])[0]
+          if (key !== undefined) patterns.push(schemaPointer(schemaPointer(part.path, 'patternProperties'), key))
+        }
+      }
+      const entries = new Map<string, unknown>()
+      for (const [key, propertyPaths] of properties) {
+        if (remaining <= 0) break
+        for (const part of parts) {
+          if (isJsonObject(part.schema['properties']) && Object.hasOwn(part.schema['properties'], key)) continue
+          if (isJsonObject(part.schema['additionalProperties'])) propertyPaths.push(schemaPointer(part.path, 'additionalProperties'))
+        }
+        entries.set(key, build(propertyPaths, depth + 1, next))
+      }
+      if (allowAdditional && !entries.size && (additional.length || patterns.length) && remaining > 0) {
+        entries.set('example_key', build(additional.length ? additional : patterns, depth + 1, next))
+      }
+      return Object.fromEntries(entries)
+    }
+    if (type === 'array') {
+      if (parts.some(part => part.schema['maxItems'] === 0 || part.schema['items'] === false ||
+        (Array.isArray(part.schema['items']) && !part.schema['items'].length && part.schema['additionalItems'] === false))) return []
+      const itemPaths = parts.flatMap(part => {
+        const items = part.schema['items']
+        const path = schemaPointer(part.path, 'items')
+        return Array.isArray(items) ? (items.length ? [schemaPointer(path, '0')] :
+          isJsonObject(part.schema['additionalItems']) ? [schemaPointer(part.path, 'additionalItems')] : []) :
+          isJsonObject(items) ? [path] : []
+      })
+      return remaining > 0 ? [build(itemPaths, depth + 1, next)] : []
+    }
+    if (type === 'boolean') return false
+    if (type === 'null') return null
+    if (type === 'string') {
+      const formats: Record<string, string> = { 'date-time': '2000-01-01T00:00:00', date: '2000-01-01', time: '00:00:00',
+        duration: '00:00:00', 'time-span': '00:00:00', uuid: '00000000-0000-0000-0000-000000000000',
+        guid: '00000000-0000-0000-0000-000000000000', email: 'user@example.com', hostname: 'example.com',
+        uri: 'https://example.com', url: 'https://example.com', ipv4: '127.0.0.1', ipv6: '::1' }
+      const format = parts.find(part => typeof part.schema['format'] === 'string')?.schema['format'] as string | undefined
+      let value = format && Object.hasOwn(formats, format) ? formats[format] : ''
+      let minimum = 0
+      let maximum = maxStringLength
+      for (const part of parts) {
+        if (typeof part.schema['minLength'] === 'number' && Number.isFinite(part.schema['minLength'])) minimum = Math.max(minimum, part.schema['minLength'])
+        if (typeof part.schema['maxLength'] === 'number' && Number.isFinite(part.schema['maxLength'])) maximum = Math.min(maximum, part.schema['maxLength'])
+      }
+      value = value.padEnd(Math.min(maxStringLength, Math.ceil(minimum)), 'x')
+      return value.slice(0, Math.max(0, maximum))
+    }
+    if (type === 'integer' || type === 'number') {
+      let minimum = -Number.MAX_SAFE_INTEGER
+      let maximum = Number.MAX_SAFE_INTEGER
+      let step = 1
+      let exclusiveMinimum = false
+      let exclusiveMaximum = false
+      for (const part of parts) {
+        const node = part.schema
+        if (typeof node['multipleOf'] === 'number' && Number.isFinite(node['multipleOf']) && node['multipleOf'] > 0) step = node['multipleOf']
+        if (typeof node['minimum'] === 'number' && node['minimum'] >= minimum) {
+          exclusiveMinimum = node['exclusiveMinimum'] === true || (node['minimum'] === minimum && exclusiveMinimum)
+          minimum = node['minimum']
+        }
+        if (typeof node['maximum'] === 'number' && node['maximum'] <= maximum) {
+          exclusiveMaximum = node['exclusiveMaximum'] === true || (node['maximum'] === maximum && exclusiveMaximum)
+          maximum = node['maximum']
+        }
+      }
+      const value = Math.min(maximum, Math.max(minimum, 0))
+      const candidates = [value,
+        (exclusiveMinimum && value === minimum ? Math.floor(value / step) + 1 : Math.ceil(value / step)) * step,
+        (exclusiveMaximum && value === maximum ? Math.ceil(value / step) - 1 : Math.floor(value / step)) * step,
+        type === 'integer' ? Math.ceil(minimum) : minimum / 2 + maximum / 2]
+      for (const candidate of candidates) if (accepts(candidate)) return candidate
+      const fallback = type === 'integer' ? Math.ceil(value) : value
+      return Number.isFinite(fallback) && Math.abs(fallback) <= Number.MAX_SAFE_INTEGER ? (fallback || 0) : 0
+    }
+    return null
+  }
+  return build(['#'], 0, new Set())
 }

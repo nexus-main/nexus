@@ -1,15 +1,15 @@
 import { Component, input, output } from '@angular/core'
-import { LucideMapPin, LucideMoon, LucideSettings, LucideSun } from '@lucide/angular'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { MenuModule } from 'primeng/menu'
+import { AppIconComponent } from './app-icon.component'
 
 type ThemeMode = 'dark' | 'light'
 
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [ButtonModule, MenuModule, LucideMapPin, LucideMoon, LucideSettings, LucideSun],
+  imports: [ButtonModule, MenuModule, AppIconComponent],
   template: `
     <header class="content-panel overflow-hidden rounded-md">
       <div class="relative flex items-center justify-between gap-2 p-2.5 sm:gap-3 sm:p-3 lg:p-4">
@@ -38,23 +38,33 @@ type ThemeMode = 'dark' | 'light'
         </button>
 
         <div class="hidden items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-100 sm:flex">
-          <svg lucideMapPin class="h-4 w-4 shrink-0" aria-hidden="true"></svg>
+          <app-icon name="map-pin" class="h-4 w-4 shrink-0" />
           <span class="max-w-48 truncate font-mono">{{ endpointHost() }}</span>
         </div>
 
-        <p-menu #adminMenu styleClass="header-menu" [model]="adminMenuItems" [popup]="true" appendTo="body" />
+        <p-menu #adminMenu styleClass="header-menu" [model]="adminMenuItems" [popup]="true" appendTo="body">
+          <ng-template pTemplate="item" let-item>
+            <div class="flex cursor-pointer items-center gap-2 px-3 py-2">
+              @switch (item.icon) {
+                @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
+                @case ('workflow') { <app-icon name="workflow" class="h-4 w-4 shrink-0" /> }
+              }
+              <span>{{ item.label }}</span>
+            </div>
+          </ng-template>
+        </p-menu>
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           @if (isAdministrator()) {
             <button pButton type="button" size="small" severity="secondary" (click)="adminMenu.toggle($event)" aria-label="Administrator" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
-              <svg lucideSettings class="h-4 w-4" aria-hidden="true"></svg>
+              <app-icon name="settings" class="h-4 w-4" />
               <span class="hidden xl:inline">Administrator</span>
             </button>
           }
           <button pButton type="button" size="small" severity="secondary" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
             @if (themeMode() === 'dark') {
-              <svg lucideMoon class="h-4 w-4" aria-hidden="true"></svg>
+              <app-icon name="moon" class="h-4 w-4" />
             } @else {
-              <svg lucideSun class="h-4 w-4" aria-hidden="true"></svg>
+              <app-icon name="sun" class="h-4 w-4" />
             }
             <span class="hidden sm:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
           </button>
@@ -79,8 +89,8 @@ export class AppHeaderComponent {
   readonly openPackageReferences = output<void>()
   readonly openDataSourcePipelines = output<void>()
   readonly adminMenuItems: MenuItem[] = [
-    { label: 'Package references', command: () => this.openPackageReferences.emit() },
-    { label: 'Data source pipelines', command: () => this.openDataSourcePipelines.emit() },
+    { label: 'Package references', icon: 'package', command: () => this.openPackageReferences.emit() },
+    { label: 'Data source pipelines', icon: 'workflow', command: () => this.openDataSourcePipelines.emit() },
   ]
   readonly openCatalog = output<void>()
   readonly toggleTheme = output<void>()
