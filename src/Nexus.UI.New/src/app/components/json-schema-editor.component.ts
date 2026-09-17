@@ -73,6 +73,8 @@ export class JsonSchemaEditorComponent {
     insertSpaces: true,
     wordWrap: 'on',
     lineNumbersMinChars: 3,
+    quickSuggestions: { other: true, comments: false, strings: true },
+    suggestOnTriggerCharacters: true,
   }
 
   readonly schema = input<unknown>()

@@ -1,12 +1,15 @@
 import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, inject, input, output, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { ButtonModule } from 'primeng/button'
+import { ConfirmDialogModule } from 'primeng/confirmdialog'
 import { DialogModule } from 'primeng/dialog'
 import { InputTextModule } from 'primeng/inputtext'
 import { MessageModule } from 'primeng/message'
 import { SelectModule } from 'primeng/select'
 import { TabsModule } from 'primeng/tabs'
+import { ToastModule } from 'primeng/toast'
 import { TooltipModule } from 'primeng/tooltip'
+import { ConfirmationService, ConfirmEventType, MessageService } from 'primeng/api'
 import type { DialogPassThrough } from 'primeng/types/dialog'
 import { LucideCircleHelp, LucidePlus } from '@lucide/angular'
 import { NexusService, V1 } from '../nexus.service'
@@ -23,7 +26,8 @@ type ThemeMode = 'dark' | 'light'
 @Component({
   selector: 'app-data-source-pipelines',
   standalone: true,
-  imports: [FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, TooltipModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
+  imports: [FormsModule, ButtonModule, ConfirmDialogModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, ToastModule, TooltipModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
+  providers: [ConfirmationService, MessageService],
   templateUrl: './data-source-pipelines.component.html',
   styleUrl: './data-source-pipelines.component.css',
 })
@@ -31,6 +35,8 @@ export class DataSourcePipelinesComponent {
   private readonly nexus = inject(NexusService)
   private readonly api = this.nexus.v1.sources
   private readonly destroyRef = inject(DestroyRef)
+  private readonly confirmationService = inject(ConfirmationService)
+  private readonly messageService = inject(MessageService)
   private readonly panel = viewChild<ElementRef<HTMLElement>>('panel')
   private readonly lifetime = new AbortController()
   private readController?: AbortController
@@ -53,7 +59,6 @@ export class DataSourcePipelinesComponent {
   readonly loaded = signal(false)
   readonly error = signal('')
   readonly descriptionError = signal('')
-  readonly status = signal('')
   readonly pending = signal<Destination | null>(null)
   readonly confirmingDelete = signal(false)
   readonly removingKey = signal<number | null>(null)
@@ -73,8 +78,8 @@ export class DataSourcePipelinesComponent {
     if (event.key !== 'Escape' || event.defaultPrevented) return
     event.stopPropagation()
     if (this.locked()) return
-    if (this.pending()) this.pending.set(null)
-    else if (this.confirmingDelete()) this.confirmingDelete.set(false)
+    if (this.pending()) { this.confirmationService.close(); this.pending.set(null) }
+    else if (this.confirmingDelete()) this.cancelDelete()
     else if (this.removingKey() !== null) this.removingKey.set(null)
     else this.request({ kind: 'close' })
   } } }
@@ -157,8 +162,38 @@ export class DataSourcePipelinesComponent {
       if (this.draft()?.serverDiverged) destination = { kind: 'reload' }
       else { this.pipelineTab.set('pipeline'); this.mobileView.set('pipeline'); return }
     }
-    if (this.dirty()) this.pending.set(destination)
+    if (this.dirty()) { this.pending.set(destination); this.showUnsavedConfirm(destination) }
     else void this.proceed(destination)
+  }
+
+  private showUnsavedConfirm(destination: Destination): void {
+    const isDescriptions = destination.kind === 'descriptions'
+    const isRefreshOrReload = destination.kind === 'refresh' || destination.kind === 'reload'
+    this.confirmationService.confirm({
+      key: 'unsavedChanges',
+      header: isDescriptions ? 'Retry source descriptions?' : 'Unsaved pipeline changes',
+      message: isDescriptions
+        ? 'Retry source descriptions and revalidate your draft? All edits and raw JSON buffers will be retained, even if the retry fails.'
+        : isRefreshOrReload
+          ? 'Save first or reload without saving. Unsaved edits are replaced only after pipelines and descriptions reload successfully; cancellation or failure retains your draft.'
+          : 'Save before continuing, discard these edits, or stay here. Saving validates every registration.',
+      acceptLabel: isDescriptions ? 'Retry' : 'Save',
+      rejectLabel: 'Discard',
+      acceptVisible: true,
+      rejectVisible: !isDescriptions,
+      closeOnEscape: true,
+      dismissableMask: true,
+      acceptButtonProps: { severity: 'primary', outlined: true, size: 'small' },
+      rejectButtonProps: { severity: 'secondary', text: true, size: 'small' },
+      accept: () => {
+        if (isDescriptions) void this.retryDescriptions()
+        else void this.choose('save')
+      },
+      reject: (type: ConfirmEventType) => {
+        if (type === ConfirmEventType.REJECT && !isDescriptions) void this.choose('discard')
+        else this.pending.set(null)
+      },
+    })
   }
 
   async choose(choice: UnsavedChoice): Promise<void> {
@@ -267,7 +302,7 @@ export class DataSourcePipelinesComponent {
       if (!id) throw new Error('The server did not return a pipeline ID. Reload before retrying creation.')
       this.entries.update(entries => draft.id === null ? [...entries, { id, pipeline: payload }] : entries.map(entry => entry.id === id ? { id, pipeline: payload } : entry))
       this.draft.set(acceptPipelineSave(draft, id, payload))
-      this.status.set('Saved. Refresh the database to apply pipeline changes to catalogs.')
+      this.messageService.add({ key: 'status', severity: 'success', summary: 'Pipeline saved', detail: 'Refresh the database to apply pipeline changes to catalogs.', life: 5000 })
       return true
     } catch (error) {
       if (!this.destroyed) this.showError('save the pipeline; your draft has been retained', error)
@@ -275,9 +310,28 @@ export class DataSourcePipelinesComponent {
     } finally { if (!this.destroyed) this.busy.set(false) }
   }
 
+  requestDelete(): void {
+    if (!this.draft()?.id || this.locked() || !this.administrator()) return
+    this.confirmingDelete.set(true)
+    this.messageService.clear('deleteConfirm')
+    this.messageService.add({
+      key: 'deleteConfirm',
+      summary: 'Delete this pipeline?',
+      detail: 'This removes the saved pipeline and discards its local edits. Refresh the database afterward to apply the deletion.',
+      sticky: true,
+      closable: false,
+    })
+  }
+
+  cancelDelete(): void {
+    this.messageService.clear('deleteConfirm')
+    this.confirmingDelete.set(false)
+  }
+
   async remove(): Promise<void> {
     const id = this.draft()?.id
     if (!id || !this.confirmingDelete() || this.locked() || !this.administrator()) return
+    this.messageService.clear('deleteConfirm')
     this.busy.set(true)
     this.error.set('')
     try {
@@ -289,7 +343,7 @@ export class DataSourcePipelinesComponent {
       this.pipelineTab.set('pipelines')
       this.mobileView.set('list')
       this.confirmingDelete.set(false)
-      this.status.set('Deleted. Refresh the database to apply pipeline changes to catalogs.')
+      this.messageService.add({ key: 'status', severity: 'success', summary: 'Pipeline deleted', detail: 'Refresh the database to apply pipeline changes to catalogs.', life: 5000 })
     } catch (error) {
       if (!this.destroyed) this.showError('delete the pipeline; your draft has been retained', error)
     } finally { if (!this.destroyed) this.busy.set(false) }
@@ -303,9 +357,9 @@ export class DataSourcePipelinesComponent {
       // The parent owns its metadata guard, refresh job, and shared cache invalidation.
       const refreshed = await this.refreshDatabase()()
       if (this.destroyed) return
-      if (!refreshed) { this.status.set('Refresh canceled. Your pipeline draft has been retained.'); return }
-      if (await this.load()) this.status.set('Database refreshed. Pipelines and source schemas reloaded, including configuration upgrades.')
-      else if (!this.destroyed) this.status.set('Database refreshed, but reloading was incomplete. Clean drafts follow loaded server data; unsaved edits are retained. Review the warnings before saving.')
+      if (!refreshed) { this.messageService.add({ key: 'status', severity: 'info', summary: 'Refresh canceled', detail: 'Your pipeline draft has been retained.', life: 5000 }); return }
+      if (await this.load()) this.messageService.add({ key: 'status', severity: 'success', summary: 'Database refreshed', detail: 'Pipelines and source schemas reloaded, including configuration upgrades.', life: 5000 })
+      else if (!this.destroyed) this.messageService.add({ key: 'status', severity: 'warn', summary: 'Database refreshed', detail: 'Reloading was incomplete. Clean drafts follow loaded server data; unsaved edits are retained. Review the warnings before saving.', life: 8000 })
     } catch (error) {
       if (!this.destroyed) this.showError('refresh the database; your pipeline draft has been retained', error)
     } finally { if (!this.destroyed) this.refreshing.set(false) }
