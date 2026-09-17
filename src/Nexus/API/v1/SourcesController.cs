@@ -57,6 +57,8 @@ internal class SourcesController(
             var type = context.ContextualType.Type;
             var schema = context.Schema;
 
+            schema.Title = null;
+
             AddRequiredConstructorParameters(type, schema);
 
         }

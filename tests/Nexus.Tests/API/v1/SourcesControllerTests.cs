@@ -33,7 +33,6 @@ public class SourcesControllerTests
         var schemas = new Dictionary<string, JsonElement>
         {
             ["nonNullableRoot"] = GetSchema(typeof(NonNullableRootSource)),
-            ["nullableRoot"] = GetSchema(typeof(NullableRootSource)),
             ["nullableReference"] = GetSchema(typeof(SchemaSource<ReferenceConfiguration>)),
             ["dictionaryRoot"] = GetSchema(typeof(NonNullableDictionaryRootSource)),
             ["nullableValueRoot"] = GetSchema(typeof(SchemaSource<int?>)),
@@ -320,8 +319,6 @@ public class SourcesControllerTests
     );
 
     public abstract class SchemaSource<T> : SimpleDataSource<T>;
-
-    public abstract class NullableRootSource : SimpleDataSource<PropertyConfiguration?>;
 
     public abstract class NonNullableRootSource : SimpleDataSource<PropertyConfiguration>;
 

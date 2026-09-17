@@ -31,7 +31,7 @@ type ThemeMode = 'dark' | 'light'
         </div>
       }
       <ngx-monaco-editor
-        style="display:block;min-height:26rem;height:min(48rem, calc(100dvh - 21rem));overflow:hidden;border:1px solid var(--p-content-border-color);border-radius:var(--p-border-radius-md)"
+        style="display:block;flex:1 1 0;min-height:12rem;overflow:hidden;border:1px solid var(--p-content-border-color);border-radius:var(--p-border-radius-md)"
         [options]="editorOptions"
         (onInit)="onEditorInit($event)"></ngx-monaco-editor>
       @if (!validity().valid) {
@@ -45,12 +45,12 @@ type ThemeMode = 'dark' | 'light'
     </div>
   `,
   styles: [`
-    :host { display: block; min-width: 0; }
-    .yaml-editor-shell { display: grid; gap: .75rem; min-width: 0; }
-    .yaml-editor-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
-    .scaffold-confirmation { padding: .75rem; border: 1px solid var(--p-content-border-color); border-radius: var(--p-border-radius-md); }
+    :host { display: flex; flex-direction: column; min-width: 0; flex: 1 1 0; min-height: 0; }
+    .yaml-editor-shell { display: flex; flex-direction: column; gap: .75rem; min-width: 0; flex: 1 1 0; min-height: 0; }
+    .yaml-editor-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; flex: 0 0 auto; }
+    .scaffold-confirmation { padding: .75rem; border: 1px solid var(--p-content-border-color); border-radius: var(--p-border-radius-md); flex: 0 0 auto; }
     .scaffold-confirmation p { margin: 0 0 .5rem; font-size: .875rem; }
-    .yaml-editor-help { margin: 0; color: var(--p-text-muted-color); font-size: .8125rem; }
+    .yaml-editor-help { margin: 0; color: var(--p-text-muted-color); font-size: .8125rem; flex: 0 0 auto; }
   `],
 })
 export class JsonSchemaEditorComponent {
@@ -65,6 +65,7 @@ export class JsonSchemaEditorComponent {
   readonly editorOptions: Monaco.editor.IStandaloneEditorConstructionOptions = {
     language: 'yaml',
     automaticLayout: true,
+    fixedOverflowWidgets: true,
     fontSize: 13,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
