@@ -1,14 +1,15 @@
 import { Component, input } from '@angular/core'
-import { LucideMapPin, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideWaypoints } from '@lucide/angular'
+import { LucideBraces, LucideMapPin, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideWaypoints } from '@lucide/angular'
 
-export type AppIconName = 'map-pin' | 'moon' | 'package' | 'settings' | 'sun' | 'waypoints'
+export type AppIconName = 'braces' | 'map-pin' | 'moon' | 'package' | 'settings' | 'sun' | 'waypoints'
 
 @Component({
   selector: 'app-icon',
   standalone: true,
-  imports: [LucideMapPin, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideWaypoints],
+  imports: [LucideBraces, LucideMapPin, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideWaypoints],
   template: `
     @switch (name()) {
+      @case ('braces') { <svg lucideBraces aria-hidden="true"></svg> }
       @case ('map-pin') { <svg lucideMapPin aria-hidden="true"></svg> }
       @case ('moon') { <svg lucideMoon aria-hidden="true"></svg> }
       @case ('package') { <svg lucidePackage aria-hidden="true"></svg> }
