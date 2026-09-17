@@ -14,6 +14,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Controllers.V1;
@@ -42,11 +43,73 @@ internal class SourcesController(
 
     private static readonly SystemTextJsonSchemaGeneratorSettings _jsonSchemaGeneratorSettings = new()
     {
+        SchemaProcessors = { new ConfigurationSchemaProcessor() },
         SerializerOptions = new JsonSerializerOptions
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            RespectRequiredConstructorParameters = true
         }
     };
+
+    private sealed class ConfigurationSchemaProcessor : ISchemaProcessor
+    {
+        public void Process(SchemaProcessorContext context)
+        {
+            var type = context.ContextualType.Type;
+            var schema = context.Schema;
+
+            AddRequiredConstructorParameters(type, schema);
+        }
+
+        private static void AddRequiredConstructorParameters(Type type, JsonSchema schema)
+        {
+            if (!schema.Type.HasFlag(JsonObjectType.Object))
+            {
+                return;
+            }
+
+            var constructor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public)
+                .Where(constructor => constructor.GetParameters().Length > 0)
+                .OrderByDescending(constructor => constructor.GetParameters().Length)
+                .FirstOrDefault();
+
+            if (constructor is null)
+            {
+                return;
+            }
+
+            foreach (var parameter in constructor.GetParameters())
+            {
+                if (parameter.HasDefaultValue || parameter.Name is null)
+                {
+                    continue;
+                }
+
+                var propertyName = GetSerializedPropertyName(type, parameter.Name);
+
+                if (propertyName is null || !schema.Properties.ContainsKey(propertyName) || schema.RequiredProperties.Contains(propertyName))
+                {
+                    continue;
+                }
+
+                schema.RequiredProperties.Add(propertyName);
+            }
+        }
+
+        private static string? GetSerializedPropertyName(Type type, string parameterName)
+        {
+            var property = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault(property => string.Equals(property.Name, parameterName, StringComparison.OrdinalIgnoreCase));
+
+            if (property is null || property.GetCustomAttribute<JsonIgnoreAttribute>() is not null)
+            {
+                return null;
+            }
+
+            return property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
+                JsonNamingPolicy.CamelCase.ConvertName(property.Name);
+        }
+    }
 
     /// <summary>
     /// Gets the list of source descriptions.
