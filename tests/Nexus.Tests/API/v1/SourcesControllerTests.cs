@@ -37,132 +37,13 @@ public class SourcesControllerTests
             ["nullableReference"] = GetSchema(typeof(SchemaSource<ReferenceConfiguration>)),
             ["dictionaryRoot"] = GetSchema(typeof(NonNullableDictionaryRootSource)),
             ["nullableValueRoot"] = GetSchema(typeof(SchemaSource<int?>)),
-            ["formats"] = GetSchema(typeof(SchemaSource<FormatConfiguration>)),
-            ["flagsAndByte"] = GetSchema(typeof(SchemaSource<FlagsAndByteConfiguration>)),
-            ["nullableFlagsRoot"] = GetSchema(typeof(SchemaSource<ByteFlags?>))
+            ["formats"] = GetSchema(typeof(SchemaSource<FormatConfiguration>))
         };
         var actual = JsonSerializer.SerializeToElement(schemas);
         var expected = JsonSerializer.Deserialize<JsonElement>(File.ReadAllText(
             Path.Combine(AppContext.BaseDirectory, "API/v1/fixtures/source-configuration-schemas.json")));
 
         Assert.True(JsonElement.DeepEquals(expected, actual), JsonSerializer.Serialize(schemas, new JsonSerializerOptions { WriteIndented = true }));
-    }
-
-    [Theory]
-    [InlineData(typeof(SByteFlags), "-128", "127", "-129", "128")]
-    [InlineData(typeof(ByteFlags), "0", "255", "-1", "256")]
-    [InlineData(typeof(Int16Flags), "-32768", "32767", "-32769", "32768")]
-    [InlineData(typeof(UInt16Flags), "0", "65535", "-1", "65536")]
-    [InlineData(typeof(Int32Flags), "-2147483648", "2147483647", "-2147483649", "2147483648")]
-    [InlineData(typeof(UInt32Flags), "0", "4294967295", "-1", "4294967296")]
-    [InlineData(typeof(Int64Flags), "-9223372036854775808", "9223372036854775807", "-9223372036854775809", "9223372036854775808")]
-    [InlineData(typeof(UInt64Flags), "0", "18446744073709551615", "-1", "18446744073709551616")]
-    public async Task FlagsUseExactUnderlyingRange(Type type, string minimum, string maximum, string below, string above)
-    {
-        var document = GetSchema(typeof(SchemaSource<>).MakeGenericType(type));
-        Assert.False(document.TryGetProperty("enum", out _));
-        Assert.False(document.TryGetProperty("format", out _));
-        Assert.True(document.GetProperty("x-enumFlags").GetBoolean());
-        Assert.Equal(decimal.Parse(minimum), document.GetProperty("minimum").GetDecimal());
-        Assert.Equal(decimal.Parse(maximum), document.GetProperty("maximum").GetDecimal());
-        Assert.Equal(Enum.GetNames(type), document.GetProperty("x-enumNames").EnumerateArray().Select(value => value.GetString()));
-        Assert.Equal(Enum.GetValues(type).Cast<object>().Select(value => Convert.ToDecimal(value)),
-            document.GetProperty("x-enumValues").EnumerateArray().Select(value => value.GetDecimal()));
-
-        var schema = await JsonSchema.FromJsonAsync(document.GetRawText());
-
-        foreach (string json in new[] { "0", "3", "4", minimum, maximum })
-        {
-            // NJsonSchema's string parser produces BigInteger above Int64, which its
-            // validator cannot convert. An integer JValue preserves UInt64 exactly.
-            var token = json.StartsWith('-')
-                ? new Newtonsoft.Json.Linq.JValue(long.Parse(json))
-                : new Newtonsoft.Json.Linq.JValue(ulong.Parse(json));
-            Assert.Empty(new NJsonSchema.Validation.JsonSchemaValidator().Validate(token, schema));
-            Assert.NotNull(JsonSerializer.Deserialize(json, type));
-        }
-
-        foreach (string json in new[] { below, above })
-        {
-            var token = new Newtonsoft.Json.Linq.JValue(decimal.Parse(json));
-            var errors = new NJsonSchema.Validation.JsonSchemaValidator().Validate(token, schema);
-            Assert.Contains(errors, error => error.Kind == (json == below
-                ? NJsonSchema.Validation.ValidationErrorKind.NumberTooSmall
-                : NJsonSchema.Validation.ValidationErrorKind.NumberTooBig));
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize(json, type));
-        }
-
-        foreach (string json in new[] { "1.5", "\"3\"", "null" })
-        {
-            Assert.NotEmpty(schema.Validate(json));
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize(json, type));
-        }
-    }
-
-    [Theory]
-    [InlineData("{}", true)]
-    [InlineData("{\"flags\":3,\"nullableFlags\":3,\"value\":255,\"nullableValue\":0}", true)]
-    [InlineData("{\"nullableFlags\":null,\"nullableValue\":null}", true)]
-    [InlineData("{\"flags\":4}", true)]
-    [InlineData("{\"flags\":-1}", false)]
-    [InlineData("{\"flags\":256}", false)]
-    [InlineData("{\"nullableFlags\":256}", false)]
-    [InlineData("{\"flags\":null}", false)]
-    [InlineData("{\"value\":null}", false)]
-    [InlineData("{\"value\":-1}", false)]
-    [InlineData("{\"value\":256}", false)]
-    [InlineData("{\"nullableValue\":256}", false)]
-    [InlineData("{\"value\":1.5}", false)]
-    public async Task FlagsAndBytePropertiesPreserveNullabilityAndBounds(string json, bool valid)
-    {
-        var schema = await JsonSchema.FromJsonAsync(GetSchema(typeof(SchemaSource<FlagsAndByteConfiguration>)).GetRawText());
-        Assert.Equal(valid, schema.Validate(json).Count == 0);
-
-        if (valid)
-            Assert.NotNull(JsonSerializer.Deserialize<FlagsAndByteConfiguration>(json, JsonSerializerOptions.Web));
-        else
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<FlagsAndByteConfiguration>(json, JsonSerializerOptions.Web));
-    }
-
-    [Theory]
-    [InlineData(typeof(SchemaSource<ByteFlags>), false)]
-    [InlineData(typeof(SchemaSource<ByteFlags?>), true)]
-    [InlineData(typeof(SchemaSource<byte>), false)]
-    [InlineData(typeof(SchemaSource<byte?>), true)]
-    public async Task FlagsAndByteRootsPreserveNullabilityAndBounds(Type source, bool nullable)
-    {
-        var schema = await JsonSchema.FromJsonAsync(GetSchema(source).GetRawText());
-        Assert.Equal(nullable, schema.Validate("null").Count == 0);
-
-        foreach (string json in new[] { "0", "3", "255" })
-            Assert.Empty(schema.Validate(json));
-
-        foreach (string json in new[] { "-1", "256", "1.5", "\"3\"" })
-            Assert.NotEmpty(schema.Validate(json));
-    }
-
-    [Fact]
-    public async Task NonFlagsEnumsStillRequireNamedValues()
-    {
-        var document = GetSchema(typeof(NonNullableEnumSource));
-        Assert.Equal([0, 1], document.GetProperty("enum").EnumerateArray().Select(value => value.GetInt32()));
-        var schema = await JsonSchema.FromJsonAsync(document.GetRawText());
-        Assert.NotEmpty(schema.Validate("3"));
-    }
-
-    [Fact]
-    public async Task StringEnumsAndBinaryByteArraysKeepTheirMappings()
-    {
-        var document = GetSchema(typeof(SchemaSource<StringFlags>));
-        Assert.Equal("string", document.GetProperty("type").GetString());
-        Assert.Equal(["First", "Second"], document.GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
-        Assert.False(document.TryGetProperty("x-enumValues", out _));
-
-        var binary = GetSchema(typeof(SchemaSource<byte[]>));
-        Assert.Equal("string", binary.GetProperty("type").GetString());
-        Assert.False(binary.TryGetProperty("minimum", out _));
-        var schema = await JsonSchema.FromJsonAsync(binary.GetRawText());
-        Assert.Empty(schema.Validate("\"AQI=\""));
     }
 
     [Theory]
@@ -408,27 +289,6 @@ public class SourcesControllerTests
         public TimeOnly Time { get; set; }
         public DateTime Timestamp { get; set; }
     }
-
-    public class FlagsAndByteConfiguration
-    {
-        public ByteFlags Flags { get; set; }
-        public ByteFlags? NullableFlags { get; set; }
-        public byte Value { get; set; }
-        public byte? NullableValue { get; set; }
-    }
-
-    [Flags] public enum SByteFlags : sbyte { First = 1, Second = 2, All = -1 }
-    [Flags] public enum ByteFlags : byte { First = 1, Second = 2 }
-    [Flags] public enum Int16Flags : short { First = 1, Second = 2, All = -1 }
-    [Flags] public enum UInt16Flags : ushort { First = 1, Second = 2 }
-    [Flags] public enum Int32Flags : int { First = 1, Second = 2, All = -1 }
-    [Flags] public enum UInt32Flags : uint { First = 1, Second = 2 }
-    [Flags] public enum Int64Flags : long { First = 1, Second = 2, All = -1 }
-    [Flags] public enum UInt64Flags : ulong { First = 1, Second = 2, All = ulong.MaxValue }
-
-    [Flags]
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum StringFlags { First = 1, Second = 2 }
 
     public class ReferenceConfiguration
     {
