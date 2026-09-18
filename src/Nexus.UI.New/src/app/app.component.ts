@@ -11,6 +11,7 @@ import { InputTextModule } from 'primeng/inputtext'
 import { MenuModule } from 'primeng/menu'
 import { ProgressBarModule } from 'primeng/progressbar'
 import { TabsModule } from 'primeng/tabs'
+import { TooltipModule } from 'primeng/tooltip'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
 import { VisualizationChartComponent } from './charts/visualization-chart.component'
@@ -51,12 +52,6 @@ const selectedResourcesStorageKey = 'nexus.selectedResources'
 const themeModeStorageKey = 'nexus.themeMode'
 type ThemeMode = 'dark' | 'light'
 
-const quickRanges = [
-  { label: 'Last 10 min', begin: '-PT10M', end: 'now' },
-  { label: 'Last hour', begin: '-PT1H', end: 'now' },
-  { label: 'Campaign day', begin: '2025-01-01T00:00:00Z', end: '2025-01-02T00:00:00Z' },
-]
-
 const timeRangePresets = [
   { label: 'Last hour', kind: 'rolling', unit: 'hour', amount: 1 },
   { label: 'Last 24 hours', kind: 'rolling', unit: 'day', amount: 1 },
@@ -84,7 +79,7 @@ type SelectedResourceGroup = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnDestroy {
@@ -160,13 +155,18 @@ export class AppComponent implements OnDestroy {
     return period === null || period <= 0n ? 'Enter a positive period, for example 100 ms, 1 s, or 10 min (100 ns minimum).' : ''
   })
   readonly exportFilePeriod = signal('PT0S')
+  readonly exportFilePeriodDraft = signal('0 s')
+  readonly exportFilePeriodError = computed(() => {
+    const period = parsePeriod(this.exportFilePeriodDraft())
+    if (period === null) return 'Enter a file period, for example 0 s, 100 ms, 1 s, or 10 min.'
+    return period % this.samplePeriod() === 0n ? '' : 'File period must be zero or an integer multiple of Period.'
+  })
   readonly selectedWriterType = signal('Nexus.Writers.Csv')
   readonly exportConfiguration = signal<Record<string, unknown>>({ 'row-index-format': 'excel', 'significant-figures': 4 })
   readonly exportPrecision = signal<V2.Precision>(V2.Precision.Float32)
   readonly exportStatus = signal('')
   readonly exportBusy = signal(false)
 
-  readonly quickRanges = quickRanges
   readonly timeRangeMenuItems: MenuItem[] = timeRangePresets.flatMap((preset) => {
     const item: MenuItem = { label: preset.label, command: () => this.applyTimeRangePreset(preset) }
     return preset.kind === 'calendarToNow' ? [{ separator: true }, item] : [item]
@@ -301,8 +301,7 @@ export class AppComponent implements OnDestroy {
   })
   readonly exportError = computed(() => {
     if (this.selectionError()) return this.selectionError()
-    const period = parsePeriod(this.exportFilePeriod())
-    if (period === null || period % this.samplePeriod() !== 0n) return 'File period must be zero or an integer multiple of Period.'
+    if (this.exportFilePeriodError()) return this.exportFilePeriodError()
     if (!this.apiAvailable()) return 'Connect to the Nexus API before creating an export job.'
     return ''
   })
@@ -372,6 +371,14 @@ export class AppComponent implements OnDestroy {
     this.exportEnd.set(alignRangeEndpoint(end.toISOString(), this.samplePeriod()))
   }
 
+  applySelectedCatalogRange() {
+    const timeRange = this.selectedBundle()?.timeRange
+    if (!formatRange(timeRange) || !timeRange?.begin || !timeRange.end) return
+
+    this.exportBegin.set(alignRangeEndpoint(timeRange.begin, this.samplePeriod()))
+    this.exportEnd.set(alignRangeEndpoint(timeRange.end, this.samplePeriod()))
+  }
+
   toggleTheme() {
     this.themeMode.update((value) => value === 'dark' ? 'light' : 'dark')
   }
@@ -421,6 +428,41 @@ export class AppComponent implements OnDestroy {
     this.compactLayout.set(window.innerWidth < 640)
     this.wideLayout.set(window.innerWidth >= 1536)
     if (!this.wideLayout() && !this.visualizationOpen()) this.cancelVisualization()
+  }
+
+  readonly visualizationByteCount = computed(() => {
+    const beginTicks = dateTicks(this.exportBegin())
+    const endTicks = dateTicks(this.exportEnd())
+    const samplePeriod = this.samplePeriod()
+    if (beginTicks === null || endTicks === null || beginTicks >= endTicks || samplePeriod <= 0n) return 0n
+    const elementCount = (endTicks - beginTicks) / samplePeriod
+    return elementCount * BigInt(this.visualizationResources().length) * 4n
+  })
+
+  readonly visualizationByteCountLabel = computed(() => this.formatByteCount(this.visualizationByteCount()))
+
+  readonly exportByteCount = computed(() => {
+    const beginTicks = dateTicks(this.exportBegin())
+    const endTicks = dateTicks(this.exportEnd())
+    const samplePeriod = this.samplePeriod()
+    if (beginTicks === null || endTicks === null || beginTicks >= endTicks || samplePeriod <= 0n) return 0n
+    const elementCount = (endTicks - beginTicks) / samplePeriod
+    const elementSize = this.exportPrecision() === V2.Precision.Float64 ? 8n : 4n
+    return elementCount * BigInt(this.requestPaths().length) * elementSize
+  })
+
+  readonly exportByteCountLabel = computed(() => this.formatByteCount(this.exportByteCount()))
+
+  private formatByteCount(byteCount: bigint): string {
+    if (byteCount <= 0n) return ''
+    if (byteCount >= 1000n * 1000n * 1000n) return `${this.formatSignificantDigits(Number(byteCount) / 1000 / 1000 / 1000)} GB`
+    if (byteCount >= 1000n * 1000n) return `${this.formatSignificantDigits(Number(byteCount) / 1000 / 1000)} MB`
+    if (byteCount >= 1000n) return `${this.formatSignificantDigits(Number(byteCount) / 1000)} kB`
+    return `${byteCount} B`
+  }
+
+  private formatSignificantDigits(value: number): string {
+    return value.toPrecision(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1')
   }
 
   async visualize(open = true) {
@@ -983,18 +1025,22 @@ export class AppComponent implements OnDestroy {
     this.activeResourcePath.set(resource.key)
   }
 
-  applyQuickRange(range: { begin: string; end: string }) {
-    const reference = new Date()
-    this.exportBegin.set(alignRangeEndpoint(resolveRangeEndpoint(range.begin, reference), this.samplePeriod()))
-    this.exportEnd.set(alignRangeEndpoint(resolveRangeEndpoint(range.end, reference), this.samplePeriod()))
-  }
-
   setExportBeginFromInput(value: string) {
     this.exportBegin.set(fromDateTimeLocalValue(value))
   }
 
   setExportEndFromInput(value: string) {
     this.exportEnd.set(fromDateTimeLocalValue(value))
+  }
+
+  setExportFilePeriod(value: string) {
+    this.exportFilePeriodDraft.set(value)
+    const period = parsePeriod(value)
+    if (period !== null && period % this.samplePeriod() === 0n) this.exportFilePeriod.set(formatPeriod(period))
+  }
+
+  normalizeExportFilePeriod() {
+    if (!this.exportFilePeriodError()) this.exportFilePeriodDraft.set(formatPeriod(parsePeriod(this.exportFilePeriod()) ?? 0n))
   }
 
   updateConfig(key: string, value: unknown) {

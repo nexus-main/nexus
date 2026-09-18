@@ -40,9 +40,12 @@ button:disabled, input:disabled { cursor: not-allowed; }
 .eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: .16em; color: var(--p-text-muted-color); }
 .toolbar-actions, .navigation-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .toolbar-actions button, .navigation-actions button { min-height: 32px; font-size: 11px; }
-.toolbar-actions .visualize-button { min-width: 40px; min-height: 40px; font-size: 13px; }
-.toolbar-actions .visualize-button svg { width: 18px; height: 18px; }
-.toolbar-actions .visualize-button { min-height: 36px; font-size: 12px; }
+.toolbar-icon-action { display: inline-flex; align-items: center; }
+.visualize-action { display: inline-flex; align-items: center; gap: 8px; }
+.toolbar-actions .visualize-button, .toolbar-actions .export-button { min-width: 40px; min-height: 40px; font-size: 13px; }
+.toolbar-actions .visualize-button svg, .toolbar-actions .export-button svg { width: 18px; height: 18px; }
+.toolbar-actions .visualize-button, .toolbar-actions .export-button { min-height: 36px; font-size: 12px; }
+.visualize-size { color: var(--p-text-muted-color); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dirty-count { font-size: 12px; color: var(--p-primary-color); }
 .search-bar { display: flex; align-items: center; gap: 8px; padding: 0 16px 10px; color: var(--p-text-muted-color); }
 .search-bar input { width: 100%; min-width: 0; }

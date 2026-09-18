@@ -21,7 +21,7 @@ import { abbreviateMiddle, lastSegment } from '../utils'
       [filter]="false"
       ariaLabel="Catalogs"
       emptyMessage="No catalogs match your search."
-      styleClass="w-full min-w-0 bg-transparent p-0 [&_.p-treenode]:py-0 [&_.p-tree-node-content]:min-w-0 [&_.p-tree-node-content]:rounded-md [&_.p-tree-node-content]:border-l-2 [&_.p-tree-node-content]:border-l-transparent [&_.p-tree-node-content]:py-0.5 [&_.p-tree-node-content]:transition-colors [&_.p-tree-node-content.p-tree-node-selected]:border-l-[var(--p-primary-color)] [&_.p-tree-node-label]:min-w-0 [&_.p-tree-node-label]:flex-1 [&_.p-tree-node-toggle-button]:h-4 [&_.p-tree-node-toggle-button]:w-4 [&_.p-tree-node-leaf_.p-tree-node-toggle-button]:invisible [&_.p-tree-node-toggle-icon]:h-2 [&_.p-tree-node-toggle-icon]:w-2 [&_.p-tree-node-toggle-icon]:opacity-70"
+      styleClass="w-full min-w-0 bg-transparent p-0 [&_.p-treenode]:py-0 [&_.p-tree-node-content]:min-w-0 [&_.p-tree-node-content]:rounded-sm [&_.p-tree-node-content]:border-l-2 [&_.p-tree-node-content]:border-l-transparent [&_.p-tree-node-content]:py-0.5 [&_.p-tree-node-content]:transition-colors [&_.p-tree-node-content.p-tree-node-selected]:border-l-[var(--p-primary-color)] [&_.p-tree-node-label]:min-w-0 [&_.p-tree-node-label]:flex-1 [&_.p-tree-node-toggle-button]:h-4 [&_.p-tree-node-toggle-button]:w-4 [&_.p-tree-node-leaf_.p-tree-node-toggle-button]:invisible [&_.p-tree-node-toggle-icon]:h-2 [&_.p-tree-node-toggle-icon]:w-2 [&_.p-tree-node-toggle-icon]:opacity-70"
       (onNodeSelect)="activateNode($event.node, tree)"
       (onNodeUnselect)="activateNode($event.node, tree)"
       (onNodeExpand)="toggle.emit($event.node.data!)"
