@@ -558,6 +558,10 @@ export class AppComponent implements OnDestroy {
         }
       }
 
+      const currentUnits = new Map(this.visualizationResources().map(resource => [resource.path, resource.unit]))
+      for (const series of data.series) series.unit = currentUnits.get(series.id) ?? series.unit
+      this.visualizationData.set(data)
+
       const newDescriptors = descriptors.filter(d => !loadedIds.has(d.id))
       if (newDescriptors.length > 0) {
         const newPaths = resources.filter(r => !loadedIds.has(r.path)).map(r => r.path)
@@ -580,9 +584,6 @@ export class AppComponent implements OnDestroy {
       }
 
       this.loadedVisualizationKey.set(key)
-      const currentUnits = new Map(this.visualizationResources().map(resource => [resource.path, resource.unit]))
-      for (const series of data.series) series.unit = currentUnits.get(series.id) ?? series.unit
-      this.visualizationData.set(data)
     } catch (error) {
       this.visualizationBuffers?.dispose()
       this.visualizationBuffers = undefined
