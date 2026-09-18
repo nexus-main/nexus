@@ -15,7 +15,7 @@ import { TooltipModule } from 'primeng/tooltip'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
 import { VisualizationChartComponent } from './charts/visualization-chart.component'
-import { VisualizationData, createVisualizationData, loadVisualizationData } from './charts/visualization-data'
+import { VisualizationData, createVisualizationData, setVisualizationSeriesValues } from './charts/visualization-data'
 import { dateTicks } from './resource-selection'
 import { AppHeaderComponent } from './components/app-header.component'
 import { CatalogTreeComponent } from './components/catalog-tree.component'
@@ -76,6 +76,22 @@ type SelectedResourceGroup = {
   resources: ResourceSelection[]
 }
 
+function formatDateForDownloadName(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'export'
+  return date.toISOString().slice(0, 19).replace(/:/g, '-')
+}
+
+type ExportJobHistoryEntry = {
+  id: string
+  job: V1.Job | V2.Job
+  parameters?: V2.ExportParameters
+  status?: V1.JobStatus
+  error: string
+  downloading: boolean
+  downloadName: string
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -115,6 +131,7 @@ export class AppComponent implements OnDestroy {
   readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceSelection>>(new Map())
   readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
   readonly isExportOpen = signal(false)
+  readonly isJobsOpen = signal(false)
   readonly isPackageReferencesOpen = signal(false)
   readonly isDataSourcePipelinesOpen = signal(false)
   readonly isClearPinnedOpen = signal(false)
@@ -134,6 +151,7 @@ export class AppComponent implements OnDestroy {
   readonly visualizationBeginAtZero = signal(false)
   readonly visualizationCacheMiB = signal(2048)
   private visualizationController?: AbortController
+  private exportController?: AbortController
   private readonly loadedVisualizationKey = signal('')
   readonly themeMode = signal<ThemeMode>(getInitialThemeMode(this.storage))
   readonly activeSidebarTab = signal<'catalogs' | 'selectedResources'>('catalogs')
@@ -166,6 +184,11 @@ export class AppComponent implements OnDestroy {
   readonly exportPrecision = signal<V2.Precision>(V2.Precision.Float32)
   readonly exportStatus = signal('')
   readonly exportBusy = signal(false)
+  readonly currentExportJobId = signal('')
+  readonly currentExportJobStatus = signal<V1.JobStatus | null>(null)
+  readonly currentExportJobError = signal('')
+  readonly currentExportDownloading = signal(false)
+  readonly jobHistory = signal<ExportJobHistoryEntry[]>([])
 
   readonly timeRangeMenuItems: MenuItem[] = timeRangePresets.flatMap((preset) => {
     const item: MenuItem = { label: preset.label, command: () => this.applyTimeRangePreset(preset) }
@@ -186,6 +209,8 @@ export class AppComponent implements OnDestroy {
   readonly rootCatalogInfos = computed(() => this.overview()?.roots ?? fallbackCatalogInfos)
   readonly writerDescriptions = computed(() => this.overview()?.writers ?? fallbackWriters)
   readonly jobs = computed(() => this.overview()?.jobs ?? [])
+  readonly exportJobHistory = computed(() => this.jobHistory().filter(entry => this.isExportJobEntry(entry)))
+  readonly jobHistoryCount = computed(() => this.exportJobHistory().length)
   readonly userName = computed(() => this.nexus.currentUser()?.user?.name ?? 'Prototype user')
   readonly isAdministrator = computed(() => this.nexus.currentUser()?.user?.claims?.some(claim => claim.type === 'role' && claim.value === 'Administrator') ?? false)
   readonly endpointHost = computed(() => new URL(this.nexus.endpoint).host)
@@ -317,6 +342,15 @@ export class AppComponent implements OnDestroy {
     this.exportConfiguration(),
     this.exportPrecision(),
   ))
+  readonly currentExportProgress = computed(() => this.jobProgress(this.currentExportJobStatus() ?? undefined))
+  readonly currentExportStatusText = computed(() => {
+    const status = this.currentExportJobStatus()
+    if (this.exportBusy()) return 'Creating export job...'
+    if (!this.currentExportJobId()) return ''
+    return status ? this.formatJobStatus(status) : 'Export job queued...'
+  })
+  readonly currentExportCanCancel = computed(() => !!this.currentExportJobId() && !this.isTerminalStatus(this.currentExportJobStatus()?.status))
+  readonly currentExportCanDownload = computed(() => !!this.artifactIdFromStatus(this.currentExportJobStatus() ?? undefined))
 
   formatSamplePeriod(samplePeriod: string | null | undefined) {
     const ticks = parsePeriod(samplePeriod ?? '')
@@ -420,6 +454,10 @@ export class AppComponent implements OnDestroy {
       this.document.documentElement.dataset['theme'] = themeMode
       this.storage.setJson(themeModeStorageKey, themeMode)
     })
+
+    effect(() => {
+      this.mergeJobHistory(this.jobs())
+    })
   }
 
   @HostListener('window:resize')
@@ -522,10 +560,8 @@ export class AppComponent implements OnDestroy {
       const newDescriptors = descriptors.filter(d => !loadedIds.has(d.id))
       if (newDescriptors.length > 0) {
         const newPaths = resources.filter(r => !loadedIds.has(r.path)).map(r => r.path)
-        const newData = createVisualizationData(dateTicks(begin)!, dateTicks(end)!, samplePeriod, newDescriptors)
-        const response = await this.nexus.v2.data.getStream({ begin, end, resourcePaths: newPaths, precision: V2.Precision.Float32 }, controller.signal)
         let lastUpdate = 0
-        await loadVisualizationData(response, newData, fraction => {
+        const loadedData = await this.nexus.loadResources(begin, end, newPaths, V2.Precision.Float32, fraction => {
           const now = performance.now()
           if (this.visualizationController === controller && (fraction === 1 || now - lastUpdate >= 100)) {
             this.visualizationProgress.set(Math.floor(fraction * 100))
@@ -533,14 +569,12 @@ export class AppComponent implements OnDestroy {
           }
         }, controller.signal)
         controller.signal.throwIfAborted()
-        for (const loaded of newData.series) {
-          const target = data.series.find(s => s.id === loaded.id)
-          if (target) {
-            target.chunks = loaded.chunks
-            target.availableLength = loaded.availableLength
-            target.version = loaded.version
-            target.complete = true
-          }
+        for (const descriptor of newDescriptors) {
+          const target = data.series.find(s => s.id === descriptor.id)
+          const loaded = loadedData[descriptor.id]
+          if (!target || !loaded) continue
+          if (!(loaded.values instanceof Float32Array)) throw new Error('The generated client returned data with an unexpected precision')
+          setVisualizationSeriesValues(target, loaded.values)
         }
       } else {
         this.visualizationProgress.set(100)
@@ -587,6 +621,7 @@ export class AppComponent implements OnDestroy {
 
   ngOnDestroy() {
     this.cancelVisualization()
+    this.resetCurrentExportJob()
     this.refreshController.abort()
   }
 
@@ -1054,16 +1089,275 @@ export class AppComponent implements OnDestroy {
       return
     }
 
+    this.resetCurrentExportJob()
+    const controller = new AbortController()
+    this.exportController = controller
+    const parameters = this.exportPreview()
     this.exportBusy.set(true)
     this.exportStatus.set('')
+    this.currentExportJobError.set('')
     try {
-      const job = await this.nexus.exportResources(this.exportPreview())
-      this.exportStatus.set(`Job created: ${job.id ?? 'pending'}`)
+      const job = await this.nexus.v2.jobs.export(parameters, controller.signal)
+      if (!job.id) throw new Error('The export job did not return an ID.')
+      this.currentExportJobId.set(job.id)
+      this.upsertJobHistory(job, parameters)
+      await this.pollCurrentExportJob(job.id, parameters, controller)
     } catch (error) {
-      this.exportStatus.set(this.errorMessage(error))
+      if (!controller.signal.aborted) this.currentExportJobError.set(this.errorMessage(error))
     } finally {
-      this.exportBusy.set(false)
+      if (this.exportController === controller) {
+        this.exportBusy.set(false)
+        this.exportController = undefined
+      }
     }
+  }
+
+  openJobs() {
+    this.isJobsOpen.set(true)
+    void this.refreshJobHistoryStatuses()
+  }
+
+  closeExportComposer() {
+    this.isExportOpen.set(false)
+    this.resetCurrentExportJob()
+  }
+
+  async cancelCurrentExportJob() {
+    const jobId = this.currentExportJobId()
+    if (!jobId) return
+    this.exportController?.abort()
+    this.exportBusy.set(false)
+    this.currentExportJobError.set('Canceling export job...')
+    try {
+      await this.cancelJobById(jobId)
+      const status = await this.nexus.v1.jobs.getJobStatus(jobId)
+      this.currentExportJobStatus.set(status)
+      this.updateJobHistory(jobId, { status, error: '' })
+      this.currentExportJobError.set('The export job has been canceled.')
+    } catch (error) {
+      this.currentExportJobError.set(this.errorMessage(error))
+      this.updateJobHistory(jobId, { error: this.errorMessage(error) })
+    }
+  }
+
+  async downloadCurrentExportJob() {
+    const jobId = this.currentExportJobId()
+    const artifactId = this.artifactIdFromStatus(this.currentExportJobStatus() ?? undefined)
+    if (!jobId || !artifactId) return
+
+    this.currentExportDownloading.set(true)
+    try {
+      const entry = this.jobHistory().find(job => job.id === jobId)
+      await this.downloadArtifact(artifactId, entry?.downloadName ?? this.exportDownloadName())
+    } catch (error) {
+      this.currentExportJobError.set(this.errorMessage(error))
+    } finally {
+      this.currentExportDownloading.set(false)
+    }
+  }
+
+  async refreshJobStatus(entry: ExportJobHistoryEntry) {
+    try {
+      const status = await this.nexus.v1.jobs.getJobStatus(entry.id)
+      this.updateJobHistory(entry.id, { status, error: '' })
+    } catch (error) {
+      this.updateJobHistory(entry.id, { error: this.errorMessage(error) })
+    }
+  }
+
+  async cancelJob(entry: ExportJobHistoryEntry) {
+    try {
+      await this.cancelJobById(entry.id)
+      const status = await this.nexus.v1.jobs.getJobStatus(entry.id)
+      this.updateJobHistory(entry.id, { status, error: '' })
+      if (this.currentExportJobId() === entry.id) this.currentExportJobStatus.set(status)
+    } catch (error) {
+      this.updateJobHistory(entry.id, { error: this.errorMessage(error) })
+    }
+  }
+
+  async downloadJob(entry: ExportJobHistoryEntry) {
+    const artifactId = this.artifactIdFromStatus(entry.status)
+    if (!artifactId) return
+
+    this.updateJobHistory(entry.id, { downloading: true, error: '' })
+    try {
+      await this.downloadArtifact(artifactId, entry.downloadName)
+    } catch (error) {
+      this.updateJobHistory(entry.id, { error: this.errorMessage(error) })
+    } finally {
+      this.updateJobHistory(entry.id, { downloading: false })
+    }
+  }
+
+  jobProgress(status?: V1.JobStatus) {
+    const progress = status?.status === V1.TaskStatus.RanToCompletion ? 1 : status?.progress
+    if (typeof progress !== 'number' || !Number.isFinite(progress)) return 0
+    return Math.max(0, Math.min(100, Math.round(progress * 100)))
+  }
+
+  jobStatusLabel(entry: ExportJobHistoryEntry) {
+    return entry.status ? this.formatJobStatus(entry.status) : 'Status not loaded.'
+  }
+
+  jobStartLabel(entry: ExportJobHistoryEntry) {
+    const value = entry.status?.start
+    if (!value) return 'Start time pending'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  }
+
+  jobDetailsJson(entry: ExportJobHistoryEntry) {
+    return JSON.stringify({
+      owner: entry.job.owner,
+      start: entry.status?.start,
+      status: entry.status?.status,
+      progress: entry.status?.progress,
+      exceptionMessage: entry.status?.exceptionMessage,
+      result: entry.status?.result,
+      parameters: entry.parameters,
+    }, null, 2)
+  }
+
+  jobCanCancel(entry: ExportJobHistoryEntry) {
+    return !this.isTerminalStatus(entry.status?.status)
+  }
+
+  jobCanDownload(entry: ExportJobHistoryEntry) {
+    return !!this.artifactIdFromStatus(entry.status)
+  }
+
+  private async pollCurrentExportJob(jobId: string, parameters: V2.ExportParameters, controller: AbortController) {
+    for (;;) {
+      await this.delay(1000, controller.signal)
+      const status = await this.nexus.v1.jobs.getJobStatus(jobId, controller.signal)
+      if (this.exportController !== controller) return
+      this.currentExportJobStatus.set(status)
+      this.updateJobHistory(jobId, { status, error: '' })
+
+      if (status.status === V1.TaskStatus.RanToCompletion) {
+        const artifactId = this.artifactIdFromStatus(status)
+        if (!artifactId) throw new Error('The completed export job did not return an artifact ID.')
+        await this.downloadArtifact(artifactId, this.exportDownloadName(parameters))
+        return
+      }
+      if (status.status === V1.TaskStatus.Canceled) throw new Error('The export job has been canceled.')
+      if (status.status === V1.TaskStatus.Faulted) throw new Error(`The export job failed. Reason: ${status.exceptionMessage ?? 'unknown'}`)
+    }
+  }
+
+  private resetCurrentExportJob() {
+    this.exportController?.abort()
+    this.exportController = undefined
+    this.exportBusy.set(false)
+    this.exportStatus.set('')
+    this.currentExportJobId.set('')
+    this.currentExportJobStatus.set(null)
+    this.currentExportJobError.set('')
+    this.currentExportDownloading.set(false)
+  }
+
+  private async cancelJobById(jobId: string) {
+    await this.nexus.v1.jobs.cancelJob(jobId)
+  }
+
+  private async refreshJobHistoryStatuses() {
+    await Promise.all(this.jobHistory().map(entry => this.refreshJobStatus(entry)))
+  }
+
+  private mergeJobHistory(jobs: (V1.Job | V2.Job)[]) {
+    if (!jobs.length) return
+    this.jobHistory.update((current) => {
+      const entries = new Map(current.map(entry => [entry.id, entry]))
+      for (const job of jobs) {
+        if (!job.id) continue
+        if (!this.isExportJob(job)) continue
+        entries.set(job.id, entries.get(job.id) ?? this.createJobHistoryEntry(job))
+      }
+      return [...entries.values()].slice(-20).reverse()
+    })
+  }
+
+  private upsertJobHistory(job: V1.Job | V2.Job, parameters?: V2.ExportParameters) {
+    if (!job.id) return
+    this.jobHistory.update((current) => {
+      const existing = current.find(entry => entry.id === job.id)
+      const entry = existing
+        ? { ...existing, job, parameters: parameters ?? existing.parameters, downloadName: this.exportDownloadName(parameters ?? existing.parameters) }
+        : this.createJobHistoryEntry(job, parameters)
+      return [entry, ...current.filter(item => item.id !== job.id)].slice(0, 20)
+    })
+  }
+
+  private updateJobHistory(id: string, patch: Partial<ExportJobHistoryEntry>) {
+    this.jobHistory.update(current => current.map(entry => entry.id === id ? { ...entry, ...patch } : entry))
+  }
+
+  private createJobHistoryEntry(job: V1.Job | V2.Job, parameters = this.exportParametersFromJob(job)): ExportJobHistoryEntry {
+    return {
+      id: job.id ?? '',
+      job,
+      parameters,
+      error: '',
+      downloading: false,
+      downloadName: this.exportDownloadName(parameters),
+    }
+  }
+
+  private exportParametersFromJob(job: V1.Job | V2.Job): V2.ExportParameters | undefined {
+    return isExportParameters(job.parameters) ? job.parameters : undefined
+  }
+
+  private isExportJobEntry(entry: ExportJobHistoryEntry) {
+    return this.isExportJob(entry.job, entry.parameters)
+  }
+
+  private isExportJob(job: V1.Job | V2.Job, parameters = this.exportParametersFromJob(job)) {
+    return !!parameters || job.type?.toLowerCase().includes('export') === true
+  }
+
+  private formatJobStatus(status: V1.JobStatus) {
+    if (status.status === V1.TaskStatus.RanToCompletion) return 'Completed.'
+    if (status.status === V1.TaskStatus.Canceled) return 'Canceled.'
+    if (status.status === V1.TaskStatus.Faulted) return `Failed: ${status.exceptionMessage ?? 'unknown'}`
+    return `${status.status ?? 'Pending'} (${this.jobProgress(status)}%)`
+  }
+
+  private isTerminalStatus(status?: V1.TaskStatus) {
+    return status === V1.TaskStatus.RanToCompletion || status === V1.TaskStatus.Canceled || status === V1.TaskStatus.Faulted
+  }
+
+  private artifactIdFromStatus(status?: V1.JobStatus) {
+    return status?.status === V1.TaskStatus.RanToCompletion && typeof status.result === 'string' ? status.result : ''
+  }
+
+  private async downloadArtifact(artifactId: string, downloadName: string) {
+    const response = await this.nexus.v1.artifacts.download(artifactId)
+    if (!response.ok) throw new Error(`Download failed with HTTP ${response.status}.`)
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const anchor = this.document.createElement('a')
+    anchor.href = url
+    anchor.download = downloadName
+    this.document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  private exportDownloadName(parameters = this.exportPreview()) {
+    const begin = formatDateForDownloadName(parameters.begin ?? this.exportBegin())
+    const period = (parameters.filePeriod ?? this.exportFilePeriod()).replace(/\s+/g, '_')
+    return `Nexus_${begin}_${period}.zip`
+  }
+
+  private delay(milliseconds: number, signal: AbortSignal) {
+    return new Promise<void>((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); reject(signal.reason ?? new DOMException('Aborted', 'AbortError')) }
+      const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve() }, milliseconds)
+      signal.addEventListener('abort', abort, { once: true })
+      if (signal.aborted) abort()
+    })
   }
 
   copyCatalogPath() {
@@ -1161,6 +1455,12 @@ function hasCollapsedSearchAncestor(node: CatalogNode, nodeById: ReadonlyMap<str
   }
 
   return false
+}
+
+function isExportParameters(value: unknown): value is V2.ExportParameters {
+  if (!value || typeof value !== 'object') return false
+  const parameters = value as V2.ExportParameters
+  return typeof parameters.begin === 'string' && typeof parameters.end === 'string'
 }
 
 function getRealCatalogNodeKey(catalogId: string) {

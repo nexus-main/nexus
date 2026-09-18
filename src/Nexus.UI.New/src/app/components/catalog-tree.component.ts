@@ -29,7 +29,7 @@ import { abbreviateMiddle, lastSegment } from '../utils'
     >
       <ng-template pTemplate="default" let-treeNode>
         @let node = treeNode.data;
-        <div class="flex min-w-0 items-center gap-2" [pTooltip]="node.title" [tooltipDisabled]="!node.title" [showDelay]="1000" tooltipStyleClass="!text-xs !px-2 !py-1 !rounded-md !border-0">
+        <div class="flex min-w-0 items-center gap-2" [pTooltip]="node.title" [tooltipDisabled]="!node.title" [showDelay]="1000">
           <span class="shrink-0 truncate font-mono text-[13px] font-semibold leading-5 text-[var(--p-text-color)]">
             <span class="sm:hidden">{{ abbreviateMiddle(treeNode.label, 28) }}</span>
             <span class="hidden sm:inline">{{ treeNode.label }}</span>

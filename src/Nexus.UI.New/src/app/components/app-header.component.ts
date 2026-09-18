@@ -2,6 +2,7 @@ import { Component, computed, input, output } from '@angular/core'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { MenuModule } from 'primeng/menu'
+import { TooltipModule } from 'primeng/tooltip'
 import { AppIconComponent } from './app-icon.component'
 
 type ThemeMode = 'dark' | 'light'
@@ -9,7 +10,7 @@ type ThemeMode = 'dark' | 'light'
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [ButtonModule, MenuModule, AppIconComponent],
+  imports: [ButtonModule, MenuModule, TooltipModule, AppIconComponent],
   template: `
     <header class="content-panel overflow-hidden rounded-md">
       <div class="relative flex items-center justify-between gap-2 p-2.5 sm:gap-3 sm:p-3 lg:p-4">
@@ -70,7 +71,7 @@ type ThemeMode = 'dark' | 'light'
             <app-icon name="settings" class="h-4 w-4" />
             <span class="hidden lg:inline">Settings</span>
           </button>
-          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="h-9 gap-2 px-2.5 transition-colors" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [attr.title]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
+          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="h-9 gap-2 px-2.5 transition-colors" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [pTooltip]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" tooltipPosition="bottom">
             @if (themeMode() === 'dark') {
               <app-icon name="moon" class="h-4 w-4" />
             } @else {
@@ -78,7 +79,7 @@ type ThemeMode = 'dark' | 'light'
             }
             <span class="hidden lg:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
           </button>
-          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="hidden h-9 gap-2 px-2.5 transition-colors sm:flex" aria-label="Open jobs menu" title="Open jobs menu">
+          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="hidden h-9 gap-2 px-2.5 transition-colors sm:flex" (click)="openJobs.emit()" aria-label="Open jobs menu" pTooltip="Open jobs menu" tooltipPosition="bottom">
             <span class="tabular-nums">{{ jobCount() }}</span>
             <span>Jobs</span>
           </button>
@@ -98,6 +99,7 @@ export class AppHeaderComponent {
   readonly isAdministrator = input(false)
   readonly openPackageReferences = output<void>()
   readonly openDataSourcePipelines = output<void>()
+  readonly openJobs = output<void>()
   readonly adminMenuItems = computed<MenuItem[]>(() => {
     const items: MenuItem[] = []
     if (this.isAdministrator()) {

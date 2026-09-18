@@ -23,7 +23,8 @@
     "lib": ["ES2022", "dom"],
     "paths": {
       "@nexus-api": ["../clients/typescript/index.ts"],
-      "@nexus-api/*": ["../clients/typescript/*"]
+      "@nexus-api/*": ["../clients/typescript/*"],
+      "apache-arrow": ["./node_modules/apache-arrow"]
     }
   },
   "angularCompilerOptions": {

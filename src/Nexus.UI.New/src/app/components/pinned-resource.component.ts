@@ -2,26 +2,27 @@ import { CommonModule } from '@angular/common'
 import { Component, computed, input, output } from '@angular/core'
 import { ButtonModule } from 'primeng/button'
 import { Popover, PopoverModule } from 'primeng/popover'
+import { TooltipModule } from 'primeng/tooltip'
 import { ResourceSelection, RepresentationKind, representationKinds, kindValid, formatPeriod, requestPath } from '../resource-selection'
 
 @Component({
   selector: 'app-pinned-resource',
   standalone: true,
-  imports: [CommonModule, ButtonModule, PopoverModule],
+  imports: [CommonModule, ButtonModule, PopoverModule, TooltipModule],
   host: { class: 'block min-w-0' },
   template: `
     <div class="selected-resource-card mb-1 min-w-0 cursor-pointer rounded-sm border border-cyan-300/10 bg-cyan-300/[0.035] p-1 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
       [attr.aria-label]="'Select catalog for ' + resourceLabel()" (click)="activated.emit()" (keydown.enter)="activated.emit()" (keydown.space)="$event.preventDefault(); activated.emit()">
       <div class="flex min-w-0 items-center justify-between gap-1">
         <div class="min-w-0">
-          <div class="truncate font-mono text-xs font-semibold leading-4 text-slate-100" [title]="selection().path">{{ selection().id }}</div>
+          <div class="truncate font-mono text-xs font-semibold leading-4 text-slate-100" [pTooltip]="selection().path" tooltipPosition="top">{{ selection().id }}</div>
           @for (parameter of parameters(); track parameter[0]) {
             <div class="break-all font-mono text-[11px] text-slate-400">{{ parameter[0] }}={{ parameter[1] }}</div>
           }
         </div>
         <button pButton type="button" size="small" severity="secondary" [text]="true"
           class="shrink-0 p-0.5" [disabled]="disabled()" [attr.aria-label]="'Deselect ' + resourceLabel()"
-          [title]="'Deselect ' + resourceLabel()" (click)="$event.stopPropagation(); removed.emit()">
+          [pTooltip]="'Deselect ' + resourceLabel()" tooltipPosition="top" (click)="$event.stopPropagation(); removed.emit()">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m6 6 12 12M6 18 18 6" /></svg>
         </button>
       </div>
@@ -48,7 +49,7 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
         <button #methodsOpener pButton type="button" size="small" severity="secondary" [text]="true"
           class="px-1.5 py-0.5" [hidden]="!validKinds().length" [disabled]="disabled()"
           [attr.aria-label]="'Add methods for ' + resourceLabel()" aria-haspopup="dialog"
-          [title]="'Add methods for ' + resourceLabel()"
+          [pTooltip]="'Add methods for ' + resourceLabel()" tooltipPosition="top"
           [attr.aria-expanded]="methods.overlayVisible" (click)="$event.stopPropagation(); methods.toggle($event, methodsOpener)"
           (keydown.escape)="methods.overlayVisible && closeMethods($event, methods)">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" /></svg>
