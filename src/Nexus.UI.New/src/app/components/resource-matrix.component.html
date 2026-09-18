@@ -9,9 +9,15 @@
       } @else if (writable()) {
         <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="loading() || saving()" (click)="startEditing()" aria-label="Edit metadata" title="Edit metadata"><svg lucidePencil aria-hidden="true"></svg></button>
       }
-      @if (!visualizationPanelVisible()) {
-        <button pButton type="button" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size" (click)="visualize.emit()" aria-label="Visualize" title="Visualize"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
-      }
+      <span class="toolbar-icon-action" [pTooltip]="exportDisabledReason()" [tooltipDisabled]="!exportDisabledReason()" tooltipPosition="top" [attr.title]="exportDisabledReason() || null">
+        <button pButton type="button" class="export-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!exportDisabledReason()" (click)="exportRequested.emit()" aria-label="Export" title="Export"><svg lucideDownload aria-hidden="true"></svg></button>
+      </span>
+      <span class="visualize-action" [pTooltip]="visualizationDisabledReason()" [tooltipDisabled]="!visualizationDisabledReason()" tooltipPosition="top" [attr.title]="visualizationDisabledReason() || null">
+        @if (!visualizationPanelVisible()) {
+          <button pButton type="button" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!visualizationDisabledReason()" (click)="visualize.emit()" aria-label="Visualize" title="Visualize"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
+        }
+        @if (visualizationSize()) { <span class="visualize-size" title="Estimated visualization size (Float32)" aria-label="Estimated visualization size">{{ visualizationSize() }}</span> }
+      </span>
     </div>
   </header>
 

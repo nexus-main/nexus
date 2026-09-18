@@ -2,12 +2,13 @@ import { DOCUMENT } from '@angular/common'
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling'
 import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucidePencil, LucideTriangleAlert, LucideX } from '@lucide/angular'
+import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideDownload, LucidePencil, LucideTriangleAlert, LucideX } from '@lucide/angular'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
 import { DialogModule } from 'primeng/dialog'
 import { InputTextModule } from 'primeng/inputtext'
 import { TextareaModule } from 'primeng/textarea'
+import { TooltipModule } from 'primeng/tooltip'
 import { groupResourceRows } from '../resource-matrix'
 import type { MetadataDrafts, MetadataField } from '../resource-matrix'
 import { formatPeriod } from '../resource-selection'
@@ -16,8 +17,8 @@ import type { RepresentationRow } from '../resource-selection'
 @Component({
   selector: 'app-resource-matrix',
   standalone: true,
-  imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, InputTextModule, TextareaModule,
-    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucidePencil, LucideTriangleAlert, LucideX],
+  imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, InputTextModule, TextareaModule, TooltipModule,
+    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideDownload, LucidePencil, LucideTriangleAlert, LucideX],
   templateUrl: './resource-matrix.component.html',
   styleUrl: './resource-matrix.component.css',
   host: { '[class.narrow]': 'narrow()' },
@@ -35,10 +36,14 @@ export class ResourceMatrixComponent {
   readonly loading = input(false)
   readonly selectionLoading = input(false)
   readonly visualizationPanelVisible = input(false)
+  readonly visualizationSize = input('')
+  readonly visualizationDisabledReason = input('')
+  readonly exportDisabledReason = input('')
   readonly saveMetadata = input.required<(catalogId: string, drafts: MetadataDrafts) => Promise<{ warning?: string }>>()
   readonly toggle = output<RepresentationRow>()
   readonly activate = output<RepresentationRow>()
   readonly visualize = output<void>()
+  readonly exportRequested = output<void>()
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef)
   private readonly document = inject(DOCUMENT)

@@ -47,7 +47,7 @@
                 @if (selectedCatalogRange() || selectedCatalogReadme()) {
                   <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
                     @if (selectedCatalogRange()) {
-                    <span class="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1">{{ selectedCatalogRange() }}</span>
+                      <button type="button" class="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-left transition-colors hover:border-cyan-300/40 hover:bg-cyan-300/10 hover:text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300" (click)="applySelectedCatalogRange()" title="Use this catalog date range" aria-label="Use this catalog date range">{{ selectedCatalogRange() }}</button>
                     }
                     @if (selectedCatalogReadme()) {
                       <button pButton type="button" size="small" severity="secondary" [text]="true" class="hidden sm:inline-flex" (click)="activeCatalogDetailsOpen.update((value) => !value)" [attr.aria-expanded]="activeCatalogDetailsOpen()" aria-controls="active-catalog-readme"><svg lucideFileText class="h-4 w-4" aria-hidden="true"></svg>{{ activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme' }}</button>
@@ -72,9 +72,10 @@
             [selectedKeys]="selectedResourcePaths()" [activeKey]="activeResourcePath()"
             [revealKey]="revealResourceKey()" [revealSequence]="revealResourceSequence()"
             [writable]="resourceMetadataWritable()" [loading]="catalogLoading()" [selectionLoading]="selectionLoading()"
-            [visualizationPanelVisible]="visualizationPanelVisible()"
+            [visualizationPanelVisible]="visualizationPanelVisible()" [visualizationSize]="visualizationByteCountLabel()"
+            [visualizationDisabledReason]="visualizationValidation()" [exportDisabledReason]="selectionError()"
             [saveMetadata]="saveResourceMetadata" (toggle)="toggleResource($event)"
-            (activate)="activateResource($event)" (visualize)="visualize()" />
+            (activate)="activateResource($event)" (visualize)="visualize()" (exportRequested)="isExportOpen.set(true)" />
 
           <section class="content-panel min-h-0 h-full overflow-hidden rounded-sm flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2" [class.hidden]="!visualizationPanelVisible()" [class.flex]="visualizationPanelVisible()">
             <div class="flex shrink-0 flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -162,7 +163,7 @@
 </p-dialog>
 
 @if (isExportOpen()) {
-  <app-export-composer [writerDescriptions]="writerDescriptions()" [selectedWriterType]="selectedWriterType()" [exportBegin]="exportBegin()" [exportEnd]="exportEnd()" [exportFilePeriod]="exportFilePeriod()" [exportPrecision]="exportPrecision()" [writerOptions]="writerOptions()" [exportConfiguration]="exportConfiguration()" [quickRanges]="quickRanges" [exportError]="exportError()" [exportPreview]="exportPreview()" [exportStatus]="exportStatus()" [exportBusy]="exportBusy()" (close)="isExportOpen.set(false)" (selectedWriterTypeChange)="selectedWriterType.set($event)" (exportBeginChange)="exportBegin.set($event)" (exportEndChange)="exportEnd.set($event)" (exportFilePeriodChange)="exportFilePeriod.set($event)" (exportPrecisionChange)="exportPrecision.set($event)" (configChanged)="updateConfig($event.key, $event.value)" (quickRangeApplied)="applyQuickRange($event)" (createJob)="createExportJob()" />
+  <app-export-composer [writerDescriptions]="writerDescriptions()" [selectedWriterType]="selectedWriterType()" [exportBegin]="exportBegin()" [exportEnd]="exportEnd()" [exportFilePeriod]="exportFilePeriodDraft()" [exportFilePeriodError]="exportFilePeriodError()" [exportPrecision]="exportPrecision()" [exportSize]="exportByteCountLabel()" [writerOptions]="writerOptions()" [exportConfiguration]="exportConfiguration()" [exportError]="exportError()" [exportPreview]="exportPreview()" [exportStatus]="exportStatus()" [exportBusy]="exportBusy()" (close)="isExportOpen.set(false)" (selectedWriterTypeChange)="selectedWriterType.set($event)" (exportFilePeriodChange)="setExportFilePeriod($event)" (exportFilePeriodBlur)="normalizeExportFilePeriod()" (exportPrecisionChange)="exportPrecision.set($event)" (configChanged)="updateConfig($event.key, $event.value)" (createJob)="createExportJob()" />
 }
 
 <p-dialog appRestoreFocus header="Clear pinned resources?" [visible]="isClearPinnedOpen()" (visibleChange)="isClearPinnedOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close clear pinned resources confirmation', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(28rem, calc(100vw - 2rem))' }">
@@ -214,8 +215,6 @@
           <div class="mt-3 flex items-center justify-end gap-3 text-xs text-slate-500">
             <div class="flex items-center gap-2">
               <button pButton type="button" size="small" severity="secondary" [outlined]="true" [disabled]="pinnedCount() === 0 || selectionLoading()" (click)="requestClearPinnedResources()">Clear</button>
-              <button pButton type="button" size="small" [outlined]="true" [disabled]="!!visualizationValidation()" (click)="visualize()">Visualize</button>
-              <button pButton type="button" size="small" [outlined]="true" [disabled]="!!selectionError()" (click)="isExportOpen.set(true)">Export</button>
             </div>
           </div>
         }
