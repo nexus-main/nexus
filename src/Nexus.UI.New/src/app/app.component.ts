@@ -15,7 +15,7 @@ import { TooltipModule } from 'primeng/tooltip'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
 import { VisualizationChartComponent } from './charts/visualization-chart.component'
-import { VisualizationData, createVisualizationData, setVisualizationSeriesValues } from './charts/visualization-data'
+import { VisualizationBuffers, VisualizationData, createVisualizationData } from './charts/visualization-data'
 import { dateTicks } from './resource-selection'
 import { AppHeaderComponent } from './components/app-header.component'
 import { CatalogTreeComponent } from './components/catalog-tree.component'
@@ -151,6 +151,7 @@ export class AppComponent implements OnDestroy {
   readonly visualizationBeginAtZero = signal(false)
   readonly visualizationCacheMiB = signal(2048)
   private visualizationController?: AbortController
+  private visualizationBuffers?: VisualizationBuffers
   private exportController?: AbortController
   private readonly loadedVisualizationKey = signal('')
   readonly themeMode = signal<ThemeMode>(getInitialThemeMode(this.storage))
@@ -560,8 +561,11 @@ export class AppComponent implements OnDestroy {
       const newDescriptors = descriptors.filter(d => !loadedIds.has(d.id))
       if (newDescriptors.length > 0) {
         const newPaths = resources.filter(r => !loadedIds.has(r.path)).map(r => r.path)
+        const newSeries = data.series.filter(series => !loadedIds.has(series.id))
+        const buffers = new VisualizationBuffers(newSeries)
+        this.visualizationBuffers = buffers
         let lastUpdate = 0
-        const loadedData = await this.nexus.loadResources(begin, end, newPaths, V2.Precision.Float32, fraction => {
+        await this.nexus.loadResourcesIntoBuffers(begin, end, newPaths, V2.Precision.Float32, buffers.provider, fraction => {
           const now = performance.now()
           if (this.visualizationController === controller && (fraction === 1 || now - lastUpdate >= 100)) {
             this.visualizationProgress.set(Math.floor(fraction * 100))
@@ -569,13 +573,8 @@ export class AppComponent implements OnDestroy {
           }
         }, controller.signal)
         controller.signal.throwIfAborted()
-        for (const descriptor of newDescriptors) {
-          const target = data.series.find(s => s.id === descriptor.id)
-          const loaded = loadedData[descriptor.id]
-          if (!target || !loaded) continue
-          if (!(loaded.values instanceof Float32Array)) throw new Error('The generated client returned data with an unexpected precision')
-          setVisualizationSeriesValues(target, loaded.values)
-        }
+        buffers.complete()
+        if (this.visualizationBuffers === buffers) this.visualizationBuffers = undefined
       } else {
         this.visualizationProgress.set(100)
       }
@@ -585,6 +584,8 @@ export class AppComponent implements OnDestroy {
       for (const series of data.series) series.unit = currentUnits.get(series.id) ?? series.unit
       this.visualizationData.set(data)
     } catch (error) {
+      this.visualizationBuffers?.dispose()
+      this.visualizationBuffers = undefined
       if (this.visualizationController === controller) {
         this.visualizationData.set(null)
         if (!controller.signal.aborted) this.visualizationError.set(this.errorMessage(error))
@@ -600,6 +601,8 @@ export class AppComponent implements OnDestroy {
   cancelVisualization() {
     this.visualizationController?.abort()
     this.visualizationController = undefined
+    this.visualizationBuffers?.dispose()
+    this.visualizationBuffers = undefined
     if (this.visualizationLoading()) this.visualizationData.set(null)
     this.visualizationLoading.set(false)
   }

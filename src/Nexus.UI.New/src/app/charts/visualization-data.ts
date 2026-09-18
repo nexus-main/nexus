@@ -1,3 +1,5 @@
+import { CHUNK_LENGTH } from './chart-math.ts'
+
 export interface VisualizationSeries {
   id: string
   name: string
@@ -49,4 +51,69 @@ export function setVisualizationSeriesValues(series: VisualizationSeries, values
   series.availableLength = values.length
   series.version++
   series.complete = true
+}
+
+export class VisualizationBuffers {
+  private readonly seriesById: ReadonlyMap<string, VisualizationSeries>
+  private readonly current = new Map<string, Float32Array>()
+  private disposed = false
+
+  readonly provider: (resourcePath: string, chunkLength: number, remainingLength: number) => Float32Array = (resourcePath, chunkLength, remainingLength) => {
+    return this.createChunk(resourcePath, chunkLength, remainingLength)
+  }
+
+  constructor(series: readonly VisualizationSeries[]) {
+    this.seriesById = new Map(series.map(item => [item.id, item]))
+  }
+
+  createChunk(resourcePath: string, chunkLength: number, remainingLength: number): Float32Array {
+    if (this.disposed) throw new Error('Visualization buffers have already been disposed')
+    const series = this.seriesById.get(resourcePath)
+    if (!series) throw new Error(`The generated client requested an unknown visualization series: ${resourcePath}`)
+    if (!Number.isSafeInteger(chunkLength) || chunkLength < 0) throw new Error('The generated client requested an invalid chunk length')
+    if (!Number.isSafeInteger(remainingLength) || remainingLength < chunkLength) throw new Error('The generated client requested an invalid remaining sample count')
+    const pendingLength = this.current.get(resourcePath)?.length ?? 0
+    if (series.availableLength + pendingLength + remainingLength !== series.length) throw new Error('The generated client requested an unexpected sample count')
+    if (chunkLength > CHUNK_LENGTH) throw new Error('The generated client requested an oversized visualization chunk')
+    if (remainingLength > chunkLength && chunkLength !== CHUNK_LENGTH) throw new Error('The generated client requested an unaligned visualization chunk')
+
+    this.publish(resourcePath)
+    const chunk = new Float32Array(chunkLength)
+    this.current.set(resourcePath, chunk)
+    return chunk
+  }
+
+  complete(): void {
+    if (this.disposed) throw new Error('Visualization buffers have already been disposed')
+    for (const resourcePath of this.seriesById.keys()) this.publish(resourcePath)
+    for (const series of this.seriesById.values()) {
+      if (series.availableLength !== series.length) throw new Error(`Visualization series '${series.id}' completed with an unexpected sample count`)
+      if (!series.complete) {
+        series.complete = true
+        series.version++
+      }
+    }
+  }
+
+  dispose(): void {
+    this.disposed = true
+    this.current.clear()
+    for (const series of this.seriesById.values()) {
+      if (!series.complete) {
+        series.chunks = []
+        series.availableLength = 0
+      }
+    }
+  }
+
+  private publish(resourcePath: string): void {
+    const chunk = this.current.get(resourcePath)
+    if (!chunk) return
+    this.current.delete(resourcePath)
+    const series = this.seriesById.get(resourcePath)!
+
+    series.chunks.push(chunk)
+    series.availableLength += chunk.length
+    series.version++
+  }
 }
