@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core'
+import { NexusClient } from '@nexus-api/_client'
 import * as V1 from '@nexus-api/V1'
 import * as V2 from '@nexus-api/V2'
 
@@ -148,6 +149,7 @@ export class NexusService {
   readonly endpoint = globalThis.location?.origin ?? 'http://localhost:4200'
   readonly apiAvailable = signal(false)
   readonly currentUser = signal<V1.MeResponse | null>(null)
+  private readonly client = new NexusClient(this.endpoint)
   readonly v1 = new V1.V1(this.invoke.bind(this))
   readonly v2 = new V2.V2(this.invoke.bind(this))
 
@@ -186,6 +188,19 @@ export class NexusService {
 
   async exportResources(parameters: V2.ExportParameters) {
     return this.v2.jobs.export(parameters)
+  }
+
+  async loadResources(
+    begin: string,
+    end: string,
+    resourcePaths: string[],
+    precision: V2.Precision,
+    onProgress?: ((progress: number) => void) | undefined,
+    signal?: AbortSignal,
+  ) {
+    const result = await this.client.load(begin, end, resourcePaths, precision, onProgress, signal)
+    this.apiAvailable.set(true)
+    return result
   }
 
   private async invoke<T>(method: string, url: string, accept?: string, contentType?: string, body?: BodyInit | null, signal?: AbortSignal): Promise<T> {

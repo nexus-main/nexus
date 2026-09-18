@@ -35,10 +35,10 @@
       <button type="button" class="legend-item" [class.inactive]="hidden.has(item.id)"
         [attr.aria-pressed]="!hidden.has(item.id)" (click)="toggleSeries(item)">
         <span class="color-box" [style.border-color]="color(index)"></span>
-        <span [id]="'name_' + item.id + '_' + chartId" class="name" [legendName]="item.name"></span>
+        <span [id]="'name_' + item.id + '_' + chartId" class="name" [legendName]="item.name" [pTooltip]="item.name" tooltipPosition="top"></span>
         <span class="legend-reading">
           <span [id]="'value_' + item.id + '_' + chartId" class="legend-number">--</span>
-          <span class="legend-unit" [title]="item.unit">{{ item.unit }}</span>
+          <span class="legend-unit" [pTooltip]="item.unit" [tooltipDisabled]="!item.unit" tooltipPosition="top">{{ item.unit }}</span>
         </span>
       </button>
     }

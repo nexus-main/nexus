@@ -103,6 +103,28 @@ button {
 
 .p-select-overlay { font-size: 0.8125rem; }
 
+.p-tooltip .p-tooltip-text {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.nexus-progress-outlined .p-progressbar {
+  height: 0.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(148, 163, 184, 0.08);
+  box-shadow: none;
+}
+
+.nexus-progress-outlined .p-progressbar-value {
+  border-right: 1px solid rgba(103, 232, 249, 0.5);
+  background: rgba(103, 232, 249, 0.14);
+  box-shadow: none;
+}
+
+.nexus-progress-outlined .p-progressbar-label {
+  color: var(--p-text-muted-color);
+}
+
 .backdrop-blur,
 .backdrop-blur-sm {
   -webkit-backdrop-filter: none !important;

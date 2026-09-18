@@ -7,6 +7,7 @@ import type { Axis, Viewport } from './chart-math';
 import { provideSeriesChunk, uploadSeries } from './chart-upload';
 import { LegendNameDirective } from './legend-name.directive';
 import { formatLegendValue } from './legend-text';
+import { TooltipModule } from 'primeng/tooltip';
 
 let nextChartId = 0;
 type ThemeMode = 'dark' | 'light';
@@ -21,7 +22,7 @@ interface SeriesState {
 @Component({
   selector: 'nexus-visualization-chart',
   standalone: true,
-  imports: [LegendNameDirective],
+  imports: [LegendNameDirective, TooltipModule],
   templateUrl: './visualization-chart.component.html',
   styleUrl: './visualization-chart.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

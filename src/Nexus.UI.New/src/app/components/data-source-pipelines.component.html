@@ -92,7 +92,7 @@
                             [ngModel]="current.releasePattern ?? ''" (ngModelChange)="setPattern('releasePattern', $event || null)" />
                           <svg lucideCircleHelp class="h-4 w-4 help-icon" aria-hidden="true"
                             [pTooltip]="'Selects catalog IDs using server-evaluated .NET regular expressions. Empty selects all. Applies only when the owner can release the catalog.'"
-                            tooltipPosition="right" [escape]="false" tooltipStyleClass="!text-xs !max-w-xs" />
+                            tooltipPosition="right" [escape]="false" />
                         </div>
                       </div>
                       <div class="field">
@@ -102,7 +102,7 @@
                             [ngModel]="current.visibilityPattern ?? ''" (ngModelChange)="setPattern('visibilityPattern', $event || null)" />
                           <svg lucideCircleHelp class="h-4 w-4 help-icon" aria-hidden="true"
                             [pTooltip]="'Selects catalog IDs using server-evaluated .NET regular expressions. Empty selects all. Controls listing; readable catalogs are always visible. Neither flag grants access.'"
-                            tooltipPosition="right" [escape]="false" tooltipStyleClass="!text-xs !max-w-xs" />
+                            tooltipPosition="right" [escape]="false" />
                         </div>
                       </div>
                     </fieldset>

@@ -4,7 +4,7 @@ import { fitLegendName } from './legend-text';
 @Directive({
   selector: '[legendName]',
   standalone: true,
-  host: { '[attr.title]': 'legendName', '[attr.aria-label]': 'legendName' },
+  host: { '[attr.aria-label]': 'legendName' },
 })
 export class LegendNameDirective implements AfterViewInit, OnChanges, OnDestroy {
   @Input() legendName = '';

@@ -7,34 +7,34 @@
         <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="saving()" (click)="cancelEditing()">Cancel</button>
         <button pButton type="button" size="small" [disabled]="saving() || !writable() || !dirtyCount()" (click)="saveChanges()">{{ saving() ? 'Saving...' : 'Save changes' }}</button>
       } @else if (writable()) {
-        <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="loading() || saving()" (click)="startEditing()" aria-label="Edit metadata" title="Edit metadata"><svg lucidePencil aria-hidden="true"></svg></button>
+        <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="loading() || saving()" (click)="startEditing()" aria-label="Edit metadata" pTooltip="Edit metadata" tooltipPosition="top"><svg lucidePencil aria-hidden="true"></svg></button>
       }
-      <span class="toolbar-icon-action" [pTooltip]="exportDisabledReason()" [tooltipDisabled]="!exportDisabledReason()" tooltipPosition="top" [attr.title]="exportDisabledReason() || null">
-        <button pButton type="button" class="export-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!exportDisabledReason()" (click)="exportRequested.emit()" aria-label="Export" title="Export"><svg lucideDownload aria-hidden="true"></svg></button>
+      <span class="toolbar-icon-action" [pTooltip]="exportDisabledReason()" [tooltipDisabled]="!exportDisabledReason()" tooltipPosition="top">
+        <button pButton type="button" class="export-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!exportDisabledReason()" (click)="exportRequested.emit()" aria-label="Export" pTooltip="Export" tooltipPosition="top"><svg lucideDownload aria-hidden="true"></svg></button>
       </span>
-      <span class="visualize-action" [pTooltip]="visualizationDisabledReason()" [tooltipDisabled]="!visualizationDisabledReason()" tooltipPosition="top" [attr.title]="visualizationDisabledReason() || null">
+      <span class="visualize-action" [pTooltip]="visualizationDisabledReason()" [tooltipDisabled]="!visualizationDisabledReason()" tooltipPosition="top">
         @if (!visualizationPanelVisible()) {
-          <button pButton type="button" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!visualizationDisabledReason()" (click)="visualize.emit()" aria-label="Visualize" title="Visualize"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
+          <button pButton type="button" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!visualizationDisabledReason()" (click)="visualize.emit()" aria-label="Visualize" pTooltip="Visualize" tooltipPosition="top"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
         }
-        @if (visualizationSize()) { <span class="visualize-size" title="Estimated visualization size (Float32)" aria-label="Estimated visualization size">{{ visualizationSize() }}</span> }
+        @if (visualizationSize()) { <span class="visualize-size" pTooltip="Estimated visualization size (Float32)" tooltipPosition="top" aria-label="Estimated visualization size">{{ visualizationSize() }}</span> }
       </span>
     </div>
   </header>
 
   <div class="search-bar">
     <input #searchInput pInputText type="text" class="w-full min-w-0" pSize="small" aria-label="Search resources" placeholder="Search resources..." [ngModel]="search()" (ngModelChange)="setSearch($event)" [disabled]="saving()" />
-    @if (search()) { <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" [disabled]="saving()" (click)="setSearch('')" aria-label="Clear resource search" title="Clear search"><svg lucideX aria-hidden="true"></svg></button> }
+    @if (search()) { <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" [disabled]="saving()" (click)="setSearch('')" aria-label="Clear resource search" pTooltip="Clear search" tooltipPosition="top"><svg lucideX aria-hidden="true"></svg></button> }
   </div>
 
   <div class="group-bar" [class.expanded]="expanded()" [class.can-scroll-back]="canScrollGroupsBack()" [class.can-scroll-forward]="canScrollGroupsForward()">
     <div #groupStrip [id]="groupStripId" class="group-strip" role="group" aria-label="Resource groups" (scroll)="updateGroupScroll()" (wheel)="scrollCollapsedGroups($event)">
       @for (group of groups(); track group.key) {
-        <button pButton type="button" severity="secondary" size="small" class="group-chip" [text]="true" [attr.aria-pressed]="activeGroup()?.key === group.key" [attr.aria-label]="group.name + ', ' + group.rows.length + ' representations'" [title]="group.name" [disabled]="saving()" (click)="selectGroup(group.key)">
+        <button pButton type="button" severity="secondary" size="small" class="group-chip" [text]="true" [attr.aria-pressed]="activeGroup()?.key === group.key" [attr.aria-label]="group.name + ', ' + group.rows.length + ' representations'" [pTooltip]="group.name" tooltipPosition="top" [disabled]="saving()" (click)="selectGroup(group.key)">
           <span class="group-name">{{ group.name }}</span><span class="group-count">{{ group.rows.length }}</span>
         </button>
       } @empty { <span class="group-empty">No matching groups</span> }
     </div>
-    <button pButton type="button" size="small" severity="secondary" [text]="true" class="expand-groups" [attr.aria-controls]="groupStripId" [attr.aria-expanded]="expanded()" [attr.aria-label]="expanded() ? 'Collapse group list' : 'Expand group list'" [title]="expanded() ? 'Collapse groups' : 'Expand groups'" [disabled]="saving() || !groups().length" (click)="expanded.set(!expanded())">
+    <button pButton type="button" size="small" severity="secondary" [text]="true" class="expand-groups" [attr.aria-controls]="groupStripId" [attr.aria-expanded]="expanded()" [attr.aria-label]="expanded() ? 'Collapse group list' : 'Expand group list'" [pTooltip]="expanded() ? 'Collapse groups' : 'Expand groups'" tooltipPosition="top" [disabled]="saving() || !groups().length" (click)="expanded.set(!expanded())">
       @if (expanded()) { <svg lucideChevronUp aria-hidden="true"></svg> } @else { <svg lucideChevronDown aria-hidden="true"></svg> }
     </button>
   </div>
@@ -57,9 +57,9 @@
   <div class="list-shell">
     <cdk-virtual-scroll-viewport class="resource-viewport" [itemSize]="itemSize()" [minBufferPx]="itemSize() * 3" [maxBufferPx]="itemSize() * 6" role="list" aria-label="Resource representations">
       <div *cdkVirtualFor="let row of visibleRows(); let index = index; trackBy: trackRow" class="resource-row" [class.active]="activeKey() === row.key" [class.selected]="selectedKeys().has(row.key)" [attr.data-row-key]="row.key" role="listitem" [attr.aria-posinset]="index + 1" [attr.aria-setsize]="visibleRows().length" [attr.aria-current]="activeKey() === row.key ? 'true' : null">
-        <label class="selection-control" [title]="selectionLabel(row)"><p-checkbox [binary]="true" [ngModel]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [ariaLabel]="selectionLabel(row)" (ngModelChange)="toggleRow(row)" /></label>
+        <label class="selection-control" [pTooltip]="selectionLabel(row)" tooltipPosition="top"><p-checkbox [binary]="true" [ngModel]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [ariaLabel]="selectionLabel(row)" (ngModelChange)="toggleRow(row)" /></label>
         @if (editing() && !narrow()) {
-          <button type="button" class="resource-identity" [disabled]="saving()" [title]="row.path" [attr.aria-label]="'Activate ' + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
+          <button type="button" class="resource-identity" [disabled]="saving()" [pTooltip]="row.path" tooltipPosition="top" [attr.aria-label]="'Activate ' + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
             <strong>{{ row.id }}</strong><span class="period">{{ formatPeriod(row.basePeriod) }}</span>
           </button>
           @for (field of fields; track field) {
@@ -70,10 +70,10 @@
         } @else {
           <button type="button" class="resource-identity" [disabled]="saving()" [attr.aria-haspopup]="narrow() ? 'dialog' : null" [attr.aria-label]="(narrow() ? (editing() && writable() ? 'Edit metadata for ' : 'Read details for ') : 'Activate ') + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
             <span class="resource-line">
-              <span class="resource-name"><strong [title]="row.path">{{ row.id }}</strong>@if (value(row, 'unit')) { <span class="unit" [title]="value(row, 'unit')">{{ value(row, 'unit') }}</span> }</span>
-              @if (value(row, 'warning')) { <span class="warning" [title]="'Warning: ' + value(row, 'warning')"><svg lucideTriangleAlert aria-hidden="true"></svg><span>{{ value(row, 'warning') }}</span></span> }
+              <span class="resource-name"><strong [pTooltip]="row.path" tooltipPosition="top">{{ row.id }}</strong>@if (value(row, 'unit')) { <span class="unit" [pTooltip]="value(row, 'unit')" [tooltipDisabled]="!value(row, 'unit')" tooltipPosition="top">{{ value(row, 'unit') }}</span> }</span>
+              @if (value(row, 'warning')) { <span class="warning" [pTooltip]="'Warning: ' + value(row, 'warning')" tooltipPosition="top"><svg lucideTriangleAlert aria-hidden="true"></svg><span>{{ value(row, 'warning') }}</span></span> }
             </span>
-            <span class="resource-line secondary-line"><span class="period">{{ formatPeriod(row.basePeriod) }}</span><span class="description" [title]="value(row, 'description')">{{ value(row, 'description') }}</span></span>
+            <span class="resource-line secondary-line"><span class="period">{{ formatPeriod(row.basePeriod) }}</span><span class="description" [pTooltip]="value(row, 'description')" [tooltipDisabled]="!value(row, 'description')" tooltipPosition="top">{{ value(row, 'description') }}</span></span>
           </button>
         }
       </div>
