@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core'
-import { NexusClient } from '@nexus-api/_client'
+import { NexusClient, type BufferProvider } from '@nexus-api/_client'
 import * as V1 from '@nexus-api/V1'
 import * as V2 from '@nexus-api/V2'
 
@@ -199,6 +199,20 @@ export class NexusService {
     signal?: AbortSignal,
   ) {
     const result = await this.client.load(begin, end, resourcePaths, precision, onProgress, signal)
+    this.apiAvailable.set(true)
+    return result
+  }
+
+  async loadResourcesIntoBuffers(
+    begin: string,
+    end: string,
+    resourcePaths: string[],
+    precision: V2.Precision,
+    bufferProvider: BufferProvider,
+    onProgress?: ((progress: number) => void) | undefined,
+    signal?: AbortSignal,
+  ) {
+    const result = await this.client.load(begin, end, resourcePaths, precision, bufferProvider, onProgress, signal)
     this.apiAvailable.set(true)
     return result
   }

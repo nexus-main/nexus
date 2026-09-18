@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { createVisualizationData, setVisualizationSeriesValues } from './visualization-data.ts';
+import { CHUNK_LENGTH } from './chart-math.ts';
+import { VisualizationBuffers, createVisualizationData, setVisualizationSeriesValues } from './visualization-data.ts';
 
 const descriptors = [
     { id: '/a', name: 'A', unit: 'm/s' },
@@ -59,5 +60,53 @@ describe('setVisualizationSeriesValues', () => {
         const data = createVisualizationData(0n, 3n, 1n, descriptors.slice(0, 1));
 
         assert.throws(() => setVisualizationSeriesValues(data.series[0], new Float32Array([1, 2])), /unexpected sample count/);
+    });
+});
+
+describe('VisualizationBuffers', () => {
+    it('allocates generated-client buffers and publishes them on completion', () => {
+        const data = createVisualizationData(0n, 3n, 1n, descriptors.slice(0, 1));
+        const buffers = new VisualizationBuffers(data.series);
+
+        const chunk = buffers.provider('/a', 3, 3);
+
+        assert.equal(buffers.provider.length, 3);
+        assert.equal(chunk.length, 3);
+        assert.deepEqual(data.series[0].chunks, []);
+        assert.equal(data.series[0].availableLength, 0);
+
+        buffers.complete();
+
+        assert.deepEqual(data.series[0].chunks, [chunk]);
+        assert.equal(data.series[0].availableLength, 3);
+        assert.equal(data.series[0].version, 2);
+        assert.equal(data.series[0].complete, true);
+    });
+
+    it('publishes the previous chart-sized chunk when requesting the next one', () => {
+        const data = createVisualizationData(0n, BigInt(CHUNK_LENGTH + 2), 1n, descriptors.slice(0, 1));
+        const buffers = new VisualizationBuffers(data.series);
+
+        const first = buffers.createChunk('/a', CHUNK_LENGTH, CHUNK_LENGTH + 2);
+        const second = buffers.createChunk('/a', 2, 2);
+
+        assert.equal(first.length, CHUNK_LENGTH);
+        assert.equal(second.length, 2);
+        assert.deepEqual(data.series[0].chunks, [first]);
+        assert.equal(data.series[0].availableLength, CHUNK_LENGTH);
+
+        buffers.complete();
+
+        assert.deepEqual(data.series[0].chunks, [first, second]);
+        assert.equal(data.series[0].availableLength, CHUNK_LENGTH + 2);
+        assert.equal(data.series[0].complete, true);
+    });
+
+    it('rejects unknown series and unexpected lengths', () => {
+        const data = createVisualizationData(0n, 3n, 1n, descriptors.slice(0, 1));
+        const buffers = new VisualizationBuffers(data.series);
+
+        assert.throws(() => buffers.createChunk('/missing', 3, 3), /unknown visualization series/);
+        assert.throws(() => buffers.createChunk('/a', 2, 2), /unexpected sample count/);
     });
 });
