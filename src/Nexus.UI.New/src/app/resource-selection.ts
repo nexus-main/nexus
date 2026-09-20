@@ -79,6 +79,14 @@ export function formatPeriod(ticks: bigint, separator = ' '): string {
   return `${nanoseconds / scale}${separator}${name}`
 }
 
+export function parseFilePeriod(value: string): bigint | null {
+  return value.trim().toLowerCase() === 'single file' ? 0n : parsePeriod(value)
+}
+
+export function formatFilePeriod(ticks: bigint): string {
+  return ticks === 0n ? 'Single file' : formatPeriod(ticks)
+}
+
 export function toTimeSpan(ticks: bigint): string {
   if (ticks < 0n || ticks > maxTicks) throw new RangeError('Period is outside the TimeSpan range')
   const seconds = ticks / ticksPerSecond

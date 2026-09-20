@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ResourceRow } from './nexus.service'
 import {
-  alignRangeEndpoint, defaultKind, executionRangeError, formatPeriod, hydrateSelections, kindValid, parsePeriod, readSelectionState,
+  alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, readSelectionState,
   representationKinds, representationRows, requestPath, selectionKey,
   storeSelectionReference, toTimeSpan,
 } from './resource-selection.ts'
@@ -57,6 +57,14 @@ describe('periods', () => {
       assert.equal(parsePeriod(formatPeriod(ticks)), ticks)
     }
     assert.equal(formatPeriod(60n * second, '_'), '1_min')
+  })
+
+  it('labels zero file period as a single file without changing normal period formatting', () => {
+    assert.equal(parseFilePeriod('Single file'), 0n)
+    assert.equal(parseFilePeriod(' single FILE '), 0n)
+    assert.equal(parseFilePeriod('1 h'), 3600n * second)
+    assert.equal(formatFilePeriod(0n), 'Single file')
+    assert.equal(formatFilePeriod(60n * second), '1 min')
   })
 
   it('serializes export TimeSpans with seven-digit tick precision', () => {

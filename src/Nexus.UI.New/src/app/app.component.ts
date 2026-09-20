@@ -25,7 +25,7 @@ import { PackageReferencesComponent } from './components/package-references.comp
 import { DataSourcePipelinesComponent } from './components/data-source-pipelines.component'
 import { ResourceMatrixComponent } from './components/resource-matrix.component'
 import { MetadataDrafts, mergeResourceMetadata } from './resource-matrix'
-import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatPeriod, hydrateSelections, kindValid, parsePeriod, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
+import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
 import { MarkdownPipe } from './markdown.pipe'
 import { RestoreFocusDirective } from './restore-focus.directive'
 import {
@@ -174,10 +174,10 @@ export class AppComponent implements OnDestroy {
     return period === null || period <= 0n ? 'Enter a positive period, for example 100 ms, 1 s, or 10 min (100 ns minimum).' : ''
   })
   readonly exportFilePeriod = signal('PT0S')
-  readonly exportFilePeriodDraft = signal('0 s')
+  readonly exportFilePeriodDraft = signal('Single file')
   readonly exportFilePeriodError = computed(() => {
-    const period = parsePeriod(this.exportFilePeriodDraft())
-    if (period === null) return 'Enter a file period, for example 0 s, 100 ms, 1 s, or 10 min.'
+    const period = parseFilePeriod(this.exportFilePeriodDraft())
+    if (period === null) return 'Enter a file period, for example Single file, 100 ms, 1 s, or 10 min.'
     return period % this.samplePeriod() === 0n ? '' : 'File period must be zero or an integer multiple of Period.'
   })
   readonly selectedWriterType = signal('Nexus.Writers.Csv')
@@ -1074,12 +1074,12 @@ export class AppComponent implements OnDestroy {
 
   setExportFilePeriod(value: string) {
     this.exportFilePeriodDraft.set(value)
-    const period = parsePeriod(value)
+    const period = parseFilePeriod(value)
     if (period !== null && period % this.samplePeriod() === 0n) this.exportFilePeriod.set(formatPeriod(period))
   }
 
   normalizeExportFilePeriod() {
-    if (!this.exportFilePeriodError()) this.exportFilePeriodDraft.set(formatPeriod(parsePeriod(this.exportFilePeriod()) ?? 0n))
+    if (!this.exportFilePeriodError()) this.exportFilePeriodDraft.set(formatFilePeriod(parsePeriod(this.exportFilePeriod()) ?? 0n))
   }
 
   updateConfig(key: string, value: unknown) {

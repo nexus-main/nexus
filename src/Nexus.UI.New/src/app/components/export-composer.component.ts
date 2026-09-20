@@ -34,7 +34,7 @@ import { RestoreFocusDirective } from '../restore-focus.directive'
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <div><label for="export-file-period" class="mb-1.5 block text-xs uppercase tracking-[0.18em]">File period</label><input pInputText pSize="small" id="export-file-period" type="text" class="w-full" [invalid]="!!exportFilePeriodError()" [attr.aria-invalid]="!!exportFilePeriodError()" [ngModel]="exportFilePeriod()" (ngModelChange)="exportFilePeriodChange.emit($event)" (blur)="exportFilePeriodBlur.emit()" placeholder="0 s" />@if (exportFilePeriodError()) { <p class="mt-1 text-xs text-rose-400" role="alert">{{ exportFilePeriodError() }}</p> }</div>
+            <div><label for="export-file-period" class="mb-1.5 block text-xs uppercase tracking-[0.18em]">File period</label><input pInputText pSize="small" id="export-file-period" type="text" class="w-full" [invalid]="!!exportFilePeriodError()" [attr.aria-invalid]="!!exportFilePeriodError()" [ngModel]="exportFilePeriod()" (ngModelChange)="exportFilePeriodChange.emit($event)" (blur)="exportFilePeriodBlur.emit()" placeholder="Single file" />@if (exportFilePeriodError()) { <p class="mt-1 text-xs text-rose-400" role="alert">{{ exportFilePeriodError() }}</p> }</div>
             <div>
               <label id="export-precision-label" for="export-precision" class="mb-1.5 block text-xs uppercase tracking-[0.18em]">Precision</label>
               <p-select inputId="export-precision" ariaLabelledBy="export-precision-label" class="w-full" appendTo="body" size="small" [options]="precisionOptions" optionLabel="label" optionValue="value" [ngModel]="exportPrecision()" (ngModelChange)="exportPrecisionChange.emit($event)" />
