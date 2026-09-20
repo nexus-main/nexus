@@ -338,6 +338,13 @@ button {
   margin: 1rem !important;
 }
 
+.data-source-pipelines-dialog .p-dialog-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
 /* Package references dialog: fullscreen on mobile. */
 @media (max-width: 640px) {
   .package-references-dialog,

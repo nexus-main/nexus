@@ -12,7 +12,7 @@ h2, h3 { font-size: .95rem; font-weight: 600; }
 .pipeline-tabs-column > p-tabs { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
 .tab-bar { display: flex; align-items: center; gap: .5rem; padding-bottom: .5rem; flex: 0 0 auto; }
 .tab-bar p-tablist { flex: 1; min-width: 0; }
-.tab-panels { display: block; padding: .75rem 0; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+.tab-panels { display: flex; flex-direction: column; padding: .75rem 0; flex: 1 1 0; min-height: 0; overflow: hidden; }
 
 .pipeline-list, .pipeline-editor { min-width: 0; display: grid; gap: .8rem; }
 .pipeline-list { padding-right: .25rem; }
@@ -21,6 +21,7 @@ h2, h3 { font-size: .95rem; font-weight: 600; }
 .registration-empty { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
 .registration-empty p { font-size: 1.05rem; color: var(--p-text-muted-color); }
 .registration-editor h2 { flex: 0 0 auto; color: var(--p-text-muted-color); font-weight: 500; }
+.mobile-editor-tab, .mobile-editor-panel { display: none; }
 
 .pipeline-entry { display: grid; gap: .2rem; width: 100%; text-align: left; padding: .6rem .75rem; border: 1px solid var(--p-content-border-color); border-radius: .5rem; background: color-mix(in srgb, var(--p-primary-color) 4%, transparent); overflow-wrap: anywhere; transition: border-color .15s; }
 .new-pipeline { display: flex; align-items: center; justify-content: center; gap: .35rem; font-size: .82rem; font-weight: 600; color: var(--p-primary-color); border-style: dashed; transition: border-color .15s; }
@@ -71,10 +72,14 @@ legend { font-size: .85rem; font-weight: 600; margin-bottom: .65rem; }
 .empty-pipeline { padding: 1rem 0; }
 
 @media (max-width: 760px) {
-  .pipeline-workspace { display: flex; flex-direction: column; }
-  .pipeline-tabs-column, .registration-editor { display: none; border: 0; padding: 0; }
-  .show-list .pipeline-tabs-column, .show-pipeline .pipeline-tabs-column, .show-registration .registration-editor { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
-  .registration-editor { border-left: 0; }
+  .pipeline-workspace { display: flex; flex-direction: column; overflow: hidden; }
+  .pipeline-tabs-column, .desktop-registration-editor { display: none; border: 0; padding: 0; }
+  .show-list .pipeline-tabs-column, .show-pipeline .pipeline-tabs-column, .show-registration .pipeline-tabs-column { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; }
+  .pipeline-tabs-column > p-tabs { overflow: hidden; }
+  .mobile-editor-tab { display: block; }
+  .mobile-editor-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; }
+  .mobile-registration-editor { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; border-left: 0; padding-left: 0; }
+  .editor-host { overflow: hidden; }
   .mobile-back { display: inline-flex; justify-self: start; }
   .pipeline-toolbar { align-items: flex-start; }
   .pipeline-footer { align-items: stretch; }

@@ -1,3 +1,4 @@
+import { CommonModule } from '@angular/common'
 import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, inject, input, output, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { ButtonModule } from 'primeng/button'
@@ -26,7 +27,7 @@ type ThemeMode = 'dark' | 'light'
 @Component({
   selector: 'app-data-source-pipelines',
   standalone: true,
-  imports: [FormsModule, ButtonModule, ConfirmDialogModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, ToastModule, TooltipModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
+  imports: [CommonModule, FormsModule, ButtonModule, ConfirmDialogModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, ToastModule, TooltipModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
   providers: [ConfirmationService, MessageService],
   templateUrl: './data-source-pipelines.component.html',
   styleUrl: './data-source-pipelines.component.css',
@@ -51,7 +52,7 @@ export class DataSourcePipelinesComponent {
   readonly descriptions = signal<V1.ExtensionDescription[]>([])
   readonly draft = signal<PipelineDraft | null>(null)
   readonly selectedKey = signal<number | null>(null)
-  readonly pipelineTab = signal<'pipelines' | 'pipeline'>('pipelines')
+  readonly pipelineTab = signal<'pipelines' | 'pipeline' | 'registration'>('pipelines')
   readonly mobileView = signal<'list' | 'pipeline' | 'registration'>('list')
   readonly loading = signal(false)
   readonly busy = signal(false)
@@ -232,9 +233,9 @@ export class DataSourcePipelinesComponent {
   }
 
   setPipelineTab(value: string | number | undefined): void {
-    if (value === 'pipelines' || value === 'pipeline') {
+    if (value === 'pipelines' || value === 'pipeline' || value === 'registration') {
       this.pipelineTab.set(value)
-      this.mobileView.set(value === 'pipelines' ? 'list' : 'pipeline')
+      this.mobileView.set(value === 'pipelines' ? 'list' : value)
     }
   }
 
@@ -244,6 +245,7 @@ export class DataSourcePipelinesComponent {
     this.mobileView.set(view)
     if (view === 'list') this.pipelineTab.set('pipelines')
     else if (view === 'pipeline') this.pipelineTab.set('pipeline')
+    else this.pipelineTab.set('registration')
   }
 
   setPattern(field: 'releasePattern' | 'visibilityPattern', value: string | null): void {

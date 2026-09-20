@@ -40,6 +40,7 @@
               <p-tablist>
                 <p-tab value="pipelines" class="min-w-0 flex-1 whitespace-normal text-center">Pipelines</p-tab>
                 <p-tab value="pipeline" class="min-w-0 flex-1 whitespace-normal text-center">Pipeline</p-tab>
+                <p-tab value="registration" class="mobile-editor-tab min-w-0 flex-1 whitespace-normal text-center">Editor</p-tab>
               </p-tablist>
             </div>
             <p-tabpanels class="tab-panels">
@@ -164,13 +165,22 @@
                   </div>
                 } @else { <p class="help empty-pipeline">Select a pipeline or create a new one.</p> }
               </p-tabpanel>
+              <p-tabpanel value="registration" class="mobile-editor-panel">
+                <section class="registration-editor mobile-registration-editor" aria-label="Registration configuration">
+                  <ng-container [ngTemplateOutlet]="registrationEditorContent"></ng-container>
+                </section>
+              </p-tabpanel>
             </p-tabpanels>
           </p-tabs>
         </div>
 
-        <section class="registration-editor" aria-label="Registration configuration">
+        <section class="registration-editor desktop-registration-editor" aria-label="Registration configuration">
           <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
             [disabled]="editingLocked()" (click)="navigate('pipeline')">Back to pipeline</button>
+          <ng-container [ngTemplateOutlet]="registrationEditorContent"></ng-container>
+        </section>
+
+        <ng-template #registrationEditorContent>
           @for (registration of selected() ? [selected()!] : []; track registration.key) {
             <h2>Registration configuration</h2>
             <div class="editor-host" [attr.inert]="editingLocked() ? '' : null">
@@ -182,7 +192,7 @@
               <p>{{ draft() ? 'Select a registration to edit its configuration.' : 'Select a pipeline to get started.' }}</p>
             </div>
           }
-        </section>
+        </ng-template>
       </div>
 
       @if (draft()) {
