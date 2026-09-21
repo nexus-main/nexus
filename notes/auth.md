@@ -36,6 +36,13 @@ single-value fallback headers.
 In development mode, when no auth headers are present, Nexus creates a fixed
 development identity for `Star Lord` with administrator privileges.
 
+## Logout
+
+`SecurityOptions.LogoutUrl` configures the browser URL used by the UI sign-out
+button. Nexus does not perform provider logout itself.
+
+When `SecurityOptions.LogoutUrl` is not set, the UI hides the sign-out button.
+
 ## Authorization
 
 Roles come from Keycloak through the forwarded claims.

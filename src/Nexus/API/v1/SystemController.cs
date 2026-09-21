@@ -5,8 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
-using Nexus.Services;
-using System.Text.Json;
+using Nexus.Core.V1;
 
 namespace Nexus.Controllers.V1;
 
@@ -18,31 +17,27 @@ namespace Nexus.Controllers.V1;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class SystemController(
-    IOptions<GeneralOptions> generalOptions
+    IOptions<GeneralOptions> generalOptions,
+    IOptions<SecurityOptions> securityOptions
 ) : ControllerBase
 {
     // [authenticated]
-    // GET      /api/system/configuration
-    // GET      /api/system/file-type
-    // GET      /api/system/help-link
+    // GET      /api/system
 
     private readonly GeneralOptions _generalOptions = generalOptions.Value;
 
-    /// <summary>
-    /// Gets the default file type.
-    /// </summary>
-    [HttpGet("file-type")]
-    public string? GetDefaultFileType()
-    {
-        return _generalOptions.DefaultFileType;
-    }
+    private readonly SecurityOptions _securityOptions = securityOptions.Value;
 
     /// <summary>
-    /// Gets the configured help link.
+    /// Gets the system configuration.
     /// </summary>
-    [HttpGet("help-link")]
-    public string? GetHelpLink()
+    [HttpGet]
+    public SystemResponse Get()
     {
-        return _generalOptions.HelpLink;
+        return new SystemResponse(
+            _generalOptions.DefaultFileType,
+            _generalOptions.HelpLink,
+            _securityOptions.LogoutUrl
+        );
     }
 }

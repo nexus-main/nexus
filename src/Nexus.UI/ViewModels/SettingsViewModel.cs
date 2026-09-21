@@ -41,7 +41,7 @@ public class SettingsViewModel : INotifyPropertyChanged
             SizeLimitExceededChanged();
     }
 
-    private string DefaultFileType { get; set; } = default!;
+    private string? DefaultFileType { get; set; }
 
     public DateTime Begin
     {
@@ -343,7 +343,8 @@ public class SettingsViewModel : INotifyPropertyChanged
     {
         try
         {
-            DefaultFileType = await _client.V1.System.GetDefaultFileTypeAsync();
+            var systemResponse = await _appState.SystemResponseTask;
+            DefaultFileType = systemResponse.DefaultFileType;
 
             var writerDescriptions = (await _client.V1.Writers
                 .GetDescriptionsAsync(CancellationToken.None))

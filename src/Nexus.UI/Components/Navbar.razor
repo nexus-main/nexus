@@ -1,5 +1,4 @@
 ﻿@inject AppState AppState;
-@inject INexusClient Client;
 @inject NavigationManager NavigationManager
 
 @using System.Security.Claims
@@ -70,7 +69,8 @@
     protected override async Task OnInitializedAsync()
     {
         _authenticationState = await GetAuthenticationStateTask;
-        _helpLink = await Client.V1.System.GetHelpLinkAsync();
+        var systemResponse = await AppState.SystemResponseTask;
+        _helpLink = systemResponse.HelpLink;
     }
 
     private bool IsAdmin(ClaimsPrincipal user)

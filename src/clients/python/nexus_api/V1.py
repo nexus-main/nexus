@@ -592,27 +592,16 @@ class SystemClient:
     def __init__(self, invoke: HttpRequestHandler):
         self.___invoke = invoke
 
-    def get_default_file_type(self) -> str:
+    def get(self) -> SystemResponse:
         """
-        Gets the default file type.
+        Gets the system configuration.
 
         Args:
         """
 
-        __url = "/api/v1/system/file-type"
+        __url = "/api/v1/system"
 
-        return self.___invoke(str, "GET", __url, "application/json", None, None)
-
-    def get_help_link(self) -> str:
-        """
-        Gets the configured help link.
-
-        Args:
-        """
-
-        __url = "/api/v1/system/help-link"
-
-        return self.___invoke(str, "GET", __url, "application/json", None, None)
+        return self.___invoke(SystemResponse, "GET", __url, "application/json", None, None)
 
 
 class UsersClient:
@@ -1286,27 +1275,16 @@ class SystemAsyncClient:
     def __init__(self, invoke: HttpRequestHandlerAsync):
         self.___invoke = invoke
 
-    def get_default_file_type(self) -> Awaitable[str]:
+    def get(self) -> Awaitable[SystemResponse]:
         """
-        Gets the default file type.
+        Gets the system configuration.
 
         Args:
         """
 
-        __url = "/api/v1/system/file-type"
+        __url = "/api/v1/system"
 
-        return self.___invoke(str, "GET", __url, "application/json", None, None)
-
-    def get_help_link(self) -> Awaitable[str]:
-        """
-        Gets the configured help link.
-
-        Args:
-        """
-
-        __url = "/api/v1/system/help-link"
-
-        return self.___invoke(str, "GET", __url, "application/json", None, None)
+        return self.___invoke(SystemResponse, "GET", __url, "application/json", None, None)
 
 
 class UsersAsyncClient:
@@ -1860,6 +1838,27 @@ class DataSourceRegistration:
 
     info_url: Optional[str]
     """An optional info URL."""
+
+
+@dataclass(frozen=True)
+class SystemResponse:
+    """
+    A system response.
+
+    Args:
+        default_file_type: The default file type.
+        help_link: The help link.
+        logout_url: The logout URL.
+    """
+
+    default_file_type: Optional[str]
+    """The default file type."""
+
+    help_link: Optional[str]
+    """The help link."""
+
+    logout_url: Optional[str]
+    """The logout URL."""
 
 
 @dataclass(frozen=True)

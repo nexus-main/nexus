@@ -2504,26 +2504,15 @@ public class SourcesClient : ISourcesClient
 public interface ISystemClient
 {
     /// <summary>
-    /// Gets the default file type.
+    /// Gets the system configuration.
     /// </summary>
-    string GetDefaultFileType();
+    SystemResponse Get();
 
     /// <summary>
-    /// Gets the default file type.
+    /// Gets the system configuration.
     /// </summary>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> GetDefaultFileTypeAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets the configured help link.
-    /// </summary>
-    string GetHelpLink();
-
-    /// <summary>
-    /// Gets the configured help link.
-    /// </summary>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> GetHelpLinkAsync(CancellationToken cancellationToken = default);
+    Task<SystemResponse> GetAsync(CancellationToken cancellationToken = default);
 
 }
 
@@ -2538,43 +2527,23 @@ public class SystemClient : ISystemClient
     }
 
     /// <inheritdoc />
-    public string GetDefaultFileType()
+    public SystemResponse Get()
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/file-type");
+        __urlBuilder.Append("/api/v1/system");
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<string>("GET", __url, "application/json", default, default);
+        return ___client.Invoke<SystemResponse>("GET", __url, "application/json", default, default);
     }
 
     /// <inheritdoc />
-    public Task<string> GetDefaultFileTypeAsync(CancellationToken cancellationToken = default)
+    public Task<SystemResponse> GetAsync(CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/file-type");
+        __urlBuilder.Append("/api/v1/system");
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<string>("GET", __url, "application/json", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public string GetHelpLink()
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/help-link");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<string>("GET", __url, "application/json", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<string> GetHelpLinkAsync(CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/help-link");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<string>("GET", __url, "application/json", default, default, cancellationToken);
+        return ___client.InvokeAsync<SystemResponse>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
 }
@@ -3073,6 +3042,14 @@ public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrat
 /// <param name="Configuration">Configuration parameters for the instantiated source.</param>
 /// <param name="InfoUrl">An optional info URL.</param>
 public record DataSourceRegistration(string Type, Uri? ResourceLocator, JsonElement Configuration, string? InfoUrl);
+
+/// <summary>
+/// A system response.
+/// </summary>
+/// <param name="DefaultFileType">The default file type.</param>
+/// <param name="HelpLink">The help link.</param>
+/// <param name="LogoutUrl">The logout URL.</param>
+public record SystemResponse(string? DefaultFileType, string? HelpLink, string? LogoutUrl);
 
 /// <summary>
 /// A me response.

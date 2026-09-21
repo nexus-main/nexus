@@ -1,5 +1,4 @@
-﻿@using System.Net
-@using System.Security.Claims
+﻿@using System.Security.Claims
 @using System.Text.Encodings.Web
 
 @inject AppState AppState
@@ -322,14 +321,15 @@ MaxWidth="MaxWidth.Medium">
     </DialogContent>
 
     <DialogActions>
-        <form action="/api/v1/users/signout?returnUrl=@(WebUtility.UrlEncode(NavigationManager.Uri))" method="post">
-            <MudButton 
-            ButtonType="ButtonType.Submit"
+        @if (!string.IsNullOrWhiteSpace(_logoutUrl))
+        {
+            <MudButton
+            OnClick="SignOut"
             Color="Color.Primary"
             StartIcon="@Icons.Material.Outlined.Logout">
                 Sign-Out
             </MudButton>
-        </form>
+        }
     </DialogActions>
 
 </UIDialog>
@@ -373,6 +373,8 @@ MaxWidth="MaxWidth.Medium">
 
     private bool _showUserSettingsDialog;
 
+    private string? _logoutUrl;
+
     private AuthenticationState _authenticationState = default!;
 
     [CascadingParameter]
@@ -392,6 +394,8 @@ MaxWidth="MaxWidth.Medium">
 
         try
         {
+            var systemResponse = await AppState.SystemResponseTask;
+            _logoutUrl = systemResponse.LogoutUrl;
             _accessTokenMap = await Client.V1.Users.GetTokensAsync();
         }
         catch (Exception ex)
@@ -427,6 +431,12 @@ MaxWidth="MaxWidth.Medium">
     private void CopyToClipboard()
     {
         JSRuntime.InvokeVoid("nexus.util.copyToClipboard", _newAccessToken);
+    }
+
+    private void SignOut()
+    {
+        if (!string.IsNullOrWhiteSpace(_logoutUrl))
+            NavigationManager.NavigateTo(_logoutUrl, forceLoad: true);
     }
 
     private async Task CreateTokenAsync()

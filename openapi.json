@@ -1166,41 +1166,20 @@
         }
       }
     },
-    "/api/v1/system/file-type": {
+    "/api/v1/system": {
       "get": {
         "tags": [
           "System"
         ],
-        "summary": "Gets the default file type.",
-        "operationId": "System_GetDefaultFileType",
+        "summary": "Gets the system configuration.",
+        "operationId": "System_Get",
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/system/help-link": {
-      "get": {
-        "tags": [
-          "System"
-        ],
-        "summary": "Gets the configured help link.",
-        "operationId": "System_GetHelpLink",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/SystemResponse"
                 }
               }
             }
@@ -1897,6 +1876,28 @@
           "infoUrl": {
             "type": "string",
             "description": "An optional info URL.",
+            "nullable": true
+          }
+        }
+      },
+      "SystemResponse": {
+        "type": "object",
+        "description": "A system response.",
+        "additionalProperties": false,
+        "properties": {
+          "defaultFileType": {
+            "type": "string",
+            "description": "The default file type.",
+            "nullable": true
+          },
+          "helpLink": {
+            "type": "string",
+            "description": "The help link.",
+            "nullable": true
+          },
+          "logoutUrl": {
+            "type": "string",
+            "description": "The logout URL.",
             "nullable": true
           }
         }

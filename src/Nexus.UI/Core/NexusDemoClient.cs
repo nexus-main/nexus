@@ -471,6 +471,20 @@ public class DataV2DemoClient : Api.V2.IDataClient
 
 public class SystemDemoClient : ISystemClient
 {
+    public SystemResponse Get()
+    {
+        return new SystemResponse(
+            DefaultFileType: default,
+            HelpLink: "https://github.com/nexus-main/nexus",
+            LogoutUrl: default
+        );
+    }
+
+    public Task<SystemResponse> GetAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Get());
+    }
+
     public IReadOnlyDictionary<string, JsonElement>? GetConfiguration()
     {
         throw new NotImplementedException();
@@ -479,26 +493,6 @@ public class SystemDemoClient : ISystemClient
     public Task<IReadOnlyDictionary<string, JsonElement>?> GetConfigurationAsync(CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
-    }
-
-    public string GetDefaultFileType()
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<string> GetDefaultFileTypeAsync(CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(default(string)!);
-    }
-
-    public string GetHelpLink()
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<string> GetHelpLinkAsync(CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult("https://github.com/nexus-main/nexus");
     }
 
     public void SetConfiguration(IReadOnlyDictionary<string, JsonElement>? configuration)

@@ -106,7 +106,7 @@ internal partial record SecurityOptions() : NexusOptionsBase
 
     public string AdministratorGroup { get; set; } = "nexus-admin";
 
-    public string EnabledCatalogsPattern { get; set; } = SecurityOptions.DEFAULT_ENABLED_CATALOGS_PATTERN;
+    public string EnabledCatalogsPattern { get; set; } = DEFAULT_ENABLED_CATALOGS_PATTERN;
 
     public string EnabledCatalogsPatternHeader { get; set; } = "X-Forwarded-EnabledCatalogsPattern";
 
@@ -117,6 +117,8 @@ internal partial record SecurityOptions() : NexusOptionsBase
     public string CanReadCatalogGroupHeader { get; set; } = "X-Forwarded-CanReadCatalogGroup";
 
     public string CanWriteCatalogGroupHeader { get; set; } = "X-Forwarded-CanWriteCatalogGroup";
+
+    public string? LogoutUrl { get; set; }
 
     public const string DEFAULT_ENABLED_CATALOGS_PATTERN = "" /* == match all */;
 }

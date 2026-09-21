@@ -22,6 +22,8 @@ public interface IAppState
 
     SettingsViewModel Settings { get; }
 
+    Task<SystemResponse> SystemResponseTask { get; }
+
     ResourceCatalogViewModel RootCatalog { get; }
 
     ResourceCatalogViewModel? SelectedCatalog { get; set; }
@@ -102,6 +104,7 @@ public class AppState : INotifyPropertyChanged, IAppState
         IsDemo = isDemo;
         _client = client;
         _jsInterop = jsInterop;
+        SystemResponseTask = client.V1.System.GetAsync(CancellationToken.None);
         Settings = new SettingsViewModel(this, client);
 
         var childCatalogInfosTask = client.V1.Catalogs.GetChildCatalogInfosAsync(ResourceCatalogViewModel.ROOT_CATALOG_ID, CancellationToken.None);
@@ -205,6 +208,8 @@ public class AppState : INotifyPropertyChanged, IAppState
     }
 
     public SettingsViewModel Settings { get; }
+
+    public Task<SystemResponse> SystemResponseTask { get; }
 
     public ResourceCatalogViewModel RootCatalog { get; }
 
