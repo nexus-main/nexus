@@ -3,49 +3,23 @@
 
 using Nexus.Core;
 using Nexus.Core.V1;
+using Nexus.Services;
 using Nexus.Sources;
-using OpenIddict.Abstractions;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Utilities;
 
 internal static class AuthUtilities
 {
-    public static void SetEnabledCatalogPatternClaim(ClaimsPrincipal principal, string? scheme, SecurityOptions options)
+    public static void SetEnabledCatalogPatternClaim(ClaimsPrincipal principal, string pattern)
     {
-        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-
-        // Do not store the EnabledCatalogsPattern claim in the cookie: it’s tied to the
-        // sign-in scheme and should be inherited by the user, not persisted. When a user
-        // accepts a catalog license, they are re-signed in to refresh the cookie. Since 
-        // the claim has previously been added to the User, it becomes part of the cookie. 
-        // On the next visit, the EnabledCatalogsPattern claim is added again, resulting 
-        // in multiple entries of the same claim. This breaks 
-        // user.GetClaim("EnabledCatalogsPattern"), which correctly expects a single claim
-        // of a given type. To avoid this we remove all existing instances of the claim.
         principal.RemoveClaims(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM);
 
-        if (scheme is null)
-        {
-            principal.AddClaim(
-                NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM,
-                OpenIdConnectProvider.DEFAULT_ENABLED_CATALOGS_PATTERN
-            );
-        }
-
-        else
-        {
-            var oidcProvider = environmentName == "Development" && !options.OidcProviders.Any()
-                ? NexusAuthExtensions.DefaultProvider
-                : options.OidcProviders.First(x => x.Scheme == scheme);
-
-            principal.AddClaim(
-                NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM,
-                oidcProvider.EnabledCatalogsPattern
-            );
-        }
+        principal.AddClaim(
+            NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM,
+            pattern
+        );
     }
 
     public static string ComponentsToTokenValue(string userId, string secret)
@@ -63,19 +37,32 @@ internal static class AuthUtilities
     public static bool IsCatalogReadable(
         string catalogId,
         CatalogMetadata catalogMetadata,
-        ClaimsPrincipal? owner,
         ClaimsPrincipal user
     )
     {
         return InternalIsCatalogAccessible(
             catalogId,
             catalogMetadata,
-            owner,
             user,
             singleClaimType: nameof(NexusClaims.CanReadCatalog),
             groupClaimType: nameof(NexusClaims.CanReadCatalogGroup),
             checkImplicitAccess: true
         );
+    }
+
+    public static async Task<bool> IsCatalogReadableAsync(
+        CatalogContainer catalogContainer,
+        ClaimsPrincipal user,
+        IAcceptedLicenseService acceptedLicenseService,
+        CancellationToken cancellationToken
+    )
+    {
+        if (IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, user))
+            return true;
+
+        var license = await acceptedLicenseService.GetLicenseAsync(catalogContainer, cancellationToken);
+
+        return acceptedLicenseService.HasAccepted(user, catalogContainer.Id, license);
     }
 
     public static bool IsCatalogWritable(
@@ -87,7 +74,6 @@ internal static class AuthUtilities
         return InternalIsCatalogAccessible(
             catalogId,
             catalogMetadata,
-            owner: default,
             user,
             singleClaimType: nameof(NexusClaims.CanWriteCatalog),
             groupClaimType: nameof(NexusClaims.CanWriteCatalogGroup),
@@ -109,7 +95,6 @@ internal static class AuthUtilities
     private static bool InternalIsCatalogAccessible(
         string catalogId,
         CatalogMetadata catalogMetadata,
-        ClaimsPrincipal? owner,
         ClaimsPrincipal user,
         string singleClaimType,
         string groupClaimType,
@@ -139,8 +124,8 @@ internal static class AuthUtilities
             if (identity.AuthenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme)
             {
                 /* The token alone can access the catalog ... */
-                var claimsToBeAdmin = identity.Claims
-                    .Any(claim => claim.Type == NexusClaimsHelper.ToPatClaimType(Claims.Role) && claim.Value == nameof(NexusRoles.Administrator));
+                    var claimsToBeAdmin = identity.Claims
+                    .Any(claim => claim.Type == NexusClaimsHelper.ToPatClaimType(NexusClaimTypes.Role) && claim.Value == nameof(NexusRoles.Administrator));
 
                 var canAccessCatalog = claimsToBeAdmin || identity.HasClaim(
                     claim =>
@@ -160,7 +145,7 @@ internal static class AuthUtilities
                      * NexusClaimsHelper.ToPatUserClaimType(Claims.Role).
                      */
                     var isAdmin = identity.Claims
-                        .Any(claim => claim.Type == NexusClaimsHelper.ToPatUserClaimType(Claims.Role) && claim.Value == nameof(NexusRoles.Administrator));
+                        .Any(claim => claim.Type == NexusClaimsHelper.ToPatUserClaimType(NexusClaimTypes.Role) && claim.Value == nameof(NexusRoles.Administrator));
 
                     /* Admins are allowed to access everything */
                     if (isAdmin)
@@ -174,7 +159,6 @@ internal static class AuthUtilities
                     result = CanUserAccessCatalog(
                         catalogId,
                         catalogMetadata,
-                        owner,
                         identity,
                         NexusClaimsHelper.ToPatUserClaimType(singleClaimType),
                         NexusClaimsHelper.ToPatUserClaimType(groupClaimType)
@@ -199,7 +183,6 @@ internal static class AuthUtilities
                 result = CanUserAccessCatalog(
                     catalogId,
                     catalogMetadata,
-                    owner,
                     identity,
                     singleClaimType,
                     groupClaimType
@@ -217,16 +200,11 @@ internal static class AuthUtilities
     private static bool CanUserAccessCatalog(
         string catalogId,
         CatalogMetadata catalogMetadata,
-        ClaimsPrincipal? owner,
         ClaimsIdentity identity,
         string singleClaimType,
         string groupClaimType
     )
     {
-        var isOwner =
-            owner is not null &&
-            owner?.FindFirstValue(Claims.Subject) == identity.FindFirst(Claims.Subject)?.Value;
-
         var canAccessCatalog = identity.HasClaim(
             claim =>
                 claim.Type == singleClaimType &&
@@ -239,6 +217,6 @@ internal static class AuthUtilities
                 catalogMetadata.GroupMemberships.Any(group => Regex.IsMatch(group, claim.Value))
         );
 
-        return isOwner || canAccessCatalog || canAccessCatalogGroup;
+        return canAccessCatalog || canAccessCatalogGroup;
     }
 }

@@ -14,7 +14,6 @@ using Nexus.Services;
 using Nexus.Sources;
 using Nexus.Utilities;
 using Xunit;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Services;
 
@@ -26,12 +25,12 @@ public class CatalogManagerTests
     public async Task CanCreateCatalogHierarchy()
     {
         // Test case:
-        // User A, admin,
-        //      /   => /A, /B/A
-        //      /A/ => /A/B, /A/B/C (ignore), /A/C/A
-        //
-        // User B, no admin,
-        //      /  => /A (ignore because no admin), /B/B, /B/B2, /C/A, /D (ignore because of missing NexusClaims.CanUseResourceLocator)
+        // Pipeline A: / => /A, /B/A
+        //             /A/ => /A/B, /A/B/C (ignored - duplicate), /A/C/A
+        // Pipeline B: / => /A (ignored - duplicate), /B/B, /B/B2, /C/A, /D
+        // Pipeline C: / => /C/A (ignored - duplicate)
+        // Pipeline D: / => /D (ignored - duplicate)
+        // Pipeline E: throws (ignored)
 
         /* dataControllerService */
         var dataControllerService = Mock.Of<IDataControllerService>();
@@ -76,79 +75,8 @@ public class CatalogManagerTests
                 return true;
             }));
 
-        /* serviceProvider / dbService */
-        var dbService = Mock.Of<IDBService>();
-        var scope = Mock.Of<IServiceScope>();
-        var scopeFactory = Mock.Of<IServiceScopeFactory>();
+        /* serviceProvider */
         var serviceProvider = Mock.Of<IServiceProvider>();
-
-        Mock.Get(scope)
-            .SetupGet(scope => scope.ServiceProvider)
-            .Returns(serviceProvider);
-
-        Mock.Get(scopeFactory)
-            .Setup(scopeFactory => scopeFactory.CreateScope())
-            .Returns(scope);
-
-        Mock.Get(serviceProvider)
-            .Setup(serviceProvider => serviceProvider.GetService(
-                It.Is<Type>(value => value == typeof(IDBService))))
-            .Returns(dbService);
-
-        Mock.Get(serviceProvider)
-            .Setup(serviceProvider => serviceProvider.GetService(
-                It.Is<Type>(value => value == typeof(IServiceScopeFactory))))
-            .Returns(scopeFactory);
-
-        /* => User A */
-        var usernameA = "UserA";
-        var schemeA = "scheme-A";
-
-        var userAClaims = new List<NexusClaim>
-        {
-            new(Guid.NewGuid(), Claims.Name, usernameA),
-            new(Guid.NewGuid(), Claims.Role, nameof(NexusRoles.Administrator))
-        };
-
-        var userA = new NexusUser(
-            id: "userA@" + schemeA,
-            name: usernameA)
-        {
-            Claims = userAClaims
-        };
-
-        /* => User B */
-        var usernameB = "UserB";
-        var schemeB = "scheme-B";
-
-        var userBClaims = new List<NexusClaim>
-        {
-            new(Guid.NewGuid(), Claims.Name, usernameB),
-            new(Guid.NewGuid(), nameof(NexusClaims.CanWriteCatalog), ""),
-            new(Guid.NewGuid(), nameof(NexusClaims.CanUseResourceLocator), "match-me-1"),
-            new(Guid.NewGuid(), nameof(NexusClaims.CanUseResourceLocator), "match-me-2")
-        };
-
-        var userB = new NexusUser(
-            id: "userB@" + schemeB,
-            name: usernameB)
-        {
-            Claims = userBClaims
-        };
-
-        Mock.Get(dbService)
-            .Setup(dbService => dbService.FindUserAsync(It.IsAny<string>()))
-            .Returns<string>(userId =>
-            {
-                var result = userId switch
-                {
-                    "UserA" => Task.FromResult<NexusUser?>(userA),
-                    "UserB" => Task.FromResult<NexusUser?>(userB),
-                    _ => Task.FromResult<NexusUser?>(default)
-                };
-
-                return result;
-            });
 
         /* extensionHive */
         var extensionHive = Mock.Of<IExtensionHive<IDataSource>>();
@@ -166,44 +94,18 @@ public class CatalogManagerTests
             .Setup(pipelineService => pipelineService.GetAllAsync())
             .ReturnsAsync(() =>
             {
-                return new Dictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>
+                return new Dictionary<Guid, DataSourcePipeline>()
                 {
-                    ["UserA"] = new Dictionary<Guid, DataSourcePipeline>()
-                    {
-                        [Guid.NewGuid()] = new DataSourcePipeline([registrationA])
-                    },
-
-                    ["UserB"] = new Dictionary<Guid, DataSourcePipeline>()
-                    {
-                        [Guid.NewGuid()] = new DataSourcePipeline([registrationB]),
-                        [Guid.NewGuid()] = new DataSourcePipeline([registrationC]),
-                        [Guid.NewGuid()] = new DataSourcePipeline([registrationD]),
-                        [Guid.NewGuid()] = new DataSourcePipeline([registrationE])
-                    }
+                    [Guid.NewGuid()] = new DataSourcePipeline([registrationA]),
+                    [Guid.NewGuid()] = new DataSourcePipeline([registrationB]),
+                    [Guid.NewGuid()] = new DataSourcePipeline([registrationC]),
+                    [Guid.NewGuid()] = new DataSourcePipeline([registrationD]),
+                    [Guid.NewGuid()] = new DataSourcePipeline([registrationE])
                 };
             });
 
         /* SecurityOptions */
-        var securityOptions = Options.Create(new SecurityOptions
-        {
-            OidcProviders = [
-                new OpenIdConnectProvider(
-                    Scheme: schemeA,
-                    default!,
-                    default!,
-                    default!,
-                    default!
-                ),
-
-                new OpenIdConnectProvider(
-                    Scheme: schemeB,
-                    default!,
-                    default!,
-                    default!,
-                    default!
-                )
-            ]
-        });
+        var securityOptions = Options.Create(new SecurityOptions());
 
         /* catalogManager */
         var catalogManager = new CatalogManager(
@@ -217,43 +119,47 @@ public class CatalogManagerTests
         );
 
         // act
-        var root = CatalogContainer.CreateRoot(catalogManager, default!);
+        var root = CatalogContainer.CreateRoot(catalogManager, databaseService);
         var rootCatalogContainers = (await root.GetChildCatalogContainersAsync(CancellationToken.None)).ToArray();
         var ACatalogContainers = (await rootCatalogContainers[0].GetChildCatalogContainersAsync(CancellationToken.None)).ToArray();
 
         // assert '/'
-        Assert.Equal(5, rootCatalogContainers.Length);
+        Assert.Equal(6, rootCatalogContainers.Length);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/B/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/B" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationB && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/B/B" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationB);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/B/B2" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationB && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/B/B2" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationB);
 
         Assert.Contains(
             rootCatalogContainers,
-            container => container.Id == "/C/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationC && container.Owner!.Identity!.Name! == userB.Name);
+            container => container.Id == "/C/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationC);
+
+        Assert.Contains(
+            rootCatalogContainers,
+            container => container.Id == "/D" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationD);
 
         // assert 'A'
         Assert.Equal(2, ACatalogContainers.Length);
 
         Assert.Contains(
             ACatalogContainers,
-            container => container.Id == "/A/B" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A/B" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA);
 
         Assert.Contains(
             ACatalogContainers,
-            container => container.Id == "/A/C/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA && container.Owner!.Identity!.Name! == userA.Name);
+            container => container.Id == "/A/C/A" && container.Pipeline.Registrations.Count == 1 && container.Pipeline.Registrations[0] == registrationA);
     }
 
     [Fact]
@@ -311,7 +217,6 @@ public class CatalogManagerTests
         /* catalog container */
         var catalogContainer = new CatalogContainer(
             new CatalogRegistration("/A", string.Empty),
-            default,
             default,
             pipeline,
             default!,

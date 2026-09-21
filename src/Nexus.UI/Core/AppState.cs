@@ -116,7 +116,6 @@ public class AppState : INotifyPropertyChanged, IAppState
             IsWritable: false,
             IsReleased: true,
             IsVisible: true,
-            IsOwner: false,
             PackageReferenceIds: default!,
             PipelineInfo: default!);
 

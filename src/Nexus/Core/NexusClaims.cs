@@ -8,6 +8,15 @@ internal static class NexusClaimsConstants
     public const string ENABLED_CATALOGS_PATTERN_CLAIM = "EnabledCatalogsPattern";
 }
 
+internal static class NexusClaimTypes
+{
+    public const string Subject = "sub";
+
+    public const string Name = "name";
+
+    public const string Role = "role";
+}
+
 internal enum NexusClaims
 {
     CanReadCatalog,
@@ -16,9 +25,7 @@ internal enum NexusClaims
 
     CanReadCatalogGroup,
 
-    CanWriteCatalogGroup,
-
-    CanUseResourceLocator
+    CanWriteCatalogGroup
 }
 
 internal static class NexusClaimsHelper

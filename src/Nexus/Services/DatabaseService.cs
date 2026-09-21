@@ -16,8 +16,6 @@ internal interface IDatabaseService
     Stream WriteCatalogMetadata(string catalogId);
 
     /* /config/users */
-    IEnumerable<string> EnumerateUsers();
-
     bool TryReadTokenMap(
         string userId,
         [NotNullWhen(true)] out string? tokenMap);
@@ -25,12 +23,11 @@ internal interface IDatabaseService
     Stream WriteTokenMap(
         string userId);
 
+    /* /config/pipelines.json */
     bool TryReadPipelineMap(
-        string userId,
         [NotNullWhen(true)] out string? pipelineMap);
 
-    Stream WritePipelineMap(
-        string userId);
+    Stream WritePipelineMap();
 
     /* /catalogs/catalog_id/... */
     bool AttachmentExists(string catalogId, string attachmentId);
@@ -109,23 +106,6 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     }
 
     /* /config/users */
-    public IEnumerable<string> EnumerateUsers()
-    {
-        var usersPath = Path.Combine(_pathsOptions.Config, USERS);
-
-        if (Directory.Exists(usersPath))
-        {
-            return Directory
-                .EnumerateDirectories(usersPath)
-                .Select(x => Path.GetFileName(x));
-        }
-
-        else
-        {
-            return Enumerable.Empty<string>();
-        }
-    }
-
     public bool TryReadTokenMap(string userId,
         [NotNullWhen(true)] out string? tokenMap)
     {
@@ -154,12 +134,11 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         return File.Open(tokensFilePath, FileMode.Create, FileAccess.Write);
     }
 
+    /* /config/pipelines.json */
     public bool TryReadPipelineMap(
-       string userId,
        [NotNullWhen(true)] out string? pipelineMap)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
-        var pipelinesFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
+        var pipelinesFilePath = Path.Combine(_pathsOptions.Config, PIPELINES + FILE_EXTENSION);
 
         pipelineMap = default;
 
@@ -172,13 +151,13 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         return false;
     }
 
-    public Stream WritePipelineMap(
-        string userId)
+    public Stream WritePipelineMap()
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
-        var pipelinesFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
+        var configPath = _pathsOptions.Config;
 
-        Directory.CreateDirectory(folderPath);
+        Directory.CreateDirectory(configPath);
+
+        var pipelinesFilePath = Path.Combine(configPath, PIPELINES + FILE_EXTENSION);
 
         return File.Open(pipelinesFilePath, FileMode.Create, FileAccess.Write);
     }

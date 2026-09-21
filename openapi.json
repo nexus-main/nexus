@@ -288,6 +288,40 @@
         }
       }
     },
+    "/api/v1/catalogs/{catalogId}/accept-license": {
+      "post": {
+        "tags": [
+          "Catalogs"
+        ],
+        "summary": "Accepts the current license of the specified catalog.",
+        "operationId": "Catalogs_AcceptLicense",
+        "parameters": [
+          {
+            "name": "catalogId",
+            "in": "path",
+            "required": true,
+            "description": "The catalog identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/catalogs/{catalogId}/attachments": {
       "get": {
         "tags": [
@@ -1001,18 +1035,6 @@
         ],
         "summary": "Gets the list of data source pipelines.",
         "operationId": "Sources_GetPipelines",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 1
-          }
-        ],
         "responses": {
           "200": {
             "description": "",
@@ -1035,18 +1057,6 @@
         ],
         "summary": "Creates a data source pipeline.",
         "operationId": "Sources_CreatePipeline",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 2
-          }
-        ],
         "requestBody": {
           "x-name": "pipeline",
           "description": "The pipeline to create.",
@@ -1093,16 +1103,6 @@
               "format": "guid"
             },
             "x-position": 1
-          },
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 3
           }
         ],
         "requestBody": {
@@ -1149,16 +1149,6 @@
               "format": "guid"
             },
             "x-position": 1
-          },
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 2
           }
         ],
         "responses": {
@@ -1218,76 +1208,6 @@
         }
       }
     },
-    "/api/v1/users/authenticate": {
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Authenticates the user.",
-        "operationId": "Users_Authenticate",
-        "parameters": [
-          {
-            "name": "scheme",
-            "in": "query",
-            "required": true,
-            "description": "The authentication scheme to challenge.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          },
-          {
-            "name": "returnUrl",
-            "in": "query",
-            "required": true,
-            "description": "The URL to return after successful authentication.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 2
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/signout": {
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Logs out the user.",
-        "operationId": "Users_SignOut",
-        "parameters": [
-          {
-            "name": "returnUrl",
-            "in": "query",
-            "required": true,
-            "description": "The URL to return after logout.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        }
-      }
-    },
     "/api/v1/users/tokens/delete": {
       "delete": {
         "tags": [
@@ -1343,28 +1263,6 @@
         }
       }
     },
-    "/api/v1/users/reauthenticate": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Allows the user to reauthenticate in case of modified claims.",
-        "operationId": "Users_ReAuthenticate",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/users/tokens": {
       "get": {
         "tags": [
@@ -1372,18 +1270,6 @@
         ],
         "summary": "Gets all personal access tokens.",
         "operationId": "Users_GetTokens",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 1
-          }
-        ],
         "responses": {
           "200": {
             "description": "",
@@ -1408,18 +1294,6 @@
         ],
         "summary": "Creates a personal access token.",
         "operationId": "Users_CreateToken",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 2
-          }
-        ],
         "requestBody": {
           "x-name": "token",
           "description": "The personal access token to create.",
@@ -1460,246 +1334,6 @@
             "in": "path",
             "required": true,
             "description": "The identifier of the personal access token.",
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/accept-license": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Accepts the license of the specified catalog.",
-        "operationId": "Users_AcceptLicense",
-        "parameters": [
-          {
-            "name": "catalogId",
-            "in": "query",
-            "required": true,
-            "description": "The catalog identifier.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Gets a list of users.",
-        "operationId": "Users_GetUsers",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/components/schemas/NexusUser"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Creates a user.",
-        "operationId": "Users_CreateUser",
-        "requestBody": {
-          "x-name": "user",
-          "description": "The user to create.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NexusUser"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/{userId}": {
-      "delete": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Deletes a user.",
-        "operationId": "Users_DeleteUser",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the user.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/{userId}/claims": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Gets all claims.",
-        "operationId": "Users_GetClaims",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the user.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/components/schemas/NexusClaim"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Creates a claim.",
-        "operationId": "Users_CreateClaim",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the user.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "requestBody": {
-          "x-name": "claim",
-          "description": "The claim to create.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NexusClaim"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 2
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "format": "guid"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/claims/{claimId}": {
-      "delete": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Deletes a claim.",
-        "operationId": "Users_DeleteClaim",
-        "parameters": [
-          {
-            "name": "claimId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the claim.",
             "schema": {
               "type": "string",
               "format": "guid"
@@ -1936,10 +1570,6 @@
           "isVisible": {
             "type": "boolean",
             "description": "A boolean which indicates if the catalog is visible."
-          },
-          "isOwner": {
-            "type": "boolean",
-            "description": "A boolean which indicates if the catalog is owned by the current user."
           },
           "packageReferenceIds": {
             "type": "array",
@@ -2280,37 +1910,22 @@
             "type": "string",
             "description": "The user id."
           },
-          "user": {
-            "description": "The user.",
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/NexusUser"
-              }
-            ]
-          }
-        }
-      },
-      "NexusUser": {
-        "type": "object",
-        "description": "Represents a user.",
-        "additionalProperties": false,
-        "properties": {
           "name": {
             "type": "string",
             "description": "The user name."
           },
           "claims": {
             "type": "array",
-            "description": "The list of claims.",
+            "description": "The user claims.",
             "items": {
-              "$ref": "#/components/schemas/NexusClaim"
+              "$ref": "#/components/schemas/TokenClaim"
             }
           }
         }
       },
-      "NexusClaim": {
+      "TokenClaim": {
         "type": "object",
-        "description": "Represents a claim.",
+        "description": "A revoke token request.",
         "additionalProperties": false,
         "properties": {
           "type": {
@@ -2343,21 +1958,13 @@
             "items": {
               "$ref": "#/components/schemas/TokenClaim"
             }
-          }
-        }
-      },
-      "TokenClaim": {
-        "type": "object",
-        "description": "A revoke token request.",
-        "additionalProperties": false,
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "The claim type."
           },
-          "value": {
-            "type": "string",
-            "description": "The claim value."
+          "grantClaims": {
+            "type": "array",
+            "description": "A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator.",
+            "items": {
+              "$ref": "#/components/schemas/TokenClaim"
+            }
           }
         }
       }

@@ -138,11 +138,10 @@ public class UtilitiesTests
             default,
             default,
             default,
-            default,
-            default,
-            default,
-            default,
-            IsOwner: true,
+            IsReadable: true,
+            IsWritable: true,
+            IsReleased: true,
+            IsVisible: true,
             default!,
             default!
         );

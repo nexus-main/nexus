@@ -39,20 +39,6 @@ else
                     <span class="mdi mdi-lock mx-1"></span>
                 }
 
-                @if (!Catalog.Info.IsReleased && Catalog.Info.IsOwner)
-                {
-                    <MudTooltip Text="The catalog is not released.">
-                        <span class="mdi mdi-wrench mx-1"></span>
-                    </MudTooltip>
-                }
-
-                @if (!Catalog.Info.IsVisible && Catalog.Info.IsOwner)
-                {
-                    <MudTooltip Text="The catalog is not visible.">
-                        <span class="mdi mdi-sunglasses mx-1"></span>
-                    </MudTooltip>
-                }
-
                 @if (Catalog.Info.Title is not null)
                 {
                     <span class="ml-2 text-sm text-gray-500">

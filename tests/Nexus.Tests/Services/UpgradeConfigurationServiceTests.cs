@@ -70,20 +70,17 @@ public class UpgradeConfigurationServiceTests
             .Setup(pipelineService => pipelineService.GetAllAsync())
             .ReturnsAsync(() =>
             {
-                return new Dictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>
+                return new Dictionary<Guid, DataSourcePipeline>()
                 {
-                    [USER_ID] = new Dictionary<Guid, DataSourcePipeline>()
-                    {
-                        [pipelineId] = new DataSourcePipeline([registration])
-                    }
+                    [pipelineId] = new DataSourcePipeline([registration])
                 };
             });
 
         var actual = default(DataSourcePipeline);
 
         Mock.Get(pipelineService)
-            .Setup(pipelineService => pipelineService.TryUpdateAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<DataSourcePipeline>()))
-            .Callback<string, Guid, DataSourcePipeline>((_, _, newPipeline) => actual = newPipeline);
+            .Setup(pipelineService => pipelineService.TryUpdateAsync(It.IsAny<Guid>(), It.IsAny<DataSourcePipeline>()))
+            .Callback<Guid, DataSourcePipeline>((_, newPipeline) => actual = newPipeline);
 
         /* upgradeConfigurationService */
         var upgradeConfigurationService = new UpgradeConfigurationService(

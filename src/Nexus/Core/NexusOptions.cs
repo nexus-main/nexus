@@ -2,7 +2,6 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Runtime.InteropServices;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Core;
 
@@ -95,24 +94,29 @@ internal record PathsOptions() : NexusOptionsBase, IPackageManagementPathsOption
     #endregion
 }
 
-internal record OpenIdConnectProvider(
-    string Scheme,
-    string DisplayName,
-    string Authority,
-    string ClientId,
-    string ClientSecret,
-    string IdentifierClaim = Claims.Subject,
-    string EnabledCatalogsPattern = OpenIdConnectProvider.DEFAULT_ENABLED_CATALOGS_PATTERN
-)
-{
-    public const string DEFAULT_ENABLED_CATALOGS_PATTERN = "" /* == match all */;
-};
-
 internal partial record SecurityOptions() : NexusOptionsBase
 {
     public const string Section = "Security";
 
-    public TimeSpan CookieLifetime { get; set; } = TimeSpan.FromDays(30);
+    public string UserHeader { get; set; } = "X-Forwarded-User";
 
-    public List<OpenIdConnectProvider> OidcProviders { get; set; } = [];
+    public string NameHeader { get; set; } = "X-Forwarded-Preferred-Username";
+
+    public string GroupsHeader { get; set; } = "X-Forwarded-Groups";
+
+    public string AdministratorGroup { get; set; } = "nexus-admin";
+
+    public string EnabledCatalogsPattern { get; set; } = SecurityOptions.DEFAULT_ENABLED_CATALOGS_PATTERN;
+
+    public string EnabledCatalogsPatternHeader { get; set; } = "X-Forwarded-EnabledCatalogsPattern";
+
+    public string CanReadCatalogHeader { get; set; } = "X-Forwarded-CanReadCatalog";
+
+    public string CanWriteCatalogHeader { get; set; } = "X-Forwarded-CanWriteCatalog";
+
+    public string CanReadCatalogGroupHeader { get; set; } = "X-Forwarded-CanReadCatalogGroup";
+
+    public string CanWriteCatalogGroupHeader { get; set; } = "X-Forwarded-CanWriteCatalogGroup";
+
+    public const string DEFAULT_ENABLED_CATALOGS_PATTERN = "" /* == match all */;
 }

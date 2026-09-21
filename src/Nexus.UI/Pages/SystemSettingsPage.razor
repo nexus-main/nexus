@@ -47,12 +47,12 @@
         </div>
     </MudTabPanel>
 
-    <MudTabPanel Text="Pipelines" Icon="@Icons.Material.Filled.StackedLineChart">
-        <SystemSettings_Pipelines />
-    </MudTabPanel>
-
     @if (IsAdmin(_authenticationState.User))
     {
+        <MudTabPanel Text="Pipelines" Icon="@Icons.Material.Filled.StackedLineChart">
+            <SystemSettings_Pipelines />
+        </MudTabPanel>
+
         <MudTabPanel Text="Packages" Icon="@Icons.Material.Outlined.Inbox">
             <SystemSettings_Packages />
         </MudTabPanel>

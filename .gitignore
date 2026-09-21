@@ -1,8 +1,11 @@
+.angular/
 .vs/
 .venv/
 
 artifacts/
-BenchmarkDotNet.Artifacts
+dist/
+BenchmarkDotNet.Artifacts/
+node_modules/
 
 doc/_site
 /**/obj

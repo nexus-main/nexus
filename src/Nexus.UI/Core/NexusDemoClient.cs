@@ -202,6 +202,16 @@ public class V1 : IV1
 
 public class CatalogsDemoClient : ICatalogsClient
 {
+    public HttpResponseMessage AcceptLicense(string catalogId)
+    {
+        return new HttpResponseMessage(System.Net.HttpStatusCode.NoContent);
+    }
+
+    public Task<HttpResponseMessage> AcceptLicenseAsync(string catalogId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(AcceptLicense(catalogId));
+    }
+
     public HttpResponseMessage DeleteAttachment(string catalogId, string attachmentId)
     {
         throw new NotImplementedException();
@@ -340,7 +350,6 @@ We hope you enjoy it!
                 IsWritable: false,
                 IsReleased: true,
                 IsVisible: true,
-                IsOwner: false,
                 PackageReferenceIds: [Guid.NewGuid()],
                 PipelineInfo: new PipelineInfo(
                     Id: Guid.NewGuid(),
@@ -505,62 +514,12 @@ public class SystemDemoClient : ISystemClient
 
 public class UsersDemoClient : IUsersClient
 {
-    public HttpResponseMessage AcceptLicense(string catalogId)
+    public string CreateToken(PersonalAccessToken token)
     {
         throw new NotImplementedException();
     }
 
-    public Task<HttpResponseMessage> AcceptLicenseAsync(string catalogId, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public HttpResponseMessage Authenticate(string scheme, string returnUrl)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<HttpResponseMessage> AuthenticateAsync(string scheme, string returnUrl, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Guid CreateClaim(string userId, NexusClaim claim)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Guid> CreateClaimAsync(string userId, NexusClaim claim, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public string CreateToken(PersonalAccessToken token, string? userId = null)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<string> CreateTokenAsync(PersonalAccessToken token, string? userId = null, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public string CreateUser(NexusUser user)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<string> CreateUserAsync(NexusUser user, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public HttpResponseMessage DeleteClaim(Guid claimId)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<HttpResponseMessage> DeleteClaimAsync(Guid claimId, CancellationToken cancellationToken = default)
+    public Task<string> CreateTokenAsync(PersonalAccessToken token, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }
@@ -585,26 +544,6 @@ public class UsersDemoClient : IUsersClient
         throw new NotImplementedException();
     }
 
-    public HttpResponseMessage DeleteUser(string userId)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<HttpResponseMessage> DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public IReadOnlyDictionary<string, NexusClaim> GetClaims(string userId)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<IReadOnlyDictionary<string, NexusClaim>> GetClaimsAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
     public MeResponse GetMe()
     {
         throw new NotImplementedException();
@@ -614,48 +553,19 @@ public class UsersDemoClient : IUsersClient
     {
         var meResponse = new MeResponse(
             UserId: "test@nexus",
-            new NexusUser("Star Lord", Enumerable.Empty<NexusClaim>().ToList())
+            Name: "Star Lord",
+            Claims: Enumerable.Empty<TokenClaim>().ToList()
         );
 
         return Task.FromResult(meResponse);
     }
 
-    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string? userId)
+    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens()
     {
         throw new NotImplementedException();
     }
 
-    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string? userId, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public IReadOnlyDictionary<string, NexusUser> GetUsers()
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<IReadOnlyDictionary<string, NexusUser>> GetUsersAsync(CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public HttpResponseMessage ReAuthenticate()
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void SignOut(string returnUrl)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task SignOutAsync(string returnUrl, CancellationToken cancellationToken)
+    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }

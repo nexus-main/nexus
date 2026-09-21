@@ -459,7 +459,8 @@ MaxWidth="MaxWidth.Medium">
                 _newAccessTokenExpiration.HasValue 
                     ? _newAccessTokenExpiration.Value.ToUniversalTime()
                     : DateTime.MaxValue,
-                claims
+                claims,
+                GrantClaims: []
             );
 
             _newAccessToken = await Client.V1.Users.CreateTokenAsync(token);

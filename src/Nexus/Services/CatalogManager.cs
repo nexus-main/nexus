@@ -9,11 +9,7 @@ using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Sources;
 using Nexus.Utilities;
-using OpenIddict.Abstractions;
-using System.Security.Claims;
 using System.Text.Json;
-using System.Text.RegularExpressions;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Services;
 
@@ -40,8 +36,7 @@ internal class CatalogManager(
         Guid PipelineId,
         DataSourcePipeline Pipeline,
         Guid[] PackageReferenceIds,
-        CatalogMetadata Metadata,
-        ClaimsPrincipal? Owner
+        CatalogMetadata Metadata
     );
 
     private readonly IDataControllerService _dataControllerService = dataControllerService;
@@ -114,8 +109,7 @@ internal class CatalogManager(
                             pipelineId,
                             pipeline,
                             packageReferenceIds,
-                            metadata,
-                            null
+                            metadata
                         );
 
                         catalogPrototypes.Add(catalogPrototype);
@@ -123,94 +117,39 @@ internal class CatalogManager(
                 }
             }
 
-            using var scope = _serviceProvider.CreateScope();
-            var dbService = scope.ServiceProvider.GetRequiredService<IDBService>();
+            /* => for all configured pipelines */
+            var pipelineMap = await _pipelineService.GetAllAsync();
 
-            /* => for each user with existing config */
-            var userToPipelinesMap = await _pipelineService.GetAllAsync();
-
-            foreach (var (userId, pipelines) in userToPipelinesMap)
+            /* For each pipeline */
+            foreach (var (pipelineId, pipeline) in pipelineMap)
             {
-                // get owner
-                var user = await dbService.FindUserAsync(userId);
-
-                if (user is null)
-                    continue;
-
-                var claims = user.Claims
-                    .Select(claim => new Claim(claim.Type, claim.Value))
-                    .ToList();
-
-                claims.Add(new Claim(Claims.Subject, userId));
-
-                var owner = new ClaimsPrincipal(
-                    new ClaimsIdentity(
-                        claims,
-                        authenticationType: NexusAuthExtensions.INTERNAL_AUTH_SCHEME,
-                        nameType: Claims.Name,
-                        roleType: Claims.Role
-                    )
-                );
-
-                var userIdParts = user.Id.Split('@', count: 2);
-                var scheme = userIdParts.Length == 2 ? userIdParts[1] : default;
-
-                AuthUtilities.SetEnabledCatalogPatternClaim(owner, scheme, _securityOptions);
-
-                /* For each pipeline */
-                foreach (var (pipelineId, pipeline) in pipelines)
+                try
                 {
-                    /* Ensure current user is allowed to use specific resource locators */
-                    var isAdmin = user.Claims.Any(claim =>
-                        claim.Type == Claims.Role &&
-                        claim.Value == nameof(NexusRoles.Administrator)
-                    );
+                    using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
+                    var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
 
-                    var canUseResourceLocatorClaims = owner.Claims
-                        .Where(x => x.Type == nameof(NexusClaims.CanUseResourceLocator))
-                        .Select(x => x.Value)
-                        .ToList();
+                    var packageReferenceIds = pipeline.Registrations
+                        .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
+                        .ToArray();
 
-                    var isPipelineAccepted = isAdmin || pipeline.Registrations
-                        .Where(x => x.ResourceLocator is not null)
-                        .All(x => canUseResourceLocatorClaims.Any(pattern => Regex.IsMatch(x.ResourceLocator!.ToString(), pattern)));
-
-                    if (!isPipelineAccepted)
+                    foreach (var catalogRegistration in catalogRegistrations)
                     {
-                        _logger.LogWarning($"Pipeline {pipelineId} of user {userId} contains one or more source registrations, with unauthorized resource locator. Set claim '{nameof(NexusClaims.CanUseResourceLocator)}' to a proper value to avoid this. The pipeline will be ignored.");
-                        continue;
+                        var metadata = LoadMetadata(catalogRegistration.Path);
+
+                        var prototype = new CatalogPrototype(
+                            catalogRegistration,
+                            pipelineId,
+                            pipeline,
+                            packageReferenceIds,
+                            metadata
+                        );
+
+                        catalogPrototypes.Add(prototype);
                     }
-
-                    /* Continue */
-                    try
-                    {
-                        using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
-                        var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
-
-                        var packageReferenceIds = pipeline.Registrations
-                            .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
-                            .ToArray();
-
-                        foreach (var catalogRegistration in catalogRegistrations)
-                        {
-                            var metadata = LoadMetadata(catalogRegistration.Path);
-
-                            var prototype = new CatalogPrototype(
-                                catalogRegistration,
-                                pipelineId,
-                                pipeline,
-                                packageReferenceIds,
-                                metadata,
-                                owner
-                            );
-
-                            catalogPrototypes.Add(prototype);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Unable to get or process data source registration for user {Username}", user.Name);
-                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Unable to get or process data source registration for pipeline {PipelineId}", pipelineId);
                 }
             }
 
@@ -243,8 +182,7 @@ internal class CatalogManager(
                         parent.PipelineId,
                         parent.Pipeline,
                         parent.PackageReferenceIds,
-                        metadata,
-                        parent.Owner);
+                        metadata);
                 });
 
                 catalogContainers = ProcessCatalogPrototypes(prototypes.ToArray());
@@ -272,7 +210,6 @@ internal class CatalogManager(
             /* create catalog container */
             var catalogContainer = new CatalogContainer(
                 prototype.Registration,
-                prototype.Owner,
                 prototype.PipelineId,
                 prototype.Pipeline,
                 prototype.PackageReferenceIds,
@@ -308,7 +245,7 @@ internal class CatalogManager(
         //
         // In general, child catalogs will be loaded lazily. Therefore, for any catalog of the provided array that
         // appears to be a child catalog, it can be assumed it comes from a data source other than the one
-        // from the parent catalog. Depending on the user's rights, this method decides which one will survive.
+        // from the parent catalog.
         //
         //
         // Example:
@@ -325,16 +262,6 @@ internal class CatalogManager(
 
         foreach (var catalogPrototype in catalogPrototypes)
         {
-            var owner = catalogPrototype.Owner;
-            var ownerCanWrite = owner is null
-                || AuthUtilities.IsCatalogWritable(catalogPrototype.Registration.Path, catalogPrototype.Metadata, owner);
-
-            if (!ownerCanWrite)
-            {
-                _logger.LogWarning("User '{UserId}' has no permissions to create catalog {CatalogId}", catalogPrototype.Owner?.GetClaim(Claims.Subject), catalogPrototype.Registration.Path);
-                continue;
-            }
-
             var duplicateIndex = catalogPrototypesToKeep.FindIndex(
                 current =>
                     {
@@ -351,19 +278,10 @@ internal class CatalogManager(
                 catalogPrototypesToKeep.Add(catalogPrototype);
             }
 
-            /* duplicate found */
+            /* duplicate found - keep first */
             else
             {
-                var otherPrototype = catalogPrototypesToKeep[duplicateIndex];
-                var otherOwner = otherPrototype.Owner;
-                var otherOwnerCanWrite = otherOwner is null
-                    || AuthUtilities.IsCatalogWritable(otherPrototype.Registration.Path, catalogPrototype.Metadata, otherOwner);
-
-                if (!otherOwnerCanWrite)
-                {
-                    _logger.LogWarning("Duplicate catalog {CatalogId}", catalogPrototypesToKeep[duplicateIndex]);
-                    catalogPrototypesToKeep[duplicateIndex] = catalogPrototype;
-                }
+                _logger.LogWarning("Duplicate catalog {CatalogId}", catalogPrototypesToKeep[duplicateIndex].Registration.Path);
             }
         }
 

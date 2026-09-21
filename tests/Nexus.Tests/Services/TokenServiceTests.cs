@@ -37,7 +37,8 @@ public class TokenServiceTests
             {
                 new(claim1Type, claim1Value),
                 new(claim2Type, claim2Value),
-            }
+            },
+            new List<TokenClaim>()
         );
 
         // Assert
@@ -66,20 +67,24 @@ public class TokenServiceTests
     {
         // Arrange
         var expectedDescription = "The description";
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
 
         var tokenMap = new Dictionary<string, InternalPersonalAccessToken>()
         {
             ["abc"] = new InternalPersonalAccessToken(
-                default,
+                id1,
                 Description: string.Empty,
                 Expires: default,
-                Claims: new List<TokenClaim>()
+                Claims: new List<TokenClaim>(),
+                GrantClaims: new List<TokenClaim>()
             ),
             ["def"] = new InternalPersonalAccessToken(
-                default,
-                Description: "The description",
+                id2,
+                Description: expectedDescription,
                 Expires: default,
-                Claims: new List<TokenClaim>()
+                Claims: new List<TokenClaim>(),
+                GrantClaims: new List<TokenClaim>()
             )
         };
 
@@ -106,13 +111,15 @@ public class TokenServiceTests
                 id1,
                 Description: string.Empty,
                 Expires: default,
-                Claims: new List<TokenClaim>()
+                Claims: new List<TokenClaim>(),
+                GrantClaims: new List<TokenClaim>()
             ),
             ["def"] = new InternalPersonalAccessToken(
                 id2,
                 Description: string.Empty,
                 Expires: default,
-                Claims: new List<TokenClaim>()
+                Claims: new List<TokenClaim>(),
+                GrantClaims: new List<TokenClaim>()
             )
         };
 
@@ -143,13 +150,15 @@ public class TokenServiceTests
                 id1,
                 Description: string.Empty,
                 Expires: default,
-                Claims: new List<TokenClaim>()
+                Claims: new List<TokenClaim>(),
+                GrantClaims: new List<TokenClaim>()
             ),
             ["def"] = new InternalPersonalAccessToken(
                 id2,
                 Description: string.Empty,
                 Expires: default,
-                Claims: new List<TokenClaim>()
+                Claims: new List<TokenClaim>(),
+                GrantClaims: new List<TokenClaim>()
             )
         };
 
@@ -180,13 +189,15 @@ public class TokenServiceTests
                 id1,
                 Description: string.Empty,
                 Expires: default,
-                Claims: new List<TokenClaim>()
+                Claims: new List<TokenClaim>(),
+                GrantClaims: new List<TokenClaim>()
             ),
             ["def"] = new InternalPersonalAccessToken(
                 id2,
                 Description: string.Empty,
                 Expires: default,
-                Claims: new List<TokenClaim>()
+                Claims: new List<TokenClaim>(),
+                GrantClaims: new List<TokenClaim>()
             )
         };
 

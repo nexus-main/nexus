@@ -2,7 +2,6 @@
 @using NJsonSchema
 @using System.Text.Json.Nodes
 @using System.Text.Encodings.Web
-@using System.Text.RegularExpressions
 
 @inject AppState AppState
 @inject INexusClient Client
@@ -118,11 +117,10 @@
                                     Disabled="true" />
 
                                     <MudTextField
-                                    @bind-Value:get="@registration.ResourceLocator?.ToString()"
-                                    @bind-Value:set="value => UpdateDataSourceRegistration(i, registration with { ResourceLocator = Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : default })"
-                                    Label="Resource locator"
-                                    Variant="Variant.Text"
-                                    Validation="(object)ValidateResourceLocator" />
+                                     @bind-Value:get="@registration.ResourceLocator?.ToString()"
+                                     @bind-Value:set="value => UpdateDataSourceRegistration(i, registration with { ResourceLocator = Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : default })"
+                                     Label="Resource locator"
+                                     Variant="Variant.Text" />
 
                                     <MudTextField 
                                     @bind-Value:get="@registration.InfoUrl"
@@ -401,35 +399,6 @@
         _authenticationState = await GetAuthenticationStateTask;
     }
 
-    private IEnumerable<string> ValidateResourceLocator(string? value)
-    {
-        if (value is null)
-            yield break;
-
-        var user = _authenticationState!.User;
-
-        var isAdmin = user.Claims.Any(claim =>
-            claim.Type == "role" &&
-            claim.Value == "Administrator"
-        );
-
-        var canUseResourceLocatorClaims = user.Claims
-            .Where(x => x.Type == "CanUseResourceLocator")
-            .Select(x => x.Value)
-            .ToList();
-
-        var isResourceLocatorAccepted = isAdmin || canUseResourceLocatorClaims.Any(pattern => Regex.IsMatch(value, pattern));
-
-        if (!isResourceLocatorAccepted)
-        {
-            if (canUseResourceLocatorClaims.Any())
-                yield return $"The current value matches none of the following 'CanUseResourceLocator' patterns: {string.Join(", ", canUseResourceLocatorClaims)}";
-
-            else
-                yield return "You have no permissions to specify resource locators.";
-        }
-    }
-
     private async Task BeginEditDataSourceRegistrationAsync(int registrationIndex)
     {
         if (_pipeline is null)
@@ -605,7 +574,7 @@
 
             if (_pipelineId is null)
             {
-                var newPipelineId = await Client.V1.Sources.CreatePipelineAsync(_pipeline, default, CancellationToken.None);
+                var newPipelineId = await Client.V1.Sources.CreatePipelineAsync(_pipeline, CancellationToken.None);
                 _pipelineId = newPipelineId.ToString();
 
                 Snackbar.Add("The pipeline has been created successfully.", Severity.Success);
@@ -618,7 +587,6 @@
                     await Client.V1.Sources.UpdatePipelineAsync(
                         _pipelineIdAsGuid, 
                         _pipeline, 
-                        default, 
                         CancellationToken.None
                     );
 
@@ -656,7 +624,7 @@
             if (result.HasValue && result.Value)
             {
                 if (Guid.TryParse(_pipelineId, out var pipelineIdAsGuid))
-                    await Client.V1.Sources.DeletePipelineAsync(pipelineIdAsGuid, default, CancellationToken.None);
+                    await Client.V1.Sources.DeletePipelineAsync(pipelineIdAsGuid, CancellationToken.None);
 
                 else
                     throw new Exception($"The pipeline ID {_pipelineId} is invalid");

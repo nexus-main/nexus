@@ -367,7 +367,7 @@ public static partial class Utilities
         var result = new List<ResourceCatalogViewModel>();
 
         var groupedPublishedInfos = childCatalogInfos
-            .Where(info => !ShouldHide(info.Id, hideCatalogPatterns) && ((info.IsReleased && info.IsVisible) || info.IsOwner))
+            .Where(info => !ShouldHide(info.Id, hideCatalogPatterns) && (info.IsReleased && info.IsVisible))
             .GroupBy(childInfo => childInfo.Id[id.Length..].Split('/', count: 3)[1]);
 
         foreach (var group in groupedPublishedInfos)
@@ -406,7 +406,6 @@ public static partial class Utilities
                     IsWritable: false,
                     IsReleased: true,
                     IsVisible: true,
-                    IsOwner: false,
                     PackageReferenceIds: default!,
                     PipelineInfo: default!
                 );

@@ -3,7 +3,6 @@
 
 using System.Text.Json;
 using Moq;
-using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Services;
 using Nexus.Utilities;
@@ -13,10 +12,7 @@ namespace Services;
 
 public class PipelineServiceTests
 {
-    delegate bool GobbleReturns(string userId, out string? pipelineMap);
-
-    private const string USERNAME_1 = "starlord";
-    private const string USERNAME_2 = "groot";
+    delegate bool GobbleReturns(out string? pipelineMap);
 
     [Fact]
     public async Task CanCreatePipeline()
@@ -47,10 +43,7 @@ public class PipelineServiceTests
         );
 
         // Act
-        var expectedId = await pipelineService.PutAsync(
-            USERNAME_1,
-            pipeline
-        );
+        var expectedId = await pipelineService.PutAsync(pipeline);
 
         // Assert
         var jsonString = File.ReadAllText(filePath);
@@ -78,29 +71,26 @@ public class PipelineServiceTests
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
-        var userToPipelinesMap = new Dictionary<string, Dictionary<Guid, DataSourcePipeline>>()
+        var pipelineMap = new Dictionary<Guid, DataSourcePipeline>()
         {
-            [USERNAME_1] = new()
-            {
-                [id1] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".^"
-                ),
-                [id2] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".*"
-                )
-            }
+            [id1] = new DataSourcePipeline(
+                Registrations: [],
+                ReleasePattern: ".^"
+            ),
+            [id2] = new DataSourcePipeline(
+                Registrations: [],
+                ReleasePattern: ".*"
+            )
         };
 
-        var pipelineService = GetPipelineService(default!, userToPipelinesMap);
+        var pipelineService = GetPipelineService(default!, pipelineMap);
 
         // Act
-        var actualPipeline = await pipelineService.GetAsync(USERNAME_1, id2);
+        var actualPipeline = await pipelineService.GetAsync(id2);
 
         // Assert
         Assert.Equal(
-            expected: JsonSerializer.Serialize(userToPipelinesMap[USERNAME_1][id2]),
+            expected: JsonSerializer.Serialize(pipelineMap[id2]),
             actual: JsonSerializer.Serialize(actualPipeline)
         );
     }
@@ -112,36 +102,31 @@ public class PipelineServiceTests
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
-        var userToPipelinesMap = new Dictionary<string, Dictionary<Guid, DataSourcePipeline>>()
+        var pipelineMap = new Dictionary<Guid, DataSourcePipeline>()
         {
-            [USERNAME_1] = new()
-            {
-                [id1] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".^"
-                ),
-                [id2] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".*"
-                )
-            }
+            [id1] = new DataSourcePipeline(
+                Registrations: [],
+                ReleasePattern: ".^"
+            ),
+            [id2] = new DataSourcePipeline(
+                Registrations: [],
+                ReleasePattern: ".*"
+            )
         };
 
         var filePath = Path.GetTempFileName();
-        var pipelineService = GetPipelineService(filePath, userToPipelinesMap);
+        var pipelineService = GetPipelineService(filePath, pipelineMap);
 
         var newPipeline = new DataSourcePipeline(
             Registrations: [],
             ReleasePattern: "foo"
         );
 
-        var expected = userToPipelinesMap[USERNAME_1]
-            .ToDictionary(x => x.Key, x => x.Value);
-
+        var expected = pipelineMap.ToDictionary(x => x.Key, x => x.Value);
         expected[id1] = newPipeline;
 
         // Act
-        var success = await pipelineService.TryUpdateAsync(USERNAME_1, id1, newPipeline);
+        var success = await pipelineService.TryUpdateAsync(id1, newPipeline);
 
         // Assert
         Assert.True(success);
@@ -161,66 +146,28 @@ public class PipelineServiceTests
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
-        var userToPipelinesMap = new Dictionary<string, Dictionary<Guid, DataSourcePipeline>>()
+        var pipelineMap = new Dictionary<Guid, DataSourcePipeline>()
         {
-            [USERNAME_1] = new()
-            {
-                [id1] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".^"
-                ),
-                [id2] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".*"
-                )
-            }
+            [id1] = new DataSourcePipeline(
+                Registrations: [],
+                ReleasePattern: ".^"
+            ),
+            [id2] = new DataSourcePipeline(
+                Registrations: [],
+                ReleasePattern: ".*"
+            )
         };
 
         var filePath = Path.GetTempFileName();
-        var pipelineService = GetPipelineService(filePath, userToPipelinesMap);
+        var pipelineService = GetPipelineService(filePath, pipelineMap);
 
         // Act
-        await pipelineService.DeleteAsync(USERNAME_1, id1);
+        await pipelineService.DeleteAsync(id1);
 
         // Assert
-        userToPipelinesMap[USERNAME_1].Remove(id1);
-        var expected = JsonSerializerHelper.SerializeIndented(userToPipelinesMap[USERNAME_1]);
+        pipelineMap.Remove(id1);
+        var expected = JsonSerializerHelper.SerializeIndented(pipelineMap);
         var actual = File.ReadAllText(filePath);
-
-        Assert.Equal(expected, actual);
-    }
-
-    [Fact]
-    public async Task CanGetAllPipelinesForUser()
-    {
-        // Arrange
-        var id1 = Guid.NewGuid();
-        var id2 = Guid.NewGuid();
-
-        var userToPipelinesMap = new Dictionary<string, Dictionary<Guid, DataSourcePipeline>>()
-        {
-            [USERNAME_1] = new()
-            {
-                [id1] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".^"
-                ),
-                [id2] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".*"
-                )
-            }
-        };
-
-        var filePath = Path.GetTempFileName();
-        var pipelineService = GetPipelineService(filePath, userToPipelinesMap);
-
-        // Act
-        var actualPipelineMap = await pipelineService.GetAllForUserAsync(USERNAME_1);
-
-        // Assert
-        var expected = JsonSerializerHelper.SerializeIndented(userToPipelinesMap[USERNAME_1].OrderBy(current => current.Key));
-        var actual = JsonSerializerHelper.SerializeIndented(actualPipelineMap.OrderBy(current => current.Key));
 
         Assert.Equal(expected, actual);
     }
@@ -232,75 +179,48 @@ public class PipelineServiceTests
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
-        var userToPipelinesMap = new Dictionary<string, Dictionary<Guid, DataSourcePipeline>>()
+        var pipelineMap = new Dictionary<Guid, DataSourcePipeline>()
         {
-            [USERNAME_1] = new()
-            {
-                [id1] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".^"
-                ),
-                [id2] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: ".*"
-                )
-            },
-            [USERNAME_2] = new()
-            {
-                [id1] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: "abc"
-                ),
-                [id2] = new DataSourcePipeline(
-                    Registrations: [],
-                    ReleasePattern: "def"
-                )
-            }
+            [id1] = new DataSourcePipeline(
+                Registrations: [],
+                ReleasePattern: ".^"
+            ),
+            [id2] = new DataSourcePipeline(
+                Registrations: [],
+                ReleasePattern: ".*"
+            )
         };
 
         var filePath = Path.GetTempFileName();
-        var pipelineService = GetPipelineService(filePath, userToPipelinesMap);
+        var pipelineService = GetPipelineService(filePath, pipelineMap);
 
         // Act
-        var actualUserToPipelinesMap = await pipelineService.GetAllAsync();
+        var actualPipelineMap = await pipelineService.GetAllAsync();
 
         // Assert
-        var expected = JsonSerializerHelper.SerializeIndented(userToPipelinesMap.SelectMany(x => x.Value.OrderBy(y => y.Key)));
-        var actual = JsonSerializerHelper.SerializeIndented(actualUserToPipelinesMap.SelectMany(x => x.Value.OrderBy(y => y.Key)));
+        var expected = JsonSerializerHelper.SerializeIndented(pipelineMap.OrderBy(current => current.Key));
+        var actual = JsonSerializerHelper.SerializeIndented(actualPipelineMap.OrderBy(current => current.Key));
 
         Assert.Equal(expected, actual);
     }
 
     private static IPipelineService GetPipelineService(
         string filePath,
-        Dictionary<string, Dictionary<Guid, DataSourcePipeline>> userToPipelinesMap
+        Dictionary<Guid, DataSourcePipeline> pipelineMap
     )
     {
         var databaseService = Mock.Of<IDatabaseService>();
 
         Mock.Get(databaseService)
-            .Setup(databaseService => databaseService.EnumerateUsers())
-            .Returns([USERNAME_1, USERNAME_2]);
-
-        Mock.Get(databaseService)
-            .Setup(databaseService => databaseService.TryReadPipelineMap(It.IsAny<string>(), out It.Ref<string?>.IsAny))
-            .Returns(new GobbleReturns((string userId, out string? pipelineMapString) =>
+            .Setup(databaseService => databaseService.TryReadPipelineMap(out It.Ref<string?>.IsAny))
+            .Returns(new GobbleReturns((out string? pipelineMapString) =>
             {
-                if (userToPipelinesMap.ContainsKey(userId))
-                {
-                    pipelineMapString = JsonSerializer.Serialize(userToPipelinesMap[userId]);
-                    return true;
-                }
-
-                else
-                {
-                    pipelineMapString = default;
-                    return false;
-                }
+                pipelineMapString = JsonSerializer.Serialize(pipelineMap);
+                return true;
             }));
 
         Mock.Get(databaseService)
-            .Setup(databaseService => databaseService.WritePipelineMap(It.IsAny<string>()))
+            .Setup(databaseService => databaseService.WritePipelineMap())
             .Returns(() => File.OpenWrite(filePath));
 
         var pipelineService = new PipelineService(databaseService);

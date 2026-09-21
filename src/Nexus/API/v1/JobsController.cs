@@ -26,6 +26,7 @@ internal class JobsController(
     AppStateManager appStateManager,
     IJobService jobService,
     IServiceProvider serviceProvider,
+    IAcceptedLicenseService acceptedLicenseService,
     Serilog.IDiagnosticContext diagnosticContext,
     ILogger<JobsController> logger) : ControllerBase
 {
@@ -41,6 +42,7 @@ internal class JobsController(
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly Serilog.IDiagnosticContext _diagnosticContext = diagnosticContext;
     private readonly IJobService _jobService = jobService;
+    private readonly IAcceptedLicenseService _acceptedLicenseService = acceptedLicenseService;
 
     #region Jobs Management
 
@@ -195,7 +197,12 @@ internal class JobsController(
             {
                 var catalogContainer = group.First().Container;
 
-                if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                if (!await AuthUtilities.IsCatalogReadableAsync(
+                    catalogContainer,
+                    User,
+                    _acceptedLicenseService,
+                    cancellationToken
+                ))
                     throw new UnauthorizedAccessException($"The current user is not permitted to access catalog {catalogContainer.Id}.");
             }
         }
@@ -312,7 +319,6 @@ internal class JobsController(
     {
         return $"{Request.Scheme}://{Request.Host}{Request.Path}/{jobId}/status";
     }
-
     private async Task<ActionResult> ProtectCatalogNonGenericAsync(
         string catalogId,
         Func<CatalogContainer, Task<ActionResult>> action,
