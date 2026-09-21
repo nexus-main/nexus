@@ -6,11 +6,9 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.Options;
-using Nexus.Components;
 using Nexus.Core;
 using Nexus.Extensibility;
 using Nexus.Services;
-using Nexus.UI.Components;
 using Serilog;
 
 // culture
@@ -126,10 +124,6 @@ void AddServices(
     // Open API
     services.AddNexusOpenApi();
 
-    // Razor components
-    services.AddRazorComponents()
-        .AddInteractiveWebAssemblyComponents();
-
     // Routing
     services.AddRouting(options => options.LowercaseUrls = true);
 
@@ -175,11 +169,9 @@ void ConfigurePipeline(WebApplication app)
 
     app.UseForwardedHeaders();
 
-    if (app.Environment.IsDevelopment())
-        app.UseWebAssemblyDebugging();
-
-    // static files
-    app.MapStaticAssets();
+    // static files (Angular production bundle served from wwwroot)
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
 
     // Open API
     var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
@@ -191,9 +183,6 @@ void ConfigurePipeline(WebApplication app)
 
     // routing (for REST API)
     app.UseRouting();
-
-    // anti forgery
-    app.UseAntiforgery();
 
     // workaround for chrome/edge browser: https://stackoverflow.com/a/69764358
     app.UseCookiePolicy(new CookiePolicyOptions
@@ -212,14 +201,12 @@ void ConfigurePipeline(WebApplication app)
     /* REST API */
     app.MapControllers();
 
+    /* SPA fallback: serve index.html for client-side routes */
+    app.MapFallbackToFile("{*path:nonfile}", "index.html");
+
     /* Debugging (print all routes) */
     app.MapGet("/debug/routes", (IEnumerable<EndpointDataSource> endpointSources) =>
         string.Join("\n", endpointSources.SelectMany(source => source.Endpoints)));
-
-    // razor components
-    app.MapRazorComponents<App>()
-        .AddInteractiveWebAssemblyRenderMode()
-        .AddAdditionalAssemblies(typeof(MainLayout).Assembly);
 }
 
 async Task InitializeAppAsync(IServiceProvider serviceProvider)

@@ -67,9 +67,6 @@ jobs:
         run: |
           npm install -g pyright@1.1.369
           python -m pip install frictionless==4.40.9 build wheel httpx pyarrow pytest pytest-asyncio
-          npm install -g tailwindcss@3.4.18
-          dotnet tool install -g Microsoft.Web.LibraryManager.Cli
-          dotnet workload install --temp-dir tmp wasm-tools-net9
 
       - name: Docker Setup
         id: buildx
@@ -79,7 +76,6 @@ jobs:
         env:
           OpenApiClientGeneratorProjectPath: ../../openapi-client-generator/src/Apollo3zehn.OpenApiClientGenerator/Apollo3zehn.OpenApiClientGenerator.csproj
         run: |
-          (cd src/Nexus && libman restore)
           dotnet publish -c Release -o app /p:GeneratePackage=true src/Nexus/Nexus.csproj
           python -m build --wheel --outdir artifacts/package --no-isolation src/clients/python
           python -m build --wheel --outdir artifacts/package --no-isolation src/extensibility/python-extensibility
@@ -99,11 +95,6 @@ jobs:
         run: |
           docker build -t nexus-main/nexus:v_next .
           docker save --output artifacts/images/nexus_image.tar nexus-main/nexus:v_next
-
-      - name: CSS
-        run: |
-          npx tailwindcss -i src/Nexus/app.css -o app_new.css
-          diff src/Nexus/wwwroot/css/app.css app_new.css
 
       - name: API
         env:
@@ -127,7 +118,6 @@ jobs:
       - name: Prepare GitHub Pages
         run: |
           touch app/wwwroot/.nojekyll
-          mv app/wwwroot/index.demo.html app/wwwroot/index.html
         if: github.ref == 'refs/heads/master'
 
       - name: Deploy GitHub Pages

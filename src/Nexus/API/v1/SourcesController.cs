@@ -194,7 +194,7 @@ internal class SourcesController(
 
             var additionalInformation = new Dictionary<string, JsonElement>
             {
-                [UI.Core.Constants.SOURCE_CONFIGURATION_SCHEMA_KEY] = JsonSerializer.Deserialize<JsonElement>(sourceConfigurationSchema.ToJson())
+                ["source-configuration-schema"] = JsonSerializer.Deserialize<JsonElement>(sourceConfigurationSchema.ToJson())
             };
 
             var version = dataSourceType.Assembly

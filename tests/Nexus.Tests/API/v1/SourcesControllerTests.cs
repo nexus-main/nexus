@@ -254,7 +254,7 @@ public class SourcesControllerTests
         hive.Setup(service => service.GetExtensions()).Returns([sourceType]);
         var controller = new SourcesController(hive.Object, Mock.Of<IPipelineService>());
 
-        return Assert.Single(controller.GetDescriptions()).AdditionalInformation![Nexus.UI.Core.Constants.SOURCE_CONFIGURATION_SCHEMA_KEY];
+        return Assert.Single(controller.GetDescriptions()).AdditionalInformation!["source-configuration-schema"];
     }
 
     public class PropertyConfiguration

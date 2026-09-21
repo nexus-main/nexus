@@ -121,7 +121,7 @@ internal class AppStateManager(
 
             var additionalInformation = attribute.Description;
 
-            var label = additionalInformation?.GetStringValue(UI.Core.Constants.DATA_WRITER_LABEL_KEY)
+            var label = additionalInformation?.GetStringValue("label")
                 ?? throw new Exception($"The description of data writer {fullName} has no label property");
 
             var version = dataWriterType.Assembly

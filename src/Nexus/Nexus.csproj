@@ -7,7 +7,6 @@
   <ItemGroup>
     <PackageReference Include="Apache.Arrow" />
     <PackageReference Include="Apollo3zehn.PackageManagement" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" />
 
     <!-- Temporary workaround for NJsonSchema: https://github.com/RicoSuter/Namotion.Reflection/pull/162 -->
@@ -26,7 +25,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../extensibility/dotnet-extensibility/dotnet-extensibility.csproj" />
-    <ProjectReference Include="../Nexus.UI/Nexus.UI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,5 +35,30 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <!--
+    Build the Angular UI and copy the production bundle into wwwroot so the
+    server can serve it as static files. Runs unconditionally during publish.
+  -->
+  <Target Name="BuildAngularUI" BeforeTargets="Publish">
+    <PropertyGroup>
+      <AngularProjectDir>$(MSBuildThisFileDirectory)../Nexus.UI</AngularProjectDir>
+      <AngularDistDir>$(AngularProjectDir)/dist/nexus-ui/browser</AngularDistDir>
+      <WwwrootDir>$(MSBuildThisFileDirectory)wwwroot</WwwrootDir>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="Building Angular UI..." />
+
+    <Exec Command="npm ci" WorkingDirectory="$(AngularProjectDir)" />
+
+    <Exec Command="npm run build" WorkingDirectory="$(AngularProjectDir)" />
+
+    <ItemGroup>
+      <AngularDistFiles Include="$(AngularDistDir)/**/*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(AngularDistFiles)"
+          DestinationFiles="@(AngularDistFiles->'$(WwwrootDir)/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 
 </Project>

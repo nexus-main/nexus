@@ -78,12 +78,21 @@ The following Jupyter Notebooks export the data into a `.csv` file, downloads it
 ```bash
 git clone https://github.com/nexus-main/nexus
 cd nexus
-(cd src/Nexus && libman restore)
 dotnet workload restore
 dotnet run --project src/Nexus/Nexus.csproj
 ```
 
 In a browser, navigate to http://localhost:5000.
+
+For UI development, run the Angular dev server separately:
+
+```bash
+cd src/Nexus.UI
+npm ci
+npm start
+```
+
+Then open http://localhost:4200. The dev server proxies `/api` to the backend at `http://localhost:5000`.
 
 ___________
 
