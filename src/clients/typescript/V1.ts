@@ -133,6 +133,13 @@ export interface ICatalogsClient {
     getLicense(catalogId: string, signal?: AbortSignal): Promise<string | null>;
 
     /**
+     * Accepts the current license of the specified catalog.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    acceptLicense(catalogId: string, signal?: AbortSignal): Promise<Response>;
+
+    /**
      * Gets all attachments for the specified catalog.
      * @param catalogId The catalog identifier.
      * @param signal The signal to cancel the current operation.
@@ -271,6 +278,18 @@ export class CatalogsClient implements ICatalogsClient {
         __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
 
         return this._invoke<string | null>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Accepts the current license of the specified catalog.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async acceptLicense(catalogId: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/catalogs/{catalogId}/accept-license";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<Response>("POST", __url, "application/octet-stream", undefined, undefined, signal);
     }
 
     /**
@@ -667,35 +686,31 @@ export interface ISourcesClient {
 
     /**
      * Gets the list of data source pipelines.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param signal The signal to cancel the current operation.
      */
-    getPipelines(userId?: string | null, signal?: AbortSignal): Promise<Record<string, DataSourcePipeline>>;
+    getPipelines(signal?: AbortSignal): Promise<Record<string, DataSourcePipeline>>;
 
     /**
      * Creates a data source pipeline.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param pipeline The pipeline to create.
      * @param signal The signal to cancel the current operation.
      */
-    createPipeline(pipeline: DataSourcePipeline, userId?: string | null, signal?: AbortSignal): Promise<string>;
+    createPipeline(pipeline: DataSourcePipeline, signal?: AbortSignal): Promise<string>;
 
     /**
      * Updates a data source pipeline.
      * @param pipelineId The identifier of the pipeline to update.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param pipeline The new pipeline.
      * @param signal The signal to cancel the current operation.
      */
-    updatePipeline(pipelineId: string, pipeline: DataSourcePipeline, userId?: string | null, signal?: AbortSignal): Promise<Response>;
+    updatePipeline(pipelineId: string, pipeline: DataSourcePipeline, signal?: AbortSignal): Promise<Response>;
 
     /**
      * Deletes a data source pipeline.
      * @param pipelineId The identifier of the pipeline to delete.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param signal The signal to cancel the current operation.
      */
-    deletePipeline(pipelineId: string, userId?: string | null, signal?: AbortSignal): Promise<Response>;
+    deletePipeline(pipelineId: string, signal?: AbortSignal): Promise<Response>;
 
 }
 
@@ -721,37 +736,21 @@ export class SourcesClient implements ISourcesClient {
 
     /**
      * Gets the list of data source pipelines.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param signal The signal to cancel the current operation.
      */
-    public async getPipelines(userId?: string | null, signal?: AbortSignal): Promise<Record<string, DataSourcePipeline>> {
+    public async getPipelines(signal?: AbortSignal): Promise<Record<string, DataSourcePipeline>> {
         let __url = "/api/v1/sources/pipelines";
-
-        const __searchParams = new URLSearchParams();
-        if (userId !== undefined && userId !== null)
-            __searchParams.set("userId", String(userId));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
 
         return this._invoke<Record<string, DataSourcePipeline>>("GET", __url, "application/json", undefined, undefined, signal);
     }
 
     /**
      * Creates a data source pipeline.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param pipeline The pipeline to create.
      * @param signal The signal to cancel the current operation.
      */
-    public async createPipeline(pipeline: DataSourcePipeline, userId?: string | null, signal?: AbortSignal): Promise<string> {
+    public async createPipeline(pipeline: DataSourcePipeline, signal?: AbortSignal): Promise<string> {
         let __url = "/api/v1/sources/pipelines";
-
-        const __searchParams = new URLSearchParams();
-        if (userId !== undefined && userId !== null)
-            __searchParams.set("userId", String(userId));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
 
         return this._invoke<string>("POST", __url, "application/json", "application/json", JSON.stringify(pipeline), signal);
     }
@@ -759,20 +758,12 @@ export class SourcesClient implements ISourcesClient {
     /**
      * Updates a data source pipeline.
      * @param pipelineId The identifier of the pipeline to update.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param pipeline The new pipeline.
      * @param signal The signal to cancel the current operation.
      */
-    public async updatePipeline(pipelineId: string, pipeline: DataSourcePipeline, userId?: string | null, signal?: AbortSignal): Promise<Response> {
+    public async updatePipeline(pipelineId: string, pipeline: DataSourcePipeline, signal?: AbortSignal): Promise<Response> {
         let __url = "/api/v1/sources/pipelines/{pipelineId}";
         __url = __url.replace("{pipelineId}", encodeURIComponent(String(pipelineId)));
-
-        const __searchParams = new URLSearchParams();
-        if (userId !== undefined && userId !== null)
-            __searchParams.set("userId", String(userId));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
 
         return this._invoke<Response>("PUT", __url, "application/octet-stream", "application/json", JSON.stringify(pipeline), signal);
     }
@@ -780,19 +771,11 @@ export class SourcesClient implements ISourcesClient {
     /**
      * Deletes a data source pipeline.
      * @param pipelineId The identifier of the pipeline to delete.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param signal The signal to cancel the current operation.
      */
-    public async deletePipeline(pipelineId: string, userId?: string | null, signal?: AbortSignal): Promise<Response> {
+    public async deletePipeline(pipelineId: string, signal?: AbortSignal): Promise<Response> {
         let __url = "/api/v1/sources/pipelines/{pipelineId}";
         __url = __url.replace("{pipelineId}", encodeURIComponent(String(pipelineId)));
-
-        const __searchParams = new URLSearchParams();
-        if (userId !== undefined && userId !== null)
-            __searchParams.set("userId", String(userId));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
 
         return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
     }
@@ -804,16 +787,10 @@ export class SourcesClient implements ISourcesClient {
  */
 export interface ISystemClient {
     /**
-     * Gets the default file type.
+     * Gets the system configuration.
      * @param signal The signal to cancel the current operation.
      */
-    getDefaultFileType(signal?: AbortSignal): Promise<string>;
-
-    /**
-     * Gets the configured help link.
-     * @param signal The signal to cancel the current operation.
-     */
-    getHelpLink(signal?: AbortSignal): Promise<string>;
+    get(signal?: AbortSignal): Promise<SystemResponse>;
 
 }
 
@@ -828,23 +805,13 @@ export class SystemClient implements ISystemClient {
     }
 
     /**
-     * Gets the default file type.
+     * Gets the system configuration.
      * @param signal The signal to cancel the current operation.
      */
-    public async getDefaultFileType(signal?: AbortSignal): Promise<string> {
-        let __url = "/api/v1/system/file-type";
+    public async get(signal?: AbortSignal): Promise<SystemResponse> {
+        let __url = "/api/v1/system";
 
-        return this._invoke<string>("GET", __url, "application/json", undefined, undefined, signal);
-    }
-
-    /**
-     * Gets the configured help link.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async getHelpLink(signal?: AbortSignal): Promise<string> {
-        let __url = "/api/v1/system/help-link";
-
-        return this._invoke<string>("GET", __url, "application/json", undefined, undefined, signal);
+        return this._invoke<SystemResponse>("GET", __url, "application/json", undefined, undefined, signal);
     }
 
 }
@@ -853,21 +820,6 @@ export class SystemClient implements ISystemClient {
  * Provides methods to interact with users.
  */
 export interface IUsersClient {
-    /**
-     * Authenticates the user.
-     * @param scheme The authentication scheme to challenge.
-     * @param returnUrl The URL to return after successful authentication.
-     * @param signal The signal to cancel the current operation.
-     */
-    authenticate(scheme: string, returnUrl: string, signal?: AbortSignal): Promise<Response>;
-
-    /**
-     * Logs out the user.
-     * @param returnUrl The URL to return after logout.
-     * @param signal The signal to cancel the current operation.
-     */
-    signOut(returnUrl: string, signal?: AbortSignal): Promise<void>;
-
     /**
      * Deletes a personal access token.
      * @param value The personal access token to delete.
@@ -882,25 +834,17 @@ export interface IUsersClient {
     getMe(signal?: AbortSignal): Promise<MeResponse>;
 
     /**
-     * Allows the user to reauthenticate in case of modified claims.
-     * @param signal The signal to cancel the current operation.
-     */
-    reAuthenticate(signal?: AbortSignal): Promise<Response>;
-
-    /**
      * Gets all personal access tokens.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param signal The signal to cancel the current operation.
      */
-    getTokens(userId?: string | null, signal?: AbortSignal): Promise<Record<string, PersonalAccessToken>>;
+    getTokens(signal?: AbortSignal): Promise<Record<string, PersonalAccessToken>>;
 
     /**
      * Creates a personal access token.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param token The personal access token to create.
      * @param signal The signal to cancel the current operation.
      */
-    createToken(token: PersonalAccessToken, userId?: string | null, signal?: AbortSignal): Promise<string>;
+    createToken(token: PersonalAccessToken, signal?: AbortSignal): Promise<string>;
 
     /**
      * Deletes a personal access token.
@@ -908,55 +852,6 @@ export interface IUsersClient {
      * @param signal The signal to cancel the current operation.
      */
     deleteToken(tokenId: string, signal?: AbortSignal): Promise<Response>;
-
-    /**
-     * Accepts the license of the specified catalog.
-     * @param catalogId The catalog identifier.
-     * @param signal The signal to cancel the current operation.
-     */
-    acceptLicense(catalogId: string, signal?: AbortSignal): Promise<Response>;
-
-    /**
-     * Gets a list of users.
-     * @param signal The signal to cancel the current operation.
-     */
-    getUsers(signal?: AbortSignal): Promise<Record<string, NexusUser>>;
-
-    /**
-     * Creates a user.
-     * @param user The user to create.
-     * @param signal The signal to cancel the current operation.
-     */
-    createUser(user: NexusUser, signal?: AbortSignal): Promise<string>;
-
-    /**
-     * Deletes a user.
-     * @param userId The identifier of the user.
-     * @param signal The signal to cancel the current operation.
-     */
-    deleteUser(userId: string, signal?: AbortSignal): Promise<Response>;
-
-    /**
-     * Gets all claims.
-     * @param userId The identifier of the user.
-     * @param signal The signal to cancel the current operation.
-     */
-    getClaims(userId: string, signal?: AbortSignal): Promise<Record<string, NexusClaim>>;
-
-    /**
-     * Creates a claim.
-     * @param userId The identifier of the user.
-     * @param claim The claim to create.
-     * @param signal The signal to cancel the current operation.
-     */
-    createClaim(userId: string, claim: NexusClaim, signal?: AbortSignal): Promise<string>;
-
-    /**
-     * Deletes a claim.
-     * @param claimId The identifier of the claim.
-     * @param signal The signal to cancel the current operation.
-     */
-    deleteClaim(claimId: string, signal?: AbortSignal): Promise<Response>;
 
 }
 
@@ -968,42 +863,6 @@ export class UsersClient implements IUsersClient {
 
     constructor(invoke: HttpRequestHandler) {
         this._invoke = invoke;
-    }
-
-    /**
-     * Authenticates the user.
-     * @param scheme The authentication scheme to challenge.
-     * @param returnUrl The URL to return after successful authentication.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async authenticate(scheme: string, returnUrl: string, signal?: AbortSignal): Promise<Response> {
-        let __url = "/api/v1/users/authenticate";
-
-        const __searchParams = new URLSearchParams();
-        __searchParams.set("scheme", String(scheme));
-        __searchParams.set("returnUrl", String(returnUrl));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
-
-        return this._invoke<Response>("POST", __url, "application/octet-stream", undefined, undefined, signal);
-    }
-
-    /**
-     * Logs out the user.
-     * @param returnUrl The URL to return after logout.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async signOut(returnUrl: string, signal?: AbortSignal): Promise<void> {
-        let __url = "/api/v1/users/signout";
-
-        const __searchParams = new URLSearchParams();
-        __searchParams.set("returnUrl", String(returnUrl));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
-
-        return this._invoke<void>("POST", __url, undefined, undefined, undefined, signal);
     }
 
     /**
@@ -1034,48 +893,22 @@ export class UsersClient implements IUsersClient {
     }
 
     /**
-     * Allows the user to reauthenticate in case of modified claims.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async reAuthenticate(signal?: AbortSignal): Promise<Response> {
-        let __url = "/api/v1/users/reauthenticate";
-
-        return this._invoke<Response>("GET", __url, "application/octet-stream", undefined, undefined, signal);
-    }
-
-    /**
      * Gets all personal access tokens.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param signal The signal to cancel the current operation.
      */
-    public async getTokens(userId?: string | null, signal?: AbortSignal): Promise<Record<string, PersonalAccessToken>> {
+    public async getTokens(signal?: AbortSignal): Promise<Record<string, PersonalAccessToken>> {
         let __url = "/api/v1/users/tokens";
-
-        const __searchParams = new URLSearchParams();
-        if (userId !== undefined && userId !== null)
-            __searchParams.set("userId", String(userId));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
 
         return this._invoke<Record<string, PersonalAccessToken>>("GET", __url, "application/json", undefined, undefined, signal);
     }
 
     /**
      * Creates a personal access token.
-     * @param userId The optional user identifier. If not specified, the current user will be used.
      * @param token The personal access token to create.
      * @param signal The signal to cancel the current operation.
      */
-    public async createToken(token: PersonalAccessToken, userId?: string | null, signal?: AbortSignal): Promise<string> {
+    public async createToken(token: PersonalAccessToken, signal?: AbortSignal): Promise<string> {
         let __url = "/api/v1/users/tokens/create";
-
-        const __searchParams = new URLSearchParams();
-        if (userId !== undefined && userId !== null)
-            __searchParams.set("userId", String(userId));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
 
         return this._invoke<string>("POST", __url, "application/json", "application/json", JSON.stringify(token), signal);
     }
@@ -1088,93 +921,6 @@ export class UsersClient implements IUsersClient {
     public async deleteToken(tokenId: string, signal?: AbortSignal): Promise<Response> {
         let __url = "/api/v1/users/tokens/{tokenId}";
         __url = __url.replace("{tokenId}", encodeURIComponent(String(tokenId)));
-
-        return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
-    }
-
-    /**
-     * Accepts the license of the specified catalog.
-     * @param catalogId The catalog identifier.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async acceptLicense(catalogId: string, signal?: AbortSignal): Promise<Response> {
-        let __url = "/api/v1/users/accept-license";
-
-        const __searchParams = new URLSearchParams();
-        __searchParams.set("catalogId", String(catalogId));
-        const __query = __searchParams.toString();
-        if (__query)
-            __url += "?" + __query;
-
-        return this._invoke<Response>("GET", __url, "application/octet-stream", undefined, undefined, signal);
-    }
-
-    /**
-     * Gets a list of users.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async getUsers(signal?: AbortSignal): Promise<Record<string, NexusUser>> {
-        let __url = "/api/v1/users";
-
-        return this._invoke<Record<string, NexusUser>>("GET", __url, "application/json", undefined, undefined, signal);
-    }
-
-    /**
-     * Creates a user.
-     * @param user The user to create.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async createUser(user: NexusUser, signal?: AbortSignal): Promise<string> {
-        let __url = "/api/v1/users";
-
-        return this._invoke<string>("POST", __url, "application/json", "application/json", JSON.stringify(user), signal);
-    }
-
-    /**
-     * Deletes a user.
-     * @param userId The identifier of the user.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async deleteUser(userId: string, signal?: AbortSignal): Promise<Response> {
-        let __url = "/api/v1/users/{userId}";
-        __url = __url.replace("{userId}", encodeURIComponent(String(userId)));
-
-        return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
-    }
-
-    /**
-     * Gets all claims.
-     * @param userId The identifier of the user.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async getClaims(userId: string, signal?: AbortSignal): Promise<Record<string, NexusClaim>> {
-        let __url = "/api/v1/users/{userId}/claims";
-        __url = __url.replace("{userId}", encodeURIComponent(String(userId)));
-
-        return this._invoke<Record<string, NexusClaim>>("GET", __url, "application/json", undefined, undefined, signal);
-    }
-
-    /**
-     * Creates a claim.
-     * @param userId The identifier of the user.
-     * @param claim The claim to create.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async createClaim(userId: string, claim: NexusClaim, signal?: AbortSignal): Promise<string> {
-        let __url = "/api/v1/users/{userId}/claims";
-        __url = __url.replace("{userId}", encodeURIComponent(String(userId)));
-
-        return this._invoke<string>("POST", __url, "application/json", "application/json", JSON.stringify(claim), signal);
-    }
-
-    /**
-     * Deletes a claim.
-     * @param claimId The identifier of the claim.
-     * @param signal The signal to cancel the current operation.
-     */
-    public async deleteClaim(claimId: string, signal?: AbortSignal): Promise<Response> {
-        let __url = "/api/v1/users/claims/{claimId}";
-        __url = __url.replace("{claimId}", encodeURIComponent(String(claimId)));
 
         return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
     }
@@ -1309,8 +1055,6 @@ export interface CatalogInfo {
     isReleased?: boolean | undefined;
     /** A boolean which indicates if the catalog is visible. */
     isVisible?: boolean | undefined;
-    /** A boolean which indicates if the catalog is owned by the current user. */
-    isOwner?: boolean | undefined;
     /** The package reference identifiers. */
     packageReferenceIds?: string[] | undefined;
     /** A structure for pipeline info. */
@@ -1489,31 +1233,35 @@ export interface DataSourceRegistration {
 
 
 /**
+ * A system response.
+ */
+export interface SystemResponse {
+    /** The default file type. */
+    defaultFileType?: string | null;
+    /** The help link. */
+    helpLink?: string | null;
+    /** The logout URL. */
+    logoutUrl?: string | null;
+}
+
+
+/**
  * A me response.
  */
 export interface MeResponse {
     /** The user id. */
     userId?: string | undefined;
-    /** The user. */
-    user?: NexusUser | undefined;
-}
-
-
-/**
- * Represents a user.
- */
-export interface NexusUser {
     /** The user name. */
     name?: string | undefined;
-    /** The list of claims. */
-    claims?: NexusClaim[] | undefined;
+    /** The user claims. */
+    claims?: TokenClaim[] | undefined;
 }
 
 
 /**
- * Represents a claim.
+ * A revoke token request.
  */
-export interface NexusClaim {
+export interface TokenClaim {
     /** The claim type. */
     type?: string | undefined;
     /** The claim value. */
@@ -1531,15 +1279,6 @@ export interface PersonalAccessToken {
     expires?: string | undefined;
     /** The claims that will be part of the token. */
     claims?: TokenClaim[] | undefined;
-}
-
-
-/**
- * A revoke token request.
- */
-export interface TokenClaim {
-    /** The claim type. */
-    type?: string | undefined;
-    /** The claim value. */
-    value?: string | undefined;
+    /** A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator. */
+    grantClaims?: TokenClaim[] | undefined;
 }

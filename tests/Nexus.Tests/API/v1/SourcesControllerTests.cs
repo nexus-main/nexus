@@ -232,32 +232,19 @@ public class SourcesControllerTests
             Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ConstructorParameterConfiguration>(json, _sourceConfigurationJsonOptions));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PipelineListDefaultsToCurrentUserEvenForAdministrators(bool isAdmin)
+    [Fact]
+    public async Task PipelineListReturnsAllPipelines()
     {
-        const string USER_ID = "current-user";
         var pipelines = new Mock<IPipelineService>(MockBehavior.Strict);
         IReadOnlyDictionary<Guid, DataSourcePipeline> expected = new Dictionary<Guid, DataSourcePipeline>();
-        pipelines.Setup(service => service.GetAllForUserAsync(USER_ID)).ReturnsAsync(expected);
-        var identity = new ClaimsIdentity([new Claim("sub", USER_ID)], "test");
+        pipelines.Setup(service => service.GetAllAsync()).ReturnsAsync(expected);
 
-        if (isAdmin)
-            identity.AddClaim(new Claim(ClaimTypes.Role, "Administrator"));
-
-        var controller = new SourcesController(Mock.Of<IExtensionHive<IDataSource>>(), pipelines.Object)
-        {
-            ControllerContext = new ControllerContext
-            {
-                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
-            }
-        };
+        var controller = new SourcesController(Mock.Of<IExtensionHive<IDataSource>>(), pipelines.Object);
 
         var response = await controller.GetPipelinesAsync();
 
         Assert.Same(expected, Assert.IsType<OkObjectResult>(response.Result).Value);
-        pipelines.Verify(service => service.GetAllForUserAsync(USER_ID), Times.Once);
+        pipelines.Verify(service => service.GetAllAsync(), Times.Once);
         pipelines.VerifyNoOtherCalls();
     }
 

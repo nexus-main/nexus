@@ -170,7 +170,7 @@ describe("TypeScript Client Tests", () => {
         const client = new NexusClient("http://localhost");
 
         await expect(
-            (client as any)._readBatch(response, [4], Precision.Float32),
+            (client as any)._readBatch(response, ["/X"], [4], Precision.Float32),
         ).rejects.toThrow("invalid resource index");
     });
 
@@ -182,7 +182,7 @@ describe("TypeScript Client Tests", () => {
         const client = new NexusClient("http://localhost");
 
         await expect(
-            (client as any)._readBatch(response, [4], Precision.Float32),
+            (client as any)._readBatch(response, ["/X"], [4], Precision.Float32),
         ).rejects.toThrow();
     });
 
@@ -191,7 +191,7 @@ describe("TypeScript Client Tests", () => {
         const client = new NexusClient("http://localhost");
 
         await expect(
-            (client as any)._readBatch(response, [4], Precision.Float32),
+            (client as any)._readBatch(response, ["/X"], [4], Precision.Float32),
         ).rejects.toThrow();
     });
 
@@ -201,7 +201,7 @@ describe("TypeScript Client Tests", () => {
         const client = new NexusClient("http://localhost");
 
         await expect(
-            (client as any)._readBatch(response, [8], Precision.Float32),
+            (client as any)._readBatch(response, ["/X"], [8], Precision.Float32),
         ).rejects.toThrow("before all data");
     });
 
@@ -210,7 +210,7 @@ describe("TypeScript Client Tests", () => {
         const client = new NexusClient("http://localhost");
 
         await expect(
-            (client as any)._readBatch(response, [4], Precision.Float32),
+            (client as any)._readBatch(response, ["/X"], [4], Precision.Float32),
         ).rejects.toThrow("out-of-order");
     });
 
@@ -237,7 +237,7 @@ describe("TypeScript Client Tests", () => {
         const client = new NexusClient("http://localhost");
 
         await expect(
-            (client as any)._readBatch(response, [8], Precision.Float32),
+            (client as any)._readBatch(response, ["/X"], [8], Precision.Float32),
         ).rejects.toThrow();
     });
 
