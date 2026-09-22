@@ -29,7 +29,7 @@
   <div class="group-bar" [class.expanded]="expanded()" [class.can-scroll-back]="canScrollGroupsBack()" [class.can-scroll-forward]="canScrollGroupsForward()">
     <div #groupStrip [id]="groupStripId" class="group-strip" role="group" aria-label="Resource groups" (scroll)="updateGroupScroll()" (wheel)="scrollCollapsedGroups($event)">
       @for (group of groups(); track group.key) {
-        <button pButton type="button" severity="secondary" size="small" class="group-chip" [text]="true" [attr.aria-pressed]="activeGroup()?.key === group.key" [attr.aria-label]="group.name + ', ' + group.rows.length + ' representations'" [pTooltip]="group.name" tooltipPosition="top" [disabled]="saving()" (click)="selectGroup(group.key)">
+        <button pButton type="button" severity="secondary" size="small" class="group-chip" [text]="true" [attr.aria-pressed]="activeGroup()?.key === group.key" [attr.aria-label]="group.name + ', ' + group.rows.length + ' representations'" [disabled]="saving()" (click)="selectGroup(group.key)">
           <span class="group-name">{{ group.name }}</span><span class="group-count">{{ group.rows.length }}</span>
         </button>
       } @empty { <span class="group-empty">No matching groups</span> }
