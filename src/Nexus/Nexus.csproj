@@ -61,4 +61,24 @@
           DestinationFiles="@(AngularDistFiles->'$(WwwrootDir)/%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
+  <!--
+    Copy Angular output to the publish output directory. This is needed because
+    MSBuild's Content globbing runs at evaluation time, before BuildAngularUI
+    creates the files in wwwroot.
+  -->
+  <Target Name="CopyAngularToPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <AngularProjectDir>$(MSBuildThisFileDirectory)../Nexus.UI</AngularProjectDir>
+      <AngularDistDir>$(AngularProjectDir)/dist/nexus-ui/browser</AngularDistDir>
+      <PublishWwwrootDir>$(PublishDir)wwwroot</PublishWwwrootDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <AngularDistFiles Include="$(AngularDistDir)/**/*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(AngularDistFiles)"
+          DestinationFiles="@(AngularDistFiles->'$(PublishWwwrootDir)/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
 </Project>
