@@ -10,11 +10,11 @@
         <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="loading() || saving()" (click)="startEditing()" aria-label="Edit metadata" pTooltip="Edit metadata" tooltipPosition="top"><svg lucidePencil aria-hidden="true"></svg></button>
       }
       <span class="toolbar-icon-action" [pTooltip]="exportDisabledReason()" [tooltipDisabled]="!exportDisabledReason()" tooltipPosition="top">
-        <button pButton type="button" class="export-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!exportDisabledReason()" (click)="exportRequested.emit()" aria-label="Export" pTooltip="Export" tooltipPosition="top"><svg lucideDownload aria-hidden="true"></svg></button>
+        <button pButton type="button" severity="secondary" class="export-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!exportDisabledReason()" (click)="exportRequested.emit()" aria-label="Export" pTooltip="Export" tooltipPosition="top"><svg lucideDownload aria-hidden="true"></svg></button>
       </span>
       <span class="visualize-action" [pTooltip]="visualizationDisabledReason()" [tooltipDisabled]="!visualizationDisabledReason()" tooltipPosition="top">
         @if (!visualizationPanelVisible()) {
-          <button pButton type="button" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!visualizationDisabledReason()" (click)="visualize.emit()" aria-label="Visualize" pTooltip="Visualize" tooltipPosition="top"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
+          <button pButton type="button" severity="secondary" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!visualizationDisabledReason()" (click)="visualize.emit()" aria-label="Visualize" pTooltip="Visualize" tooltipPosition="top"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
         }
         @if (visualizationSize()) { <span class="visualize-size" pTooltip="Estimated visualization size (Float32)" tooltipPosition="top" aria-label="Estimated visualization size">{{ visualizationSize() }}</span> }
       </span>

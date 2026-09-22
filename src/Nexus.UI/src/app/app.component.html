@@ -38,6 +38,9 @@
                     </div>
                   </div>
                   <div class="flex shrink-0 items-center gap-1 pt-2">
+                    @if (selectedCatalogReadme()) {
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" [ngClass]="activeCatalogDetailsOpen() ? 'nexus-icon-button-active' : ''" (click)="activeCatalogDetailsOpen.update((value) => !value)" [attr.aria-expanded]="activeCatalogDetailsOpen()" aria-controls="active-catalog-readme" [attr.aria-label]="activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme'" [pTooltip]="activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme'" tooltipPosition="top"><svg lucideFileText class="h-4 w-4" aria-hidden="true"></svg></button>
+                    }
                     @if (selectedCatalogWritable()) {
                       <button pButton type="button" size="small" severity="secondary" [text]="true" class="gap-1 !px-2" (click)="isCatalogFilesOpen.set(true)" aria-label="Manage attachments" pTooltip="Manage attachments" tooltipPosition="top"><svg lucidePaperclip class="h-4 w-4" aria-hidden="true"></svg>@if (selectedCatalogAttachments().length > 0) { <span class="min-w-4 text-xs tabular-nums">{{ selectedCatalogAttachments().length }}</span> }</button>
                     }
@@ -46,17 +49,8 @@
                     }
                   </div>
                 </div>
-                @if (selectedCatalogTitle() || selectedCatalogReadme()) {
-                  <div class="flex min-w-0 items-center justify-between gap-3">
-                    @if (selectedCatalogTitle()) {
-                      <p class="min-w-0 flex-1 text-sm leading-6 text-slate-300">{{ selectedCatalogTitle() }}</p>
-                    } @else {
-                      <span class="min-w-0 flex-1" aria-hidden="true"></span>
-                    }
-                    @if (selectedCatalogReadme()) {
-                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0 !px-2" (click)="activeCatalogDetailsOpen.update((value) => !value)" [attr.aria-expanded]="activeCatalogDetailsOpen()" aria-controls="active-catalog-readme"><svg lucideFileText class="h-4 w-4" aria-hidden="true"></svg>{{ activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme' }}</button>
-                    }
-                  </div>
+                @if (selectedCatalogTitle()) {
+                  <p class="min-w-0 text-sm leading-6 text-slate-300">{{ selectedCatalogTitle() }}</p>
                 }
                 @if (selectedCatalogRange()) {
                   <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">

@@ -108,6 +108,23 @@ button {
   line-height: 1rem;
 }
 
+.p-button.p-button-text.p-button-icon-only:enabled:hover,
+.p-button.p-button-text:enabled:hover:has(> svg:only-child),
+.p-button.p-button-text:enabled:hover:has(> .p-button-icon:only-child) {
+  color: var(--p-primary-hover-color);
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
+.nexus-icon-button-active {
+  color: var(--p-primary-color) !important;
+  background: color-mix(in srgb, var(--p-primary-color) 18%, transparent) !important;
+}
+
+.nexus-icon-button-active:enabled:hover {
+  color: var(--p-primary-hover-color) !important;
+  background: color-mix(in srgb, var(--p-primary-color) 24%, transparent) !important;
+}
+
 .nexus-progress-outlined .p-progressbar {
   height: 0.5rem;
   border: 1px solid rgba(148, 163, 184, 0.28);
