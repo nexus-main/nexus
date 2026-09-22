@@ -83,9 +83,13 @@ internal class Sample : IDataSource<object?>
 
     public const string RemoteCatalogId = "/SAMPLE/REMOTE";
 
+    public const string LicensedCatalogId = "/SAMPLE/LICENSED";
+
     private const string LocalCatalogTitle = "Simulates a local catalog";
 
     private const string RemoteCatalogTitle = "Simulates a remote catalog";
+
+    private const string LicensedCatalogTitle = "Simulates a licensed catalog";
 
     public const string RemoteUsername = "test";
 
@@ -109,11 +113,18 @@ internal class Sample : IDataSource<object?>
     {
         if (path == "/")
         {
-            return Task.FromResult(new CatalogRegistration[]
+            var registrations = new List<CatalogRegistration>()
             {
-                new(LocalCatalogId, LocalCatalogTitle),
-                new(RemoteCatalogId, RemoteCatalogTitle)
-            });
+                new(LocalCatalogId, LocalCatalogTitle)
+            };
+
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+            {
+                registrations.Add(new(RemoteCatalogId, RemoteCatalogTitle));
+                registrations.Add(new(LicensedCatalogId, LicensedCatalogTitle));
+            }
+
+            return Task.FromResult(registrations.ToArray());
         }
 
         else
@@ -279,6 +290,9 @@ internal class Sample : IDataSource<object?>
             resourceD
         });
 
+        if (catalogId == LicensedCatalogId)
+            AddLicensedCatalogProperties(catalogBuilder);
+
         if (catalogId == RemoteCatalogId)
             catalogBuilder.WithReadme(
 """
@@ -297,6 +311,22 @@ As soon as these credentials have been added, you should be granted full access 
 """);
 
         return catalogBuilder.Build();
+    }
+
+    private static void AddLicensedCatalogProperties(
+        ResourceCatalogBuilder catalogBuilder)
+    {
+        catalogBuilder.WithReadme(
+"""
+This catalog demonstrates how to access data sources that require accepting a license.
+""");
+
+        catalogBuilder.WithLicense(
+"""
+Temporary Sample Catalog License
+
+This temporary license is used to test catalog license acceptance behavior.
+""");
     }
 
     private static double ToUnixTimeStamp(

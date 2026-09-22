@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common'
-import { Component, computed, input, output } from '@angular/core'
+import { Component, computed, input, output, signal } from '@angular/core'
 import { ButtonModule } from 'primeng/button'
 import { Popover, PopoverModule } from 'primeng/popover'
 import { TooltipModule } from 'primeng/tooltip'
@@ -57,6 +57,10 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
       </div>
     </div>
 
+    @if (resourcePathCopied()) {
+      <div class="fixed bottom-4 right-4 z-50 rounded-sm border border-emerald-300/25 bg-emerald-300/15 px-4 py-2 text-sm font-medium text-emerald-100 shadow-lg shadow-black/30" role="status" aria-live="polite">Resource path copied</div>
+    }
+
     <p-popover #methods appendTo="body" [ariaLabel]="'Methods for ' + resourceLabel()"
       [style]="{ width: 'min(20rem, calc(100vw - 2rem))' }" [focusOnShow]="false"
       (onShow)="methodsContent.focus()" (onHide)="methodsOpener.isConnected && methodsOpener.focus()">
@@ -89,6 +93,7 @@ export class PinnedResourceComponent {
   readonly kindToggled = output<RepresentationKind>()
   readonly removed = output<void>()
   readonly activated = output<void>()
+  readonly resourcePathCopied = signal(false)
   readonly formatPeriod = formatPeriod
   readonly parameters = computed(() => Object.entries(this.selection().parameters).sort(([a], [b]) => a.localeCompare(b)))
   readonly resourceLabel = computed(() => `${this.selection().path}, native period ${formatPeriod(this.selection().basePeriod)}`)
@@ -146,7 +151,12 @@ export class PinnedResourceComponent {
   }
 
   copyMethodPath(kind: RepresentationKind): void {
-    void navigator.clipboard.writeText(this.methodPath(kind))
+    if (!navigator.clipboard) return
+
+    void navigator.clipboard.writeText(this.methodPath(kind)).then(() => {
+      this.resourcePathCopied.set(true)
+      window.setTimeout(() => this.resourcePathCopied.set(false), 1800)
+    })
   }
 
   closeMethods(event: Event, methods: Popover) {

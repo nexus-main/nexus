@@ -38,7 +38,7 @@ button:disabled, input:disabled { cursor: not-allowed; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 14px 16px 10px; }
 .heading { display: grid; gap: 3px; }
 .eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: .16em; color: var(--p-text-muted-color); }
-.toolbar-actions, .navigation-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.toolbar-actions, .navigation-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .toolbar-actions button, .navigation-actions button { min-height: 32px; font-size: 11px; }
 .toolbar-icon-action { display: inline-flex; align-items: center; }
 .visualize-action { display: inline-flex; align-items: center; gap: 8px; }
@@ -110,7 +110,7 @@ button:disabled, input:disabled { cursor: not-allowed; }
 .navigation-actions { justify-content: flex-end; }
 
 :host.narrow .toolbar { padding: 10px; }
-:host.narrow .toolbar-actions { gap: 5px; }
+:host.narrow .toolbar-actions { gap: 4px; }
 :host.narrow .toolbar-actions button { min-height: 40px; }
 :host.narrow .search-bar { padding: 0 10px 8px; }
 :host.narrow .edit-help { padding: 8px 10px; }

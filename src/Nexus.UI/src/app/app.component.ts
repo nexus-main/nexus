@@ -1,7 +1,7 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
 import { Component, HostListener, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucideX } from '@lucide/angular'
+import { LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX } from '@lucide/angular'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
@@ -105,7 +105,7 @@ type StoredExportSettings = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnDestroy {
@@ -212,6 +212,7 @@ export class AppComponent implements OnDestroy {
   readonly licenseLoading = signal(false)
   readonly licenseAccepting = signal(false)
   readonly licenseError = signal('')
+  readonly catalogPathCopied = signal(false)
   readonly catalogFilesBusy = signal(false)
   readonly catalogFilesError = signal('')
   readonly catalogFilesDragActive = signal(false)
@@ -326,6 +327,7 @@ export class AppComponent implements OnDestroy {
   readonly selectedCatalogReadable = computed(() => this.selectedCatalogInfo()?.isReadable ?? this.selectedNode()?.isReadable)
   readonly selectedCatalogAttachments = computed(() => [...(this.selectedBundle()?.attachments ?? [])].sort((a, b) => a.localeCompare(b)))
   readonly licenseAcceptanceVisible = computed(() => this.apiAvailable() && !this.isSelectedFake() && this.selectedCatalogHasLicense() && this.selectedCatalogReadable() === false)
+  readonly acceptedLicenseVisible = computed(() => this.apiAvailable() && !this.isSelectedFake() && this.selectedCatalogHasLicense() && this.selectedCatalogReadable() === true)
   readonly resourceMetadataWritable = computed(() => {
     const id = this.selectedCatalogId()
     const info = [...this.rootCatalogInfos(), ...[...this.childMap().values()].flat(), this.selectedCatalogInfo()]
@@ -1547,7 +1549,13 @@ export class AppComponent implements OnDestroy {
   }
 
   copyCatalogPath() {
-    void navigator.clipboard?.writeText(this.selectedCatalogId())
+    const catalogId = this.selectedCatalogId()
+    if (!catalogId || !navigator.clipboard) return
+
+    void navigator.clipboard.writeText(catalogId).then(() => {
+      this.catalogPathCopied.set(true)
+      window.setTimeout(() => this.catalogPathCopied.set(false), 1800)
+    })
   }
 
   compactPath(path: string | undefined, maxSegments = 3) {
