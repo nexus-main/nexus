@@ -3,7 +3,6 @@
 
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Nexus.Utilities;
@@ -80,7 +79,7 @@ internal class HeaderAuthenticationHandler(
         if (name is not null)
             claims.Add(new Claim(NexusClaimTypes.Name, name));
 
-        var groups = ParseJsonArrayHeader(_securityOptions.GroupsHeader);
+        var groups = ParseClaimHeader(_securityOptions.GroupsHeader);
         var isAdmin = groups.Any(group => group == _securityOptions.AdministratorGroup);
 
         if (isAdmin)
@@ -110,20 +109,19 @@ internal class HeaderAuthenticationHandler(
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
     }
 
-    private string[] ParseJsonArrayHeader(string headerName)
+    private string[] ParseClaimHeader(string headerName)
     {
         var headerValue = Request.Headers[headerName].FirstOrDefault();
 
         if (string.IsNullOrEmpty(headerValue))
             return [];
 
-        return JsonSerializer.Deserialize<string[]>(headerValue)
-            ?? throw new Exception($"Could not parse header '{headerName}' as a JSON array of strings.");
+        return headerValue.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
     }
 
     private void AddClaimArrayHeader(List<Claim> claims, string headerName, string claimType)
     {
-        foreach (var value in ParseJsonArrayHeader(headerName))
+        foreach (var value in ParseClaimHeader(headerName))
             claims.Add(new Claim(claimType, value));
     }
 }

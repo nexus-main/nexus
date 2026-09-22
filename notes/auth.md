@@ -21,15 +21,11 @@ The header names are configured with `SecurityOptions` in
 - `ForwardedGroupsHeaderName`: groups header, default `X-Forwarded-Groups`
 - `ForwardedClaimsHeaderName`: Nexus claim header for roles and Nexus permissions
 
-Claim headers contain JSON arrays. Nexus expands each array value into repeated
-claims of the corresponding type.
+Claim headers contain comma-separated lists. Nexus expands each list value into
+repeated claims of the corresponding type. Values are trimmed and empty segments
+are dropped. This matches the format emitted by oauth2-proxy.
 
-If a claim header is missing, Nexus treats that claim type as empty. If a claim
-header is present but is not a valid JSON array, authentication fails.
-
-Nexus does not support fallback parsing formats for claim headers. Do not send
-comma-separated strings, semicolon-separated strings, repeated headers, or
-single-value fallback headers.
+If a claim header is missing, Nexus treats that claim type as empty.
 
 ## Development Identity
 
