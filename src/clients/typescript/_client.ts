@@ -9,6 +9,15 @@ import { BatchStreamRequest, ExportParameters, Precision } from "./V2";
 
 type StreamSchema = { resourceIndex: Int32; offset: Int64; values: List<Float32> | List<Float64> };
 
+type ArrowListData = {
+    readonly offset: number;
+    readonly length: number;
+    readonly valueOffsets: ArrayLike<number | bigint>;
+    readonly children: readonly { readonly offset: number; readonly values: unknown }[];
+};
+
+type ArrowValueRange = { data: ArrowListData; offset: number; length: number };
+
 /**
  * A client for the Nexus system.
  */
@@ -462,39 +471,33 @@ export class NexusClient implements INexusClient {
                     if (!rowValues || rowValues.nullCount)
                         throw new Error("The Arrow stream contains null values.");
 
-                    const payloadLength = rowValues.length * precisionSize;
+                    const valueRange = getArrowValueRange(valuesArray, rowIndex);
+                    const payloadLength = valueRange.length * precisionSize;
 
                     if (offsets[idx] > expectedLengths[idx] - payloadLength)
                         throw new Error("The Arrow stream contains more data than expected.");
 
-                    for (const part of rowValues.data) {
-                        const source = part.values as Float32Array | Float64Array;
+                    let remainingValueOffset = valueRange.offset;
+                    let remainingValueLength = valueRange.length;
 
-                        if (!(source instanceof arrayType) || source.length < part.offset + part.length)
-                            throw new Error("The Arrow stream values column is invalid.");
-
-                        let sourceOffset = part.offset;
-                        let remainingLength = part.length;
-
-                        while (remainingLength > 0) {
-                            if (chunkOffsets[idx] === chunkLengths[idx]) {
-                                const remainingResourceLength = (expectedLengths[idx] - offsets[idx]) / precisionSize;
-                                rentNextChunk(idx, remainingResourceLength);
-                            }
-
-                            const count = Math.min(remainingLength, (chunkLengths[idx] - chunkOffsets[idx]) / precisionSize);
-                            const target = chunks[idx].subarray(chunkOffsets[idx] / precisionSize, chunkOffsets[idx] / precisionSize + count);
-                            target.set(source.subarray(sourceOffset, sourceOffset + count) as ArrayLike<number>);
-
-                            const bytesCopied = count * precisionSize;
-                            chunkOffsets[idx] += bytesCopied;
-                            offsets[idx] += bytesCopied;
-                            sourceOffset += count;
-                            remainingLength -= count;
-
-                            if (reportProgress)
-                                reportProgress(bytesCopied);
+                    while (remainingValueLength > 0) {
+                        if (chunkOffsets[idx] === chunkLengths[idx]) {
+                            const remainingResourceLength = (expectedLengths[idx] - offsets[idx]) / precisionSize;
+                            rentNextChunk(idx, remainingResourceLength);
                         }
+
+                        const count = Math.min(remainingValueLength, (chunkLengths[idx] - chunkOffsets[idx]) / precisionSize);
+                        const target = chunks[idx].subarray(chunkOffsets[idx] / precisionSize, chunkOffsets[idx] / precisionSize + count);
+                        copyArrowValues(valueRange.data, remainingValueOffset, count, target);
+
+                        const bytesCopied = count * precisionSize;
+                        chunkOffsets[idx] += bytesCopied;
+                        offsets[idx] += bytesCopied;
+                        remainingValueOffset += count;
+                        remainingValueLength -= count;
+
+                        if (reportProgress)
+                            reportProgress(bytesCopied);
                     }
                 }
             }
@@ -529,6 +532,40 @@ export class NexusClient implements INexusClient {
             chunks[index] = buffer.subarray(0, chunkLength);
             chunkOffsets[index] = 0;
             chunkLengths[index] = chunkLength * precisionSize;
+        }
+
+        function getArrowValueRange(valuesArray: { readonly data: readonly unknown[] }, rowIndex: number): ArrowValueRange {
+            let baseIndex = 0;
+
+            for (const item of valuesArray.data) {
+                const data = item as ArrowListData;
+
+                if (rowIndex < baseIndex + data.length) {
+                    const offsetIndex = data.offset + rowIndex - baseIndex;
+                    const valueOffset = Number(data.valueOffsets[offsetIndex]);
+                    const nextValueOffset = Number(data.valueOffsets[offsetIndex + 1]);
+
+                    if (!Number.isSafeInteger(valueOffset) || !Number.isSafeInteger(nextValueOffset) || nextValueOffset < valueOffset)
+                        throw new Error("The Arrow stream values column is invalid.");
+
+                    return { data, offset: valueOffset, length: nextValueOffset - valueOffset };
+                }
+
+                baseIndex += data.length;
+            }
+
+            throw new Error("The Arrow stream values column is invalid.");
+        }
+
+        function copyArrowValues(data: ArrowListData, offset: number, length: number, target: TypedDataArray): void {
+            const valueData = data.children.length === 1 ? data.children[0] : undefined;
+            const source = valueData?.values;
+            const sourceOffset = (valueData?.offset ?? 0) + offset;
+
+            if (!(source instanceof arrayType) || source.length < sourceOffset + length)
+                throw new Error("The Arrow stream values column is invalid.");
+
+            target.set(source.subarray(sourceOffset, sourceOffset + length) as ArrayLike<number>);
         }
     }
 
