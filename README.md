@@ -84,12 +84,20 @@ dotnet run --project src/Nexus/Nexus.csproj
 
 In a browser, navigate to http://localhost:5000.
 
-For UI development, run the Angular dev server separately:
+Install the UI dependencies once on a new checkout or machine:
 
 ```bash
 cd src/Nexus.UI
 npm ci
-npm start
+```
+
+The Visual Studio Code F5 launch configuration uses these local dependencies to start the Angular dev server; it does not install them automatically. The Angular CLI is provided by `npm ci` and does not need to be installed globally.
+
+To start the UI manually instead of using F5, run:
+
+```bash
+cd src/Nexus.UI
+npm run dev
 ```
 
 Then open http://localhost:4200. The dev server proxies `/api` to the backend at `http://localhost:5000`.

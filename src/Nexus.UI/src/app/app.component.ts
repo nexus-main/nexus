@@ -823,6 +823,13 @@ export class AppComponent implements OnDestroy {
       return
     }
 
+    if (this.licenseAcceptanceVisible()) {
+      this.catalogLoading.set(false)
+      this.catalogError.set(null)
+      this.selectedBundle.set(null)
+      return
+    }
+
     const cachedBundle = this.catalogBundleCache.get(catalogId)
     if (cachedBundle) {
       this.catalogLoading.set(false)
