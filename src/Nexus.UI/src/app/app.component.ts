@@ -15,7 +15,7 @@ import { TooltipModule } from 'primeng/tooltip'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
 import { VisualizationChartComponent } from './charts/visualization-chart.component'
-import { VisualizationBuffers, VisualizationData, createVisualizationData } from './charts/visualization-data'
+import { VisualizationBuffers, VisualizationData, createVisualizationData, releaseVisualizationData } from './charts/visualization-data'
 import { dateTicks } from './resource-selection'
 import { AppHeaderComponent } from './components/app-header.component'
 import { CatalogTreeComponent } from './components/catalog-tree.component'
@@ -603,6 +603,8 @@ export class AppComponent implements OnDestroy {
         ? new Set(existing!.series.filter(s => s.complete).map(s => s.id))
         : new Set<string>()
 
+      const preservedChunks = new Set<readonly Float32Array[]>()
+
       if (canIncremental) {
         for (const series of data.series) {
           const existingSeries = existing!.series.find(s => s.id === series.id)
@@ -611,9 +613,11 @@ export class AppComponent implements OnDestroy {
             series.availableLength = existingSeries.availableLength
             series.version = existingSeries.version
             series.complete = true
+            preservedChunks.add(existingSeries.chunks)
           }
         }
       }
+      releaseVisualizationData(existing, preservedChunks)
 
       const currentUnits = new Map(this.visualizationResources().map(resource => [resource.path, resource.unit]))
       for (const series of data.series) series.unit = currentUnits.get(series.id) ?? series.unit
@@ -661,13 +665,20 @@ export class AppComponent implements OnDestroy {
     this.visualizationController = undefined
     this.visualizationBuffers?.dispose()
     this.visualizationBuffers = undefined
-    if (this.visualizationLoading()) this.visualizationData.set(null)
+    if (this.visualizationLoading()) {
+      const data = this.visualizationData()
+      this.visualizationData.set(null)
+      releaseVisualizationData(data)
+    }
     this.visualizationLoading.set(false)
   }
 
   closeVisualization() {
     this.visualizationOpen.set(false)
     this.cancelVisualization()
+    const data = this.visualizationData()
+    this.visualizationData.set(null)
+    releaseVisualizationData(data)
   }
 
   visualizationGpuFailed(message: string) {

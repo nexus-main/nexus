@@ -50,6 +50,17 @@ export function setVisualizationSeriesValues(series: VisualizationSeries, values
   series.complete = true
 }
 
+export function releaseVisualizationData(data: VisualizationData | null, preservedChunks: ReadonlySet<readonly Float32Array[]> = new Set()): void {
+  for (const series of data?.series ?? []) {
+    if (preservedChunks.has(series.chunks)) continue
+    if (!series.chunks.length && series.availableLength === 0 && !series.complete) continue
+    series.chunks = []
+    series.availableLength = 0
+    series.complete = false
+    series.version++
+  }
+}
+
 export class VisualizationBuffers {
   private readonly seriesById: ReadonlyMap<string, VisualizationSeries>
   private readonly current = new Map<string, Float32Array>()

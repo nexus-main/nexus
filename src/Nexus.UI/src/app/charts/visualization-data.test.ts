@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CHUNK_LENGTH } from './chart-math.ts';
-import { VisualizationBuffers, createVisualizationData, setVisualizationSeriesValues } from './visualization-data.ts';
+import { VisualizationBuffers, createVisualizationData, releaseVisualizationData, setVisualizationSeriesValues } from './visualization-data.ts';
 
 const descriptors = [
     { id: '/a', name: 'A', unit: 'm/s' },
@@ -53,6 +53,33 @@ describe('setVisualizationSeriesValues', () => {
         const data = createVisualizationData(0n, 3n, 1n, descriptors.slice(0, 1));
 
         assert.throws(() => setVisualizationSeriesValues(data.series[0], new Float32Array([1, 2])), /unexpected sample count/);
+    });
+});
+
+describe('releaseVisualizationData', () => {
+    it('clears unpreserved completed chunks', () => {
+        const data = createVisualizationData(0n, 2n, 1n, [{ id: 'a', name: 'A', unit: 'V' }]);
+        const values = new Float32Array([1, 2]);
+        setVisualizationSeriesValues(data.series[0], values);
+
+        releaseVisualizationData(data);
+
+        assert.deepEqual(data.series[0].chunks, []);
+        assert.equal(data.series[0].availableLength, 0);
+        assert.equal(data.series[0].complete, false);
+    });
+
+    it('keeps chunks selected for reuse', () => {
+        const data = createVisualizationData(0n, 2n, 1n, [{ id: 'a', name: 'A', unit: 'V' }]);
+        const values = new Float32Array([1, 2]);
+        setVisualizationSeriesValues(data.series[0], values);
+        const chunks = data.series[0].chunks;
+
+        releaseVisualizationData(data, new Set([chunks]));
+
+        assert.equal(data.series[0].chunks, chunks);
+        assert.equal(data.series[0].availableLength, 2);
+        assert.equal(data.series[0].complete, true);
     });
 });
 

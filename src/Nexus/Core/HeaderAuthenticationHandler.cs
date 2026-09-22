@@ -50,7 +50,8 @@ internal class HeaderAuthenticationHandler(
                 var devClaims = new List<Claim>()
                 {
                     new(NexusClaimTypes.Subject, "star-lord"),
-                    new(NexusClaimTypes.Name, "Star Lord")
+                    new(NexusClaimTypes.Name, "Star Lord"),
+                    new(NexusClaimTypes.Role, nameof(NexusRoles.Administrator))
                 };
 
                 var devIdentity = new ClaimsIdentity(

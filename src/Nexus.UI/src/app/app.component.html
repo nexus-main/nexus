@@ -135,7 +135,7 @@
         <div class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-slate-950/80 p-6 backdrop-blur-sm">
           <div class="w-full max-w-sm space-y-4 text-center text-slate-200" role="status" aria-live="polite">
             <p>Loading data...</p>
-            <p-progressbar [value]="visualizationProgress()" ariaLabel="Loading time series data" />
+            <p-progressbar class="nexus-progress-immediate block" [value]="visualizationProgress()" ariaLabel="Loading time series data" />
             <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="cancelVisualization()">Cancel</button>
           </div>
         </div>
