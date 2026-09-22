@@ -48,6 +48,7 @@ export type CatalogBundle = {
 }
 
 export type SessionOverview = {
+  system: V1.SystemResponse
   me: V1.MeResponse
   writers: WriterDescription[]
   jobs: V1.Job[]
@@ -145,6 +146,7 @@ export const fallbackWriters: WriterDescription[] = [
 export class NexusService {
   readonly endpoint = globalThis.location?.origin ?? 'http://localhost:4200'
   readonly apiAvailable = signal(false)
+  readonly system = signal<V1.SystemResponse | null>(null)
   readonly currentUser = signal<V1.MeResponse | null>(null)
   private readonly client = new NexusClient(this.endpoint)
   readonly v1 = new V1.V1(this.invoke.bind(this))
@@ -168,8 +170,33 @@ export class NexusService {
     return { catalog, timeRange, metadata, attachments }
   }
 
+  async getCatalogLicense(catalogId: string) {
+    const license = await this.v1.catalogs.getLicense(catalogId)
+    this.apiAvailable.set(true)
+    return license ?? ''
+  }
+
+  async acceptCatalogLicense(catalogId: string) {
+    await this.v1.catalogs.acceptLicense(catalogId)
+    this.apiAvailable.set(true)
+  }
+
+  async uploadCatalogAttachment(catalogId: string, attachmentId: string, content: BodyInit) {
+    await this.v1.catalogs.uploadAttachment(catalogId, attachmentId, content)
+    this.apiAvailable.set(true)
+  }
+
+  async deleteCatalogAttachment(catalogId: string, attachmentId: string) {
+    await this.v1.catalogs.deleteAttachment(catalogId, attachmentId)
+    this.apiAvailable.set(true)
+  }
+
   async getSessionOverview(): Promise<SessionOverview> {
-    const [me, writers, jobs, roots] = await Promise.all([
+    const [system, me, writers, jobs, roots] = await Promise.all([
+      this.v1.system.get().then(system => {
+        this.system.set(system)
+        return system
+      }),
       this.v1.users.getMe().then(me => {
         this.currentUser.set(me)
         return me
@@ -180,7 +207,7 @@ export class NexusService {
     ])
 
     this.apiAvailable.set(true)
-    return { me, writers, jobs, roots }
+    return { system, me, writers, jobs, roots }
   }
 
   async exportResources(parameters: V2.ExportParameters) {

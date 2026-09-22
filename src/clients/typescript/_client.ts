@@ -470,15 +470,10 @@ export class NexusClient implements INexusClient {
                     for (const part of rowValues.data) {
                         const source = part.values as Float32Array | Float64Array;
 
-                        if (!(source instanceof arrayType))
+                        if (!(source instanceof arrayType) || source.length < part.offset + part.length)
                             throw new Error("The Arrow stream values column is invalid.");
 
-                        const sourceStart = (part.offset + part.length <= source.length) ? part.offset : 0;
-
-                        if (source.length < sourceStart + part.length)
-                            throw new Error("The Arrow stream values column is invalid.");
-
-                        let sourceOffset = sourceStart;
+                        let sourceOffset = part.offset;
                         let remainingLength = part.length;
 
                         while (remainingLength > 0) {

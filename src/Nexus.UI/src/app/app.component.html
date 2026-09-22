@@ -2,7 +2,7 @@
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
   <div class="flex h-dvh w-full flex-col gap-2 overflow-hidden p-2 sm:p-4 xl:p-5">
-    <app-header [endpointHost]="endpointHost()" [jobCount]="jobHistoryCount()" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" (openDataSourcePipelines)="openDataSourcePipelines()" (openJobs)="openJobs()" />
+    <app-header [endpointHost]="endpointHost()" [jobCount]="jobHistoryCount()" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" [helpLink]="helpLink()" [logoutUrl]="logoutUrl()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" (openDataSourcePipelines)="openDataSourcePipelines()" (openJobs)="openJobs()" (openAbout)="isAboutOpen.set(true)" />
 
     @if (!apiAvailable() && !overviewLoading()) {
       <section class="rounded-lg border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
@@ -41,6 +41,9 @@
                     @if (selectedCatalogReadme()) {
                       <button pButton type="button" size="small" severity="secondary" [text]="true" class="sm:hidden" (click)="isReadmeOpen.set(true)" aria-label="Open catalog readme" pTooltip="Open catalog readme" tooltipPosition="top"><svg lucideFileText class="h-4 w-4" aria-hidden="true"></svg></button>
                     }
+                    @if (selectedCatalogWritable()) {
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="gap-1" (click)="isCatalogFilesOpen.set(true)" aria-label="Manage catalog attachments" pTooltip="Manage catalog attachments" tooltipPosition="top"><svg lucidePaperclip class="h-4 w-4" aria-hidden="true"></svg>@if (selectedCatalogAttachments().length > 0) { <span class="min-w-4 text-xs tabular-nums">{{ selectedCatalogAttachments().length }}</span> }</button>
+                    }
                     <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="copyCatalogPath()" aria-label="Copy catalog path" pTooltip="Copy catalog path" tooltipPosition="top"><svg lucideCopy class="h-4 w-4" aria-hidden="true"></svg></button>
                   </div>
                 </div>
@@ -61,6 +64,13 @@
                     } @else {
                       <p class="text-slate-500">No catalog readme is available.</p>
                     }
+                  </div>
+                }
+                @if (licenseAcceptanceVisible()) {
+                  <div class="rounded-sm border border-amber-300/20 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100" role="status">
+                    <div class="font-semibold text-amber-50">License acceptance required</div>
+                    <p class="mt-1 text-amber-100/80">Review and accept this catalog's license before accessing its resources.</p>
+                    <button pButton type="button" size="small" class="mt-3" [outlined]="true" (click)="openLicenseDialog()">Review license</button>
                   </div>
                 }
               </div>
@@ -99,7 +109,7 @@
 }
 
 @if (isAdministrator() && isDataSourcePipelinesOpen()) {
-  <app-data-source-pipelines [refreshDatabase]="refreshPipelineDatabase" [themeMode]="themeMode()" (close)="isDataSourcePipelinesOpen.set(false)" />
+  <app-data-source-pipelines [refreshDatabase]="refreshPipelineDatabase" [themeMode]="resolvedThemeMode()" (close)="isDataSourcePipelinesOpen.set(false)" />
 }
 
 <ng-template #visualizationContent let-breakout>
@@ -110,7 +120,7 @@
     </div>
     <div class="chart-surface relative min-w-0 flex-1 bg-slate-950/60 text-slate-300 ring-1 ring-white/10" [style.min-height]="breakout ? '360px' : '440px'" [attr.aria-busy]="visualizationLoading()">
       @if (visualizationData(); as data) {
-        <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" [themeMode]="themeMode()" (gpuFailed)="visualizationGpuFailed($event)" />
+        <nexus-visualization-chart [data]="data" [beginAtZero]="visualizationBeginAtZero()" [cacheBudgetBytes]="visualizationCacheMiB() * 1024 * 1024" [themeMode]="resolvedThemeMode()" (gpuFailed)="visualizationGpuFailed($event)" />
       }
       @if (visualizationLoading()) {
         <div class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-slate-950/80 p-6 backdrop-blur-sm">
@@ -162,8 +172,93 @@
   <div class="markdown-body space-y-3 text-sm leading-6 text-slate-300" [innerHTML]="selectedCatalogReadme() | markdown"></div>
 </p-dialog>
 
+<p-dialog appRestoreFocus header="About Nexus" [visible]="isAboutOpen()" (visibleChange)="isAboutOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close about dialog', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(28rem, calc(100vw - 2rem))' }">
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  <div class="space-y-4 text-sm leading-6 text-slate-300">
+    <div class="rounded-sm border border-cyan-300/15 bg-cyan-300/[0.04] p-4">
+      <div class="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Nexus</div>
+      <a
+        class="mt-2 inline-flex max-w-full items-center gap-2 break-all font-mono text-sm text-cyan-100 transition-colors hover:text-white hover:underline"
+        href="https://github.com/nexus-main/nexus"
+        target="_blank"
+        rel="noopener noreferrer">
+        https://github.com/nexus-main/nexus
+      </a>
+    </div>
+    <div class="rounded-sm border border-white/10 bg-white/[0.035] px-4 py-3">
+      <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Version</div>
+      <div class="mt-1 font-mono text-base text-slate-100">{{ nexusVersion() || 'unknown' }}</div>
+    </div>
+  </div>
+</p-dialog>
+
+<p-dialog appRestoreFocus header="Catalog license" [visible]="isLicenseOpen()" (visibleChange)="isLicenseOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close license dialog', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  <div class="space-y-4 text-sm leading-6 text-slate-300">
+    <p class="truncate font-mono text-xs text-slate-500">{{ selectedCatalogId() }}</p>
+    @if (licenseLoading()) {
+      <p role="status">Loading license...</p>
+    } @else if (licenseText()) {
+      <div class="markdown-body max-h-[52dvh] overflow-auto rounded-sm border border-white/10 bg-slate-950/35 p-4" [innerHTML]="licenseText() | markdown"></div>
+    } @else if (!licenseError()) {
+      <p>No license text is available.</p>
+    }
+    @if (licenseError()) { <p class="text-rose-400" role="alert">{{ licenseError() }}</p> }
+    <div class="flex flex-wrap justify-end gap-2">
+      <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="isLicenseOpen.set(false)">Cancel</button>
+      <button pButton type="button" size="small" [outlined]="true" [disabled]="licenseLoading() || licenseAccepting() || !licenseText()" (click)="acceptSelectedCatalogLicense()">{{ licenseAccepting() ? 'Accepting...' : 'Accept license' }}</button>
+    </div>
+  </div>
+</p-dialog>
+
+<p-dialog appRestoreFocus header="Catalog files" [visible]="isCatalogFilesOpen()" (visibleChange)="isCatalogFilesOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close catalog files', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(40rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  <div class="space-y-4 text-sm text-slate-300">
+    <div class="rounded-sm border border-white/10 bg-slate-950/35 p-3 font-mono text-xs text-slate-400">{{ selectedCatalogDisplayPath() }}</div>
+
+    @if (catalogFilesError()) {
+      <div class="rounded-sm border border-rose-300/20 bg-rose-300/10 p-3 text-rose-100" role="alert">{{ catalogFilesError() }}</div>
+    }
+
+    <div class="rounded-sm border border-dashed p-5 text-center transition-colors" [ngClass]="catalogFilesDragActive() ? 'border-cyan-300 bg-cyan-300/10' : 'border-white/15 bg-white/[0.035]'" (dragover)="onCatalogFilesDragOver($event)" (dragleave)="onCatalogFilesDragLeave($event)" (drop)="onCatalogFilesDrop($event)">
+      <input #catalogFileInput type="file" multiple class="hidden" (change)="uploadCatalogFiles(catalogFileInput.files); catalogFileInput.value = ''" />
+      <div class="font-semibold text-slate-100">Drop files here</div>
+      <p class="mt-1 text-xs text-slate-400">Files are saved as catalog attachments using their original file names.</p>
+      <button pButton type="button" size="small" class="mt-3" [outlined]="true" [disabled]="catalogFilesBusy()" (click)="catalogFileInput.click()">{{ catalogFilesBusy() ? 'Uploading...' : 'Choose files' }}</button>
+    </div>
+
+    <div>
+      <div class="mb-2 text-xs uppercase tracking-[0.18em] text-slate-500">Existing files</div>
+      @if (selectedCatalogAttachments().length) {
+        <div class="divide-y divide-white/10 overflow-hidden rounded-sm border border-white/10">
+          @for (attachment of selectedCatalogAttachments(); track attachment) {
+            <div class="flex items-center justify-between gap-3 bg-slate-950/25 px-3 py-2">
+              <span class="min-w-0 truncate font-mono text-xs text-slate-200">{{ attachment }}</span>
+              <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="catalogFilesBusy() || deletingAttachmentId() === attachment" (click)="requestDeleteCatalogAttachment(attachment)">{{ deletingAttachmentId() === attachment ? 'Deleting...' : 'Delete' }}</button>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="rounded-sm border border-white/10 bg-slate-950/25 p-3 text-slate-500">No files are attached to this catalog.</p>
+      }
+    </div>
+  </div>
+</p-dialog>
+
+<p-dialog appRestoreFocus header="Delete catalog file?" [visible]="!!pendingDeleteAttachmentId()" (visibleChange)="!$event && cancelDeleteCatalogAttachment()" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close delete file confirmation', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(28rem, calc(100vw - 2rem))' }">
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  <div class="space-y-4 text-sm leading-6 text-slate-300">
+    <p>Delete this catalog file?</p>
+    <p class="rounded-sm border border-white/10 bg-slate-950/35 p-3 font-mono text-xs text-slate-200">{{ pendingDeleteAttachmentId() }}</p>
+    <div class="flex justify-end gap-2">
+      <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="!!deletingAttachmentId()" (click)="cancelDeleteCatalogAttachment()">Cancel</button>
+      <button pButton type="button" size="small" severity="danger" [disabled]="!!deletingAttachmentId()" (click)="confirmDeleteCatalogAttachment()">{{ deletingAttachmentId() ? 'Deleting...' : 'Delete' }}</button>
+    </div>
+  </div>
+</p-dialog>
+
 @if (isExportOpen()) {
-  <app-export-composer [writerDescriptions]="writerDescriptions()" [selectedWriterType]="selectedWriterType()" [exportBegin]="exportBegin()" [exportEnd]="exportEnd()" [exportFilePeriod]="exportFilePeriodDraft()" [exportFilePeriodError]="exportFilePeriodError()" [exportPrecision]="exportPrecision()" [exportSize]="exportByteCountLabel()" [writerOptions]="writerOptions()" [exportConfiguration]="exportConfiguration()" [exportError]="exportError()" [exportPreview]="exportPreview()" [exportStatus]="exportStatus()" [exportBusy]="exportBusy()" [currentJobStatus]="currentExportStatusText()" [currentJobProgress]="currentExportProgress()" [currentJobError]="currentExportJobError()" [currentJobCanCancel]="currentExportCanCancel()" [currentJobCanDownload]="currentExportCanDownload()" [currentJobDownloading]="currentExportDownloading()" (close)="closeExportComposer()" (selectedWriterTypeChange)="selectedWriterType.set($event)" (exportFilePeriodChange)="setExportFilePeriod($event)" (exportFilePeriodBlur)="normalizeExportFilePeriod()" (exportPrecisionChange)="exportPrecision.set($event)" (configChanged)="updateConfig($event.key, $event.value)" (createJob)="createExportJob()" (cancelJob)="cancelCurrentExportJob()" (downloadJob)="downloadCurrentExportJob()" />
+  <app-export-composer [writerDescriptions]="writerDescriptions()" [selectedWriterType]="selectedWriterType()" [exportBegin]="exportBegin()" [exportEnd]="exportEnd()" [exportFilePeriod]="exportFilePeriodDraft()" [exportFilePeriodError]="exportFilePeriodError()" [exportPrecision]="exportPrecision()" [exportSize]="exportByteCountLabel()" [writerOptions]="writerOptions()" [exportConfiguration]="exportConfiguration()" [exportError]="exportError()" [exportPreview]="exportPreview()" [exportStatus]="exportStatus()" [exportBusy]="exportBusy()" [currentJobStatus]="currentExportStatusText()" [currentJobProgress]="currentExportProgress()" [currentJobError]="currentExportJobError()" [currentJobCanCancel]="currentExportCanCancel()" [currentJobCanDownload]="currentExportCanDownload()" [currentJobDownloading]="currentExportDownloading()" (close)="closeExportComposer()" (selectedWriterTypeChange)="setSelectedWriterType($event)" (exportFilePeriodChange)="setExportFilePeriod($event)" (exportFilePeriodBlur)="normalizeExportFilePeriod()" (exportPrecisionChange)="setExportPrecision($event)" (configChanged)="updateConfig($event.key, $event.value)" (createJob)="createExportJob()" (cancelJob)="cancelCurrentExportJob()" (downloadJob)="downloadCurrentExportJob()" />
 }
 
 <p-dialog appRestoreFocus header="Jobs" [visible]="isJobsOpen()" (visibleChange)="isJobsOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close jobs', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(46rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">

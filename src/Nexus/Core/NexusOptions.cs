@@ -52,8 +52,6 @@ internal record GeneralOptions() : NexusOptionsBase
     public string? ApplicationName { get; set; } = "Nexus";
 
     public string? HelpLink { get; set; }
-
-    public string? DefaultFileType { get; set; } = "Nexus.Writers.Csv";
 }
 
 internal record DataOptions() : NexusOptionsBase

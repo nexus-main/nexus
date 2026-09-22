@@ -5,7 +5,7 @@ import { MenuModule } from 'primeng/menu'
 import { TooltipModule } from 'primeng/tooltip'
 import { AppIconComponent } from './app-icon.component'
 
-type ThemeMode = 'dark' | 'light'
+type ThemeMode = 'dark' | 'light' | 'system'
 
 @Component({
   selector: 'app-header',
@@ -51,6 +51,8 @@ type ThemeMode = 'dark' | 'light'
                   @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
                   @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
                   @case ('braces') { <app-icon name="braces" class="h-4 w-4 shrink-0" /> }
+                  @case ('help') { <app-icon name="help" class="h-4 w-4 shrink-0" /> }
+                  @case ('info') { <app-icon name="info" class="h-4 w-4 shrink-0" /> }
                 }
                 <span>{{ item.label }}</span>
               </a>
@@ -60,10 +62,20 @@ type ThemeMode = 'dark' | 'light'
                   @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
                   @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
                   @case ('braces') { <app-icon name="braces" class="h-4 w-4 shrink-0" /> }
+                  @case ('help') { <app-icon name="help" class="h-4 w-4 shrink-0" /> }
+                  @case ('info') { <app-icon name="info" class="h-4 w-4 shrink-0" /> }
                 }
                 <span>{{ item.label }}</span>
               </div>
             }
+          </ng-template>
+        </p-menu>
+        <p-menu #userMenu styleClass="header-menu" [model]="userMenuItems()" [popup]="true" appendTo="body">
+          <ng-template pTemplate="item" let-item>
+            <a class="flex cursor-pointer items-center gap-2 px-3 py-2" [href]="item.url">
+              @if (item.icon === 'log-out') { <app-icon name="log-out" class="h-4 w-4 shrink-0" /> }
+              <span>{{ item.label }}</span>
+            </a>
           </ng-template>
         </p-menu>
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
@@ -71,21 +83,30 @@ type ThemeMode = 'dark' | 'light'
             <app-icon name="settings" class="h-4 w-4" />
             <span class="hidden lg:inline">Settings</span>
           </button>
-          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="h-9 gap-2 px-2.5 transition-colors" (click)="toggleTheme.emit()" [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" [pTooltip]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'" tooltipPosition="bottom">
+          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="h-9 gap-2 px-2.5 transition-colors" (click)="toggleTheme.emit()" aria-label="Toggle theme">
             @if (themeMode() === 'dark') {
               <app-icon name="moon" class="h-4 w-4" />
+            } @else if (themeMode() === 'system') {
+              <app-icon name="sun-moon" class="h-4 w-4" />
             } @else {
               <app-icon name="sun" class="h-4 w-4" />
             }
-            <span class="hidden lg:inline">{{ themeMode() === 'dark' ? 'Dark' : 'Light' }}</span>
+            <span class="hidden lg:inline">{{ themeMode() === 'dark' ? 'Dark' : themeMode() === 'light' ? 'Light' : 'System' }}</span>
           </button>
           <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="hidden h-9 gap-2 px-2.5 transition-colors sm:flex" (click)="openJobs.emit()" aria-label="Open jobs menu" pTooltip="Open jobs menu" tooltipPosition="bottom">
+            <app-icon name="jobs" class="h-4 w-4" />
             <span class="tabular-nums">{{ jobCount() }}</span>
-            <span>Jobs</span>
+            <span class="hidden lg:inline">Jobs</span>
           </button>
-          <div class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100" aria-label="Signed-in user initials">
-            {{ userInitials() }}
-          </div>
+          @if (logoutUrl()) {
+            <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100 transition-colors hover:border-violet-200/50 hover:bg-violet-300/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300" (click)="userMenu.toggle($event)" aria-label="Open user menu" aria-haspopup="menu" [attr.aria-expanded]="userMenu.visible" [attr.aria-controls]="userMenu.id">
+              {{ userInitials() }}
+            </button>
+          } @else {
+            <div class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100" aria-label="Signed-in user initials">
+              {{ userInitials() }}
+            </div>
+          }
         </div>
       </div>
     </header>
@@ -97,9 +118,12 @@ export class AppHeaderComponent {
   readonly userInitials = input.required<string>()
   readonly themeMode = input.required<ThemeMode>()
   readonly isAdministrator = input(false)
+  readonly helpLink = input<string | null | undefined>(null)
+  readonly logoutUrl = input<string | null | undefined>(null)
   readonly openPackageReferences = output<void>()
   readonly openDataSourcePipelines = output<void>()
   readonly openJobs = output<void>()
+  readonly openAbout = output<void>()
   readonly adminMenuItems = computed<MenuItem[]>(() => {
     const items: MenuItem[] = []
     if (this.isAdministrator()) {
@@ -107,8 +131,13 @@ export class AppHeaderComponent {
       items.push({ label: 'Data source pipelines', icon: 'waypoints', command: () => this.openDataSourcePipelines.emit() })
     }
     items.push({ label: 'API', icon: 'braces', url: '/api', target: '_blank' })
+    if (this.helpLink()) items.push({ label: 'Help', icon: 'help', url: this.helpLink()!, target: '_blank' })
+    items.push({ label: 'About', icon: 'info', command: () => this.openAbout.emit() })
     return items
   })
+  readonly userMenuItems = computed<MenuItem[]>(() => this.logoutUrl()
+    ? [{ label: 'Logout', icon: 'log-out', url: this.logoutUrl()! }]
+    : [])
   readonly openCatalog = output<void>()
   readonly toggleTheme = output<void>()
 }

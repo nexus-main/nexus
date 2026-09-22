@@ -1236,8 +1236,8 @@ export interface DataSourceRegistration {
  * A system response.
  */
 export interface SystemResponse {
-    /** The default file type. */
-    defaultFileType?: string | null;
+    /** The Nexus version. */
+    version?: string | undefined;
     /** The help link. */
     helpLink?: string | null;
     /** The logout URL. */

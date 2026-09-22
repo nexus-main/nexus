@@ -199,11 +199,11 @@ public record MeResponse(
 /// <summary>
 /// A system response.
 /// </summary>
-/// <param name="DefaultFileType">The default file type.</param>
+/// <param name="Version">The Nexus version.</param>
 /// <param name="HelpLink">The help link.</param>
 /// <param name="LogoutUrl">The logout URL.</param>
 public record SystemResponse(
-    string? DefaultFileType,
+    string Version,
     string? HelpLink,
     string? LogoutUrl
 );

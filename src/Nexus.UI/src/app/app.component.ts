@@ -1,7 +1,7 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
 import { Component, HostListener, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideCopy, LucideExternalLink, LucideFileText, LucideX } from '@lucide/angular'
+import { LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucideX } from '@lucide/angular'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
@@ -50,7 +50,10 @@ const defaultCatalogId = '/SAMPLE/LOCAL'
 const catalogExpansionStorageKey = 'nexus.catalog.expandedNodeKeys'
 const selectedResourcesStorageKey = 'nexus.selectedResources'
 const themeModeStorageKey = 'nexus.themeMode'
-type ThemeMode = 'dark' | 'light'
+const exportSettingsStorageKey = 'nexus.exportSettings'
+const defaultWriterType = 'Nexus.Writers.Csv'
+type ResolvedThemeMode = 'dark' | 'light'
+type ThemeMode = ResolvedThemeMode | 'system'
 
 const timeRangePresets = [
   { label: 'Last hour', kind: 'rolling', unit: 'hour', amount: 1 },
@@ -92,10 +95,17 @@ type ExportJobHistoryEntry = {
   downloadName: string
 }
 
+type StoredExportSettings = {
+  selectedWriterType: string
+  exportFilePeriod: string
+  exportPrecision: V2.Precision
+  configurationByWriter: Record<string, Record<string, unknown>>
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnDestroy {
@@ -106,6 +116,7 @@ export class AppComponent implements OnDestroy {
   private readonly catalogBundleRequests = new Map<string, Promise<CatalogBundle>>()
   private readonly childRequests = new Map<string, Promise<void>>()
   private readonly storedSelectionState = readSelectionState(this.storage.getJson<unknown>(selectedResourcesStorageKey, null))
+  private readonly storedExportSettings = getStoredExportSettings(this.storage)
   private readonly selectionReferences = signal(this.storedSelectionState.selections)
   private readonly selectedResourcesRestored = signal(false)
   private catalogLoadGeneration = 0
@@ -136,6 +147,9 @@ export class AppComponent implements OnDestroy {
   readonly isDataSourcePipelinesOpen = signal(false)
   readonly isClearPinnedOpen = signal(false)
   readonly isReadmeOpen = signal(false)
+  readonly isAboutOpen = signal(false)
+  readonly isLicenseOpen = signal(false)
+  readonly isCatalogFilesOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
   readonly visualizationOpen = signal(false)
   readonly compactLayout = signal(window.innerWidth < 640)
@@ -154,7 +168,15 @@ export class AppComponent implements OnDestroy {
   private visualizationBuffers?: VisualizationBuffers
   private exportController?: AbortController
   private readonly loadedVisualizationKey = signal('')
+  private readonly systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  private readonly systemThemeDark = signal(this.systemThemeQuery.matches)
+  private readonly systemThemeListener = (event: MediaQueryListEvent) => this.systemThemeDark.set(event.matches)
   readonly themeMode = signal<ThemeMode>(getInitialThemeMode(this.storage))
+  readonly resolvedThemeMode = computed<ResolvedThemeMode>(() => {
+    const themeMode = this.themeMode()
+    if (themeMode === 'system') return this.systemThemeDark() ? 'dark' : 'light'
+    return themeMode
+  })
   readonly activeSidebarTab = signal<'catalogs' | 'selectedResources'>('catalogs')
   readonly overviewLoading = signal(true)
   readonly catalogLoading = signal(false)
@@ -173,18 +195,28 @@ export class AppComponent implements OnDestroy {
     const period = parsePeriod(this.periodDraft())
     return period === null || period <= 0n ? 'Enter a positive period, for example 100 ms, 1 s, or 10 min (100 ns minimum).' : ''
   })
-  readonly exportFilePeriod = signal('PT0S')
-  readonly exportFilePeriodDraft = signal('Single file')
+  readonly exportFilePeriod = signal(this.storedExportSettings.exportFilePeriod)
+  readonly exportFilePeriodDraft = signal(formatFilePeriod(parsePeriod(this.storedExportSettings.exportFilePeriod) ?? 0n))
   readonly exportFilePeriodError = computed(() => {
     const period = parseFilePeriod(this.exportFilePeriodDraft())
     if (period === null) return 'Enter a file period, for example Single file, 100 ms, 1 s, or 10 min.'
     return period % this.samplePeriod() === 0n ? '' : 'File period must be zero or an integer multiple of Period.'
   })
-  readonly selectedWriterType = signal('Nexus.Writers.Csv')
-  readonly exportConfiguration = signal<Record<string, unknown>>({ 'row-index-format': 'excel', 'significant-figures': 4 })
-  readonly exportPrecision = signal<V2.Precision>(V2.Precision.Float32)
+  readonly selectedWriterType = signal(this.storedExportSettings.selectedWriterType)
+  readonly configurationByWriter = signal(this.storedExportSettings.configurationByWriter)
+  readonly exportConfiguration = signal<Record<string, unknown>>(this.storedExportSettings.configurationByWriter[this.storedExportSettings.selectedWriterType] ?? {})
+  readonly exportPrecision = signal<V2.Precision>(this.storedExportSettings.exportPrecision)
   readonly exportStatus = signal('')
   readonly exportBusy = signal(false)
+  readonly licenseText = signal('')
+  readonly licenseLoading = signal(false)
+  readonly licenseAccepting = signal(false)
+  readonly licenseError = signal('')
+  readonly catalogFilesBusy = signal(false)
+  readonly catalogFilesError = signal('')
+  readonly catalogFilesDragActive = signal(false)
+  readonly deletingAttachmentId = signal('')
+  readonly pendingDeleteAttachmentId = signal('')
   readonly currentExportJobId = signal('')
   readonly currentExportJobStatus = signal<V1.JobStatus | null>(null)
   readonly currentExportJobError = signal('')
@@ -215,6 +247,9 @@ export class AppComponent implements OnDestroy {
   readonly userName = computed(() => this.nexus.currentUser()?.name ?? 'Prototype user')
   readonly isAdministrator = computed(() => this.nexus.currentUser()?.claims?.some(claim => claim.type === 'role' && claim.value === 'Administrator') ?? false)
   readonly endpointHost = computed(() => new URL(this.nexus.endpoint).host)
+  readonly helpLink = computed(() => this.nexus.system()?.helpLink ?? null)
+  readonly logoutUrl = computed(() => this.nexus.system()?.logoutUrl ?? null)
+  readonly nexusVersion = computed(() => this.nexus.system()?.version ?? '')
   readonly userInitials = computed(() => getInitials(this.userName()))
 
   readonly catalogNodes = computed(() => {
@@ -287,6 +322,10 @@ export class AppComponent implements OnDestroy {
   readonly selectedCatalogReadme = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'readme') ?? this.selectedCatalogInfo()?.readme ?? this.selectedNode()?.readme ?? '')
   readonly selectedCatalogDisplayPath = computed(() => formatCatalogDisplayPath(this.selectedCatalogId()))
   readonly selectedCatalogRange = computed(() => formatRange(this.selectedBundle()?.timeRange))
+  readonly selectedCatalogHasLicense = computed(() => !!(this.selectedCatalogInfo()?.license || this.selectedNode()?.license || this.selectedBundle()?.attachments.includes('LICENSE.md')))
+  readonly selectedCatalogReadable = computed(() => this.selectedCatalogInfo()?.isReadable ?? this.selectedNode()?.isReadable)
+  readonly selectedCatalogAttachments = computed(() => [...(this.selectedBundle()?.attachments ?? [])].sort((a, b) => a.localeCompare(b)))
+  readonly licenseAcceptanceVisible = computed(() => this.apiAvailable() && !this.isSelectedFake() && this.selectedCatalogHasLicense() && this.selectedCatalogReadable() === false)
   readonly resourceMetadataWritable = computed(() => {
     const id = this.selectedCatalogId()
     const info = [...this.rootCatalogInfos(), ...[...this.childMap().values()].flat(), this.selectedCatalogInfo()]
@@ -294,6 +333,7 @@ export class AppComponent implements OnDestroy {
     return this.apiAvailable() && !this.isSelectedFake() && this.selectedCatalog()?.id === id
       && info?.isReadable === true && info.isWritable === true
   })
+  readonly selectedCatalogWritable = computed(() => this.resourceMetadataWritable())
 
   readonly resourceRows = computed(() => {
     if (!this.apiAvailable()) return representationRows(fallbackResources)
@@ -415,10 +455,12 @@ export class AppComponent implements OnDestroy {
   }
 
   toggleTheme() {
-    this.themeMode.update((value) => value === 'dark' ? 'light' : 'dark')
+    this.themeMode.update((value) => value === 'dark' ? 'light' : value === 'light' ? 'system' : 'dark')
   }
 
   constructor() {
+    this.systemThemeQuery.addEventListener('change', this.systemThemeListener)
+
     this.catalogHistoryPosition = writeSelectedCatalogToUrl(this.selectedCatalogId(), true)
     void this.loadOverview().then(() => this.restoreSelectedResources())
 
@@ -452,12 +494,25 @@ export class AppComponent implements OnDestroy {
 
     effect(() => {
       const themeMode = this.themeMode()
-      this.document.documentElement.dataset['theme'] = themeMode
+      this.document.documentElement.dataset['theme'] = this.resolvedThemeMode()
       this.storage.setJson(themeModeStorageKey, themeMode)
     })
 
     effect(() => {
       this.mergeJobHistory(this.jobs())
+    })
+
+    effect(() => {
+      this.storage.setJson(exportSettingsStorageKey, {
+        version: 1,
+        selectedWriterType: this.selectedWriterType(),
+        exportFilePeriod: this.exportFilePeriod(),
+        exportPrecision: this.exportPrecision(),
+        configurationByWriter: {
+          ...this.configurationByWriter(),
+          [this.selectedWriterType()]: this.exportConfiguration(),
+        },
+      })
     })
   }
 
@@ -624,6 +679,7 @@ export class AppComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
+    this.systemThemeQuery.removeEventListener('change', this.systemThemeListener)
     this.cancelVisualization()
     this.resetCurrentExportJob()
     this.refreshController.abort()
@@ -1082,8 +1138,134 @@ export class AppComponent implements OnDestroy {
     if (!this.exportFilePeriodError()) this.exportFilePeriodDraft.set(formatFilePeriod(parsePeriod(this.exportFilePeriod()) ?? 0n))
   }
 
+  async openLicenseDialog() {
+    const catalogId = this.selectedCatalogId()
+    if (!catalogId || this.isSelectedFake()) return
+
+    this.isLicenseOpen.set(true)
+    this.licenseLoading.set(true)
+    this.licenseError.set('')
+    this.licenseText.set('')
+    try {
+      this.licenseText.set(await this.nexus.getCatalogLicense(catalogId))
+    } catch (error) {
+      this.licenseError.set(this.errorMessage(error))
+    } finally {
+      this.licenseLoading.set(false)
+    }
+  }
+
+  async acceptSelectedCatalogLicense() {
+    const catalogId = this.selectedCatalogId()
+    if (!catalogId || this.licenseAccepting()) return
+
+    this.licenseAccepting.set(true)
+    this.licenseError.set('')
+    try {
+      await this.nexus.acceptCatalogLicense(catalogId)
+      this.catalogCacheGeneration++
+      this.catalogLoadGeneration++
+      this.catalogBundleCache.clear()
+      this.catalogBundleRequests.clear()
+      this.childRequests.clear()
+      this.childMap.set(new Map())
+      this.selectedCatalogInfo.set(null)
+      this.selectedBundle.set(null)
+      await this.loadOverview()
+      await this.loadCatalogPathChildren(catalogId)
+      await this.loadSelectedCatalog(catalogId, false, this.apiAvailable())
+      this.isLicenseOpen.set(false)
+    } catch (error) {
+      this.licenseError.set(this.errorMessage(error))
+    } finally {
+      this.licenseAccepting.set(false)
+    }
+  }
+
+  async uploadCatalogFiles(files: FileList | File[] | null | undefined) {
+    const catalogId = this.selectedCatalogId()
+    const selectedFiles = files ? Array.from(files) : []
+    if (!catalogId || !this.selectedCatalogWritable() || this.catalogFilesBusy() || selectedFiles.length === 0) return
+
+    this.catalogFilesBusy.set(true)
+    this.catalogFilesError.set('')
+    try {
+      for (const file of selectedFiles) await this.nexus.uploadCatalogAttachment(catalogId, file.name, file)
+      this.catalogBundleCache.delete(catalogId)
+      await this.loadSelectedCatalog(catalogId, this.isSelectedFake(), this.apiAvailable())
+    } catch (error) {
+      this.catalogFilesError.set(this.errorMessage(error))
+    } finally {
+      this.catalogFilesBusy.set(false)
+      this.catalogFilesDragActive.set(false)
+    }
+  }
+
+  onCatalogFilesDragOver(event: DragEvent) {
+    if (!this.selectedCatalogWritable() || this.catalogFilesBusy()) return
+    event.preventDefault()
+    this.catalogFilesDragActive.set(true)
+  }
+
+  onCatalogFilesDragLeave(event: DragEvent) {
+    event.preventDefault()
+    this.catalogFilesDragActive.set(false)
+  }
+
+  async onCatalogFilesDrop(event: DragEvent) {
+    event.preventDefault()
+    this.catalogFilesDragActive.set(false)
+    await this.uploadCatalogFiles(event.dataTransfer?.files)
+  }
+
+  requestDeleteCatalogAttachment(attachmentId: string) {
+    if (!this.selectedCatalogWritable() || this.catalogFilesBusy() || this.deletingAttachmentId()) return
+    this.pendingDeleteAttachmentId.set(attachmentId)
+  }
+
+  cancelDeleteCatalogAttachment() {
+    if (!this.deletingAttachmentId()) this.pendingDeleteAttachmentId.set('')
+  }
+
+  async confirmDeleteCatalogAttachment() {
+    await this.deleteCatalogAttachment(this.pendingDeleteAttachmentId())
+  }
+
+  private async deleteCatalogAttachment(attachmentId: string) {
+    const catalogId = this.selectedCatalogId()
+    if (!attachmentId || !catalogId || !this.selectedCatalogWritable() || this.catalogFilesBusy() || this.deletingAttachmentId()) return
+
+    this.deletingAttachmentId.set(attachmentId)
+    this.catalogFilesError.set('')
+    try {
+      await this.nexus.deleteCatalogAttachment(catalogId, attachmentId)
+      this.catalogBundleCache.delete(catalogId)
+      await this.loadSelectedCatalog(catalogId, this.isSelectedFake(), this.apiAvailable())
+    } catch (error) {
+      this.catalogFilesError.set(this.errorMessage(error))
+    } finally {
+      this.deletingAttachmentId.set('')
+      this.pendingDeleteAttachmentId.set('')
+    }
+  }
+
+  setSelectedWriterType(value: string) {
+    const previous = this.selectedWriterType()
+    this.configurationByWriter.update((current) => ({ ...current, [previous]: this.exportConfiguration() }))
+    this.selectedWriterType.set(value)
+    this.exportConfiguration.set(this.configurationByWriter()[value] ?? {})
+  }
+
+  setExportPrecision(value: V2.Precision) {
+    this.exportPrecision.set(value)
+  }
+
   updateConfig(key: string, value: unknown) {
-    this.exportConfiguration.update((current) => ({ ...current, [key]: value }))
+    this.exportConfiguration.update((current) => {
+      const next = { ...current, [key]: value }
+      this.configurationByWriter.update((stored) => ({ ...stored, [this.selectedWriterType()]: next }))
+      return next
+    })
   }
 
   async createExportJob() {
@@ -1485,8 +1667,41 @@ function getStoredCatalogNodeKeys(storage: BrowserStorageService) {
 }
 
 function getInitialThemeMode(storage: BrowserStorageService): ThemeMode {
-  const value = storage.getJson<string>(themeModeStorageKey, 'dark')
-  return value === 'light' ? 'light' : 'dark'
+  const value = storage.getJson<string>(themeModeStorageKey, 'system')
+  return value === 'dark' || value === 'light' || value === 'system' ? value : 'system'
+}
+
+function getStoredExportSettings(storage: BrowserStorageService): StoredExportSettings {
+  const stored = storage.getJson<unknown>(exportSettingsStorageKey, null)
+  const defaults: StoredExportSettings = {
+    selectedWriterType: defaultWriterType,
+    exportFilePeriod: 'PT0S',
+    exportPrecision: V2.Precision.Float32,
+    configurationByWriter: { [defaultWriterType]: { 'row-index-format': 'excel', 'significant-figures': 4 } },
+  }
+  if (!stored || typeof stored !== 'object') return defaults
+
+  const value = stored as Partial<StoredExportSettings>
+  const selectedWriterType = typeof value.selectedWriterType === 'string' && value.selectedWriterType
+    ? value.selectedWriterType
+    : defaults.selectedWriterType
+  return {
+    selectedWriterType,
+    exportFilePeriod: typeof value.exportFilePeriod === 'string' ? value.exportFilePeriod : defaults.exportFilePeriod,
+    exportPrecision: value.exportPrecision === V2.Precision.Float64 ? V2.Precision.Float64 : V2.Precision.Float32,
+    configurationByWriter: getStoredWriterConfigurations(value.configurationByWriter, defaults.configurationByWriter),
+  }
+}
+
+function getStoredWriterConfigurations(value: unknown, fallback: Record<string, Record<string, unknown>>) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback
+  const result: Record<string, Record<string, unknown>> = {}
+  for (const [writerType, configuration] of Object.entries(value)) {
+    if (typeof writerType === 'string' && configuration && typeof configuration === 'object' && !Array.isArray(configuration)) {
+      result[writerType] = { ...(configuration as Record<string, unknown>) }
+    }
+  }
+  return Object.keys(result).length ? result : fallback
 }
 
 function getCatalogPathNodeKeys(catalogId: string) {

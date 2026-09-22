@@ -1846,13 +1846,13 @@ class SystemResponse:
     A system response.
 
     Args:
-        default_file_type: The default file type.
+        version: The Nexus version.
         help_link: The help link.
         logout_url: The logout URL.
     """
 
-    default_file_type: Optional[str]
-    """The default file type."""
+    version: str
+    """The Nexus version."""
 
     help_link: Optional[str]
     """The help link."""

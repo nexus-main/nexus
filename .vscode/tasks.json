@@ -54,11 +54,11 @@
                 "background": {
                     "activeOnStart": true,
                     "beginsPattern": "Application bundle generation complete",
-                    "endsPattern": "http://localhost:4200/"
+                    "endsPattern": "to show help"
                 }
             },
             "presentation": {
-                "reveal": "silent",
+                "reveal": "always",
                 "panel": "dedicated",
                 "group": "nexus-ui"
             },

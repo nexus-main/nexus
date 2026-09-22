@@ -1885,10 +1885,9 @@
         "description": "A system response.",
         "additionalProperties": false,
         "properties": {
-          "defaultFileType": {
+          "version": {
             "type": "string",
-            "description": "The default file type.",
-            "nullable": true
+            "description": "The Nexus version."
           },
           "helpLink": {
             "type": "string",
