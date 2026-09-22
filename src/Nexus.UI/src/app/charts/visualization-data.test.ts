@@ -34,13 +34,6 @@ describe('createVisualizationData', () => {
         assert.throws(() => createVisualizationData(0n, 1n, 1n, [descriptors[0], descriptors[0]]), /unique/);
     });
 
-    it('enforces the visualization memory budget', () => {
-        const selected = descriptors.slice(0, 1);
-        const maxFloat32Values = 2048n * 1024n * 1024n / 4n;
-
-        assert.equal(createVisualizationData(0n, maxFloat32Values, 1n, selected).series[0].length, Number(maxFloat32Values));
-        assert.throws(() => createVisualizationData(0n, maxFloat32Values + 1n, 1n, selected), /2048 MiB/);
-    });
 });
 
 describe('setVisualizationSeriesValues', () => {

@@ -18,8 +18,6 @@ export interface VisualizationData {
   series: VisualizationSeries[]
 }
 
-const maxBytes = 2048n * 1024n * 1024n
-
 export function createVisualizationData(
   begin: bigint,
   end: bigint,
@@ -35,7 +33,6 @@ export function createVisualizationData(
   if (new Set(descriptors.map(({ id }) => id)).size !== descriptors.length) throw new Error('Series ids must be unique')
   const length = (end - begin) / samplePeriod
   if (length > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError('Series length must be a safe integer')
-  if (length * BigInt(descriptors.length) * 4n > maxBytes) throw new RangeError('Float32 data exceeds the 2048 MiB budget')
   return {
     begin, end,
     series: descriptors.map(({ id, name, unit }) => ({
