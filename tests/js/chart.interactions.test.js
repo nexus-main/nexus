@@ -41,7 +41,7 @@ function createEnvironment() {
     context.window = context;
     context.globalThis = context;
     vm.runInNewContext(
-        fs.readFileSync(path.join(__dirname, '../../src/Nexus/wwwroot/js/chart.js'), 'utf8'),
+        fs.readFileSync(path.join(__dirname, '../../src/Nexus.UI/src/charts/chart.js'), 'utf8'),
         context,
         { filename: 'chart.js' });
 
