@@ -142,6 +142,9 @@ void AddServices(
     services.AddSingleton<IAcceptedLicenseService, AcceptedLicenseService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();
     services.AddSingleton<IJobService, JobService>();
+    services.AddSingleton<GitService>();
+    services.AddSingleton<IGitService>(serviceProvider => serviceProvider.GetRequiredService<GitService>());
+    services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GitService>());
     services.AddSingleton<IDataControllerService, DataControllerService>();
     services.AddSingleton<ICatalogManager, CatalogManager>();
     services.AddSingleton<IProcessingService, ProcessingService>();
@@ -151,6 +154,7 @@ void AddServices(
     // Options
     services.Configure<GeneralOptions>(configuration.GetSection(GeneralOptions.Section));
     services.Configure<DataOptions>(configuration.GetSection(DataOptions.Section));
+    services.Configure<GitOptions>(configuration.GetSection(GitOptions.Section));
     services.Configure<PathsOptions>(configuration.GetSection(PathsOptions.Section));
     services.Configure<SecurityOptions>(configuration.GetSection(SecurityOptions.Section));
 

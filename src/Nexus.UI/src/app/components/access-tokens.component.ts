@@ -28,18 +28,12 @@ type CatalogClaimDraft = {
   imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, InputTextModule, MessageModule, ToastModule, RestoreFocusDirective, LucideCopy, LucideRefreshCw, LucideTrash2],
   providers: [MessageService],
   template: `
-    <p-toast key="access-token-status" position="bottom-right" styleClass="w-fit min-w-0 max-w-[calc(100vw-2rem)]">
-      <ng-template let-message pTemplate="headless">
-        <div class="w-fit min-w-0 max-w-[calc(100vw-2rem)] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium leading-5 text-slate-900 shadow-lg dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
-          {{ message.summary }}
-        </div>
-      </ng-template>
-    </p-toast>
-    <p-toast key="access-token-delete-confirm" position="bottom-right">
+    <p-toast key="access-token-status" position="bottom-center" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body" />
+    <p-toast key="access-token-delete-confirm" position="bottom-center" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body">
       <ng-template let-message pTemplate="message">
         <div class="max-w-sm text-sm leading-5">
           <div class="font-semibold">{{ message.summary }}</div>
-          <div class="mt-1 text-slate-500 dark:text-slate-300">{{ message.detail }}</div>
+          <div class="mt-1 opacity-70">{{ message.detail }}</div>
           <div class="mt-3 flex justify-end gap-2">
             <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="busy()" (click)="cancelDelete()">Cancel</button>
             <button pButton type="button" size="small" severity="danger" [disabled]="busy()" (click)="deleteConfirmedToken()">Revoke</button>
@@ -47,38 +41,37 @@ type CatalogClaimDraft = {
         </div>
       </ng-template>
     </p-toast>
-    <p-dialog appRestoreFocus header="Personal access tokens" [visible]="true" (visibleChange)="setVisible($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="false" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close access tokens', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(46rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">
-      <ng-template #closeicon><span aria-hidden="true">×</span></ng-template>
+    <p-dialog appRestoreFocus header="Personal access tokens" [visible]="true" (visibleChange)="setVisible($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="false" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body"       [closeButtonProps]="{ ariaLabel: 'Close access tokens', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(46rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">
 
-      <div class="space-y-5 text-sm leading-6 text-slate-300">
+      <div class="space-y-5 text-sm leading-6 text-ink-muted">
         @if (error()) { <p-message severity="error">{{ error() }}</p-message> }
         @if (createdToken()) {
-          <section class="rounded-sm border border-emerald-500/35 bg-emerald-50 p-4 text-emerald-950 dark:border-emerald-300/25 dark:bg-emerald-300/[0.08] dark:text-emerald-100">
-            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-200/80">New token</div>
-            <p class="mt-2 text-emerald-900 dark:text-emerald-100/90">Copy this value now. It will not be shown again.</p>
+          <section class="rounded-sm border border-emerald-core/30 bg-emerald-core/[0.08] p-4 text-emerald-accent">
+            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-accent">New token</div>
+            <p class="mt-2 text-emerald-accent">Copy this value now. It will not be shown again.</p>
             <div class="mt-3 flex min-w-0 items-center gap-2">
-              <code class="min-w-0 flex-1 overflow-hidden text-ellipsis rounded-sm border border-emerald-500/25 bg-white px-3 py-2 font-mono text-xs text-emerald-950 dark:border-white/10 dark:bg-slate-950/60 dark:text-emerald-100">{{ createdToken() }}</code>
+              <code class="min-w-0 flex-1 overflow-hidden text-ellipsis rounded-sm border border-emerald-core/25 bg-surface px-3 py-2 font-mono text-xs text-emerald-accent">{{ createdToken() }}</code>
               <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" (click)="copyCreatedToken()" aria-label="Copy new token"><svg lucideCopy class="h-4 w-4" aria-hidden="true"></svg></button>
             </div>
           </section>
         }
 
-        <section class="rounded-sm border border-white/10 bg-white/[0.035] p-4">
-          <div class="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Create token</div>
+        <section class="rounded-sm border border-surface-border bg-overlay/[0.035] p-4">
+          <div class="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-ink-muted">Create token</div>
           <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_13.25rem]">
             <div>
-              <label for="access-token-description" class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-slate-400">Description</label>
+              <label for="access-token-description" class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-ink-muted">Description</label>
               <input pInputText pSize="small" id="access-token-description" class="w-full" [ngModel]="description()" (ngModelChange)="description.set($event)" [disabled]="busy()" placeholder="Automation script" />
             </div>
             <div>
-              <label for="access-token-expires" class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-slate-400">Expires</label>
+              <label for="access-token-expires" class="mb-1.5 block text-xs uppercase tracking-[0.18em] text-ink-muted">Expires</label>
               <input pInputText pSize="small" id="access-token-expires" type="datetime-local" step="1" class="w-full" [ngModel]="expiresInput()" (ngModelChange)="expiresInput.set($event)" [disabled]="busy()" />
-              @if (!expiresInput().trim()) { <p class="mt-1 text-xs text-slate-500">Expires never.</p> }
+              @if (!expiresInput().trim()) { <p class="mt-1 text-xs text-ink-muted">Expires never.</p> }
             </div>
           </div>
 
           @if (isCurrentUserAdmin()) {
-            <label class="mt-4 flex items-center gap-2 text-sm text-slate-200">
+            <label class="mt-4 flex items-center gap-2 text-sm text-ink">
               <p-checkbox [binary]="true" [ngModel]="privileged()" (ngModelChange)="privileged.set($event)" [disabled]="busy()" inputId="access-token-privileged" />
               <span>Privileged administrator token</span>
             </label>
@@ -86,14 +79,14 @@ type CatalogClaimDraft = {
 
           <div class="mt-4 space-y-3">
             <div>
-              <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Catalog access</div>
-              <p class="mt-1 text-xs text-slate-500">Add regex patterns for catalogs this token may access.</p>
+              <div class="text-xs font-semibold uppercase tracking-[0.18em] text-ink-muted">Catalog access</div>
+              <p class="mt-1 text-xs text-ink-muted">Add regex patterns for catalogs this token may access.</p>
             </div>
 
             @for (claim of catalogClaims(); track $index) {
-              <div class="grid gap-2 rounded-sm border border-white/10 bg-slate-950/25 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+              <div class="grid gap-2 rounded-sm border border-surface-border bg-overlay/[0.04] p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
                 <input pInputText pSize="small" class="w-full" [attr.aria-label]="'Catalog pattern ' + ($index + 1)" [ngModel]="claim.catalogPattern" (ngModelChange)="setCatalogPattern($index, $event)" [disabled]="busy()" placeholder="^/MY/CATALOG/PATH" />
-                <label class="flex items-center gap-2 text-xs text-slate-300">
+                <label class="flex items-center gap-2 text-xs text-ink-muted">
                   <p-checkbox [binary]="true" [ngModel]="claim.writeAccess" (ngModelChange)="setWriteAccess($index, $event)" [disabled]="busy()" />
                   Write access
                 </label>
@@ -105,28 +98,28 @@ type CatalogClaimDraft = {
           </div>
 
           <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
-            <p class="text-xs text-slate-500">Leave expiration empty for a token that never expires.</p>
+            <p class="text-xs text-ink-muted">Leave expiration empty for a token that never expires.</p>
             <button pButton type="button" size="small" [outlined]="true" [disabled]="busy() || !canCreate()" (click)="createToken()">{{ creating() ? 'Creating...' : 'Create token' }}</button>
           </div>
         </section>
 
         <section class="space-y-3">
           <div class="flex items-center justify-between gap-2">
-            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Existing tokens</div>
+            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-ink-muted">Existing tokens</div>
             <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="loading()" (click)="loadTokens()" aria-label="Refresh tokens"><svg lucideRefreshCw class="h-4 w-4" aria-hidden="true"></svg></button>
           </div>
 
           @if (loading()) {
-            <p role="status" class="text-slate-400">Loading tokens...</p>
+            <p role="status" class="text-ink-muted">Loading tokens...</p>
           } @else if (tokens().length === 0) {
-            <p class="rounded-sm border border-white/10 bg-white/[0.03] p-4 text-slate-500">No personal access tokens exist for your account.</p>
+            <p class="rounded-sm border border-surface-border bg-overlay/[0.03] p-4 text-ink-muted">No personal access tokens exist for your account.</p>
           } @else {
-            <div class="divide-y divide-white/10 overflow-hidden rounded-sm border border-white/10">
+            <div class="divide-y divide-surface-border overflow-hidden rounded-sm border border-surface-border">
               @for (entry of tokens(); track entry.id) {
-                <article class="flex min-w-0 items-center justify-between gap-2 bg-white/[0.025] px-3 py-2">
+                <article class="flex min-w-0 items-center justify-between gap-2 bg-overlay/[0.025] px-3 py-2">
                   <div class="min-w-0">
-                    <div class="truncate font-medium text-slate-100">{{ entry.token.description || 'Untitled token' }}</div>
-                    <div class="mt-1 text-xs text-slate-400">Expires {{ formatDate(entry.token.expires) }}</div>
+                    <div class="truncate font-medium text-ink">{{ entry.token.description || 'Untitled token' }}</div>
+                    <div class="mt-1 text-xs text-ink-muted">Expires {{ formatDate(entry.token.expires) }}</div>
                   </div>
                   <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="busy()" (click)="confirmDelete(entry)" [attr.aria-label]="'Revoke token ' + (entry.token.description || entry.id)"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
                 </article>

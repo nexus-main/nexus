@@ -11,7 +11,7 @@ import { TextareaModule } from 'primeng/textarea'
 import { TooltipModule } from 'primeng/tooltip'
 import { groupResourceRows } from '../resource-matrix'
 import type { MetadataDrafts, MetadataField } from '../resource-matrix'
-import { formatPeriod } from '../resource-selection'
+import { formatPeriod, resourceAvailableForRange } from '../resource-selection'
 import type { RepresentationRow } from '../resource-selection'
 
 @Component({
@@ -39,6 +39,9 @@ export class ResourceMatrixComponent {
   readonly visualizationSize = input('')
   readonly visualizationDisabledReason = input('')
   readonly exportDisabledReason = input('')
+  readonly catalogProperties = input<Record<string, unknown> | null | undefined>(null)
+  readonly selectedBegin = input('')
+  readonly selectedEnd = input('')
   readonly saveMetadata = input.required<(catalogId: string, drafts: MetadataDrafts) => Promise<{ warning?: string }>>()
   readonly toggle = output<RepresentationRow>()
   readonly activate = output<RepresentationRow>()
@@ -65,6 +68,7 @@ export class ResourceMatrixComponent {
 
   readonly search = signal('')
   readonly expanded = signal(false)
+  readonly showAll = signal(false)
   readonly canScrollGroupsBack = signal(false)
   readonly canScrollGroupsForward = signal(false)
   readonly groupKey = signal('')
@@ -83,7 +87,21 @@ export class ResourceMatrixComponent {
   readonly fields: MetadataField[] = ['unit', 'description', 'warning']
   readonly formatPeriod = formatPeriod
   // Search never sees draft text; an edit session also survives a parent metadata refresh.
-  readonly sourceRows = computed(() => (this.sourceSnapshot() ?? this.rows()).filter(row => row.catalogId === this.catalogId()))
+  readonly sourceRows = computed(() => {
+    const rows = (this.sourceSnapshot() ?? this.rows()).filter(row => row.catalogId === this.catalogId())
+    if (this.showAll()) return rows
+    const properties = this.catalogProperties()
+    const begin = this.selectedBegin()
+    const end = this.selectedEnd()
+    return rows.filter(row => resourceAvailableForRange(row, properties, begin, end))
+  })
+  readonly hiddenCount = computed(() => {
+    const rows = this.rows().filter(row => row.catalogId === this.catalogId())
+    const properties = this.catalogProperties()
+    const begin = this.selectedBegin()
+    const end = this.selectedEnd()
+    return rows.filter(row => !resourceAvailableForRange(row, properties, begin, end)).length
+  })
   readonly groups = computed(() => groupResourceRows(this.sourceRows(), this.search()))
   readonly activeGroup = computed(() => this.groups().find(group => group.key === this.groupKey()) ?? this.groups().at(0))
   readonly visibleRows = computed(() => this.activeGroup()?.rows ?? [])
@@ -98,6 +116,7 @@ export class ResourceMatrixComponent {
         this.cancelEditing()
         this.search.set('')
         this.expanded.set(false)
+        this.showAll.set(false)
         this.groupKey.set(this.rememberedGroups.get(catalog) ?? '')
         this.navigationVisible.set(false)
         this.pendingNavigation = null

@@ -229,7 +229,7 @@
 
       <div class="pipeline-footer">
         @if (confirmingDelete()) {
-          <span class="flex items-center gap-2 text-xs text-rose-700 dark:text-rose-300">Delete this pipeline?</span>
+          <span class="flex items-center gap-2 text-xs text-rose-accent">Delete this pipeline?</span>
           <div class="actions">
             <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="locked()" (click)="cancelDelete()">No</button>
             <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="remove()">{{ busy() ? 'Deleting...' : 'Yes, delete' }}</button>

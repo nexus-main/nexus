@@ -22,6 +22,7 @@ class V1:
     _artifacts: ArtifactsClient
     _catalogs: CatalogsClient
     _data: DataClient
+    _git: GitClient
     _jobs: JobsClient
     _packageReferences: PackageReferencesClient
     _sources: SourcesClient
@@ -41,6 +42,7 @@ class V1:
         self._artifacts = ArtifactsClient(invoke)
         self._catalogs = CatalogsClient(invoke)
         self._data = DataClient(invoke)
+        self._git = GitClient(invoke)
         self._jobs = JobsClient(invoke)
         self._packageReferences = PackageReferencesClient(invoke)
         self._sources = SourcesClient(invoke)
@@ -63,6 +65,11 @@ class V1:
     def data(self) -> DataClient:
         """Gets the DataClient."""
         return self._data
+
+    @property
+    def git(self) -> GitClient:
+        """Gets the GitClient."""
+        return self._git
 
     @property
     def jobs(self) -> JobsClient:
@@ -348,6 +355,72 @@ class DataClient:
         return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
 
+class GitClient:
+    """Provides methods to interact with git."""
+
+    ___invoke: HttpRequestHandler
+    
+    def __init__(self, invoke: HttpRequestHandler):
+        self.___invoke = invoke
+
+    def get_config(self) -> GitConfigResponse:
+        """
+        Gets the effective Git configuration without secrets.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/config"
+
+        return self.___invoke(GitConfigResponse, "GET", __url, "application/json", None, None)
+
+    def get_status(self) -> GitStatusResponse:
+        """
+        Gets the current Git status.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/status"
+
+        return self.___invoke(GitStatusResponse, "GET", __url, "application/json", None, None)
+
+    def get_history(self) -> list[GitHistoryEntry]:
+        """
+        Gets the configuration history.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/history"
+
+        return self.___invoke(list[GitHistoryEntry], "GET", __url, "application/json", None, None)
+
+    def get_diff(self, commit_sha: str) -> list[GitDiffFile]:
+        """
+        Gets file-level changes for a commit.
+
+        Args:
+            commit_sha:
+        """
+
+        __url = "/api/v1/git/diff/{commitSha}"
+        __url = __url.replace("{commitSha}", quote(str(commit_sha), safe=""))
+
+        return self.___invoke(list[GitDiffFile], "GET", __url, "application/json", None, None)
+
+    def restore(self, request: GitRestoreRequest) -> GitRestoreResponse:
+        """
+        Restores the configuration from a commit by creating a new commit.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/restore"
+
+        return self.___invoke(GitRestoreResponse, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
+
 class JobsClient:
     """Provides methods to interact with jobs."""
 
@@ -439,6 +512,17 @@ class JobsClient:
         __url += __query
 
         return self.___invoke(Job, "POST", __url, "application/json", None, None)
+
+    def sync_git(self, parameters: GitSyncRequest) -> Job:
+        """
+        Creates a new Git synchronization job.
+
+        Args:
+        """
+
+        __url = "/api/v1/jobs/git/sync"
+
+        return self.___invoke(Job, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(parameters, _json_encoder_options)))
 
 
 class PackageReferencesClient:
@@ -705,6 +789,7 @@ class V1Async:
     _artifacts: ArtifactsAsyncClient
     _catalogs: CatalogsAsyncClient
     _data: DataAsyncClient
+    _git: GitAsyncClient
     _jobs: JobsAsyncClient
     _packageReferences: PackageReferencesAsyncClient
     _sources: SourcesAsyncClient
@@ -724,6 +809,7 @@ class V1Async:
         self._artifacts = ArtifactsAsyncClient(invoke)
         self._catalogs = CatalogsAsyncClient(invoke)
         self._data = DataAsyncClient(invoke)
+        self._git = GitAsyncClient(invoke)
         self._jobs = JobsAsyncClient(invoke)
         self._packageReferences = PackageReferencesAsyncClient(invoke)
         self._sources = SourcesAsyncClient(invoke)
@@ -746,6 +832,11 @@ class V1Async:
     def data(self) -> DataAsyncClient:
         """Gets the DataAsyncClient."""
         return self._data
+
+    @property
+    def git(self) -> GitAsyncClient:
+        """Gets the GitAsyncClient."""
+        return self._git
 
     @property
     def jobs(self) -> JobsAsyncClient:
@@ -1031,6 +1122,72 @@ class DataAsyncClient:
         return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
 
+class GitAsyncClient:
+    """Provides methods to interact with git."""
+
+    ___invoke: HttpRequestHandlerAsync
+    
+    def __init__(self, invoke: HttpRequestHandlerAsync):
+        self.___invoke = invoke
+
+    def get_config(self) -> Awaitable[GitConfigResponse]:
+        """
+        Gets the effective Git configuration without secrets.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/config"
+
+        return self.___invoke(GitConfigResponse, "GET", __url, "application/json", None, None)
+
+    def get_status(self) -> Awaitable[GitStatusResponse]:
+        """
+        Gets the current Git status.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/status"
+
+        return self.___invoke(GitStatusResponse, "GET", __url, "application/json", None, None)
+
+    def get_history(self) -> Awaitable[list[GitHistoryEntry]]:
+        """
+        Gets the configuration history.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/history"
+
+        return self.___invoke(list[GitHistoryEntry], "GET", __url, "application/json", None, None)
+
+    def get_diff(self, commit_sha: str) -> Awaitable[list[GitDiffFile]]:
+        """
+        Gets file-level changes for a commit.
+
+        Args:
+            commit_sha:
+        """
+
+        __url = "/api/v1/git/diff/{commitSha}"
+        __url = __url.replace("{commitSha}", quote(str(commit_sha), safe=""))
+
+        return self.___invoke(list[GitDiffFile], "GET", __url, "application/json", None, None)
+
+    def restore(self, request: GitRestoreRequest) -> Awaitable[GitRestoreResponse]:
+        """
+        Restores the configuration from a commit by creating a new commit.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/restore"
+
+        return self.___invoke(GitRestoreResponse, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
+
 class JobsAsyncClient:
     """Provides methods to interact with jobs."""
 
@@ -1122,6 +1279,17 @@ class JobsAsyncClient:
         __url += __query
 
         return self.___invoke(Job, "POST", __url, "application/json", None, None)
+
+    def sync_git(self, parameters: GitSyncRequest) -> Awaitable[Job]:
+        """
+        Creates a new Git synchronization job.
+
+        Args:
+        """
+
+        __url = "/api/v1/jobs/git/sync"
+
+        return self.___invoke(Job, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(parameters, _json_encoder_options)))
 
 
 class PackageReferencesAsyncClient:
@@ -1630,6 +1798,193 @@ class CatalogMetadata:
 
 
 @dataclass(frozen=True)
+class GitConfigResponse:
+    """
+    The effective Git configuration without secret values.
+
+    Args:
+        branch: The configured Git branch.
+        commit_throttle_seconds: The number of seconds Nexus waits before committing configuration changes.
+        remote_url: The configured remote Git repository URL.
+        username: The configured HTTPS username.
+        has_token: A value indicating whether an HTTPS token is configured.
+        has_ssh_private_key: A value indicating whether an SSH private key is configured.
+        auth_mode: The authentication mode inferred from the remote URL.
+        commit_author_name: The Git commit author name.
+        commit_author_email: The Git commit author email.
+        is_remote_configured: A value indicating whether remote backup has enough configuration to push.
+    """
+
+    branch: str
+    """The configured Git branch."""
+
+    commit_throttle_seconds: int
+    """The number of seconds Nexus waits before committing configuration changes."""
+
+    remote_url: Optional[str]
+    """The configured remote Git repository URL."""
+
+    username: Optional[str]
+    """The configured HTTPS username."""
+
+    has_token: bool
+    """A value indicating whether an HTTPS token is configured."""
+
+    has_ssh_private_key: bool
+    """A value indicating whether an SSH private key is configured."""
+
+    auth_mode: str
+    """The authentication mode inferred from the remote URL."""
+
+    commit_author_name: str
+    """The Git commit author name."""
+
+    commit_author_email: str
+    """The Git commit author email."""
+
+    is_remote_configured: bool
+    """A value indicating whether remote backup has enough configuration to push."""
+
+
+@dataclass(frozen=True)
+class GitStatusResponse:
+    """
+    The current Git repository and push status required by the admin UI.
+
+    Args:
+        git_available: A value indicating whether the Git executable is available.
+        has_uncommitted_changes: A value indicating whether the local repository has uncommitted changes.
+        current_commit_sha: The current commit SHA.
+        last_pushed_commit_sha: The last commit SHA successfully pushed by this process.
+        last_successful_push_at: The last successful push time.
+        last_push_status: The last push status.
+        last_push_error: The last push error.
+    """
+
+    git_available: bool
+    """A value indicating whether the Git executable is available."""
+
+    has_uncommitted_changes: bool
+    """A value indicating whether the local repository has uncommitted changes."""
+
+    current_commit_sha: Optional[str]
+    """The current commit SHA."""
+
+    last_pushed_commit_sha: Optional[str]
+    """The last commit SHA successfully pushed by this process."""
+
+    last_successful_push_at: Optional[datetime]
+    """The last successful push time."""
+
+    last_push_status: GitPushStatus
+    """The last push status."""
+
+    last_push_error: Optional[str]
+    """The last push error."""
+
+
+class GitPushStatus(Enum):
+    """The result of pushing configuration history to a remote Git repository."""
+
+    NOT_CONFIGURED = "NOT_CONFIGURED"
+    """NotConfigured"""
+
+    SUCCEEDED = "SUCCEEDED"
+    """Succeeded"""
+
+    FAILED = "FAILED"
+    """Failed"""
+
+
+@dataclass(frozen=True)
+class GitHistoryEntry:
+    """
+    A Git commit in the configuration history.
+
+    Args:
+        sha: The full commit SHA.
+        short_sha: The abbreviated commit SHA.
+        date: The commit date.
+        author_name: The commit author name.
+        author_email: The commit author email.
+        message: The commit message.
+    """
+
+    sha: str
+    """The full commit SHA."""
+
+    short_sha: str
+    """The abbreviated commit SHA."""
+
+    date: datetime
+    """The commit date."""
+
+    author_name: str
+    """The commit author name."""
+
+    author_email: str
+    """The commit author email."""
+
+    message: str
+    """The commit message."""
+
+
+@dataclass(frozen=True)
+class GitDiffFile:
+    """
+    A changed file in a Git commit.
+
+    Args:
+        path: The repository-relative file path.
+        status: The Git file status.
+        original_text: The file text before the commit.
+        modified_text: The file text after the commit.
+    """
+
+    path: str
+    """The repository-relative file path."""
+
+    status: str
+    """The Git file status."""
+
+    original_text: Optional[str]
+    """The file text before the commit."""
+
+    modified_text: Optional[str]
+    """The file text after the commit."""
+
+
+@dataclass(frozen=True)
+class GitRestoreResponse:
+    """
+    The result of restoring configuration from a commit.
+
+    Args:
+        commit_sha: The commit SHA created by the restore operation.
+        message: A human-readable result message.
+    """
+
+    commit_sha: str
+    """The commit SHA created by the restore operation."""
+
+    message: str
+    """A human-readable result message."""
+
+
+@dataclass(frozen=True)
+class GitRestoreRequest:
+    """
+    A request to restore configuration from a commit.
+
+    Args:
+        commit_sha: The commit SHA to restore.
+    """
+
+    commit_sha: str
+    """The commit SHA to restore."""
+
+
+@dataclass(frozen=True)
 class Job:
     """
     Description of a job.
@@ -1742,6 +2097,19 @@ class ExportParameters:
 
     configuration: Optional[dict[str, object]]
     """The configuration."""
+
+
+@dataclass(frozen=True)
+class GitSyncRequest:
+    """
+    A request to synchronize local configuration history with the configured remote.
+
+    Args:
+        force: A value indicating whether to force-push once.
+    """
+
+    force: bool
+    """A value indicating whether to force-push once."""
 
 
 @dataclass(frozen=True)

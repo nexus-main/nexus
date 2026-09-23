@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import type { ResourceRow } from './nexus.service'
 import {
   alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, parseResourcePath, readSelectionState,
-  representationKinds, representationRows, requestPath, selectionKey,
+  representationKinds, representationRows, requestPath, resourceAvailableForRange, selectionKey,
   storeSelectionReference, toTimeSpan,
 } from './resource-selection.ts'
 import type { ResourceSelection, StoredSelectionReference, StoredSelectionState } from './resource-selection.ts'
@@ -401,5 +401,91 @@ describe('execution range validation', () => {
     for (const period of [0n, -1n, maxTicks + 1n]) assert.match(executionRangeError(begin, end, period, 1), /Period/)
     for (const count of [0, -1, 0.5, NaN, Infinity]) assert.notEqual(executionRangeError(begin, end, second, count), '')
     assert.match(executionRangeError(begin, end, second, 101), /100 output series/)
+  })
+})
+
+describe('resource availability', () => {
+  const avRow: ResourceRow = { ...resource, id: 'P1', path: '/catalog/P1' }
+  const otherRow: ResourceRow = { ...resource, id: 'P2', path: '/catalog/P2' }
+  const selectedBegin = '2020-06-01T00:00:00Z'
+  const selectedEnd = '2020-07-01T00:00:00Z'
+
+  it('returns available when there is no availability metadata or the metadata is malformed', () => {
+    assert.equal(resourceAvailableForRange(avRow, null, selectedBegin, selectedEnd), true)
+    assert.equal(resourceAvailableForRange(avRow, {}, selectedBegin, selectedEnd), true)
+    assert.equal(resourceAvailableForRange(avRow, { resources: null }, selectedBegin, selectedEnd), true)
+    assert.equal(resourceAvailableForRange(avRow, { resources: 'bad' }, selectedBegin, selectedEnd), true)
+    assert.equal(resourceAvailableForRange(avRow, { resources: { availability: null } }, selectedBegin, selectedEnd), true)
+    assert.equal(resourceAvailableForRange(avRow, { resources: { availability: 'bad' } }, selectedBegin, selectedEnd), true)
+  })
+
+  it('returns available when no rule matches the resource path', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/catalog/P2$', begin: '2021-01-01T00:00:00Z', end: '2022-01-01T00:00:00Z' },
+    ] } }
+    assert.equal(resourceAvailableForRange(avRow, properties, selectedBegin, selectedEnd), true)
+    assert.equal(resourceAvailableForRange(otherRow, properties, selectedBegin, selectedEnd), false)
+  })
+
+  it('returns available when a matching rule overlaps the selected range', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/catalog/P1$', begin: '2020-01-01T00:00:00Z', end: '2021-01-01T00:00:00Z' },
+    ] } }
+    assert.equal(resourceAvailableForRange(avRow, properties, selectedBegin, selectedEnd), true)
+  })
+
+  it('returns unavailable when a matching rule does not overlap the selected range', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/catalog/P1$', begin: '2021-01-01T00:00:00Z', end: '2022-01-01T00:00:00Z' },
+    ] } }
+    assert.equal(resourceAvailableForRange(avRow, properties, selectedBegin, selectedEnd), false)
+  })
+
+  it('treats missing begin as unbounded past and missing end as unbounded future', () => {
+    const beginOnly = { resources: { availability: [{ pattern: '^/catalog/P1$', begin: '2021-01-01T00:00:00Z' }] } }
+    assert.equal(resourceAvailableForRange(avRow, beginOnly, selectedBegin, selectedEnd), false)
+    const endOnly = { resources: { availability: [{ pattern: '^/catalog/P1$', end: '2020-01-01T00:00:00Z' }] } }
+    assert.equal(resourceAvailableForRange(avRow, endOnly, selectedBegin, selectedEnd), false)
+    const noBounds = { resources: { availability: [{ pattern: '^/catalog/P1$' }] } }
+    assert.equal(resourceAvailableForRange(avRow, noBounds, selectedBegin, selectedEnd), true)
+  })
+
+  it('returns available when at least one matching rule overlaps even if others do not', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/catalog/P1$', begin: '2021-01-01T00:00:00Z', end: '2022-01-01T00:00:00Z' },
+      { pattern: '^/catalog/P1$', begin: '2020-01-01T00:00:00Z', end: '2021-01-01T00:00:00Z' },
+    ] } }
+    assert.equal(resourceAvailableForRange(avRow, properties, selectedBegin, selectedEnd), true)
+  })
+
+  it('ignores invalid rules without affecting valid ones', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/catalog/P1$', begin: 'bad' },
+      { pattern: '[invalid', begin: '2020-01-01T00:00:00Z', end: '2021-01-01T00:00:00Z' },
+      { pattern: '^/catalog/P1$', begin: 42 },
+      'not-a-rule',
+      null,
+      { pattern: '^/catalog/P1$', begin: '2020-01-01T00:00:00Z', end: '2021-01-01T00:00:00Z' },
+    ] } }
+    assert.equal(resourceAvailableForRange(avRow, properties, selectedBegin, selectedEnd), true)
+  })
+
+  it('returns available for any resource when the selected range is invalid', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/catalog/P1$', begin: '2021-01-01T00:00:00Z', end: '2022-01-01T00:00:00Z' },
+    ] } }
+    assert.equal(resourceAvailableForRange(avRow, properties, 'bad', selectedEnd), true)
+    assert.equal(resourceAvailableForRange(avRow, properties, selectedEnd, selectedBegin), true)
+  })
+
+  it('uses inclusive begin and exclusive end for overlap', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/catalog/P1$', begin: '2020-07-01T00:00:00Z', end: '2021-01-01T00:00:00Z' },
+    ] } }
+    assert.equal(resourceAvailableForRange(avRow, properties, selectedBegin, selectedEnd), false)
+    const properties2 = { resources: { availability: [
+      { pattern: '^/catalog/P1$', begin: '2020-01-01T00:00:00Z', end: '2020-06-01T00:00:00Z' },
+    ] } }
+    assert.equal(resourceAvailableForRange(avRow, properties2, selectedBegin, selectedEnd), false)
   })
 })

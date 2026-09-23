@@ -2,7 +2,7 @@ import { CommonModule, DOCUMENT } from '@angular/common'
 import { Component, HostListener, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX } from '@lucide/angular'
-import { MenuItem } from 'primeng/api'
+import { MenuItem, MessageService } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
 import { DialogModule } from 'primeng/dialog'
@@ -11,6 +11,7 @@ import { InputTextModule } from 'primeng/inputtext'
 import { MenuModule } from 'primeng/menu'
 import { ProgressBarModule } from 'primeng/progressbar'
 import { TabsModule } from 'primeng/tabs'
+import { ToastModule } from 'primeng/toast'
 import { TooltipModule } from 'primeng/tooltip'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
@@ -24,6 +25,7 @@ import { PinnedResourceComponent } from './components/pinned-resource.component'
 import { PackageReferencesComponent } from './components/package-references.component'
 import { AccessTokensComponent } from './components/access-tokens.component'
 import { DataSourcePipelinesComponent } from './components/data-source-pipelines.component'
+import { GitComponent } from './components/git.component'
 import { ResourceMatrixComponent } from './components/resource-matrix.component'
 import { MetadataDrafts, mergeResourceMetadata } from './resource-matrix'
 import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, parseResourcePath, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
@@ -121,12 +123,14 @@ type StoredExportSettings = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, ToastModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, GitComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  providers: [MessageService],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnDestroy {
   private readonly nexus = inject(NexusService)
   private readonly storage = inject(BrowserStorageService)
+  private readonly messageService = inject(MessageService)
   private readonly document = inject(DOCUMENT)
   private readonly catalogBundleCache = new Map<string, CatalogBundle>()
   private readonly catalogBundleRequests = new Map<string, Promise<CatalogBundle>>()
@@ -161,6 +165,7 @@ export class AppComponent implements OnDestroy {
   readonly isJobsOpen = signal(false)
   readonly isPackageReferencesOpen = signal(false)
   readonly isDataSourcePipelinesOpen = signal(false)
+  readonly isGitOpen = signal(false)
   readonly isAccessTokensOpen = signal(false)
   readonly isClearPinnedOpen = signal(false)
   readonly parameterResource = signal<RepresentationRow | null>(null)
@@ -231,7 +236,6 @@ export class AppComponent implements OnDestroy {
   readonly licenseLoading = signal(false)
   readonly licenseAccepting = signal(false)
   readonly licenseError = signal('')
-  readonly catalogPathCopied = signal(false)
   readonly catalogFilesBusy = signal(false)
   readonly catalogFilesError = signal('')
   readonly catalogFilesDragActive = signal(false)
@@ -242,11 +246,8 @@ export class AppComponent implements OnDestroy {
   readonly currentExportJobError = signal('')
   readonly currentExportDownloading = signal(false)
   readonly jobHistory = signal<ExportJobHistoryEntry[]>([])
-  readonly setupImportError = signal('')
-  readonly setupStatus = signal('')
   readonly setupDragActive = signal(false)
   private setupDragDepth = 0
-  private setupStatusTimer: number | undefined
 
   readonly timeRangeMenuItems: MenuItem[] = timeRangePresets.flatMap((preset) => {
     const item: MenuItem = { label: preset.label, command: () => this.applyTimeRangePreset(preset) }
@@ -748,7 +749,6 @@ export class AppComponent implements OnDestroy {
     this.cancelVisualization()
     this.resetCurrentExportJob()
     this.refreshController.abort()
-    if (this.setupStatusTimer !== undefined) window.clearTimeout(this.setupStatusTimer)
   }
 
   openDataSourcePipelines() {
@@ -767,19 +767,18 @@ export class AppComponent implements OnDestroy {
   }
 
   async previewSetupImport(file: File) {
-    this.setupImportError.set('')
-    this.clearSetupStatus()
+    this.messageService.clear('app-status')
     try {
       const parsed = parseNexusUiSetupJson(await file.text())
       if (this.resourceMatrix()?.hasUnsavedChanges() || this.resourceMatrix()?.saving()) {
-        this.setupImportError.set('Save or discard resource metadata edits before importing a setup.')
+        this.messageService.add({ key: 'app-status', severity: 'error', summary: 'Save or discard resource metadata edits before importing a setup.', life: 5000 })
         return
       }
 
       await this.applySetupImport(parsed)
       this.showSetupStatus(`Imported ${file.name || 'setup.json'}.`)
     } catch (error) {
-      this.setupImportError.set(this.errorMessage(error))
+      this.messageService.add({ key: 'app-status', severity: 'error', summary: this.errorMessage(error), life: 5000 })
     }
   }
 
@@ -796,17 +795,7 @@ export class AppComponent implements OnDestroy {
   }
 
   private showSetupStatus(message: string) {
-    this.clearSetupStatus()
-    this.setupStatus.set(message)
-    this.setupStatusTimer = window.setTimeout(() => this.clearSetupStatus(), 1800)
-  }
-
-  private clearSetupStatus() {
-    if (this.setupStatusTimer !== undefined) {
-      window.clearTimeout(this.setupStatusTimer)
-      this.setupStatusTimer = undefined
-    }
-    this.setupStatus.set('')
+    this.messageService.add({ key: 'app-status', severity: 'success', summary: message, life: 1800 })
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -1920,10 +1909,7 @@ export class AppComponent implements OnDestroy {
     const catalogId = this.selectedCatalogId()
     if (!catalogId || !navigator.clipboard) return
 
-    void navigator.clipboard.writeText(catalogId).then(() => {
-      this.catalogPathCopied.set(true)
-      window.setTimeout(() => this.catalogPathCopied.set(false), 1800)
-    })
+    void navigator.clipboard.writeText(catalogId).then(() => this.messageService.add({ key: 'app-status', severity: 'success', summary: 'Catalog path copied', life: 1800 }))
   }
 
   compactPath(path: string | undefined, maxSegments = 3) {

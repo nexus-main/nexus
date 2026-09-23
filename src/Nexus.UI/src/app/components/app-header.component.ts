@@ -38,7 +38,7 @@ type ThemeMode = 'dark' | 'light' | 'system'
           <span class="text-xl leading-none">☰</span>
         </button>
 
-        <div class="hidden items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-100 sm:flex">
+        <div class="hidden items-center gap-2 rounded-lg border border-cyan-core/20 bg-cyan-core/10 px-3 py-2 text-xs text-cyan-accent sm:flex">
           <app-icon name="map-pin" class="h-4 w-4 shrink-0" />
           <span class="max-w-48 truncate font-mono">{{ endpointHost() }}</span>
         </div>
@@ -48,9 +48,12 @@ type ThemeMode = 'dark' | 'light' | 'system'
             @if (item.url) {
               <a class="flex cursor-pointer items-center gap-2 px-3 py-2" [href]="item.url" [target]="item.target ?? '_self'" [attr.rel]="item.target === '_blank' ? 'noopener' : null">
                 @switch (item.icon) {
+                  @case ('api') { <app-icon name="api" class="h-4 w-4 shrink-0" /> }
+                  @case ('download') { <app-icon name="download" class="h-4 w-4 shrink-0" /> }
+                  @case ('git') { <app-icon name="git" class="h-4 w-4 shrink-0" /> }
                   @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
+                  @case ('upload') { <app-icon name="upload" class="h-4 w-4 shrink-0" /> }
                   @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
-                  @case ('braces') { <app-icon name="braces" class="h-4 w-4 shrink-0" /> }
                   @case ('help') { <app-icon name="help" class="h-4 w-4 shrink-0" /> }
                   @case ('info') { <app-icon name="info" class="h-4 w-4 shrink-0" /> }
                 }
@@ -59,9 +62,12 @@ type ThemeMode = 'dark' | 'light' | 'system'
             } @else {
               <div class="flex cursor-pointer items-center gap-2 px-3 py-2" (click)="$event.stopPropagation(); item.command?.($event)">
                 @switch (item.icon) {
+                  @case ('api') { <app-icon name="api" class="h-4 w-4 shrink-0" /> }
+                  @case ('download') { <app-icon name="download" class="h-4 w-4 shrink-0" /> }
+                  @case ('git') { <app-icon name="git" class="h-4 w-4 shrink-0" /> }
                   @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
+                  @case ('upload') { <app-icon name="upload" class="h-4 w-4 shrink-0" /> }
                   @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
-                  @case ('braces') { <app-icon name="braces" class="h-4 w-4 shrink-0" /> }
                   @case ('help') { <app-icon name="help" class="h-4 w-4 shrink-0" /> }
                   @case ('info') { <app-icon name="info" class="h-4 w-4 shrink-0" /> }
                 }
@@ -86,10 +92,6 @@ type ThemeMode = 'dark' | 'light' | 'system'
           </ng-template>
         </p-menu>
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-          <button pButton type="button" size="small" [outlined]="true" [severity]="adminMenu.visible ? 'primary' : 'secondary'" class="h-9 gap-2 px-2.5 transition-colors" (click)="adminMenu.toggle($event)" aria-label="Settings" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
-            <app-icon name="settings" class="h-4 w-4" />
-            <span class="hidden lg:inline">Settings</span>
-          </button>
           <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="h-9 gap-2 px-2.5 transition-colors" (click)="toggleTheme.emit()" aria-label="Toggle theme">
             @if (themeMode() === 'dark') {
               <app-icon name="moon" class="h-4 w-4" />
@@ -105,7 +107,11 @@ type ThemeMode = 'dark' | 'light' | 'system'
             <span class="tabular-nums">{{ jobCount() }}</span>
             <span class="hidden lg:inline">Jobs</span>
           </button>
-          <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100 transition-colors hover:border-violet-200/50 hover:bg-violet-300/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300" (click)="userMenu.toggle($event)" aria-label="Open user menu" aria-haspopup="menu" [attr.aria-expanded]="userMenu.visible" [attr.aria-controls]="userMenu.id">
+          <button pButton type="button" size="small" [outlined]="true" [severity]="adminMenu.visible ? 'primary' : 'secondary'" class="h-9 gap-2 px-2.5 transition-colors" (click)="adminMenu.toggle($event)" aria-label="Settings" aria-haspopup="menu" [attr.aria-expanded]="adminMenu.visible" [attr.aria-controls]="adminMenu.id">
+            <app-icon name="settings" class="h-4 w-4" />
+            <span class="hidden lg:inline">Settings</span>
+          </button>
+          <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-violet-core/25 bg-violet-core/15 font-mono text-xs font-semibold text-violet-accent transition-colors hover:border-violet-core/50 hover:bg-violet-core/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-core" (click)="userMenu.toggle($event)" aria-label="Open user menu" aria-haspopup="menu" [attr.aria-expanded]="userMenu.visible" [attr.aria-controls]="userMenu.id">
             {{ userInitials() }}
           </button>
         </div>
@@ -123,6 +129,7 @@ export class AppHeaderComponent {
   readonly logoutUrl = input<string | null | undefined>(null)
   readonly openPackageReferences = output<void>()
   readonly openDataSourcePipelines = output<void>()
+  readonly openGit = output<void>()
   readonly openSetupImport = output<void>()
   readonly openSetupExport = output<void>()
   readonly openJobs = output<void>()
@@ -133,12 +140,13 @@ export class AppHeaderComponent {
     if (this.isAdministrator()) {
       items.push({ label: 'Package references', icon: 'package', command: () => this.openPackageReferences.emit() })
       items.push({ label: 'Data source pipelines', icon: 'waypoints', command: () => this.openDataSourcePipelines.emit() })
+      items.push({ label: 'Git', icon: 'git', command: () => this.openGit.emit() })
       items.push({ separator: true })
     }
-    items.push({ label: 'Import settings...', icon: 'braces', command: () => this.openSetupImport.emit() })
-    items.push({ label: 'Export settings...', icon: 'braces', command: () => this.openSetupExport.emit() })
+    items.push({ label: 'Import settings...', icon: 'upload', command: () => this.openSetupImport.emit() })
+    items.push({ label: 'Export settings...', icon: 'download', command: () => this.openSetupExport.emit() })
     items.push({ separator: true })
-    items.push({ label: 'API', icon: 'braces', url: '/api', target: '_blank' })
+    items.push({ label: 'API', icon: 'api', url: '/api', target: '_blank' })
     if (this.helpLink()) items.push({ label: 'Help', icon: 'help', url: this.helpLink()!, target: '_blank' })
     items.push({ label: 'About', icon: 'info', command: () => this.openAbout.emit() })
     return items

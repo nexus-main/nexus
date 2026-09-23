@@ -346,6 +346,19 @@ internal class Sample : IDataSource<object?>
             resourceE
         });
 
+        catalogBuilder.WithProperty("resources", new
+        {
+            availability = new[]
+            {
+                new
+                {
+                    pattern = $"^{catalogId}/P1$",
+                    begin = "2020-01-01T00:00:00Z",
+                    end = "2021-01-01T00:00:00Z"
+                }
+            }
+        });
+
         if (catalogId == LicensedCatalogId)
             AddLicensedCatalogProperties(catalogBuilder);
 

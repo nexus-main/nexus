@@ -359,3 +359,52 @@ export function executionRangeError(begin: string, end: string, period: bigint, 
   if (beginTicks % period !== 0n || endTicks % period !== 0n) return 'From and To must align with Period.'
   return ''
 }
+
+export function resourceAvailableForRange(
+  resource: ResourceRow,
+  catalogProperties: Record<string, unknown> | null | undefined,
+  selectedBegin: string,
+  selectedEnd: string,
+): boolean {
+  const resources = catalogProperties?.['resources']
+  if (!isRecord(resources)) return true
+  const availability = resources['availability']
+  if (!Array.isArray(availability)) return true
+
+  const selectedBeginTicks = dateTicks(selectedBegin)
+  const selectedEndTicks = dateTicks(selectedEnd)
+  if (selectedBeginTicks === null || selectedEndTicks === null || selectedBeginTicks >= selectedEndTicks) return true
+
+  let matched = false
+  for (const rule of availability) {
+    if (!isRecord(rule)) continue
+    const pattern = rule['pattern']
+    if (typeof pattern !== 'string') continue
+    let regex: RegExp
+    try { regex = new RegExp(pattern) } catch { continue }
+
+    const begin = rule['begin']
+    const end = rule['end']
+    let beginTicks: bigint | null = null
+    let endTicks: bigint | null = null
+    if (begin != null) {
+      if (typeof begin !== 'string') continue
+      beginTicks = dateTicks(begin)
+      if (beginTicks === null) continue
+    }
+    if (end != null) {
+      if (typeof end !== 'string') continue
+      endTicks = dateTicks(end)
+      if (endTicks === null) continue
+    }
+
+    if (!regex.test(resource.path)) continue
+    matched = true
+
+    const beginOk = beginTicks === null || beginTicks < selectedEndTicks
+    const endOk = endTicks === null || selectedBeginTicks < endTicks
+    if (beginOk && endOk) return true
+  }
+
+  return !matched
+}

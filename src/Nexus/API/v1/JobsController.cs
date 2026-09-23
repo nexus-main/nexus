@@ -36,6 +36,7 @@ internal class JobsController(
     // POST     /jobs/export
     // POST     /jobs/load-packages
     // POST     /jobs/clear-cache
+    // POST     /jobs/git/sync
 
     private readonly AppStateManager _appStateManager = appStateManager;
     private readonly ILogger _logger = logger;
@@ -309,6 +310,34 @@ internal class JobsController(
         }, cancellationToken);
 
         return (ActionResult<Job>)response;
+    }
+
+    /// <summary>
+    /// Creates a new Git synchronization job.
+    /// </summary>
+    [Authorize(Policy = NexusPolicies.RequireAdmin)]
+    [HttpPost("git/sync")]
+    public ActionResult<Job> SyncGit(GitSyncRequest parameters)
+    {
+        var username = User.Identity?.Name!;
+        var job = new Job(Guid.NewGuid(), "git-sync", username, parameters);
+        var progress = new Progress<double>();
+        var gitService = _serviceProvider.GetRequiredService<IGitService>();
+
+        var jobControl = _jobService.AddJob(job, progress, async (jobControl, cts) =>
+        {
+            try
+            {
+                return await gitService.SyncAsync(parameters.Force, progress, cts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unable to synchronize Git.");
+                throw;
+            }
+        });
+
+        return Accepted(GetAcceptUrl(job.Id), job);
     }
 
     #endregion

@@ -7,6 +7,7 @@ export interface IV1 {
     artifacts: IArtifactsClient;
     catalogs: ICatalogsClient;
     data: IDataClient;
+    git: IGitClient;
     jobs: IJobsClient;
     packageReferences: IPackageReferencesClient;
     sources: ISourcesClient;
@@ -23,6 +24,7 @@ export class V1 implements IV1 {
     public artifacts: ArtifactsClient;
     public catalogs: CatalogsClient;
     public data: DataClient;
+    public git: GitClient;
     public jobs: JobsClient;
     public packageReferences: PackageReferencesClient;
     public sources: SourcesClient;
@@ -35,6 +37,7 @@ export class V1 implements IV1 {
         this.artifacts = new ArtifactsClient(invoke);
         this.catalogs = new CatalogsClient(invoke);
         this.data = new DataClient(invoke);
+        this.git = new GitClient(invoke);
         this.jobs = new JobsClient(invoke);
         this.packageReferences = new PackageReferencesClient(invoke);
         this.sources = new SourcesClient(invoke);
@@ -423,6 +426,109 @@ export class DataClient implements IDataClient {
 }
 
 /**
+ * Provides methods to interact with git.
+ */
+export interface IGitClient {
+    /**
+     * Gets the effective Git configuration without secrets.
+     * @param signal The signal to cancel the current operation.
+     */
+    getConfig(signal?: AbortSignal): Promise<GitConfigResponse>;
+
+    /**
+     * Gets the current Git status.
+     * @param signal The signal to cancel the current operation.
+     */
+    getStatus(signal?: AbortSignal): Promise<GitStatusResponse>;
+
+    /**
+     * Gets the configuration history.
+     * @param signal The signal to cancel the current operation.
+     */
+    getHistory(signal?: AbortSignal): Promise<GitHistoryEntry[]>;
+
+    /**
+     * Gets file-level changes for a commit.
+     * @param commitSha
+     * @param signal The signal to cancel the current operation.
+     */
+    getDiff(commitSha: string, signal?: AbortSignal): Promise<GitDiffFile[]>;
+
+    /**
+     * Restores the configuration from a commit by creating a new commit.
+     * @param request
+     * @param signal The signal to cancel the current operation.
+     */
+    restore(request: GitRestoreRequest, signal?: AbortSignal): Promise<GitRestoreResponse>;
+
+}
+
+/**
+ * Provides methods to interact with git.
+ */
+export class GitClient implements IGitClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets the effective Git configuration without secrets.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getConfig(signal?: AbortSignal): Promise<GitConfigResponse> {
+        let __url = "/api/v1/git/config";
+
+        return this._invoke<GitConfigResponse>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the current Git status.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getStatus(signal?: AbortSignal): Promise<GitStatusResponse> {
+        let __url = "/api/v1/git/status";
+
+        return this._invoke<GitStatusResponse>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the configuration history.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getHistory(signal?: AbortSignal): Promise<GitHistoryEntry[]> {
+        let __url = "/api/v1/git/history";
+
+        return this._invoke<GitHistoryEntry[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets file-level changes for a commit.
+     * @param commitSha
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getDiff(commitSha: string, signal?: AbortSignal): Promise<GitDiffFile[]> {
+        let __url = "/api/v1/git/diff/{commitSha}";
+        __url = __url.replace("{commitSha}", encodeURIComponent(String(commitSha)));
+
+        return this._invoke<GitDiffFile[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Restores the configuration from a commit by creating a new commit.
+     * @param request
+     * @param signal The signal to cancel the current operation.
+     */
+    public async restore(request: GitRestoreRequest, signal?: AbortSignal): Promise<GitRestoreResponse> {
+        let __url = "/api/v1/git/restore";
+
+        return this._invoke<GitRestoreResponse>("POST", __url, "application/json", "application/json", JSON.stringify(request), signal);
+    }
+
+}
+
+/**
  * Provides methods to interact with jobs.
  */
 export interface IJobsClient {
@@ -467,6 +573,13 @@ export interface IJobsClient {
      * @param signal The signal to cancel the current operation.
      */
     clearCache(catalogId: string, begin: string, end: string, signal?: AbortSignal): Promise<Job>;
+
+    /**
+     * Creates a new Git synchronization job.
+     * @param parameters
+     * @param signal The signal to cancel the current operation.
+     */
+    syncGit(parameters: GitSyncRequest, signal?: AbortSignal): Promise<Job>;
 
 }
 
@@ -554,6 +667,17 @@ export class JobsClient implements IJobsClient {
             __url += "?" + __query;
 
         return this._invoke<Job>("POST", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Creates a new Git synchronization job.
+     * @param parameters
+     * @param signal The signal to cancel the current operation.
+     */
+    public async syncGit(parameters: GitSyncRequest, signal?: AbortSignal): Promise<Job> {
+        let __url = "/api/v1/jobs/git/sync";
+
+        return this._invoke<Job>("POST", __url, "application/json", "application/json", JSON.stringify(parameters), signal);
     }
 
 }
@@ -1109,6 +1233,118 @@ export interface CatalogMetadata {
 
 
 /**
+ * The effective Git configuration without secret values.
+ */
+export interface GitConfigResponse {
+    /** The configured Git branch. */
+    branch?: string | undefined;
+    /** The number of seconds Nexus waits before committing configuration changes. */
+    commitThrottleSeconds?: number | undefined;
+    /** The configured remote Git repository URL. */
+    remoteUrl?: string | null;
+    /** The configured HTTPS username. */
+    username?: string | null;
+    /** A value indicating whether an HTTPS token is configured. */
+    hasToken?: boolean | undefined;
+    /** A value indicating whether an SSH private key is configured. */
+    hasSshPrivateKey?: boolean | undefined;
+    /** The authentication mode inferred from the remote URL. */
+    authMode?: string | undefined;
+    /** The Git commit author name. */
+    commitAuthorName?: string | undefined;
+    /** The Git commit author email. */
+    commitAuthorEmail?: string | undefined;
+    /** A value indicating whether remote backup has enough configuration to push. */
+    isRemoteConfigured?: boolean | undefined;
+}
+
+
+/**
+ * The current Git repository and push status required by the admin UI.
+ */
+export interface GitStatusResponse {
+    /** A value indicating whether the Git executable is available. */
+    gitAvailable?: boolean | undefined;
+    /** A value indicating whether the local repository has uncommitted changes. */
+    hasUncommittedChanges?: boolean | undefined;
+    /** The current commit SHA. */
+    currentCommitSha?: string | null;
+    /** The last commit SHA successfully pushed by this process. */
+    lastPushedCommitSha?: string | null;
+    /** The last successful push time. */
+    lastSuccessfulPushAt?: string | null;
+    /** The last push status. */
+    lastPushStatus?: GitPushStatus | undefined;
+    /** The last push error. */
+    lastPushError?: string | null;
+}
+
+
+/**
+ * The result of pushing configuration history to a remote Git repository.
+ */
+export enum GitPushStatus {
+    NotConfigured = "NotConfigured",
+    Succeeded = "Succeeded",
+    Failed = "Failed"
+}
+
+
+/**
+ * A Git commit in the configuration history.
+ */
+export interface GitHistoryEntry {
+    /** The full commit SHA. */
+    sha?: string | undefined;
+    /** The abbreviated commit SHA. */
+    shortSha?: string | undefined;
+    /** The commit date. */
+    date?: string | undefined;
+    /** The commit author name. */
+    authorName?: string | undefined;
+    /** The commit author email. */
+    authorEmail?: string | undefined;
+    /** The commit message. */
+    message?: string | undefined;
+}
+
+
+/**
+ * A changed file in a Git commit.
+ */
+export interface GitDiffFile {
+    /** The repository-relative file path. */
+    path?: string | undefined;
+    /** The Git file status. */
+    status?: string | undefined;
+    /** The file text before the commit. */
+    originalText?: string | null;
+    /** The file text after the commit. */
+    modifiedText?: string | null;
+}
+
+
+/**
+ * The result of restoring configuration from a commit.
+ */
+export interface GitRestoreResponse {
+    /** The commit SHA created by the restore operation. */
+    commitSha?: string | undefined;
+    /** A human-readable result message. */
+    message?: string | undefined;
+}
+
+
+/**
+ * A request to restore configuration from a commit.
+ */
+export interface GitRestoreRequest {
+    /** The commit SHA to restore. */
+    commitSha?: string | undefined;
+}
+
+
+/**
  * Description of a job.
  */
 export interface Job {
@@ -1171,6 +1407,15 @@ export interface ExportParameters {
     resourcePaths?: string[] | undefined;
     /** The configuration. */
     configuration?: Record<string, unknown> | null;
+}
+
+
+/**
+ * A request to synchronize local configuration history with the configured remote.
+ */
+export interface GitSyncRequest {
+    /** A value indicating whether to force-push once. */
+    force?: boolean | undefined;
 }
 
 

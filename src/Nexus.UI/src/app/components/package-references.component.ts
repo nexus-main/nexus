@@ -58,7 +58,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
             <div class="flex justify-between gap-2">
               @if (editedEntry()) {
                 @if (confirmingDelete()) {
-                  <span class="flex items-center gap-2 text-xs text-rose-300">
+                  <span class="flex items-center gap-2 text-xs text-rose-accent">
                     <svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg>
                     Delete this package reference?
                   </span>
@@ -108,7 +108,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference }
                   <div class="relative">
                     <h2 class="truncate font-mono text-sm font-semibold">{{ packageName(entry) }}</h2>
                     <div class="mt-2 flex items-center gap-2">
-                      <span class="rounded-full border px-2 py-0.5 text-xs" [ngClass]="entry.reference.provider === 'local' ? 'border-violet-300/20 text-violet-100' : 'border-cyan-300/20 text-cyan-100'">{{ entry.reference.provider }}</span>
+                      <span class="rounded-full border px-2 py-0.5 text-xs" [ngClass]="entry.reference.provider === 'local' ? 'border-violet-core/20 text-violet-accent' : 'border-cyan-core/20 text-cyan-accent'">{{ entry.reference.provider }}</span>
                       <span class="rounded-sm border border-[var(--p-content-border-color)] px-2 py-0.5 font-mono text-xs text-[var(--p-text-muted-color)]">{{ entry.reference.configuration?.['tag'] ?? entry.reference.configuration?.['version'] }}</span>
                     </div>
                   </div>

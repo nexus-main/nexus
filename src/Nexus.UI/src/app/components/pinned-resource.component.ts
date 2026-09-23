@@ -11,13 +11,13 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
   imports: [CommonModule, ButtonModule, PopoverModule, TooltipModule],
   host: { class: 'block min-w-0' },
   template: `
-    <div class="selected-resource-card mb-1 min-w-0 cursor-pointer rounded-sm border border-cyan-300/10 bg-cyan-300/[0.035] p-1 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/70" role="button" tabindex="0"
+    <div class="selected-resource-card mb-1 min-w-0 cursor-pointer rounded-sm border p-1 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-key/70" role="button" tabindex="0"
       [attr.aria-label]="'Select catalog for ' + resourceLabel()" (click)="activated.emit()" (keydown.enter)="activated.emit()" (keydown.space)="$event.preventDefault(); activated.emit()">
       <div class="flex min-w-0 items-center justify-between gap-1">
         <div class="min-w-0">
-          <div class="truncate font-mono text-xs font-semibold leading-4 text-slate-100" [pTooltip]="selection().path" tooltipPosition="top">{{ selection().id }}</div>
+          <div class="truncate font-mono text-xs font-semibold leading-4 text-ink" [pTooltip]="selection().path" tooltipPosition="top">{{ selection().id }}</div>
           @if (parameterSummary()) {
-            <div class="truncate font-mono text-[11px] text-slate-400" [pTooltip]="parameterSummary()" tooltipPosition="top">{{ parameterSummary() }}</div>
+            <div class="truncate font-mono text-[11px] text-ink-muted" [pTooltip]="parameterSummary()" tooltipPosition="top">{{ parameterSummary() }}</div>
           }
         </div>
         <button pButton type="button" size="small" severity="secondary" [text]="true"
@@ -58,7 +58,7 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
     </div>
 
     @if (resourcePathCopied()) {
-      <div class="fixed bottom-4 right-4 z-50 rounded-sm border border-emerald-300/25 bg-emerald-300/15 px-4 py-2 text-sm font-medium text-emerald-100 shadow-lg shadow-black/30" role="status" aria-live="polite">Resource path copied</div>
+      <div class="fixed bottom-4 right-4 z-50 rounded-sm border border-emerald-core/25 bg-emerald-core/15 px-4 py-2 text-sm font-medium text-emerald-accent shadow-lg shadow-black/30" role="status" aria-live="polite">Resource path copied</div>
     }
 
     <p-popover #methods appendTo="body" [ariaLabel]="'Methods for ' + resourceLabel()"
@@ -66,11 +66,11 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
       (onShow)="methodsContent.focus()" (onHide)="methodsOpener.isConnected && methodsOpener.focus()">
       <div #methodsContent tabindex="-1" class="min-w-0" (keydown.escape)="closeMethods($event, methods)">
         <div class="flex items-center justify-between gap-2">
-          <span class="text-xs font-semibold text-slate-200">Methods</span>
+          <span class="text-xs font-semibold text-ink">Methods</span>
           <button pButton type="button" size="small" severity="secondary" [text]="true" class="px-2 py-1 text-xs"
             [attr.aria-label]="'Close methods for ' + resourceLabel()" (click)="methods.hide()">Done</button>
         </div>
-        <p class="my-2 text-xs text-slate-400">Select one or more methods for the output period.</p>
+        <p class="my-2 text-xs text-ink-muted">Select one or more methods for the output period.</p>
         <div class="flex max-h-60 flex-wrap gap-1.5 overflow-y-auto" role="group" [attr.aria-label]="'Valid methods for ' + resourceLabel()">
           @for (kind of validKinds(); track kind) {
             <button pButton type="button" size="small" class="px-2 py-1 text-xs"
@@ -79,7 +79,7 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
               [attr.aria-label]="displayKind(kind) + ' method for ' + resourceLabel()" [disabled]="disabled()"
               (click)="kindToggled.emit(kind)">{{ displayKind(kind) }}</button>
           } @empty {
-            <p class="m-0 text-xs text-slate-400">No methods are valid for this output period. Choose a compatible period.</p>
+            <p class="m-0 text-xs text-ink-muted">No methods are valid for this output period. Choose a compatible period.</p>
           }
         </div>
       </div>
@@ -126,23 +126,23 @@ export class PinnedResourceComponent {
   }
 
   methodChipClass(kind: RepresentationKind): string {
-    if (!this.valid(kind)) return 'method-invalid border-rose-400/55 bg-rose-500/15 text-rose-100'
-    if (kind === 'Original') return 'method-original border-cyan-300/45 bg-cyan-300/15 text-cyan-100'
-    if (kind === 'Resampled') return 'method-resampled border-lime-300/45 bg-lime-300/15 text-lime-100'
-    return 'method-aggregated border-orange-400/60 bg-orange-500/20 text-orange-100'
+    if (!this.valid(kind)) return 'method-invalid'
+    if (kind === 'Original') return 'method-original'
+    if (kind === 'Resampled') return 'method-resampled'
+    return 'method-aggregated'
   }
 
   methodOptionClass(kind: RepresentationKind): string {
     const selected = this.methodSelected(kind)
     if (kind === 'Original') return selected
-      ? 'method-original border-cyan-300/60 bg-cyan-300/25 text-cyan-50'
-      : 'method-unselected border-slate-500/45 bg-transparent text-slate-200'
+      ? 'method-selected method-original'
+      : 'method-unselected'
     if (kind === 'Resampled') return selected
-      ? 'method-resampled border-lime-300/60 bg-lime-300/25 text-lime-50'
-      : 'method-unselected border-slate-500/45 bg-transparent text-slate-200'
+      ? 'method-selected method-resampled'
+      : 'method-unselected'
     return selected
-      ? 'method-aggregated border-orange-400/70 bg-orange-500/30 text-orange-50'
-      : 'method-unselected border-slate-500/45 bg-transparent text-slate-200'
+      ? 'method-selected method-aggregated'
+      : 'method-unselected'
   }
 
   methodSelected(kind: RepresentationKind): boolean {

@@ -3,7 +3,6 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.DataProtection;
 using Nexus.Core;
 using Nexus.Utilities;
 
@@ -17,9 +16,6 @@ internal static class NexusAuthExtensions
         SecurityOptions securityOptions
     )
     {
-        services.AddDataProtection()
-            .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(pathsOptions.Config, "data-protection-keys")));
-
         var builder = services
 
             .AddAuthentication(options =>

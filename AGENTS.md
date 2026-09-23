@@ -59,3 +59,11 @@
 ## Style
 - C# uses file-scoped namespaces; `IDE0161` and `IDE1006` are build errors because `EnforceCodeStyleInBuild` is enabled.
 - Private instance fields use `_camelCase`; `var` is preferred only when the type is apparent or not a built-in type.
+
+## UI Best Practices
+- **Reuse before creating**: always check for an existing component (in `src/Nexus.UI/src/app/components/`, `Controls/`, `Charts/`) before building a new one; extract a shared component when the same UI pattern appears in two or more places.
+- **PrimeNG first**: prefer PrimeNG components (`p-toast`, `p-dialog`, `p-confirmdialog`, `p-button`, `p-checkbox`, `p-inputtext`, etc.) over hand-rolled HTML/CSS equivalents so theming, accessibility, and dark-mode come for free.
+- **Tailwind for layout, PrimeNG for color**: use Tailwind utility classes for layout only (flex, grid, gap, sizing, padding, spacing). For all colors, use the custom `@theme` tokens (`bg-surface`, `text-ink`, `text-ink-muted`, `border-surface-border`, `bg-overlay`, `text-key`, `bg-key`, `text-rose-accent`, etc.) which map to PrimeNG `var(--p-*)` variables and adapt to the active theme automatically. Do not use Tailwind color classes (`text-slate-*`, `bg-slate-*`, `border-white/`, etc.) or `dark:` color variants. Never hardcode raw hex values.
+- **Theme-aware styling**: `@theme` color tokens and `var(--p-*)` variables automatically adapt to the active theme — no `dark:` color variants or `:root[data-theme='light']` override blocks needed. For accent colors without PrimeNG semantic equivalents (violet, lime, amber, rose, emerald, orange), `--nexus-*` variables are defined in `:root` (dark) and `:root[data-theme='light']` (light).
+- **Toast unification**: all app toasts use PrimeNG `p-toast` with preset styling (no headless templates). Status toasts: `key="app-status"`, `position="bottom-center"`. Confirmation toasts with actions may use a custom `pTemplate="message"` but must not hardcode `dark:` colors — use PrimeNG severities and semantic classes instead.
+- **Monaco themes**: use the shared `nexus-monaco-themes.ts` helper; do not redefine Monaco theme colors inline.

@@ -65,6 +65,27 @@ internal record DataOptions() : NexusOptionsBase
     public double AggregationNaNThreshold { get; set; } = 0.99;
 }
 
+internal record GitOptions() : NexusOptionsBase
+{
+    public const string Section = "Git";
+
+    public string Branch { get; set; } = "main";
+
+    public int CommitThrottleSeconds { get; set; } = 30;
+
+    public string? RemoteUrl { get; set; }
+
+    public string? Username { get; set; }
+
+    public string? Token { get; set; }
+
+    public string? SshPrivateKey { get; set; }
+
+    public string CommitAuthorName { get; set; } = "Nexus";
+
+    public string CommitAuthorEmail { get; set; } = "nexus@localhost";
+}
+
 internal record PathsOptions() : NexusOptionsBase, IPackageManagementPathsOptions
 {
     public const string Section = "Paths";

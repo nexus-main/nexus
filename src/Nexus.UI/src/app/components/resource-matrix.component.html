@@ -1,6 +1,6 @@
 <section class="matrix" [class.inline-editing]="editing() && !narrow()" [style.--row-height]="itemSize() + 'px'" aria-label="Catalog resources" [attr.aria-busy]="loading() || saving()">
   <header class="toolbar">
-    <div class="text-xs uppercase tracking-[0.24em] text-cyan-200/80">resource browser</div>
+    <div class="text-xs uppercase tracking-[0.24em] text-cyan-accent/80">resource browser</div>
     <div class="toolbar-actions">
       @if (editing()) {
         <span class="dirty-count" role="status">{{ dirtyCount() }} resource{{ dirtyCount() === 1 ? '' : 's' }} changed</span>
@@ -24,6 +24,9 @@
   <div class="search-bar">
     <input #searchInput pInputText type="text" class="w-full min-w-0" pSize="small" aria-label="Search resources" placeholder="Search resources..." [ngModel]="search()" (ngModelChange)="setSearch($event)" [disabled]="saving()" />
     @if (search()) { <button pButton type="button" size="small" severity="secondary" [text]="true" class="shrink-0" [disabled]="saving()" (click)="setSearch('')" aria-label="Clear resource search" pTooltip="Clear search" tooltipPosition="top"><svg lucideX aria-hidden="true"></svg></button> }
+    @if (hiddenCount() > 0) {
+      <button pButton type="button" size="small" severity="secondary" [outlined]="true" class="shrink-0" [disabled]="saving()" (click)="showAll.set(!showAll())" [attr.aria-pressed]="showAll()">{{ showAll() ? 'Hide unavailable' : 'Show all' }}</button>
+    }
   </div>
 
   <div class="group-bar" [class.expanded]="expanded()" [class.can-scroll-back]="canScrollGroupsBack()" [class.can-scroll-forward]="canScrollGroupsForward()">
@@ -34,7 +37,7 @@
         </button>
       } @empty { <span class="group-empty">No matching groups</span> }
     </div>
-    <button pButton type="button" size="small" severity="secondary" [text]="true" class="expand-groups" [attr.aria-controls]="groupStripId" [attr.aria-expanded]="expanded()" [attr.aria-label]="expanded() ? 'Collapse group list' : 'Expand group list'" [pTooltip]="expanded() ? 'Collapse groups' : 'Expand groups'" tooltipPosition="top" [disabled]="saving() || !groups().length" (click)="expanded.set(!expanded())">
+    <button pButton type="button" size="small" severity="secondary" [text]="true" class="expand-groups" [attr.aria-controls]="groupStripId" [attr.aria-expanded]="expanded()" [attr.aria-label]="expanded() ? 'Collapse group list' : 'Expand group list'" [disabled]="saving() || !groups().length" (click)="expanded.set(!expanded())">
       @if (expanded()) { <svg lucideChevronUp aria-hidden="true"></svg> } @else { <svg lucideChevronDown aria-hidden="true"></svg> }
     </button>
   </div>
@@ -58,11 +61,11 @@
     <cdk-virtual-scroll-viewport class="resource-viewport" [itemSize]="itemSize()" [minBufferPx]="itemSize() * 3" [maxBufferPx]="itemSize() * 6" role="list" aria-label="Resource representations">
       <div *cdkVirtualFor="let row of visibleRows(); let index = index; trackBy: trackRow" class="resource-row" [class.active]="activeKey() === row.key" [class.selected]="selectedKeys().has(row.key)" [attr.data-row-key]="row.key" role="listitem" [attr.aria-posinset]="index + 1" [attr.aria-setsize]="visibleRows().length" [attr.aria-current]="activeKey() === row.key ? 'true' : null">
         @if (requiresParameters(row)) {
-          <button type="button" class="parameter-control" [disabled]="selectionDisabled(row)" [attr.aria-label]="selectionLabel(row)" [pTooltip]="selectionLabel(row)" tooltipPosition="top" (click)="toggleRow(row)">
+          <button type="button" class="parameter-control" [disabled]="selectionDisabled(row)" [attr.aria-label]="selectionLabel(row)" (click)="toggleRow(row)">
             <span class="parameter-control-mark" aria-hidden="true"><svg lucideSlidersHorizontal></svg></span>
           </button>
         } @else {
-          <label class="selection-control" [pTooltip]="selectionLabel(row)" tooltipPosition="top"><p-checkbox [binary]="true" [ngModel]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [ariaLabel]="selectionLabel(row)" (ngModelChange)="toggleRow(row)" /></label>
+          <label class="selection-control"><p-checkbox [binary]="true" [ngModel]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [ariaLabel]="selectionLabel(row)" (ngModelChange)="toggleRow(row)" /></label>
         }
         @if (editing() && !narrow()) {
           <button type="button" class="resource-identity" [disabled]="saving()" [pTooltip]="row.path" tooltipPosition="top" [attr.aria-label]="'Activate ' + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
@@ -76,10 +79,10 @@
         } @else {
           <button type="button" class="resource-identity" [disabled]="saving()" [attr.aria-haspopup]="narrow() ? 'dialog' : null" [attr.aria-label]="(narrow() ? (editing() && writable() ? 'Edit metadata for ' : 'Read details for ') : 'Activate ') + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
             <span class="resource-line">
-              <span class="resource-name"><strong [pTooltip]="row.path" tooltipPosition="top">{{ row.id }}</strong>@if (value(row, 'unit')) { <span class="unit" [pTooltip]="value(row, 'unit')" [tooltipDisabled]="!value(row, 'unit')" tooltipPosition="top">{{ value(row, 'unit') }}</span> }</span>
+              <span class="resource-name"><strong [pTooltip]="row.path" tooltipPosition="top" showDelay="1000">{{ row.id }}</strong>@if (value(row, 'unit')) { <span class="unit" [pTooltip]="value(row, 'unit')" [tooltipDisabled]="!value(row, 'unit')" tooltipPosition="top" showDelay="1000">{{ value(row, 'unit') }}</span> }</span>
               @if (value(row, 'warning')) { <span class="warning" [pTooltip]="'Warning: ' + value(row, 'warning')" tooltipPosition="top"><svg lucideTriangleAlert aria-hidden="true"></svg><span>{{ value(row, 'warning') }}</span></span> }
             </span>
-            <span class="resource-line secondary-line"><span class="period">{{ formatPeriod(row.basePeriod) }}</span><span class="description" [pTooltip]="value(row, 'description')" [tooltipDisabled]="!value(row, 'description')" tooltipPosition="top">{{ value(row, 'description') }}</span></span>
+            <span class="resource-line secondary-line"><span class="period">{{ formatPeriod(row.basePeriod) }}</span><span class="description" [pTooltip]="value(row, 'description')" [tooltipDisabled]="!value(row, 'description')" tooltipPosition="top" showDelay="1000">{{ value(row, 'description') }}</span></span>
           </button>
         }
       </div>

@@ -1,15 +1,17 @@
 import { Component, input } from '@angular/core'
-import { LucideBraces, LucideCircleHelp, LucideInfo, LucideKeyRound, LucideListChecks, LucideLogOut, LucideMapPin, LucideMonitor, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideSunMoon, LucideWaypoints } from '@lucide/angular'
+import { LucideCircleHelp, LucideCodeXml, LucideDownload, LucideGitBranch, LucideInfo, LucideKeyRound, LucideListChecks, LucideLogOut, LucideMapPin, LucideMonitor, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideSunMoon, LucideUpload, LucideWaypoints } from '@lucide/angular'
 
-export type AppIconName = 'braces' | 'help' | 'info' | 'key' | 'jobs' | 'log-out' | 'map-pin' | 'monitor' | 'moon' | 'package' | 'settings' | 'sun' | 'sun-moon' | 'waypoints'
+export type AppIconName = 'api' | 'download' | 'git' | 'help' | 'info' | 'key' | 'jobs' | 'log-out' | 'map-pin' | 'monitor' | 'moon' | 'package' | 'settings' | 'sun' | 'sun-moon' | 'upload' | 'waypoints'
 
 @Component({
   selector: 'app-icon',
   standalone: true,
-  imports: [LucideBraces, LucideCircleHelp, LucideInfo, LucideKeyRound, LucideListChecks, LucideLogOut, LucideMapPin, LucideMonitor, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideSunMoon, LucideWaypoints],
+  imports: [LucideCircleHelp, LucideCodeXml, LucideDownload, LucideGitBranch, LucideInfo, LucideKeyRound, LucideListChecks, LucideLogOut, LucideMapPin, LucideMonitor, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideSunMoon, LucideUpload, LucideWaypoints],
   template: `
     @switch (name()) {
-      @case ('braces') { <svg lucideBraces aria-hidden="true"></svg> }
+      @case ('api') { <svg lucideCodeXml aria-hidden="true"></svg> }
+      @case ('download') { <svg lucideDownload aria-hidden="true"></svg> }
+      @case ('git') { <svg lucideGitBranch aria-hidden="true"></svg> }
       @case ('help') { <svg lucideCircleHelp aria-hidden="true"></svg> }
       @case ('info') { <svg lucideInfo aria-hidden="true"></svg> }
       @case ('key') { <svg lucideKeyRound aria-hidden="true"></svg> }
@@ -22,6 +24,7 @@ export type AppIconName = 'braces' | 'help' | 'info' | 'key' | 'jobs' | 'log-out
       @case ('settings') { <svg lucideSettings aria-hidden="true"></svg> }
       @case ('sun') { <svg lucideSun aria-hidden="true"></svg> }
       @case ('sun-moon') { <svg lucideSunMoon aria-hidden="true"></svg> }
+      @case ('upload') { <svg lucideUpload aria-hidden="true"></svg> }
       @case ('waypoints') { <svg lucideWaypoints aria-hidden="true"></svg> }
     }
   `,

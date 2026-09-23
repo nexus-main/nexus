@@ -637,6 +637,140 @@
         }
       }
     },
+    "/api/v1/git/config": {
+      "get": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Gets the effective Git configuration without secrets.",
+        "operationId": "Git_GetConfig",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/git/status": {
+      "get": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Gets the current Git status.",
+        "operationId": "Git_GetStatus",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/git/history": {
+      "get": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Gets the configuration history.",
+        "operationId": "Git_GetHistory",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitHistoryEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/git/diff/{commitSha}": {
+      "get": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Gets file-level changes for a commit.",
+        "operationId": "Git_GetDiff",
+        "parameters": [
+          {
+            "name": "commitSha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitDiffFile"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/git/restore": {
+      "post": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Restores the configuration from a commit by creating a new commit.",
+        "operationId": "Git_Restore",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitRestoreRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitRestoreResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs": {
       "get": {
         "tags": [
@@ -824,6 +958,39 @@
             "x-position": 3
           }
         ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/git/sync": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Creates a new Git synchronization job.",
+        "operationId": "Jobs_SyncGit",
+        "requestBody": {
+          "x-name": "parameters",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitSyncRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
         "responses": {
           "200": {
             "description": "",
@@ -1656,6 +1823,197 @@
           }
         }
       },
+      "GitConfigResponse": {
+        "type": "object",
+        "description": "The effective Git configuration without secret values.",
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "type": "string",
+            "description": "The configured Git branch."
+          },
+          "commitThrottleSeconds": {
+            "type": "integer",
+            "description": "The number of seconds Nexus waits before committing configuration changes.",
+            "format": "int32"
+          },
+          "remoteUrl": {
+            "type": "string",
+            "description": "The configured remote Git repository URL.",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "description": "The configured HTTPS username.",
+            "nullable": true
+          },
+          "hasToken": {
+            "type": "boolean",
+            "description": "A value indicating whether an HTTPS token is configured."
+          },
+          "hasSshPrivateKey": {
+            "type": "boolean",
+            "description": "A value indicating whether an SSH private key is configured."
+          },
+          "authMode": {
+            "type": "string",
+            "description": "The authentication mode inferred from the remote URL."
+          },
+          "commitAuthorName": {
+            "type": "string",
+            "description": "The Git commit author name."
+          },
+          "commitAuthorEmail": {
+            "type": "string",
+            "description": "The Git commit author email."
+          },
+          "isRemoteConfigured": {
+            "type": "boolean",
+            "description": "A value indicating whether remote backup has enough configuration to push."
+          }
+        }
+      },
+      "GitStatusResponse": {
+        "type": "object",
+        "description": "The current Git repository and push status required by the admin UI.",
+        "additionalProperties": false,
+        "properties": {
+          "gitAvailable": {
+            "type": "boolean",
+            "description": "A value indicating whether the Git executable is available."
+          },
+          "hasUncommittedChanges": {
+            "type": "boolean",
+            "description": "A value indicating whether the local repository has uncommitted changes."
+          },
+          "currentCommitSha": {
+            "type": "string",
+            "description": "The current commit SHA.",
+            "nullable": true
+          },
+          "lastPushedCommitSha": {
+            "type": "string",
+            "description": "The last commit SHA successfully pushed by this process.",
+            "nullable": true
+          },
+          "lastSuccessfulPushAt": {
+            "type": "string",
+            "description": "The last successful push time.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastPushStatus": {
+            "description": "The last push status.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GitPushStatus"
+              }
+            ]
+          },
+          "lastPushError": {
+            "type": "string",
+            "description": "The last push error.",
+            "nullable": true
+          }
+        }
+      },
+      "GitPushStatus": {
+        "type": "string",
+        "description": "The result of pushing configuration history to a remote Git repository.",
+        "x-enumNames": [
+          "NotConfigured",
+          "Succeeded",
+          "Failed"
+        ],
+        "enum": [
+          "NotConfigured",
+          "Succeeded",
+          "Failed"
+        ]
+      },
+      "GitHistoryEntry": {
+        "type": "object",
+        "description": "A Git commit in the configuration history.",
+        "additionalProperties": false,
+        "properties": {
+          "sha": {
+            "type": "string",
+            "description": "The full commit SHA."
+          },
+          "shortSha": {
+            "type": "string",
+            "description": "The abbreviated commit SHA."
+          },
+          "date": {
+            "type": "string",
+            "description": "The commit date.",
+            "format": "date-time"
+          },
+          "authorName": {
+            "type": "string",
+            "description": "The commit author name."
+          },
+          "authorEmail": {
+            "type": "string",
+            "description": "The commit author email."
+          },
+          "message": {
+            "type": "string",
+            "description": "The commit message."
+          }
+        }
+      },
+      "GitDiffFile": {
+        "type": "object",
+        "description": "A changed file in a Git commit.",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The repository-relative file path."
+          },
+          "status": {
+            "type": "string",
+            "description": "The Git file status."
+          },
+          "originalText": {
+            "type": "string",
+            "description": "The file text before the commit.",
+            "nullable": true
+          },
+          "modifiedText": {
+            "type": "string",
+            "description": "The file text after the commit.",
+            "nullable": true
+          }
+        }
+      },
+      "GitRestoreResponse": {
+        "type": "object",
+        "description": "The result of restoring configuration from a commit.",
+        "additionalProperties": false,
+        "properties": {
+          "commitSha": {
+            "type": "string",
+            "description": "The commit SHA created by the restore operation."
+          },
+          "message": {
+            "type": "string",
+            "description": "A human-readable result message."
+          }
+        }
+      },
+      "GitRestoreRequest": {
+        "type": "object",
+        "description": "A request to restore configuration from a commit.",
+        "additionalProperties": false,
+        "properties": {
+          "commitSha": {
+            "type": "string",
+            "description": "The commit SHA to restore."
+          }
+        }
+      },
       "Job": {
         "type": "object",
         "description": "Description of a job.",
@@ -1775,6 +2133,17 @@
             "description": "The configuration.",
             "nullable": true,
             "additionalProperties": {}
+          }
+        }
+      },
+      "GitSyncRequest": {
+        "type": "object",
+        "description": "A request to synchronize local configuration history with the configured remote.",
+        "additionalProperties": false,
+        "properties": {
+          "force": {
+            "type": "boolean",
+            "description": "A value indicating whether to force-push once."
           }
         }
       },

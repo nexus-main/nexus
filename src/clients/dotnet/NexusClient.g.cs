@@ -1136,6 +1136,11 @@ public interface IV1
     IDataClient Data { get; }
 
     /// <summary>
+    /// Gets the <see cref="IGitClient"/>.
+    /// </summary>
+    IGitClient Git { get; }
+
+    /// <summary>
     /// Gets the <see cref="IJobsClient"/>.
     /// </summary>
     IJobsClient Jobs { get; }
@@ -1180,6 +1185,7 @@ public class V1 : IV1
         Artifacts = new ArtifactsClient(client);
         Catalogs = new CatalogsClient(client);
         Data = new DataClient(client);
+        Git = new GitClient(client);
         Jobs = new JobsClient(client);
         PackageReferences = new PackageReferencesClient(client);
         Sources = new SourcesClient(client);
@@ -1197,6 +1203,9 @@ public class V1 : IV1
 
     /// <inheritdoc />
     public IDataClient Data { get; }
+
+    /// <inheritdoc />
+    public IGitClient Git { get; }
 
     /// <inheritdoc />
     public IJobsClient Jobs { get; }
@@ -1868,6 +1877,186 @@ public class DataClient : IDataClient
 }
 
 /// <summary>
+/// Provides methods to interact with git.
+/// </summary>
+public interface IGitClient
+{
+    /// <summary>
+    /// Gets the effective Git configuration without secrets.
+    /// </summary>
+    GitConfigResponse GetConfig();
+
+    /// <summary>
+    /// Gets the effective Git configuration without secrets.
+    /// </summary>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<GitConfigResponse> GetConfigAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the current Git status.
+    /// </summary>
+    GitStatusResponse GetStatus();
+
+    /// <summary>
+    /// Gets the current Git status.
+    /// </summary>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<GitStatusResponse> GetStatusAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the configuration history.
+    /// </summary>
+    IReadOnlyList<GitHistoryEntry> GetHistory();
+
+    /// <summary>
+    /// Gets the configuration history.
+    /// </summary>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<IReadOnlyList<GitHistoryEntry>> GetHistoryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets file-level changes for a commit.
+    /// </summary>
+    /// <param name="commitSha"></param>
+    IReadOnlyList<GitDiffFile> GetDiff(string commitSha);
+
+    /// <summary>
+    /// Gets file-level changes for a commit.
+    /// </summary>
+    /// <param name="commitSha"></param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<IReadOnlyList<GitDiffFile>> GetDiffAsync(string commitSha, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Restores the configuration from a commit by creating a new commit.
+    /// </summary>
+    /// <param name="request"></param>
+    GitRestoreResponse Restore(GitRestoreRequest request);
+
+    /// <summary>
+    /// Restores the configuration from a commit by creating a new commit.
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<GitRestoreResponse> RestoreAsync(GitRestoreRequest request, CancellationToken cancellationToken = default);
+
+}
+
+/// <inheritdoc />
+public class GitClient : IGitClient
+{
+    private NexusClient ___client;
+    
+    internal GitClient(NexusClient client)
+    {
+        ___client = client;
+    }
+
+    /// <inheritdoc />
+    public GitConfigResponse GetConfig()
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/config");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<GitConfigResponse>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<GitConfigResponse> GetConfigAsync(CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/config");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<GitConfigResponse>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public GitStatusResponse GetStatus()
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/status");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<GitStatusResponse>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<GitStatusResponse> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/status");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<GitStatusResponse>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<GitHistoryEntry> GetHistory()
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/history");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<IReadOnlyList<GitHistoryEntry>>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<GitHistoryEntry>> GetHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/history");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<IReadOnlyList<GitHistoryEntry>>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<GitDiffFile> GetDiff(string commitSha)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/diff/{commitSha}");
+        __urlBuilder.Replace("{commitSha}", Uri.EscapeDataString(commitSha));
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<IReadOnlyList<GitDiffFile>>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<GitDiffFile>> GetDiffAsync(string commitSha, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/diff/{commitSha}");
+        __urlBuilder.Replace("{commitSha}", Uri.EscapeDataString(commitSha));
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<IReadOnlyList<GitDiffFile>>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public GitRestoreResponse Restore(GitRestoreRequest request)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/restore");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<GitRestoreResponse>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<GitRestoreResponse> RestoreAsync(GitRestoreRequest request, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/restore");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<GitRestoreResponse>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+}
+
+/// <summary>
 /// Provides methods to interact with jobs.
 /// </summary>
 public interface IJobsClient
@@ -1949,6 +2138,19 @@ public interface IJobsClient
     /// <param name="end">End date/time.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<Job> ClearCacheAsync(string catalogId, DateTime begin, DateTime end, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new Git synchronization job.
+    /// </summary>
+    /// <param name="parameters"></param>
+    Job SyncGit(GitSyncRequest parameters);
+
+    /// <summary>
+    /// Creates a new Git synchronization job.
+    /// </summary>
+    /// <param name="parameters"></param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<Job> SyncGitAsync(GitSyncRequest parameters, CancellationToken cancellationToken = default);
 
 }
 
@@ -2106,6 +2308,26 @@ public class JobsClient : IJobsClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<Job>("POST", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Job SyncGit(GitSyncRequest parameters)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/jobs/git/sync");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<Job>("POST", __url, "application/json", "application/json", JsonContent.Create(parameters, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<Job> SyncGitAsync(GitSyncRequest parameters, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/jobs/git/sync");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<Job>("POST", __url, "application/json", "application/json", JsonContent.Create(parameters, options: Utilities.JsonOptions), cancellationToken);
     }
 
 }
@@ -2932,6 +3154,88 @@ public record CatalogAvailability(IReadOnlyList<double> Data);
 public record CatalogMetadata(string? Contact, IReadOnlyList<string>? GroupMemberships, ResourceCatalog? Overrides);
 
 /// <summary>
+/// The effective Git configuration without secret values.
+/// </summary>
+/// <param name="Branch">The configured Git branch.</param>
+/// <param name="CommitThrottleSeconds">The number of seconds Nexus waits before committing configuration changes.</param>
+/// <param name="RemoteUrl">The configured remote Git repository URL.</param>
+/// <param name="Username">The configured HTTPS username.</param>
+/// <param name="HasToken">A value indicating whether an HTTPS token is configured.</param>
+/// <param name="HasSshPrivateKey">A value indicating whether an SSH private key is configured.</param>
+/// <param name="AuthMode">The authentication mode inferred from the remote URL.</param>
+/// <param name="CommitAuthorName">The Git commit author name.</param>
+/// <param name="CommitAuthorEmail">The Git commit author email.</param>
+/// <param name="IsRemoteConfigured">A value indicating whether remote backup has enough configuration to push.</param>
+public record GitConfigResponse(string Branch, int CommitThrottleSeconds, string? RemoteUrl, string? Username, bool HasToken, bool HasSshPrivateKey, string AuthMode, string CommitAuthorName, string CommitAuthorEmail, bool IsRemoteConfigured);
+
+/// <summary>
+/// The current Git repository and push status required by the admin UI.
+/// </summary>
+/// <param name="GitAvailable">A value indicating whether the Git executable is available.</param>
+/// <param name="HasUncommittedChanges">A value indicating whether the local repository has uncommitted changes.</param>
+/// <param name="CurrentCommitSha">The current commit SHA.</param>
+/// <param name="LastPushedCommitSha">The last commit SHA successfully pushed by this process.</param>
+/// <param name="LastSuccessfulPushAt">The last successful push time.</param>
+/// <param name="LastPushStatus">The last push status.</param>
+/// <param name="LastPushError">The last push error.</param>
+public record GitStatusResponse(bool GitAvailable, bool HasUncommittedChanges, string? CurrentCommitSha, string? LastPushedCommitSha, DateTime? LastSuccessfulPushAt, GitPushStatus LastPushStatus, string? LastPushError);
+
+/// <summary>
+/// The result of pushing configuration history to a remote Git repository.
+/// </summary>
+public enum GitPushStatus
+{
+    /// <summary>
+    /// NotConfigured
+    /// </summary>
+    NotConfigured,
+
+    /// <summary>
+    /// Succeeded
+    /// </summary>
+    Succeeded,
+
+    /// <summary>
+    /// Failed
+    /// </summary>
+    Failed
+}
+
+
+/// <summary>
+/// A Git commit in the configuration history.
+/// </summary>
+/// <param name="Sha">The full commit SHA.</param>
+/// <param name="ShortSha">The abbreviated commit SHA.</param>
+/// <param name="Date">The commit date.</param>
+/// <param name="AuthorName">The commit author name.</param>
+/// <param name="AuthorEmail">The commit author email.</param>
+/// <param name="Message">The commit message.</param>
+public record GitHistoryEntry(string Sha, string ShortSha, DateTime Date, string AuthorName, string AuthorEmail, string Message);
+
+/// <summary>
+/// A changed file in a Git commit.
+/// </summary>
+/// <param name="Path">The repository-relative file path.</param>
+/// <param name="Status">The Git file status.</param>
+/// <param name="OriginalText">The file text before the commit.</param>
+/// <param name="ModifiedText">The file text after the commit.</param>
+public record GitDiffFile(string Path, string Status, string? OriginalText, string? ModifiedText);
+
+/// <summary>
+/// The result of restoring configuration from a commit.
+/// </summary>
+/// <param name="CommitSha">The commit SHA created by the restore operation.</param>
+/// <param name="Message">A human-readable result message.</param>
+public record GitRestoreResponse(string CommitSha, string Message);
+
+/// <summary>
+/// A request to restore configuration from a commit.
+/// </summary>
+/// <param name="CommitSha">The commit SHA to restore.</param>
+public record GitRestoreRequest(string CommitSha);
+
+/// <summary>
 /// Description of a job.
 /// </summary>
 /// <param name="Id">The global unique identifier.</param>
@@ -3007,6 +3311,12 @@ public enum TaskStatus
 /// <param name="ResourcePaths">The resource paths to export.</param>
 /// <param name="Configuration">The configuration.</param>
 public record ExportParameters(DateTime Begin, DateTime End, TimeSpan FilePeriod, string? Type, IReadOnlyList<string> ResourcePaths, IReadOnlyDictionary<string, JsonElement>? Configuration);
+
+/// <summary>
+/// A request to synchronize local configuration history with the configured remote.
+/// </summary>
+/// <param name="Force">A value indicating whether to force-push once.</param>
+public record GitSyncRequest(bool Force);
 
 /// <summary>
 /// A package reference.

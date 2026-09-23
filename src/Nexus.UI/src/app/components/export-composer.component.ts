@@ -25,16 +25,16 @@ import { RestoreFocusDirective } from '../restore-focus.directive'
         </ng-template>
 
         <div class="mt-4 space-y-3">
-          <div class="rounded-sm border border-white/10 bg-white/[0.035] px-3 py-2 text-sm">
-            <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Selected range</div>
+          <div class="rounded-sm border border-surface-border bg-overlay/[0.035] px-3 py-2 text-sm">
+            <div class="text-xs uppercase tracking-[0.18em] text-ink-muted">Selected range</div>
             <div class="mt-2 grid gap-2 sm:grid-cols-2">
-              <div class="min-w-0"><div class="text-[11px] uppercase tracking-[0.16em] text-slate-500">From</div><div class="mt-0.5 truncate font-mono text-xs text-slate-200" [pTooltip]="exportBegin()" tooltipPosition="top">{{ exportBegin() }}</div></div>
-              <div class="min-w-0"><div class="text-[11px] uppercase tracking-[0.16em] text-slate-500">To</div><div class="mt-0.5 truncate font-mono text-xs text-slate-200" [pTooltip]="exportEnd()" tooltipPosition="top">{{ exportEnd() }}</div></div>
+              <div class="min-w-0"><div class="text-[11px] uppercase tracking-[0.16em] text-ink-muted">From</div><div class="mt-0.5 truncate font-mono text-xs text-ink" [pTooltip]="exportBegin()" tooltipPosition="top">{{ exportBegin() }}</div></div>
+              <div class="min-w-0"><div class="text-[11px] uppercase tracking-[0.16em] text-ink-muted">To</div><div class="mt-0.5 truncate font-mono text-xs text-ink" [pTooltip]="exportEnd()" tooltipPosition="top">{{ exportEnd() }}</div></div>
             </div>
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <div><label for="export-file-period" class="mb-1.5 block text-xs uppercase tracking-[0.18em]">File period</label><input pInputText pSize="small" id="export-file-period" type="text" class="w-full" [invalid]="!!exportFilePeriodError()" [attr.aria-invalid]="!!exportFilePeriodError()" [ngModel]="exportFilePeriod()" (ngModelChange)="exportFilePeriodChange.emit($event)" (blur)="exportFilePeriodBlur.emit()" placeholder="Single file" />@if (exportFilePeriodError()) { <p class="mt-1 text-xs text-rose-400" role="alert">{{ exportFilePeriodError() }}</p> }</div>
+            <div><label for="export-file-period" class="mb-1.5 block text-xs uppercase tracking-[0.18em]">File period</label><input pInputText pSize="small" id="export-file-period" type="text" class="w-full" [invalid]="!!exportFilePeriodError()" [attr.aria-invalid]="!!exportFilePeriodError()" [ngModel]="exportFilePeriod()" (ngModelChange)="exportFilePeriodChange.emit($event)" (blur)="exportFilePeriodBlur.emit()" placeholder="Single file" />@if (exportFilePeriodError()) { <p class="mt-1 text-xs text-rose-accent" role="alert">{{ exportFilePeriodError() }}</p> }</div>
             <div>
               <label id="export-precision-label" for="export-precision" class="mb-1.5 block text-xs uppercase tracking-[0.18em]">Precision</label>
               <p-select inputId="export-precision" ariaLabelledBy="export-precision-label" class="w-full" appendTo="body" size="small" [options]="precisionOptions" optionLabel="label" optionValue="value" [ngModel]="exportPrecision()" (ngModelChange)="exportPrecisionChange.emit($event)" />
@@ -59,19 +59,19 @@ import { RestoreFocusDirective } from '../restore-focus.directive'
         </div>
 
         @if (exportSize()) {
-          <div class="mt-4 rounded-sm border border-white/10 px-3 py-2 text-sm" [pTooltip]="rawDataSizeTooltip" tooltipPosition="top">
-            <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Estimated raw data size</div>
+          <div class="mt-4 rounded-sm border border-surface-border px-3 py-2 text-sm" [pTooltip]="rawDataSizeTooltip" tooltipPosition="top">
+            <div class="text-xs uppercase tracking-[0.18em] text-ink-muted">Estimated raw data size</div>
             <div class="mt-1 font-mono">{{ exportSize() }}</div>
           </div>
         }
         @if (currentJobStatus() || currentJobError()) {
-          <div class="mt-4 rounded-sm border border-white/10 bg-white/[0.035] px-3 py-3 text-sm" aria-live="polite">
+          <div class="mt-4 rounded-sm border border-surface-border bg-overlay/[0.035] px-3 py-3 text-sm" aria-live="polite">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Current job</div>
-                @if (currentJobStatus()) { <div class="mt-1 text-slate-200">{{ currentJobStatus() }}</div> }
+                <div class="text-xs uppercase tracking-[0.18em] text-ink-muted">Current job</div>
+                @if (currentJobStatus()) { <div class="mt-1 text-ink">{{ currentJobStatus() }}</div> }
               </div>
-              <div class="shrink-0 font-mono text-xs text-slate-400">{{ currentJobProgress() }}%</div>
+              <div class="shrink-0 font-mono text-xs text-ink-muted">{{ currentJobProgress() }}%</div>
             </div>
             @if (!currentJobError()) { <p-progressbar class="nexus-progress-outlined mt-3 block" [value]="currentJobProgress()" ariaLabel="Export job progress" /> }
             @if (currentJobError()) { <p-message severity="error" class="mt-3">{{ currentJobError() }}</p-message> }

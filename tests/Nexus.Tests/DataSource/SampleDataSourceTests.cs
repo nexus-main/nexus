@@ -44,6 +44,12 @@ public class SampleDataSourceTests
         Assert.True(expectedUnits.SequenceEqual(actualUnits));
         Assert.True(expectedGroups.SequenceEqual(actualGroups));
         Assert.True(expectedDataTypes.SequenceEqual(actualDataTypes));
+
+        var resources = actual.Properties!["resources"];
+        var availabilityRule = Assert.Single(resources.GetProperty("availability").EnumerateArray());
+        Assert.Equal($"^{Sample.LocalCatalogId}/P1$", availabilityRule.GetProperty("pattern").GetString());
+        Assert.Equal("2020-01-01T00:00:00Z", availabilityRule.GetProperty("begin").GetString());
+        Assert.Equal("2021-01-01T00:00:00Z", availabilityRule.GetProperty("end").GetString());
     }
 
     [Fact]
