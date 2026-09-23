@@ -4,12 +4,6 @@
   <div class="flex h-dvh w-full flex-col gap-2 overflow-hidden p-2 sm:p-4 xl:p-5">
     <app-header [endpointHost]="endpointHost()" [jobCount]="jobHistoryCount()" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" [helpLink]="helpLink()" [logoutUrl]="logoutUrl()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" (openDataSourcePipelines)="openDataSourcePipelines()" (openJobs)="openJobs()" (openAbout)="isAboutOpen.set(true)" />
 
-    @if (!apiAvailable() && !overviewLoading()) {
-      <section class="rounded-lg border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
-        The Angular UI is showing sample data because the local Nexus API proxy is not connected. Start with <span class="font-mono">./dev-with-local-credentials.sh</span> to use live data.
-      </section>
-    }
-
     @if (overviewError() || catalogError()) {
       <section class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
         {{ errorMessage(overviewError() || catalogError()) }}
@@ -82,7 +76,7 @@
             }
 
             <app-resource-matrix class="min-h-0 flex-1"
-              [catalogId]="apiAvailable() ? selectedCatalogId() : '/SAMPLE/LOCAL'" [rows]="resourceRows()"
+              [catalogId]="selectedCatalogId()" [rows]="resourceRows()"
               [selectedKeys]="selectedResourcePaths()" [activeKey]="activeResourcePath()"
               [revealKey]="revealResourceKey()" [revealSequence]="revealResourceSequence()"
               [writable]="resourceMetadataWritable()" [loading]="catalogLoading()" [selectionLoading]="selectionLoading()"
@@ -307,6 +301,38 @@
   <div class="mt-5 flex justify-end gap-2">
     <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="isClearPinnedOpen.set(false)">Cancel</button>
     <button pButton type="button" size="small" severity="danger" (click)="clearPinnedResources()">Clear</button>
+  </div>
+</p-dialog>
+
+<p-dialog appRestoreFocus header="Representation parameters" [visible]="parameterResource() !== null" (visibleChange)="onParameterDialogVisible($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close representation parameters', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(28rem, calc(100vw - 2rem))' }">
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  @if (parameterResource(); as resource) {
+    <div class="space-y-4 text-sm text-slate-200">
+      <p class="text-slate-400">Add {{ resource.id }} at {{ formatSamplePeriod(resource.representation.samplePeriod) }} with parameter values.</p>
+
+      @for (field of parameterFields(); track field.key) {
+        <label class="block space-y-2">
+          <span class="font-medium text-slate-200">{{ field.label }}</span>
+          @if (field.kind === 'input-integer') {
+            <input class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-teal-400" type="number" step="1" [min]="field.minimum" [max]="field.maximum" [value]="parameterDraft()[field.key]" (input)="setParameterValue(field.key, inputValue($event))" />
+          } @else {
+            <select class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-teal-400" [value]="parameterDraft()[field.key]" (change)="setParameterValue(field.key, inputValue($event))">
+              @for (item of selectOptions(field); track item[0]) {
+                <option [value]="item[0]">{{ item[1] }}</option>
+              }
+            </select>
+          }
+        </label>
+      }
+
+      @if (parameterDialogError()) {
+        <p class="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-rose-100" role="alert">{{ parameterDialogError() }}</p>
+      }
+    </div>
+  }
+  <div class="mt-5 flex justify-end gap-2">
+    <button pButton type="button" size="small" severity="secondary" [text]="true" (click)="closeParameterDialog()">Cancel</button>
+    <button pButton type="button" size="small" [outlined]="true" [disabled]="!!parameterDialogError()" (click)="addParameterizedResource()">Add</button>
   </div>
 </p-dialog>
 

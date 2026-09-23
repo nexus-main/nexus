@@ -3032,7 +3032,8 @@ public record ExtensionDescription(string Type, string Version, string? Descript
 /// <param name="Registrations">The list of pipeline elements (data source registrations).</param>
 /// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
 /// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
-public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrations, string? ReleasePattern, string? VisibilityPattern);
+/// <param name="Disabled">An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled.</param>
+public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrations, string? ReleasePattern, string? VisibilityPattern, bool Disabled);
 
 /// <summary>
 /// A data source registration.

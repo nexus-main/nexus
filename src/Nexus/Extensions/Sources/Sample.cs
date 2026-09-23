@@ -4,6 +4,7 @@
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Nexus.Sources;
 
@@ -201,6 +202,29 @@ internal class Sample : IDataSource<object?>
                         target[i] = i * dt + beginTime;
                 }
 
+                // parameterized temperature
+                else if (resource.Id == "T2")
+                {
+                    var height = catalogItem.Parameters is not null && catalogItem.Parameters.TryGetValue("height", out var heightValue) && int.TryParse(heightValue, out var parsedHeight)
+                        ? parsedHeight
+                        : 10;
+                    var mode = catalogItem.Parameters is not null && catalogItem.Parameters.TryGetValue("mode", out var modeValue)
+                        ? modeValue
+                        : "mean";
+                    var dataLength = DATA.Length;
+                    var sourceOffset = (int)(((long)beginTime % dataLength + dataLength) % dataLength);
+                    var target = MemoryMarshal.Cast<byte, float>(data.Span);
+                    var heightOffset = 0.12f * height;
+                    var modeScale = mode == "max" ? 1.25f : 1.0f;
+                    var modeOffset = mode == "max" ? 8.0f : 0.0f;
+
+                    for (int i = 0; i < target.Length; i++)
+                    {
+                        target[i] = (DATA[sourceOffset] - heightOffset) * modeScale + modeOffset;
+                        sourceOffset = (sourceOffset + 1) % dataLength;
+                    }
+                }
+
                 // temperature or wind speed
                 else
                 {
@@ -280,6 +304,37 @@ internal class Sample : IDataSource<object?>
             .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
+        var resourceE = new ResourceBuilder(id: "T2")
+            .WithUnit("°C")
+            .WithDescription("Test Resource A (parameterized)")
+            .WithGroups("Group 1")
+            .AddRepresentation(new Representation(
+                dataType: NexusDataType.Float32,
+                samplePeriod: TimeSpan.FromSeconds(1),
+                parameters: new Dictionary<string, JsonElement>()
+                {
+                    ["height"] = JsonSerializer.SerializeToElement(new
+                    {
+                        type = "input-integer",
+                        label = "Height",
+                        @default = 10,
+                        minimum = 1,
+                        maximum = 100
+                    }),
+                    ["mode"] = JsonSerializer.SerializeToElement(new
+                    {
+                        type = "select",
+                        label = "Mode",
+                        @default = "mean",
+                        items = new Dictionary<string, string>()
+                        {
+                            ["mean"] = "Mean",
+                            ["max"] = "Maximum"
+                        }
+                    })
+                }))
+            .Build();
+
         var catalogBuilder = new ResourceCatalogBuilder(catalogId);
 
         catalogBuilder.AddResources(new List<Resource>()
@@ -287,7 +342,8 @@ internal class Sample : IDataSource<object?>
             resourceA,
             resourceB,
             resourceC,
-            resourceD
+            resourceD,
+            resourceE
         });
 
         if (catalogId == LicensedCatalogId)

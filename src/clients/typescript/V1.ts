@@ -1214,6 +1214,8 @@ export interface DataSourcePipeline {
     releasePattern?: string | null;
     /** An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible. */
     visibilityPattern?: string | null;
+    /** An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled. */
+    disabled?: boolean | undefined;
 }
 
 

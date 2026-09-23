@@ -123,6 +123,9 @@ internal class CatalogManager(
             /* For each pipeline */
             foreach (var (pipelineId, pipeline) in pipelineMap)
             {
+                if (pipeline.Disabled)
+                    continue;
+
                 try
                 {
                     using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);

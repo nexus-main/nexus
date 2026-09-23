@@ -64,9 +64,10 @@
                     }
                   }
                   @for (entry of entries(); track entry.id) {
-                    <button type="button" class="pipeline-entry" [class.selected]="draft()?.id === entry.id"
+                    <button type="button" class="pipeline-entry" [class.selected]="draft()?.id === entry.id" [class.disabled-pipeline]="entry.pipeline.disabled"
                       [attr.aria-current]="draft()?.id === entry.id ? 'true' : null" [disabled]="editingLocked()"
                       (click)="request({ kind: 'pipeline', id: entry.id })">
+                      @if (entry.pipeline.disabled) { <span class="pipeline-state">Disabled</span> }
                       @for (registration of entry.pipeline.registrations ?? []; track $index) {
                         <span class="registration-line">
                           <span class="registration-type">{{ registration.type || 'Untyped' }}</span>
@@ -86,6 +87,18 @@
                   <div class="pipeline-editor" aria-label="Pipeline editor">
                     <span class="save-indicator {{ dirty() ? 'not-saved' : 'saved' }}">{{ dirty() ? 'Unsaved changes' : 'Saved' }}</span>
                     <fieldset [disabled]="editingLocked()">
+                      <div class="switch-row">
+                        <p-toggleswitch styleClass="outlined-switch" inputId="pipeline-enabled"
+                          [dt]="{
+                            background: 'transparent',
+                            border: { color: 'var(--p-content-border-color)' },
+                            hover: { background: 'transparent', border: { color: 'var(--p-content-border-color)' } },
+                            checked: { background: 'transparent', border: { color: 'var(--p-primary-color)' }, hover: { background: 'transparent', border: { color: 'var(--p-primary-color)' } } },
+                            handle: { background: 'var(--p-text-muted-color)', hover: { background: 'var(--p-text-muted-color)' }, checked: { background: 'var(--p-primary-color)', hover: { background: 'var(--p-primary-color)' } } }
+                          }"
+                          [ngModel]="!current.disabled" (ngModelChange)="setPipelineEnabled($event)" [disabled]="editingLocked()" />
+                        <label for="pipeline-enabled">{{ current.disabled ? 'Disabled' : 'Enabled' }}</label>
+                      </div>
                       <div class="field">
                         <label for="pipeline-release">Release pattern</label>
                         <div class="input-with-help">

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common'
-import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, inject, input, output, signal, viewChild } from '@angular/core'
+import { Component, DestroyRef, ElementRef, HostListener, afterRenderEffect, computed, inject, input, output, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { ButtonModule } from 'primeng/button'
 import { ConfirmDialogModule } from 'primeng/confirmdialog'
@@ -9,6 +9,7 @@ import { MessageModule } from 'primeng/message'
 import { SelectModule } from 'primeng/select'
 import { TabsModule } from 'primeng/tabs'
 import { ToastModule } from 'primeng/toast'
+import { ToggleSwitchModule } from 'primeng/toggleswitch'
 import { TooltipModule } from 'primeng/tooltip'
 import { ConfirmationService, ConfirmEventType, MessageService } from 'primeng/api'
 import type { DialogPassThrough } from 'primeng/types/dialog'
@@ -17,17 +18,21 @@ import { NexusService, V1 } from '../nexus.service'
 import { RestoreFocusDirective } from '../restore-focus.directive'
 import { JsonSchemaEditorComponent } from './json-schema-editor.component'
 import { acceptPipelineSave, addRegistration, createPipelineDraft, editRegistrationText, moveRegistration, pipelineIsDirty,
-  preparePipeline, reconcilePipelineDraft, removeRegistration, resolveUnsavedChoice, sourceSchema, updateRegistration } from '../data-source-pipelines'
+  preparePipeline, reconcilePipelineDraft, removeRegistration, resolveUnsavedChoice, sourceSchema, updatePipeline, updateRegistration } from '../data-source-pipelines'
 import type { PipelineDraft, UnsavedChoice } from '../data-source-pipelines'
 
 type Destination = { kind: 'pipeline'; id: string | null } | { kind: 'close' } | { kind: 'refresh' } | { kind: 'descriptions' } | { kind: 'reload' }
 type PipelineEntry = { id: string; pipeline: V1.DataSourcePipeline }
 type ThemeMode = 'dark' | 'light'
+type PipelineTab = 'pipelines' | 'pipeline' | 'registration'
+type MobileView = 'list' | 'pipeline' | 'registration'
+
+const mobilePipelineLayoutQuery = '(max-width: 760px)'
 
 @Component({
   selector: 'app-data-source-pipelines',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, ConfirmDialogModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, ToastModule, TooltipModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
+  imports: [CommonModule, FormsModule, ButtonModule, ConfirmDialogModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, ToastModule, ToggleSwitchModule, TooltipModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
   providers: [ConfirmationService, MessageService],
   templateUrl: './data-source-pipelines.component.html',
   styleUrl: './data-source-pipelines.component.css',
@@ -52,8 +57,9 @@ export class DataSourcePipelinesComponent {
   readonly descriptions = signal<V1.ExtensionDescription[]>([])
   readonly draft = signal<PipelineDraft | null>(null)
   readonly selectedKey = signal<number | null>(null)
-  readonly pipelineTab = signal<'pipelines' | 'pipeline' | 'registration'>('pipelines')
-  readonly mobileView = signal<'list' | 'pipeline' | 'registration'>('list')
+  readonly pipelineTab = signal<PipelineTab>('pipelines')
+  readonly mobileView = signal<MobileView>('list')
+  readonly mobilePipelineLayout = signal(this.isMobilePipelineLayout())
   readonly loading = signal(false)
   readonly busy = signal(false)
   readonly refreshing = signal(false)
@@ -106,6 +112,13 @@ export class DataSourcePipelinesComponent {
       if (!this.locked()) this.panel()?.nativeElement.focus()
     })
     void this.load()
+  }
+
+  @HostListener('window:resize')
+  syncPipelineLayout(): void {
+    const mobile = this.isMobilePipelineLayout()
+    this.mobilePipelineLayout.set(mobile)
+    if (!mobile && this.pipelineTab() === 'registration') this.pipelineTab.set('pipeline')
   }
 
   hasIssue(key: number): boolean { return this.prepared()?.issues.some(issue => issue.key === key) ?? false }
@@ -234,22 +247,30 @@ export class DataSourcePipelinesComponent {
 
   setPipelineTab(value: string | number | undefined): void {
     if (value === 'pipelines' || value === 'pipeline' || value === 'registration') {
-      this.pipelineTab.set(value)
+      this.pipelineTab.set(value === 'registration' && !this.mobilePipelineLayout() ? 'pipeline' : value)
       this.mobileView.set(value === 'pipelines' ? 'list' : value)
     }
   }
 
-  navigate(view: 'list' | 'pipeline' | 'registration', key = this.selectedKey()): void {
+  navigate(view: MobileView, key = this.selectedKey()): void {
     if (this.editingLocked()) return
     this.selectedKey.set(key)
     this.mobileView.set(view)
     if (view === 'list') this.pipelineTab.set('pipelines')
     else if (view === 'pipeline') this.pipelineTab.set('pipeline')
-    else this.pipelineTab.set('registration')
+    else this.pipelineTab.set(this.mobilePipelineLayout() ? 'registration' : 'pipeline')
+  }
+
+  private isMobilePipelineLayout(): boolean {
+    return globalThis.matchMedia?.(mobilePipelineLayoutQuery).matches ?? false
   }
 
   setPattern(field: 'releasePattern' | 'visibilityPattern', value: string | null): void {
-    if (!this.editingLocked()) this.draft.update(draft => draft ? { ...draft, [field]: value } : draft)
+    if (!this.editingLocked()) this.draft.update(draft => draft ? updatePipeline(draft, { [field]: value }) : draft)
+  }
+
+  setPipelineEnabled(enabled: boolean): void {
+    if (!this.editingLocked()) this.draft.update(draft => draft ? updatePipeline(draft, { disabled: !enabled }) : draft)
   }
 
   editRegistration(key: number, field: 'type' | 'resourceLocator' | 'infoUrl', value: string | null): void {

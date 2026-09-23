@@ -16,8 +16,8 @@ import { ResourceSelection, RepresentationKind, representationKinds, kindValid, 
       <div class="flex min-w-0 items-center justify-between gap-1">
         <div class="min-w-0">
           <div class="truncate font-mono text-xs font-semibold leading-4 text-slate-100" [pTooltip]="selection().path" tooltipPosition="top">{{ selection().id }}</div>
-          @for (parameter of parameters(); track parameter[0]) {
-            <div class="break-all font-mono text-[11px] text-slate-400">{{ parameter[0] }}={{ parameter[1] }}</div>
+          @if (parameterSummary()) {
+            <div class="truncate font-mono text-[11px] text-slate-400" [pTooltip]="parameterSummary()" tooltipPosition="top">{{ parameterSummary() }}</div>
           }
         </div>
         <button pButton type="button" size="small" severity="secondary" [text]="true"
@@ -95,7 +95,10 @@ export class PinnedResourceComponent {
   readonly activated = output<void>()
   readonly resourcePathCopied = signal(false)
   readonly formatPeriod = formatPeriod
-  readonly parameters = computed(() => Object.entries(this.selection().parameters).sort(([a], [b]) => a.localeCompare(b)))
+  readonly parameterSummary = computed(() => Object.entries(this.selection().parameters)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join(', '))
   readonly resourceLabel = computed(() => `${this.selection().path}, native period ${formatPeriod(this.selection().basePeriod)}`)
   readonly validKinds = computed(() => representationKinds.filter(kind => this.valid(kind)))
 

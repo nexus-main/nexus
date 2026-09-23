@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common'
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling'
 import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideDownload, LucidePencil, LucideTriangleAlert, LucideX } from '@lucide/angular'
+import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideDownload, LucidePencil, LucideSlidersHorizontal, LucideTriangleAlert, LucideX } from '@lucide/angular'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
 import { DialogModule } from 'primeng/dialog'
@@ -18,7 +18,7 @@ import type { RepresentationRow } from '../resource-selection'
   selector: 'app-resource-matrix',
   standalone: true,
   imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, InputTextModule, TextareaModule, TooltipModule,
-    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideDownload, LucidePencil, LucideTriangleAlert, LucideX],
+    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideDownload, LucidePencil, LucideSlidersHorizontal, LucideTriangleAlert, LucideX],
   templateUrl: './resource-matrix.component.html',
   styleUrl: './resource-matrix.component.css',
   host: { '[class.narrow]': 'narrow()' },
@@ -266,14 +266,17 @@ export class ResourceMatrixComponent {
 
   selectionDisabled(row: RepresentationRow): boolean {
     return this.saving() || this.loading() || this.selectionLoading()
-      || (!this.selectedKeys().has(row.key) && Object.keys(row.representation.parameters ?? {}).length > 0)
   }
 
   selectionLabel(row: RepresentationRow): string {
     const label = `${row.id}, ${formatPeriod(row.basePeriod)}`
     if (this.selectedKeys().has(row.key)) return `Deselect ${label}`
-    if (Object.keys(row.representation.parameters ?? {}).length) return `${label}: parameterized selection is not supported`
+    if (this.requiresParameters(row)) return `Add ${label} with parameters`
     return `Select ${label}`
+  }
+
+  requiresParameters(row: RepresentationRow): boolean {
+    return Object.keys(row.representation.parameters ?? {}).length > 0
   }
 
   toggleRow(row: RepresentationRow): void {

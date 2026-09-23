@@ -57,7 +57,13 @@
   <div class="list-shell">
     <cdk-virtual-scroll-viewport class="resource-viewport" [itemSize]="itemSize()" [minBufferPx]="itemSize() * 3" [maxBufferPx]="itemSize() * 6" role="list" aria-label="Resource representations">
       <div *cdkVirtualFor="let row of visibleRows(); let index = index; trackBy: trackRow" class="resource-row" [class.active]="activeKey() === row.key" [class.selected]="selectedKeys().has(row.key)" [attr.data-row-key]="row.key" role="listitem" [attr.aria-posinset]="index + 1" [attr.aria-setsize]="visibleRows().length" [attr.aria-current]="activeKey() === row.key ? 'true' : null">
-        <label class="selection-control" [pTooltip]="selectionLabel(row)" tooltipPosition="top"><p-checkbox [binary]="true" [ngModel]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [ariaLabel]="selectionLabel(row)" (ngModelChange)="toggleRow(row)" /></label>
+        @if (requiresParameters(row)) {
+          <button type="button" class="parameter-control" [disabled]="selectionDisabled(row)" [attr.aria-label]="selectionLabel(row)" [pTooltip]="selectionLabel(row)" tooltipPosition="top" (click)="toggleRow(row)">
+            <span class="parameter-control-mark" aria-hidden="true"><svg lucideSlidersHorizontal></svg></span>
+          </button>
+        } @else {
+          <label class="selection-control" [pTooltip]="selectionLabel(row)" tooltipPosition="top"><p-checkbox [binary]="true" [ngModel]="selectedKeys().has(row.key)" [disabled]="selectionDisabled(row)" [ariaLabel]="selectionLabel(row)" (ngModelChange)="toggleRow(row)" /></label>
+        }
         @if (editing() && !narrow()) {
           <button type="button" class="resource-identity" [disabled]="saving()" [pTooltip]="row.path" tooltipPosition="top" [attr.aria-label]="'Activate ' + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
             <strong>{{ row.id }}</strong><span class="period">{{ formatPeriod(row.basePeriod) }}</span>

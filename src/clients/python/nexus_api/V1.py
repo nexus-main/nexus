@@ -1803,6 +1803,7 @@ class DataSourcePipeline:
         registrations: The list of pipeline elements (data source registrations).
         release_pattern: An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.
         visibility_pattern: An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.
+        disabled: An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled.
     """
 
     registrations: list[DataSourceRegistration]
@@ -1813,6 +1814,9 @@ class DataSourcePipeline:
 
     visibility_pattern: Optional[str]
     """An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible."""
+
+    disabled: bool
+    """An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled."""
 
 
 @dataclass(frozen=True)

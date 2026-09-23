@@ -35,10 +35,10 @@ public class SampleDataSourceTests
         var actualGroups = actual.Resources!.SelectMany(resource => resource.Properties?.GetStringArray(DataModelExtensions.GroupsKey) ?? []);
         var actualDataTypes = actual.Resources!.SelectMany(resource => resource.Representations!.Select(representation => representation.DataType)).ToList();
 
-        var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2" };
-        var expectedUnits = new List<string>() { "°C", "m/s", default!, default! };
-        var expectedGroups = new List<string>() { "Group 1", "Group 1", "Group 2", "Group 2" };
-        var expectedDataTypes = new List<NexusDataType>() { NexusDataType.Float32, NexusDataType.Float32, NexusDataType.Float64, NexusDataType.Float64 };
+        var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2", "T2" };
+        var expectedUnits = new List<string>() { "°C", "m/s", default!, default!, "°C" };
+        var expectedGroups = new List<string>() { "Group 1", "Group 1", "Group 2", "Group 2", "Group 1" };
+        var expectedDataTypes = new List<NexusDataType>() { NexusDataType.Float32, NexusDataType.Float32, NexusDataType.Float64, NexusDataType.Float64, NexusDataType.Float32 };
 
         Assert.True(expectedIds.SequenceEqual(actualIds));
         Assert.True(expectedUnits.SequenceEqual(actualUnits));
@@ -123,5 +123,43 @@ public class SampleDataSourceTests
         Assert.Equal(6.5, floatData.Span[0], precision: 1);
         Assert.Equal(7.9, floatData.Span[29], precision: 1);
         Assert.Equal(6.0, floatData.Span[54], precision: 1);
+    }
+
+    [Fact]
+    public async Task ParameterizedTemperatureUsesParameters()
+    {
+        var dataSource = new Sample() as IDataSource<object?>;
+
+        var context = new DataSourceContext<object?>(
+            ResourceLocator: default,
+            SourceConfiguration: default!,
+            RequestConfiguration: default
+        );
+
+        await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
+
+        var catalog = await dataSource.EnrichCatalogAsync(new ResourceCatalog(Sample.LocalCatalogId), CancellationToken.None);
+        var resource = catalog.Resources!.Single(resource => resource.Id == "T2");
+        var representation = resource.Representations![0];
+        var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = begin + TimeSpan.FromSeconds(1);
+        var (meanData, meanStatus) = ExtensibilityUtilities.CreateBuffers(representation, begin, end);
+        var (maxData, maxStatus) = ExtensibilityUtilities.CreateBuffers(representation, begin, end);
+        var meanItem = new CatalogItem(catalog, resource, representation, new Dictionary<string, string>() { ["height"] = "10", ["mode"] = "mean" });
+        var maxItem = new CatalogItem(catalog, resource, representation, new Dictionary<string, string>() { ["height"] = "50", ["mode"] = "max" });
+
+        await dataSource.ReadAsync(
+            begin,
+            end,
+            [
+                new ReadRequest(resource.Id, meanItem, meanData, meanStatus, _ => Task.CompletedTask, CancellationToken.None),
+                new ReadRequest(resource.Id, maxItem, maxData, maxStatus, _ => Task.CompletedTask, CancellationToken.None)
+            ],
+            default!,
+            new Progress<double>(),
+            CancellationToken.None);
+
+        Assert.Equal(5.3f, meanData.Cast<byte, float>().Span[0], precision: 3);
+        Assert.Equal(8.625f, maxData.Cast<byte, float>().Span[0], precision: 3);
     }
 }

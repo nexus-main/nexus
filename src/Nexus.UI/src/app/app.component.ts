@@ -38,9 +38,6 @@ import {
   V2,
   WriterDescription,
   buildExportParameters,
-  fallbackCatalogInfos,
-  fallbackResources,
-  fallbackWriters,
   mapResources,
   prepareChildCatalogs,
 } from './nexus.service'
@@ -54,6 +51,16 @@ const exportSettingsStorageKey = 'nexus.exportSettings'
 const defaultWriterType = 'Nexus.Writers.Csv'
 type ResolvedThemeMode = 'dark' | 'light'
 type ThemeMode = ResolvedThemeMode | 'system'
+
+type ParameterField = {
+  key: string
+  label: string
+  kind: 'input-integer' | 'select'
+  defaultValue: string
+  minimum?: number
+  maximum?: number
+  items?: Record<string, string>
+}
 
 const timeRangePresets = [
   { label: 'Last hour', kind: 'rolling', unit: 'hour', amount: 1 },
@@ -146,6 +153,8 @@ export class AppComponent implements OnDestroy {
   readonly isPackageReferencesOpen = signal(false)
   readonly isDataSourcePipelinesOpen = signal(false)
   readonly isClearPinnedOpen = signal(false)
+  readonly parameterResource = signal<RepresentationRow | null>(null)
+  readonly parameterDraft = signal<Record<string, string>>({})
   readonly isReadmeOpen = signal(false)
   readonly isAboutOpen = signal(false)
   readonly isLicenseOpen = signal(false)
@@ -240,8 +249,8 @@ export class AppComponent implements OnDestroy {
   }
   readonly apiAvailable = this.nexus.apiAvailable.asReadonly()
 
-  readonly rootCatalogInfos = computed(() => this.overview()?.roots ?? fallbackCatalogInfos)
-  readonly writerDescriptions = computed(() => this.overview()?.writers ?? fallbackWriters)
+  readonly rootCatalogInfos = computed(() => this.overview()?.roots ?? [])
+  readonly writerDescriptions = computed(() => this.overview()?.writers ?? [])
   readonly jobs = computed(() => this.overview()?.jobs ?? [])
   readonly exportJobHistory = computed(() => this.jobHistory().filter(entry => this.isExportJobEntry(entry)))
   readonly jobHistoryCount = computed(() => this.exportJobHistory().length)
@@ -338,7 +347,7 @@ export class AppComponent implements OnDestroy {
   readonly selectedCatalogWritable = computed(() => this.resourceMetadataWritable())
 
   readonly resourceRows = computed(() => {
-    if (!this.apiAvailable()) return representationRows(fallbackResources)
+    if (!this.apiAvailable()) return []
     if (this.isSelectedFake()) return []
     return representationRows(mapResources(this.selectedCatalog()))
   })
@@ -366,6 +375,34 @@ export class AppComponent implements OnDestroy {
     if (this.visualizationResources().some(resource => !resource.valid)) return 'Remove the invalid methods or choose a compatible Period.'
     if (this.selectedResources().some(resource => !this.parametersValid(resource))) return 'A selected representation requires parameter values that this UI cannot edit yet.'
     return executionRangeError(this.exportBegin(), this.exportEnd(), this.samplePeriod(), this.requestPaths().length)
+  })
+  readonly parameterFields = computed(() => this.toParameterFields(this.parameterResource()))
+  readonly unsupportedParameterKeys = computed(() => {
+    const resource = this.parameterResource()
+    if (!resource) return []
+    const supported = new Set(this.parameterFields().map(field => field.key))
+    return Object.keys(resource.representation.parameters ?? {}).filter(key => !supported.has(key))
+  })
+  readonly parameterDialogError = computed(() => {
+    const unsupportedKeys = this.unsupportedParameterKeys()
+    if (unsupportedKeys.length) return `Unsupported parameter schema: ${unsupportedKeys.join(', ')}`
+    const draft = this.parameterDraft()
+
+    for (const field of this.parameterFields()) {
+      const value = draft[field.key]
+      if (value === undefined || value === '') return `${field.label} is required.`
+
+      if (field.kind === 'input-integer') {
+        const parsed = Number(value)
+        if (!Number.isInteger(parsed)) return `${field.label} must be an integer.`
+        if (field.minimum !== undefined && parsed < field.minimum) return `${field.label} must be at least ${field.minimum}.`
+        if (field.maximum !== undefined && parsed > field.maximum) return `${field.label} must be at most ${field.maximum}.`
+      } else if (!Object.hasOwn(field.items ?? {}, value)) {
+        return `${field.label} has an invalid value.`
+      }
+    }
+
+    return ''
   })
   readonly exportError = computed(() => {
     if (this.selectionError()) return this.selectionError()
@@ -1072,7 +1109,10 @@ export class AppComponent implements OnDestroy {
     if (this.selectionLoading()) return
     if (this.resourceSelected(resource)) this.removeResource(resource.key)
     else {
-      if (this.requiresParameters(resource)) return
+      if (this.requiresParameters(resource)) {
+        this.openParameterDialog(resource)
+        return
+      }
       if (this.pinnedCount() === 0 && this.automaticPeriod()) {
         this.samplePeriod.set(resource.basePeriod)
         this.periodDraft.set(formatPeriod(resource.basePeriod))
@@ -1116,7 +1156,96 @@ export class AppComponent implements OnDestroy {
   }
 
   private parametersValid(resource: ResourceSelection) {
-    return !this.requiresParameters(resource) && Object.keys(resource.parameters).length === 0
+    if (!this.requiresParameters(resource)) return Object.keys(resource.parameters).length === 0
+
+    const expectedKeys = Object.keys(resource.representation.parameters ?? {}).sort()
+    const actualKeys = Object.keys(resource.parameters).sort()
+    return expectedKeys.length === actualKeys.length
+      && expectedKeys.every((key, index) => key === actualKeys[index] && resource.parameters[key] !== '')
+  }
+
+  openParameterDialog(resource: RepresentationRow) {
+    this.parameterResource.set(resource)
+    this.parameterDraft.set(Object.fromEntries(this.toParameterFields(resource).map(field => [field.key, field.defaultValue])))
+  }
+
+  closeParameterDialog() {
+    this.parameterResource.set(null)
+    this.parameterDraft.set({})
+  }
+
+  onParameterDialogVisible(visible: boolean) {
+    if (!visible) this.closeParameterDialog()
+  }
+
+  setParameterValue(key: string, value: string) {
+    this.parameterDraft.update(current => ({ ...current, [key]: value }))
+  }
+
+  inputValue(event: Event) {
+    return (event.target as HTMLInputElement | HTMLSelectElement).value
+  }
+
+  selectOptions(field: ParameterField) {
+    return Object.entries(field.items ?? {})
+  }
+
+  parameterSummary(resource: ResourceSelection) {
+    return Object.entries(resource.parameters).map(([key, value]) => `${key}=${value}`).join(', ')
+  }
+
+  addParameterizedResource() {
+    const resource = this.parameterResource()
+    if (!resource || this.parameterDialogError()) return
+
+    if (this.pinnedCount() === 0 && this.automaticPeriod()) {
+      this.samplePeriod.set(resource.basePeriod)
+      this.periodDraft.set(formatPeriod(resource.basePeriod))
+    }
+
+    const parameters = Object.fromEntries(this.parameterFields().map(field => [field.key, this.parameterDraft()[field.key]]))
+    const key = selectionKey(resource, parameters)
+    const selection: ResourceSelection = { ...resource, key, parameters, kinds: [defaultKind(this.samplePeriod(), resource.basePeriod)] }
+
+    this.selectedResourceRows.update(current => new Map(current).set(selection.key, selection))
+    this.selectionReferences.update(current => current.some(reference => this.referenceMatches(reference, selection))
+      ? current
+      : [...current, storeSelectionReference(selection)])
+    this.activeResourcePath.set(selection.key)
+    this.closeParameterDialog()
+  }
+
+  private toParameterFields(resource: RepresentationRow | null): ParameterField[] {
+    return Object.entries(resource?.representation.parameters ?? {}).flatMap<ParameterField>(([key, value]) => {
+      if (!this.isRecord(value) || typeof value['type'] !== 'string') return []
+
+      const label = typeof value['label'] === 'string' ? value['label'] : key
+
+      if (value['type'] === 'input-integer') {
+        const minimum = typeof value['minimum'] === 'number' ? value['minimum'] : undefined
+        const maximum = typeof value['maximum'] === 'number' ? value['maximum'] : undefined
+        const defaultValue = typeof value['default'] === 'number'
+          ? String(value['default'])
+          : String(minimum ?? 0)
+
+        return [{ key, label, kind: 'input-integer', defaultValue, minimum, maximum } satisfies ParameterField]
+      }
+
+      if (value['type'] === 'select' && this.isRecord(value['items'])) {
+        const items = Object.fromEntries(Object.entries(value['items']).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+        const defaultValue = typeof value['default'] === 'string' && Object.hasOwn(items, value['default'])
+          ? value['default']
+          : Object.keys(items)[0] ?? ''
+
+        return [{ key, label, kind: 'select', defaultValue, items } satisfies ParameterField]
+      }
+
+      return []
+    })
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
   }
 
   requestClearPinnedResources() {

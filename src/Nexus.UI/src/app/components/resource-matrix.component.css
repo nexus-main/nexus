@@ -84,6 +84,11 @@ button:disabled, input:disabled { cursor: not-allowed; }
 .resource-row > * { min-width: 0; }
 .selection-control { display: grid; place-items: center; width: 44px; height: 44px; margin-left: -4px; cursor: pointer; --p-checkbox-border-color: color-mix(in srgb, var(--p-primary-color) 55%, var(--p-content-border-color)); --p-checkbox-hover-border-color: var(--p-primary-color); }
 .selection-control:has(.p-checkbox-disabled) { cursor: not-allowed; }
+.parameter-control { display: grid; place-items: center; width: 44px; height: 44px; margin-left: -4px; border: 0; background: transparent; color: var(--p-primary-color); cursor: pointer; }
+.parameter-control:disabled { color: var(--p-text-muted-color); cursor: not-allowed; opacity: 0.55; }
+.parameter-control-mark { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid color-mix(in srgb, var(--p-primary-color) 62%, var(--p-content-border-color)); border-radius: var(--p-checkbox-border-radius); background: color-mix(in srgb, var(--p-primary-color) 10%, var(--p-content-background)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color) 14%, transparent); transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease; }
+.parameter-control:hover:not(:disabled) .parameter-control-mark { border-color: var(--p-primary-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--p-primary-color) 14%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color) 22%, transparent); transform: translateY(-1px); }
+.parameter-control-mark svg { width: 14px; height: 14px; stroke-width: 2.25; }
 .resource-identity { display: grid; align-content: center; gap: 1px; min-width: 0; min-height: 44px; padding: 3px 0; border: 0; border-radius: 3px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .resource-line { display: flex; align-items: center; gap: 10px; min-width: 0; height: 18px; line-height: 18px; }
 .resource-name { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
