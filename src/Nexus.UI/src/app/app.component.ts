@@ -22,10 +22,14 @@ import { CatalogTreeComponent } from './components/catalog-tree.component'
 import { ExportComposerComponent } from './components/export-composer.component'
 import { PinnedResourceComponent } from './components/pinned-resource.component'
 import { PackageReferencesComponent } from './components/package-references.component'
+import { AccessTokensComponent } from './components/access-tokens.component'
 import { DataSourcePipelinesComponent } from './components/data-source-pipelines.component'
 import { ResourceMatrixComponent } from './components/resource-matrix.component'
 import { MetadataDrafts, mergeResourceMetadata } from './resource-matrix'
-import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
+import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, parseResourcePath, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
+import type { ParsedResourcePath } from './resource-selection'
+import { parseNexusUiSetupJson } from './nexus-ui-setup'
+import type { NexusUiSetup, ParsedNexusUiSetup } from './nexus-ui-setup'
 import { MarkdownPipe } from './markdown.pipe'
 import { RestoreFocusDirective } from './restore-focus.directive'
 import {
@@ -107,12 +111,17 @@ type StoredExportSettings = {
   exportFilePeriod: string
   exportPrecision: V2.Precision
   configurationByWriter: Record<string, Record<string, unknown>>
+  begin?: string
+  end?: string
+  period?: string
+  automaticPeriod?: boolean
+  resourcePaths?: string[]
 }
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, VisualizationChartComponent, ResourceMatrixComponent],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnDestroy {
@@ -152,6 +161,7 @@ export class AppComponent implements OnDestroy {
   readonly isJobsOpen = signal(false)
   readonly isPackageReferencesOpen = signal(false)
   readonly isDataSourcePipelinesOpen = signal(false)
+  readonly isAccessTokensOpen = signal(false)
   readonly isClearPinnedOpen = signal(false)
   readonly parameterResource = signal<RepresentationRow | null>(null)
   readonly parameterDraft = signal<Record<string, string>>({})
@@ -232,6 +242,11 @@ export class AppComponent implements OnDestroy {
   readonly currentExportJobError = signal('')
   readonly currentExportDownloading = signal(false)
   readonly jobHistory = signal<ExportJobHistoryEntry[]>([])
+  readonly setupImportError = signal('')
+  readonly setupStatus = signal('')
+  readonly setupDragActive = signal(false)
+  private setupDragDepth = 0
+  private setupStatusTimer: number | undefined
 
   readonly timeRangeMenuItems: MenuItem[] = timeRangePresets.flatMap((preset) => {
     const item: MenuItem = { label: preset.label, command: () => this.applyTimeRangePreset(preset) }
@@ -733,10 +748,216 @@ export class AppComponent implements OnDestroy {
     this.cancelVisualization()
     this.resetCurrentExportJob()
     this.refreshController.abort()
+    if (this.setupStatusTimer !== undefined) window.clearTimeout(this.setupStatusTimer)
   }
 
   openDataSourcePipelines() {
     if (this.isAdministrator()) this.requestCatalogNavigation(() => this.isDataSourcePipelinesOpen.set(true))
+  }
+
+  async previewSetupImportFromInput(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+    if (file) await this.previewSetupImport(file)
+  }
+
+  openSetupImportPicker() {
+    this.document.getElementById('nexus-setup-import-input')?.click()
+  }
+
+  async previewSetupImport(file: File) {
+    this.setupImportError.set('')
+    this.clearSetupStatus()
+    try {
+      const parsed = parseNexusUiSetupJson(await file.text())
+      if (this.resourceMatrix()?.hasUnsavedChanges() || this.resourceMatrix()?.saving()) {
+        this.setupImportError.set('Save or discard resource metadata edits before importing a setup.')
+        return
+      }
+
+      await this.applySetupImport(parsed)
+      this.showSetupStatus(`Imported ${file.name || 'setup.json'}.`)
+    } catch (error) {
+      this.setupImportError.set(this.errorMessage(error))
+    }
+  }
+
+  exportSetup() {
+    const setup = this.createSetupExport()
+    const blob = new Blob([`${JSON.stringify(setup, null, 2)}\n`], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = this.document.createElement('a')
+    link.href = url
+    link.download = `setup-${new Date().toISOString().slice(0, 16).replace(/[:-]/g, '')}.nexus.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    this.showSetupStatus('Setup exported.')
+  }
+
+  private showSetupStatus(message: string) {
+    this.clearSetupStatus()
+    this.setupStatus.set(message)
+    this.setupStatusTimer = window.setTimeout(() => this.clearSetupStatus(), 1800)
+  }
+
+  private clearSetupStatus() {
+    if (this.setupStatusTimer !== undefined) {
+      window.clearTimeout(this.setupStatusTimer)
+      this.setupStatusTimer = undefined
+    }
+    this.setupStatus.set('')
+  }
+
+  @HostListener('window:dragenter', ['$event'])
+  onSetupDragEnter(event: DragEvent) {
+    if (!hasSetupFile(event.dataTransfer)) return
+    event.preventDefault()
+    this.setupDragDepth += 1
+    this.setupDragActive.set(true)
+  }
+
+  @HostListener('window:dragover', ['$event'])
+  onSetupDragOver(event: DragEvent) {
+    if (!hasSetupFile(event.dataTransfer)) return
+    event.preventDefault()
+    this.setupDragActive.set(true)
+  }
+
+  @HostListener('window:dragleave', ['$event'])
+  onSetupDragLeave(event: DragEvent) {
+    if (!hasSetupFile(event.dataTransfer)) return
+    this.setupDragDepth = Math.max(0, this.setupDragDepth - 1)
+    if (this.setupDragDepth === 0 || isOutsideViewport(event)) this.clearSetupDragState()
+  }
+
+  @HostListener('window:dragend')
+  onSetupDragEnd() {
+    this.clearSetupDragState()
+  }
+
+  @HostListener('window:blur')
+  onSetupDragBlur() {
+    this.clearSetupDragState()
+  }
+
+  @HostListener('window:drop', ['$event'])
+  async onSetupDrop(event: DragEvent) {
+    if (!hasSetupFile(event.dataTransfer)) return
+    event.preventDefault()
+    this.clearSetupDragState()
+    const file = Array.from(event.dataTransfer?.files ?? []).find(isSetupFile)
+    if (file) await this.previewSetupImport(file)
+  }
+
+  private clearSetupDragState() {
+    this.setupDragDepth = 0
+    this.setupDragActive.set(false)
+  }
+
+  private createSetupExport(): NexusUiSetup {
+    return {
+      begin: this.exportBegin(),
+      end: this.exportEnd(),
+      filePeriod: this.exportFilePeriod(),
+      type: this.selectedWriterType(),
+      resourcePaths: getStoredSelectionRequestPaths(this.selectionReferences(), this.samplePeriod()),
+      configuration: this.exportConfiguration(),
+      precision: this.exportPrecision(),
+    }
+  }
+
+  private async applySetupImport(parsed: ParsedNexusUiSetup) {
+    const exportSettings = readSetupExportSettings(parsed.setup)
+    if (exportSettings.begin && isValidDateString(exportSettings.begin)) this.exportBegin.set(exportSettings.begin)
+    if (exportSettings.end && isValidDateString(exportSettings.end)) this.exportEnd.set(exportSettings.end)
+    const writerType = exportSettings.selectedWriterType
+    if (writerType) this.selectedWriterType.set(writerType)
+    if (exportSettings.exportPrecision) this.exportPrecision.set(exportSettings.exportPrecision)
+    if (exportSettings.exportFilePeriod && parseFilePeriod(exportSettings.exportFilePeriod) !== null) {
+      const filePeriod = parseFilePeriod(exportSettings.exportFilePeriod)!
+      this.exportFilePeriod.set(exportSettings.exportFilePeriod)
+      this.exportFilePeriodDraft.set(formatFilePeriod(filePeriod))
+    }
+
+    let configurationByWriter = exportSettings.configurationByWriter
+      ? getStoredWriterConfigurations(exportSettings.configurationByWriter, this.configurationByWriter())
+      : this.configurationByWriter()
+    this.configurationByWriter.set(configurationByWriter)
+    this.exportConfiguration.set(configurationByWriter[this.selectedWriterType()] ?? {})
+    if (exportSettings.resourcePaths?.length) await this.restoreSetupResourcePaths(exportSettings.resourcePaths)
+  }
+
+  private async restoreSetupResourcePaths(resourcePaths: string[]) {
+    const catalogs = new Map<string, RepresentationRow[]>()
+    const references: StoredSelectionReference[] = []
+    let commonPeriod: bigint | null = null
+
+    for (const resourcePath of resourcePaths) {
+      const parsed = parseResourcePath(resourcePath)
+      if (!parsed) continue
+      if (commonPeriod === null) commonPeriod = parsed.period
+      else if (parsed.period !== commonPeriod) continue
+
+      const reference = await this.resolveSetupResourcePath(parsed, catalogs)
+      if (reference) references.push(reference)
+    }
+
+    if (commonPeriod === null) return
+    const restored = hydrateSelections(references, catalogs, commonPeriod, false)
+    this.samplePeriod.set(restored.period)
+    this.periodDraft.set(formatPeriod(restored.period))
+    this.automaticPeriod.set(false)
+    this.selectedResourceRows.set(restored.selections)
+    this.selectionReferences.set(restored.references)
+    this.unresolvedSelections.set(restored.unresolved)
+  }
+
+  private async resolveSetupResourcePath(parsed: ParsedResourcePath, catalogs: Map<string, RepresentationRow[]>): Promise<StoredSelectionReference | null> {
+    let failedLoads = 0
+    const candidates = getResourcePathCatalogCandidates(parsed.path)
+    for (const catalogId of candidates) {
+      let rows = catalogs.get(catalogId)
+      if (!rows) {
+        try {
+          rows = representationRows(mapResources((await this.getCatalogBundle(catalogId)).catalog))
+          catalogs.set(catalogId, rows)
+        } catch {
+          failedLoads += 1
+          continue
+        }
+      }
+
+      if (rows.some(row => row.path === parsed.path && row.basePeriod === parsed.basePeriod)) {
+        return {
+          catalogId,
+          path: parsed.path,
+          basePeriod: formatPeriod(parsed.basePeriod),
+          parameters: parsed.parameters,
+          kinds: [parsed.kind],
+        }
+      }
+    }
+
+    if (failedLoads === candidates.length && candidates[0]) {
+      return {
+        catalogId: candidates[0],
+        path: parsed.path,
+        basePeriod: formatPeriod(parsed.basePeriod),
+        parameters: parsed.parameters,
+        kinds: [parsed.kind],
+      }
+    }
+
+    return null
+  }
+
+  private describeSetupImportWarnings(parsed: ParsedNexusUiSetup) {
+    const warnings: string[] = []
+    if (parsed.legacyUiSettings?.catalogHidePatterns?.length) warnings.push('Catalog hide patterns are preserved for compatibility, but this UI has no catalog hiding setting to apply.')
+    if (parsed.legacyUiSettings?.chartGpuCacheBudgetMiB !== undefined) warnings.push('Chart cache budget is not part of setup export settings and will not be imported.')
+    if (parsed.source === 'legacy-ui-settings') warnings.push('Legacy settings do not include time range, export period, precision, or resource paths.')
+    return warnings
   }
 
   readonly refreshPipelineDatabase = async (): Promise<boolean> => {
@@ -1814,6 +2035,62 @@ function getFakeCatalogNodeKey(parentId: string, catalogId: string) {
 
 function getInitialExpandedCatalogNodeKeys(storage: BrowserStorageService, catalogId: string) {
   return mergeSets(new Set(getStoredCatalogNodeKeys(storage)), getCatalogPathNodeKeys(catalogId))
+}
+
+function getStoredSelectionRequestPaths(selections: StoredSelectionReference[], period: bigint) {
+  return selections.flatMap(selection => selection.kinds.map(kind => formatStoredSelectionRequestPath(selection, kind, period)))
+}
+
+function formatStoredSelectionRequestPath(selection: StoredSelectionReference, kind: RepresentationKind, period: bigint) {
+  const suffix = kind === 'Original' ? '' : `_${kind.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`
+  const entries = Object.keys(selection.parameters).sort().map((name) => [name, selection.parameters[name]])
+  const parameters = entries.length ? `(${entries.map(([name, value]) => `${name}=${value}`).join(',')})` : ''
+  const base = selection.basePeriod ? `#base=${selection.basePeriod.replace(/\s+/g, '_')}` : ''
+  return `${selection.path}/${formatPeriod(period, '_')}${suffix}${parameters}${base}`
+}
+
+function getResourcePathCatalogCandidates(path: string) {
+  const segments = path.split('/').filter(Boolean)
+  const candidates: string[] = []
+  for (let count = segments.length - 1; count >= 0; count -= 1) {
+    candidates.push(count === 0 ? '/' : `/${segments.slice(0, count).join('/')}`)
+  }
+  return candidates
+}
+
+function readSetupExportSettings(value: unknown): Partial<StoredExportSettings> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const settings = value as NexusUiSetup
+  const result: Partial<StoredExportSettings> = {}
+  if (typeof settings.begin === 'string') result.begin = settings.begin
+  if (typeof settings.end === 'string') result.end = settings.end
+  if (typeof settings.filePeriod === 'string') result.exportFilePeriod = settings.filePeriod
+  if (typeof settings.type === 'string' && settings.type) result.selectedWriterType = settings.type
+  if (settings.precision === V2.Precision.Float64 || settings.precision === V2.Precision.Float32) result.exportPrecision = settings.precision
+  if (Array.isArray(settings.resourcePaths)) result.resourcePaths = settings.resourcePaths.filter((path): path is string => typeof path === 'string')
+  if (settings.configuration && typeof settings.configuration === 'object' && !Array.isArray(settings.configuration) && result.selectedWriterType) {
+    result.configurationByWriter = { [result.selectedWriterType]: { ...(settings.configuration as Record<string, unknown>) } }
+  }
+  return result
+}
+
+function isValidDateString(value: string) {
+  return !Number.isNaN(new Date(value).getTime())
+}
+
+function isOutsideViewport(event: DragEvent) {
+  return event.clientX <= 0 || event.clientY <= 0 || event.clientX >= window.innerWidth || event.clientY >= window.innerHeight
+}
+
+function hasSetupFile(dataTransfer: DataTransfer | null) {
+  if (!dataTransfer) return false
+  if (Array.from(dataTransfer.files).some(isSetupFile)) return true
+  return Array.from(dataTransfer.items).some(item => item.kind === 'file' && (item.type === 'application/json' || item.type === ''))
+}
+
+function isSetupFile(file: File) {
+  const name = file.name.toLowerCase()
+  return name.endsWith('.nexus.json') || name.endsWith('.json') || file.type === 'application/json'
 }
 
 function getStoredCatalogNodeKeys(storage: BrowserStorageService) {

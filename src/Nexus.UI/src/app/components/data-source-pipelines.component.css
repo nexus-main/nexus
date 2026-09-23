@@ -71,9 +71,6 @@ legend { font-size: .85rem; font-weight: 600; margin-bottom: .65rem; }
 .registrations fieldset { gap: .5rem; }
 .decision { display: grid; gap: .65rem; border: 1px solid var(--p-orange-400); padding: 1rem; border-radius: .5rem; font-size: .85rem; }
 .decision .actions { justify-content: flex-start; }
-.confirm-delete { display: grid; gap: .65rem; padding: 1.25rem; border-radius: .5rem; background: var(--p-content-background); box-shadow: 0 4px 24px rgba(0,0,0,.15); }
-.confirm-delete .actions { justify-content: flex-start; }
-.confirm-delete p { font-size: .85rem; color: var(--p-text-muted-color); }
 .validation-summary { font-size: .8rem; color: var(--p-orange-400); border-top: 1px solid var(--p-content-border-color); padding-top: .75rem; overflow-wrap: anywhere; }
 .validation-summary summary { cursor: pointer; }
 .validation-summary ul { max-height: 10rem; overflow: auto; list-style: disc; padding-left: 1.25rem; margin-top: .5rem; }

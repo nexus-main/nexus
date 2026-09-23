@@ -2,7 +2,7 @@
   <div class="fixed inset-0 -z-10 opacity-80 scanline"></div>
 
   <div class="flex h-dvh w-full flex-col gap-2 overflow-hidden p-2 sm:p-4 xl:p-5">
-    <app-header [endpointHost]="endpointHost()" [jobCount]="jobHistoryCount()" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" [helpLink]="helpLink()" [logoutUrl]="logoutUrl()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" (openDataSourcePipelines)="openDataSourcePipelines()" (openJobs)="openJobs()" (openAbout)="isAboutOpen.set(true)" />
+    <app-header [endpointHost]="endpointHost()" [jobCount]="jobHistoryCount()" [userInitials]="userInitials()" [themeMode]="themeMode()" [isAdministrator]="isAdministrator()" [helpLink]="helpLink()" [logoutUrl]="logoutUrl()" (openCatalog)="isMobileCatalogOpen.set(true)" (toggleTheme)="toggleTheme()" (openPackageReferences)="isPackageReferencesOpen.set(true)" (openDataSourcePipelines)="openDataSourcePipelines()" (openSetupImport)="openSetupImportPicker()" (openSetupExport)="exportSetup()" (openJobs)="openJobs()" (openAccessTokens)="isAccessTokensOpen.set(true)" (openAbout)="isAboutOpen.set(true)" />
 
     @if (overviewError() || catalogError()) {
       <section class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
@@ -103,8 +103,26 @@
   </div>
 </div>
 
+<input id="nexus-setup-import-input" type="file" accept=".json,.nexus.json,application/json" class="hidden" (change)="previewSetupImportFromInput($event)" />
+
+@if (setupDragActive()) {
+  <div class="fixed inset-0 z-50 grid place-items-center bg-slate-100/65 p-4 text-center backdrop-blur-sm dark:bg-slate-950/55" aria-live="polite">
+    <div class="setup-drop-zone flex min-h-44 w-[min(92vw,34rem)] flex-col items-center justify-center rounded-sm px-8 py-8 shadow-2xl sm:min-h-52">
+      <div class="text-xs font-semibold uppercase tracking-[0.24em]">Drop settings</div>
+    </div>
+  </div>
+}
+
 @if (catalogPathCopied()) {
-  <div class="fixed bottom-4 right-4 z-50 rounded-sm border border-emerald-300/25 bg-emerald-300/15 px-4 py-2 text-sm font-medium text-emerald-100 shadow-lg shadow-black/30" role="status" aria-live="polite">Catalog path copied</div>
+  <div class="nexus-toast nexus-toast-success" role="status" aria-live="polite">Catalog path copied</div>
+}
+
+@if (setupStatus()) {
+  <div class="nexus-toast nexus-toast-success" role="status" aria-live="polite">{{ setupStatus() }}</div>
+}
+
+@if (setupImportError()) {
+  <div class="nexus-toast nexus-toast-error max-w-md" role="alert">{{ setupImportError() }}</div>
 }
 
 @if (isAdministrator() && isPackageReferencesOpen()) {
@@ -113,6 +131,10 @@
 
 @if (isAdministrator() && isDataSourcePipelinesOpen()) {
   <app-data-source-pipelines [refreshDatabase]="refreshPipelineDatabase" [themeMode]="resolvedThemeMode()" (close)="isDataSourcePipelinesOpen.set(false)" />
+}
+
+@if (isAccessTokensOpen()) {
+  <app-access-tokens (close)="isAccessTokensOpen.set(false)" />
 }
 
 <ng-template #visualizationContent let-breakout>

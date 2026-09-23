@@ -35,8 +35,8 @@ public class SampleDataSourceTests
         var actualGroups = actual.Resources!.SelectMany(resource => resource.Properties?.GetStringArray(DataModelExtensions.GroupsKey) ?? []);
         var actualDataTypes = actual.Resources!.SelectMany(resource => resource.Representations!.Select(representation => representation.DataType)).ToList();
 
-        var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2", "T2" };
-        var expectedUnits = new List<string>() { "°C", "m/s", default!, default!, "°C" };
+        var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2", "P1" };
+        var expectedUnits = new List<string>() { "°C", "m/s", default!, default!, "bar" };
         var expectedGroups = new List<string>() { "Group 1", "Group 1", "Group 2", "Group 2", "Group 1" };
         var expectedDataTypes = new List<NexusDataType>() { NexusDataType.Float32, NexusDataType.Float32, NexusDataType.Float64, NexusDataType.Float64, NexusDataType.Float32 };
 
@@ -139,7 +139,7 @@ public class SampleDataSourceTests
         await dataSource.SetContextAsync(context, NullLogger.Instance, CancellationToken.None);
 
         var catalog = await dataSource.EnrichCatalogAsync(new ResourceCatalog(Sample.LocalCatalogId), CancellationToken.None);
-        var resource = catalog.Resources!.Single(resource => resource.Id == "T2");
+        var resource = catalog.Resources!.Single(resource => resource.Id == "P1");
         var representation = resource.Representations![0];
         var begin = new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc);
         var end = begin + TimeSpan.FromSeconds(1);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ResourceRow } from './nexus.service'
 import {
-  alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, readSelectionState,
+  alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, parseResourcePath, readSelectionState,
   representationKinds, representationRows, requestPath, selectionKey,
   storeSelectionReference, toTimeSpan,
 } from './resource-selection.ts'
@@ -136,6 +136,17 @@ describe('representations and request paths', () => {
     assert.equal(requestPath(selection, 'Resampled', 400000n), '/catalog/resource/40_ms_resampled(a=first,z=last)#base=1_s')
     assert.equal(requestPath({ ...selection, basePeriod: 1n }, 'Mean', 60n * second),
       '/catalog/resource/1_min_mean(a=first,z=last)#base=100_ns')
+  })
+
+  it('parses canonical request paths back to resource selections', () => {
+    assert.deepEqual(parseResourcePath('/catalog/resource/1_s_mean_polar_deg(a=first,z=last)#base=40_ms'), {
+      path: '/catalog/resource', period: second, basePeriod: 400000n, kind: 'MeanPolarDeg', parameters: { a: 'first', z: 'last' },
+    })
+    assert.deepEqual(parseResourcePath('/catalog/resource/40_ms_resampled#base=1_s'), {
+      path: '/catalog/resource', period: 400000n, basePeriod: second, kind: 'Resampled', parameters: {},
+    })
+    assert.equal(parseResourcePath('/catalog/resource/1_s#base=bad'), null)
+    assert.equal(parseResourcePath('/catalog/resource/1_s_unknown#base=1_s'), null)
   })
 })
 

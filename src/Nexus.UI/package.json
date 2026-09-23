@@ -7,7 +7,7 @@
     "dev": "ng serve --host 127.0.0.1 --proxy-config proxy.conf.cjs",
     "build": "ng build",
     "lint": "ng build --configuration development",
-    "test": "tsc -p tsconfig.selection-tests.json && node --test src/app/resource-selection.test.ts src/app/resource-matrix.test.ts src/app/charts/*.test.ts src/app/json-schema.test.ts src/app/data-source-pipelines.test.ts src/app/yaml-monaco.test.ts"
+    "test": "tsc -p tsconfig.selection-tests.json && node --test src/app/resource-selection.test.ts src/app/resource-matrix.test.ts src/app/charts/*.test.ts src/app/json-schema.test.ts src/app/data-source-pipelines.test.ts src/app/yaml-monaco.test.ts src/app/nexus-ui-setup.test.ts"
   },
   "dependencies": {
     "@angular/cdk": "^21.2.14",

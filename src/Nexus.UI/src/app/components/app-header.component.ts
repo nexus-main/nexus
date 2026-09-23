@@ -57,7 +57,7 @@ type ThemeMode = 'dark' | 'light' | 'system'
                 <span>{{ item.label }}</span>
               </a>
             } @else {
-              <div class="flex cursor-pointer items-center gap-2 px-3 py-2" (click)="item.command?.($event)">
+              <div class="flex cursor-pointer items-center gap-2 px-3 py-2" (click)="$event.stopPropagation(); item.command?.($event)">
                 @switch (item.icon) {
                   @case ('package') { <app-icon name="package" class="h-4 w-4 shrink-0" /> }
                   @case ('waypoints') { <app-icon name="waypoints" class="h-4 w-4 shrink-0" /> }
@@ -72,10 +72,17 @@ type ThemeMode = 'dark' | 'light' | 'system'
         </p-menu>
         <p-menu #userMenu styleClass="header-menu" [model]="userMenuItems()" [popup]="true" appendTo="body">
           <ng-template pTemplate="item" let-item>
-            <a class="flex cursor-pointer items-center gap-2 px-3 py-2" [href]="item.url">
-              @if (item.icon === 'log-out') { <app-icon name="log-out" class="h-4 w-4 shrink-0" /> }
-              <span>{{ item.label }}</span>
-            </a>
+            @if (item.url) {
+              <a class="flex cursor-pointer items-center gap-2 px-3 py-2" [href]="item.url">
+                @if (item.icon === 'log-out') { <app-icon name="log-out" class="h-4 w-4 shrink-0" /> }
+                <span>{{ item.label }}</span>
+              </a>
+            } @else {
+              <div class="flex cursor-pointer items-center gap-2 px-3 py-2" (click)="$event.stopPropagation(); item.command?.($event)">
+                @if (item.icon === 'key') { <app-icon name="key" class="h-4 w-4 shrink-0" /> }
+                <span>{{ item.label }}</span>
+              </div>
+            }
           </ng-template>
         </p-menu>
         <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
@@ -98,15 +105,9 @@ type ThemeMode = 'dark' | 'light' | 'system'
             <span class="tabular-nums">{{ jobCount() }}</span>
             <span class="hidden lg:inline">Jobs</span>
           </button>
-          @if (logoutUrl()) {
-            <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100 transition-colors hover:border-violet-200/50 hover:bg-violet-300/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300" (click)="userMenu.toggle($event)" aria-label="Open user menu" aria-haspopup="menu" [attr.aria-expanded]="userMenu.visible" [attr.aria-controls]="userMenu.id">
-              {{ userInitials() }}
-            </button>
-          } @else {
-            <div class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100" aria-label="Signed-in user initials">
-              {{ userInitials() }}
-            </div>
-          }
+          <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-violet-300/25 bg-violet-300/15 font-mono text-xs font-semibold text-violet-100 transition-colors hover:border-violet-200/50 hover:bg-violet-300/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300" (click)="userMenu.toggle($event)" aria-label="Open user menu" aria-haspopup="menu" [attr.aria-expanded]="userMenu.visible" [attr.aria-controls]="userMenu.id">
+            {{ userInitials() }}
+          </button>
         </div>
       </div>
     </header>
@@ -122,22 +123,31 @@ export class AppHeaderComponent {
   readonly logoutUrl = input<string | null | undefined>(null)
   readonly openPackageReferences = output<void>()
   readonly openDataSourcePipelines = output<void>()
+  readonly openSetupImport = output<void>()
+  readonly openSetupExport = output<void>()
   readonly openJobs = output<void>()
+  readonly openAccessTokens = output<void>()
   readonly openAbout = output<void>()
   readonly adminMenuItems = computed<MenuItem[]>(() => {
     const items: MenuItem[] = []
     if (this.isAdministrator()) {
       items.push({ label: 'Package references', icon: 'package', command: () => this.openPackageReferences.emit() })
       items.push({ label: 'Data source pipelines', icon: 'waypoints', command: () => this.openDataSourcePipelines.emit() })
+      items.push({ separator: true })
     }
+    items.push({ label: 'Import settings...', icon: 'braces', command: () => this.openSetupImport.emit() })
+    items.push({ label: 'Export settings...', icon: 'braces', command: () => this.openSetupExport.emit() })
+    items.push({ separator: true })
     items.push({ label: 'API', icon: 'braces', url: '/api', target: '_blank' })
     if (this.helpLink()) items.push({ label: 'Help', icon: 'help', url: this.helpLink()!, target: '_blank' })
     items.push({ label: 'About', icon: 'info', command: () => this.openAbout.emit() })
     return items
   })
-  readonly userMenuItems = computed<MenuItem[]>(() => this.logoutUrl()
-    ? [{ label: 'Logout', icon: 'log-out', url: this.logoutUrl()! }]
-    : [])
+  readonly userMenuItems = computed<MenuItem[]>(() => {
+    const items: MenuItem[] = [{ label: 'Access tokens', icon: 'key', command: () => this.openAccessTokens.emit() }]
+    if (this.logoutUrl()) items.push({ separator: true }, { label: 'Logout', icon: 'log-out', url: this.logoutUrl()! })
+    return items
+  })
   readonly openCatalog = output<void>()
   readonly toggleTheme = output<void>()
 }

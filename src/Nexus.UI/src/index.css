@@ -101,6 +101,90 @@ button {
   background: var(--p-content-background);
 }
 
+.setup-drop-zone {
+  --setup-drop-dash: #0891b2;
+  --setup-drop-panel: rgba(255, 255, 255, 0.94);
+  --setup-drop-title: #0e7490;
+  --setup-drop-text: #334155;
+  position: relative;
+  color: var(--setup-drop-text);
+  background: var(--setup-drop-panel);
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.14);
+}
+
+.setup-drop-zone::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background:
+    repeating-linear-gradient(90deg, var(--setup-drop-dash) 0 12px, transparent 12px 22px) top left / 44px 1px repeat-x,
+    repeating-linear-gradient(90deg, var(--setup-drop-dash) 0 12px, transparent 12px 22px) bottom left / 44px 1px repeat-x,
+    repeating-linear-gradient(180deg, var(--setup-drop-dash) 0 12px, transparent 12px 22px) top left / 1px 44px repeat-y,
+    repeating-linear-gradient(180deg, var(--setup-drop-dash) 0 12px, transparent 12px 22px) top right / 1px 44px repeat-y;
+  animation: setup-drop-zone-dashes 1.2s linear infinite;
+}
+
+.setup-drop-zone > :first-child {
+  color: var(--setup-drop-title);
+}
+
+.nexus-toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  border: 1px solid var(--nexus-toast-border);
+  border-radius: 0.125rem;
+  background: var(--nexus-toast-background);
+  box-shadow: 0 10px 15px -3px var(--nexus-toast-shadow), 0 4px 6px -4px var(--nexus-toast-shadow);
+  color: var(--nexus-toast-text);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+}
+
+.nexus-toast-success {
+  --nexus-toast-background: #ecfdf5;
+  --nexus-toast-border: rgba(5, 150, 105, 0.35);
+  --nexus-toast-shadow: rgba(15, 23, 42, 0.14);
+  --nexus-toast-text: #065f46;
+}
+
+.nexus-toast-error {
+  --nexus-toast-background: #fff1f2;
+  --nexus-toast-border: rgba(225, 29, 72, 0.35);
+  --nexus-toast-shadow: rgba(15, 23, 42, 0.14);
+  --nexus-toast-text: #9f1239;
+}
+
+:root:not([data-theme='light']) .setup-drop-zone {
+  --setup-drop-dash: #67e8f9;
+  --setup-drop-panel: rgba(15, 23, 42, 0.94);
+  --setup-drop-title: #a5f3fc;
+  --setup-drop-text: #e2e8f0;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42);
+}
+
+:root:not([data-theme='light']) .nexus-toast-success {
+  --nexus-toast-background: #052e2b;
+  --nexus-toast-border: rgba(52, 211, 153, 0.32);
+  --nexus-toast-shadow: rgba(0, 0, 0, 0.42);
+  --nexus-toast-text: #a7f3d0;
+}
+
+:root:not([data-theme='light']) .nexus-toast-error {
+  --nexus-toast-background: #3f0a16;
+  --nexus-toast-border: rgba(251, 113, 133, 0.32);
+  --nexus-toast-shadow: rgba(0, 0, 0, 0.42);
+  --nexus-toast-text: #fecdd3;
+}
+
+@keyframes setup-drop-zone-dashes {
+  to { background-position: 44px 0, -44px 100%, 0 44px, 100% -44px; }
+}
+
 .p-select-overlay { font-size: 0.8125rem; }
 
 .p-tooltip .p-tooltip-text {

@@ -203,7 +203,7 @@ internal class Sample : IDataSource<object?>
                 }
 
                 // parameterized temperature
-                else if (resource.Id == "T2")
+                else if (resource.Id == "P1")
                 {
                     var height = catalogItem.Parameters is not null && catalogItem.Parameters.TryGetValue("height", out var heightValue) && int.TryParse(heightValue, out var parsedHeight)
                         ? parsedHeight
@@ -280,33 +280,33 @@ internal class Sample : IDataSource<object?>
     {
         var resourceA = new ResourceBuilder(id: "T1")
             .WithUnit("°C")
-            .WithDescription("Test Resource A")
+            .WithDescription("Test Resource B")
             .WithGroups("Group 1")
             .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var resourceB = new ResourceBuilder(id: "V1")
             .WithUnit("m/s")
-            .WithDescription("Test Resource B")
+            .WithDescription("Test Resource C")
             .WithGroups("Group 1")
             .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var resourceC = new ResourceBuilder(id: "unix_time1")
-            .WithDescription("Test Resource C")
+            .WithDescription("Test Resource D")
             .WithGroups("Group 2")
             .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromMilliseconds(40)))
             .Build();
 
         var resourceD = new ResourceBuilder(id: "unix_time2")
-            .WithDescription("Test Resource D")
+            .WithDescription("Test Resource E")
             .WithGroups("Group 2")
             .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
-        var resourceE = new ResourceBuilder(id: "T2")
-            .WithUnit("°C")
-            .WithDescription("Test Resource A (parameterized)")
+        var resourceE = new ResourceBuilder(id: "P1")
+            .WithUnit("bar")
+            .WithDescription("Test Resource A")
             .WithGroups("Group 1")
             .AddRepresentation(new Representation(
                 dataType: NexusDataType.Float32,

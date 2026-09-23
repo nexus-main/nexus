@@ -336,25 +336,15 @@ export class DataSourcePipelinesComponent {
   requestDelete(): void {
     if (!this.draft()?.id || this.locked() || !this.administrator()) return
     this.confirmingDelete.set(true)
-    this.messageService.clear('deleteConfirm')
-    this.messageService.add({
-      key: 'deleteConfirm',
-      summary: 'Delete this pipeline?',
-      detail: 'This removes the saved pipeline and discards its local edits. Refresh the database afterward to apply the deletion.',
-      sticky: true,
-      closable: false,
-    })
   }
 
   cancelDelete(): void {
-    this.messageService.clear('deleteConfirm')
     this.confirmingDelete.set(false)
   }
 
   async remove(): Promise<void> {
     const id = this.draft()?.id
     if (!id || !this.confirmingDelete() || this.locked() || !this.administrator()) return
-    this.messageService.clear('deleteConfirm')
     this.busy.set(true)
     this.error.set('')
     try {

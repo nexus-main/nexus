@@ -16,7 +16,7 @@ import { RestoreFocusDirective } from '../restore-focus.directive'
   standalone: true,
   imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, ProgressBarModule, SelectModule, TooltipModule, RestoreFocusDirective],
   template: `
-    <p-dialog appRestoreFocus [visible]="true" (visibleChange)="!$event && close.emit()" [modal]="true" [dismissableMask]="true" [closeOnEscape]="true" [blockScroll]="true" appendTo="body" [draggable]="false" [resizable]="false" [closeButtonProps]="{ ariaLabel: 'Close export composer', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))' }">
+    <p-dialog appRestoreFocus [visible]="true" (visibleChange)="!$event && close.emit()" [modal]="true" [dismissableMask]="false" [closeOnEscape]="true" [blockScroll]="true" appendTo="body" [draggable]="false" [resizable]="false" [closeButtonProps]="{ ariaLabel: 'Close export composer', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))' }">
         <ng-template #header let-ariaLabelledBy="ariaLabelledBy">
           <div>
             <div class="text-xs uppercase tracking-[0.22em]">export job</div>

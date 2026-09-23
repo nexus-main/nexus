@@ -123,6 +123,23 @@ export class NexusService {
     return { system, me, writers, jobs, roots }
   }
 
+  async getPersonalAccessTokens() {
+    const tokens = await this.v1.users.getTokens()
+    this.apiAvailable.set(true)
+    return tokens
+  }
+
+  async createPersonalAccessToken(token: V1.PersonalAccessToken) {
+    const value = await this.v1.users.createToken(token)
+    this.apiAvailable.set(true)
+    return value
+  }
+
+  async deletePersonalAccessToken(tokenId: string) {
+    await this.v1.users.deleteToken(tokenId)
+    this.apiAvailable.set(true)
+  }
+
   async exportResources(parameters: V2.ExportParameters) {
     return this.v2.jobs.export(parameters)
   }

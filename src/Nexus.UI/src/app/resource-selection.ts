@@ -33,6 +33,14 @@ export type StoredSelectionState = {
   selections: StoredSelectionReference[]
 }
 
+export type ParsedResourcePath = {
+  path: string
+  period: bigint
+  basePeriod: bigint
+  kind: RepresentationKind
+  parameters: Record<string, string>
+}
+
 const maxTicks = 9223372036854775807n
 const ticksPerSecond = 10000000n
 const units = [
@@ -133,6 +141,59 @@ export function requestPath(selection: ResourceSelection, kind: RepresentationKi
   const entries = parameterEntries(selection.parameters)
   const parameters = entries.length ? `(${entries.map(([name, value]) => `${name}=${value}`).join(',')})` : ''
   return `${selection.path}/${formatPeriod(period, '_')}${suffix}${parameters}#base=${formatPeriod(selection.basePeriod, '_')}`
+}
+
+export function parseResourcePath(value: string): ParsedResourcePath | null {
+  const baseIndex = value.indexOf('#base=')
+  if (baseIndex <= 0 || value.indexOf('#base=', baseIndex + 1) !== -1) return null
+  const basePeriod = parsePeriod(value.slice(baseIndex + '#base='.length))
+  if (basePeriod === null || basePeriod <= 0n) return null
+
+  const beforeBase = value.slice(0, baseIndex)
+  const slashIndex = beforeBase.lastIndexOf('/')
+  if (slashIndex <= 0 || slashIndex === beforeBase.length - 1) return null
+  const path = beforeBase.slice(0, slashIndex)
+  let method = beforeBase.slice(slashIndex + 1)
+  let parameters: Record<string, string> = {}
+
+  if (method.endsWith(')')) {
+    const parameterIndex = method.lastIndexOf('(')
+    if (parameterIndex < 0) return null
+    const parsedParameters = parseResourcePathParameters(method.slice(parameterIndex + 1, -1))
+    if (!parsedParameters) return null
+    parameters = parsedParameters
+    method = method.slice(0, parameterIndex)
+  }
+
+  const originalPeriod = parsePeriod(method)
+  if (originalPeriod !== null && originalPeriod > 0n) return { path, period: originalPeriod, basePeriod, kind: 'Original', parameters }
+
+  for (const [suffix, kind] of resourcePathMethodSuffixes) {
+    if (!method.endsWith(suffix)) continue
+    const period = parsePeriod(method.slice(0, -suffix.length))
+    if (period !== null && period > 0n) return { path, period, basePeriod, kind, parameters }
+  }
+
+  return null
+}
+
+const resourcePathMethodSuffixes = representationKinds
+  .filter((kind) => kind !== 'Original')
+  .map((kind) => [`_${kind.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`, kind] as const)
+  .sort((left, right) => right[0].length - left[0].length)
+
+function parseResourcePathParameters(value: string): Record<string, string> | null {
+  if (!value) return {}
+  const entries: [string, string][] = []
+  for (const part of value.split(',')) {
+    const separatorIndex = part.indexOf('=')
+    if (separatorIndex <= 0) return null
+    const name = part.slice(0, separatorIndex)
+    const parameterValue = part.slice(separatorIndex + 1)
+    if (!name || entries.some(([entryName]) => entryName === name)) return null
+    entries.push([name, parameterValue])
+  }
+  return Object.fromEntries(entries.sort(([left], [right]) => left.localeCompare(right)))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

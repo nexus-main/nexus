@@ -228,29 +228,24 @@
       }
 
       <div class="pipeline-footer">
-        <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked() || !draft()?.id" (click)="requestDelete()">Delete pipeline</button>
-        <div class="actions">
-          <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="request({ kind: 'close' })">Close</button>
-          <button pButton type="button" size="small" severity="primary" [outlined]="true" [disabled]="editingLocked() || !draft() || !dirty() || !prepared()?.valid" (click)="save()">{{ busy() ? 'Working...' : 'Save pipeline' }}</button>
-        </div>
+        @if (confirmingDelete()) {
+          <span class="flex items-center gap-2 text-xs text-rose-700 dark:text-rose-300">Delete this pipeline?</span>
+          <div class="actions">
+            <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="locked()" (click)="cancelDelete()">No</button>
+            <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="remove()">{{ busy() ? 'Deleting...' : 'Yes, delete' }}</button>
+          </div>
+        } @else {
+          <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked() || !draft()?.id" (click)="requestDelete()">Delete pipeline</button>
+          <div class="actions">
+            <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="request({ kind: 'close' })">Close</button>
+            <button pButton type="button" size="small" severity="primary" [outlined]="true" [disabled]="editingLocked() || !draft() || !dirty() || !prepared()?.valid" (click)="save()">{{ busy() ? 'Working...' : 'Save pipeline' }}</button>
+          </div>
+        }
       </div>
     }
   </div>
 </p-dialog>
 
 <p-confirmdialog key="unsavedChanges" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body" />
-
-<p-toast key="deleteConfirm" position="bottom-center" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body">
-  <ng-template pTemplate="headless" let-message>
-    <div class="confirm-delete">
-      <strong>{{ message.summary }}</strong>
-      <p>{{ message.detail }}</p>
-      <div class="actions">
-        <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="remove()">Delete pipeline</button>
-        <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="cancelDelete()">Keep pipeline</button>
-      </div>
-    </div>
-  </ng-template>
-</p-toast>
 
 <p-toast key="status" position="bottom-center" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body" />
