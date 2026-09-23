@@ -9,7 +9,7 @@ import { representationRows } from './resource-selection.ts'
 function resource(id: string, options: Partial<ResourceRow> & { warning?: string } = {}): ResourceRow {
   return {
     catalogId: '/catalog', id, path: `/catalog/${id}`, groups: [], unit: '', description: '',
-    representations: [{ samplePeriod: '1 s' }], ...options,
+    representations: [{ samplePeriod: '1 s' }], properties: null, ...options,
   }
 }
 

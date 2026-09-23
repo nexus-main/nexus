@@ -21,6 +21,7 @@ export type ResourceRow = {
   warning?: string
   unit: string
   groups: string[]
+  properties: Record<string, unknown> | null
   representations: V1.Representation[]
 }
 
@@ -250,6 +251,7 @@ export function mapResources(catalog: V1.ResourceCatalog | undefined): ResourceR
       warning: getString(properties, 'warning') ?? '',
       unit: getString(properties, 'unit') ?? '',
       groups: getStringArray(properties, 'groups'),
+      properties: properties ?? null,
       representations: resource.representations ?? [],
     }
   })

@@ -1,7 +1,7 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
 import { Component, HostListener, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX } from '@lucide/angular'
+import { LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX } from '@lucide/angular'
 import { MenuItem, MessageService } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
@@ -26,6 +26,7 @@ import { PackageReferencesComponent } from './components/package-references.comp
 import { AccessTokensComponent } from './components/access-tokens.component'
 import { DataSourcePipelinesComponent } from './components/data-source-pipelines.component'
 import { GitComponent } from './components/git.component'
+import { PropertiesDialogComponent } from './components/properties-dialog.component'
 import { ResourceMatrixComponent } from './components/resource-matrix.component'
 import { MetadataDrafts, mergeResourceMetadata } from './resource-matrix'
 import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, parseResourcePath, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
@@ -123,7 +124,7 @@ type StoredExportSettings = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, ToastModule, TooltipModule, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, GitComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, ToastModule, TooltipModule, LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, GitComponent, PropertiesDialogComponent, VisualizationChartComponent, ResourceMatrixComponent],
   providers: [MessageService],
   templateUrl: './app.component.html',
 })
@@ -174,6 +175,7 @@ export class AppComponent implements OnDestroy {
   readonly isAboutOpen = signal(false)
   readonly isLicenseOpen = signal(false)
   readonly isCatalogFilesOpen = signal(false)
+  readonly isCatalogPropertiesOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
   readonly visualizationOpen = signal(false)
   readonly compactLayout = signal(window.innerWidth < 640)

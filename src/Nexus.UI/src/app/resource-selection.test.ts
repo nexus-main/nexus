@@ -14,6 +14,7 @@ const resource: ResourceRow = {
   catalogId: '/catalog', id: 'resource', path: '/catalog/resource',
   description: '', unit: '', groups: [],
   representations: [{ samplePeriod: '00:00:01' }],
+  properties: null,
 }
 const row = representationRows([resource])[0]
 const selection: ResourceSelection = { ...row, parameters: { z: 'last', a: 'first' }, kinds: ['Original'] }

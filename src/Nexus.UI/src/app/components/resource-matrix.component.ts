@@ -2,23 +2,27 @@ import { DOCUMENT } from '@angular/common'
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling'
 import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideDownload, LucidePencil, LucideSlidersHorizontal, LucideTriangleAlert, LucideX } from '@lucide/angular'
+import { LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideCodeXml, LucideDownload, LucidePencil, LucideSlidersHorizontal, LucideTriangleAlert, LucideX } from '@lucide/angular'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
+import { ContextMenu, ContextMenuModule } from 'primeng/contextmenu'
 import { DialogModule } from 'primeng/dialog'
 import { InputTextModule } from 'primeng/inputtext'
 import { TextareaModule } from 'primeng/textarea'
 import { TooltipModule } from 'primeng/tooltip'
+import { MenuItem } from 'primeng/api'
 import { groupResourceRows } from '../resource-matrix'
 import type { MetadataDrafts, MetadataField } from '../resource-matrix'
 import { formatPeriod, resourceAvailableForRange } from '../resource-selection'
 import type { RepresentationRow } from '../resource-selection'
+import { PropertiesDialogComponent } from './properties-dialog.component'
+import { type ThemeMode } from '../services/nexus-monaco-themes'
 
 @Component({
   selector: 'app-resource-matrix',
   standalone: true,
-  imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, InputTextModule, TextareaModule, TooltipModule,
-    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideDownload, LucidePencil, LucideSlidersHorizontal, LucideTriangleAlert, LucideX],
+  imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, ContextMenuModule, DialogModule, InputTextModule, TextareaModule, TooltipModule, PropertiesDialogComponent,
+    LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideCodeXml, LucideDownload, LucidePencil, LucideSlidersHorizontal, LucideTriangleAlert, LucideX],
   templateUrl: './resource-matrix.component.html',
   styleUrl: './resource-matrix.component.css',
   host: { '[class.narrow]': 'narrow()' },
@@ -43,10 +47,18 @@ export class ResourceMatrixComponent {
   readonly selectedBegin = input('')
   readonly selectedEnd = input('')
   readonly saveMetadata = input.required<(catalogId: string, drafts: MetadataDrafts) => Promise<{ warning?: string }>>()
+  readonly themeMode = input.required<ThemeMode>()
   readonly toggle = output<RepresentationRow>()
   readonly activate = output<RepresentationRow>()
   readonly visualize = output<void>()
   readonly exportRequested = output<void>()
+
+  readonly propertiesRow = signal<RepresentationRow | null>(null)
+  readonly propertiesVisible = signal(false)
+  private readonly contextMenu = viewChild(ContextMenu)
+  readonly contextMenuItems: MenuItem[] = [
+    { label: 'Properties', command: () => { if (this.propertiesRow()) this.propertiesVisible.set(true) } },
+  ]
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef)
   private readonly document = inject(DOCUMENT)
@@ -300,6 +312,12 @@ export class ResourceMatrixComponent {
 
   toggleRow(row: RepresentationRow): void {
     if (!this.selectionDisabled(row)) this.toggle.emit(row)
+  }
+
+  onRowContextMenu(event: MouseEvent, row: RepresentationRow): void {
+    event.preventDefault()
+    this.propertiesRow.set(row)
+    this.contextMenu()?.show(event)
   }
 
   activateRow(row: RepresentationRow, event: Event): void {

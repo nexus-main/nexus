@@ -102,7 +102,7 @@ type ThemeMode = 'dark' | 'light' | 'system'
             }
             <span class="hidden lg:inline">{{ themeMode() === 'dark' ? 'Dark' : themeMode() === 'light' ? 'Light' : 'System' }}</span>
           </button>
-          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="hidden h-9 gap-2 px-2.5 transition-colors sm:flex" (click)="openJobs.emit()" aria-label="Open jobs menu" pTooltip="Open jobs menu" tooltipPosition="bottom">
+          <button pButton type="button" size="small" [outlined]="true" severity="secondary" class="hidden h-9 gap-2 px-2.5 transition-colors sm:flex" (click)="openJobs.emit()" aria-label="Open jobs menu">
             <app-icon name="jobs" class="h-4 w-4" />
             <span class="tabular-nums">{{ jobCount() }}</span>
             <span class="hidden lg:inline">Jobs</span>

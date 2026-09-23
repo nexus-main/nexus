@@ -28,18 +28,21 @@
                     </div>
                     <div class="mt-2 flex min-w-0 items-start gap-1">
                       <h1 class="catalog-title min-w-0 break-words font-mono text-base font-semibold tracking-[-0.03em] text-ink sm:text-lg">{{ selectedCatalogDisplayPath() }}</h1>
-                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" (click)="copyCatalogPath()" aria-label="Copy catalog path" pTooltip="Copy catalog path" tooltipPosition="top"><svg lucideCopy class="h-4 w-4" aria-hidden="true"></svg></button>
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" (click)="copyCatalogPath()" aria-label="Copy catalog path" pTooltip="Copy catalog path" tooltipPosition="top" [showDelay]="1000"><svg lucideCopy class="h-4 w-4" aria-hidden="true"></svg></button>
                     </div>
                   </div>
                   <div class="flex shrink-0 items-center gap-1 pt-2">
                     @if (selectedCatalogReadme()) {
-                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" [ngClass]="activeCatalogDetailsOpen() ? 'nexus-icon-button-active' : ''" (click)="activeCatalogDetailsOpen.update((value) => !value)" [attr.aria-expanded]="activeCatalogDetailsOpen()" aria-controls="active-catalog-readme" [attr.aria-label]="activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme'" [pTooltip]="activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme'" tooltipPosition="top"><svg lucideFileText class="h-4 w-4" aria-hidden="true"></svg></button>
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" [ngClass]="activeCatalogDetailsOpen() ? 'nexus-icon-button-active' : ''" (click)="activeCatalogDetailsOpen.update((value) => !value)" [attr.aria-expanded]="activeCatalogDetailsOpen()" aria-controls="active-catalog-readme" [attr.aria-label]="activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme'" [pTooltip]="activeCatalogDetailsOpen() ? 'Hide readme' : 'Show readme'" tooltipPosition="top" [showDelay]="1000"><svg lucideFileText class="h-4 w-4" aria-hidden="true"></svg></button>
                     }
                     @if (selectedCatalogWritable()) {
-                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="gap-1 !px-2" (click)="isCatalogFilesOpen.set(true)" aria-label="Manage attachments" pTooltip="Manage attachments" tooltipPosition="top"><svg lucidePaperclip class="h-4 w-4" aria-hidden="true"></svg>@if (selectedCatalogAttachments().length > 0) { <span class="min-w-4 text-xs tabular-nums">{{ selectedCatalogAttachments().length }}</span> }</button>
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="gap-1 !px-2" (click)="isCatalogFilesOpen.set(true)" aria-label="Manage attachments" pTooltip="Manage attachments" tooltipPosition="top" [showDelay]="1000"><svg lucidePaperclip class="h-4 w-4" aria-hidden="true"></svg>@if (selectedCatalogAttachments().length > 0) { <span class="min-w-4 text-xs tabular-nums">{{ selectedCatalogAttachments().length }}</span> }</button>
                     }
                     @if (acceptedLicenseVisible()) {
-                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" (click)="openLicenseDialog()" aria-label="View license" pTooltip="View license" tooltipPosition="top"><svg lucidePilcrow class="h-4 w-4" aria-hidden="true"></svg></button>
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" (click)="openLicenseDialog()" aria-label="View license" pTooltip="View license" tooltipPosition="top" [showDelay]="1000"><svg lucidePilcrow class="h-4 w-4" aria-hidden="true"></svg></button>
+                    }
+                    @if (selectedCatalog()?.properties) {
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" (click)="isCatalogPropertiesOpen.set(true)" aria-label="View properties" pTooltip="View properties" tooltipPosition="top" [showDelay]="1000"><svg lucideCodeXml class="h-4 w-4" aria-hidden="true"></svg></button>
                     }
                   </div>
                 </div>
@@ -49,7 +52,7 @@
                 @if (selectedCatalogRange()) {
                   <div class="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                     @if (selectedCatalogRange()) {
-                      <button type="button" class="rounded-full border border-surface-border bg-overlay/[0.045] px-2.5 py-1 text-left transition-colors hover:border-cyan-core/40 hover:bg-cyan-core/10 hover:text-cyan-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-core" (click)="applySelectedCatalogRange()" pTooltip="Use this catalog date range" tooltipPosition="top" aria-label="Use this catalog date range">{{ selectedCatalogRange() }}</button>
+                      <button type="button" class="rounded-full border border-surface-border bg-overlay/[0.045] px-2.5 py-1 text-left transition-colors hover:border-cyan-core/40 hover:bg-cyan-core/10 hover:text-cyan-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-core" (click)="applySelectedCatalogRange()" pTooltip="Use this catalog date range" tooltipPosition="top" [showDelay]="1000" aria-label="Use this catalog date range">{{ selectedCatalogRange() }}</button>
                     }
                   </div>
                 }
@@ -84,7 +87,8 @@
               [visualizationDisabledReason]="visualizationValidation()" [exportDisabledReason]="selectionError()"
               [saveMetadata]="saveResourceMetadata" (toggle)="toggleResource($event)"
               (activate)="activateResource($event)" (visualize)="visualize()" (exportRequested)="isExportOpen.set(true)"
-              [catalogProperties]="selectedCatalog()?.properties ?? null" [selectedBegin]="exportBegin()" [selectedEnd]="exportEnd()" />
+              [catalogProperties]="selectedCatalog()?.properties ?? null" [selectedBegin]="exportBegin()" [selectedEnd]="exportEnd()"
+              [themeMode]="resolvedThemeMode()" />
           </section>
 
           <section class="content-panel min-h-0 h-full overflow-hidden rounded-sm flex-col 2xl:col-start-2 2xl:row-start-1 2xl:row-span-2" [class.hidden]="!visualizationPanelVisible()" [class.flex]="visualizationPanelVisible()">
@@ -232,6 +236,13 @@
     </div>
   </div>
 </p-dialog>
+
+<app-properties-dialog
+  [visible]="isCatalogPropertiesOpen()"
+  (visibleChange)="isCatalogPropertiesOpen.set($event)"
+  [header]="'Catalog properties: ' + selectedCatalogDisplayPath()"
+  [data]="selectedCatalog()?.properties ?? null"
+  [themeMode]="resolvedThemeMode()" />
 
 <p-dialog appRestoreFocus header="Catalog files" [visible]="isCatalogFilesOpen()" (visibleChange)="isCatalogFilesOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close catalog files', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(40rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">
   <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
