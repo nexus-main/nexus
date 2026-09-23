@@ -258,6 +258,9 @@ internal sealed class GitService(
 
     private async Task EnsureRepositoryCoreAsync(CancellationToken cancellationToken)
     {
+        if (_repositoryReady)
+            return;
+
         Directory.CreateDirectory(_pathsOptions.Config);
 
         var isNewRepository = !Directory.Exists(Path.Combine(_pathsOptions.Config, ".git"));
@@ -271,7 +274,7 @@ internal sealed class GitService(
         await RunGitRequiredAsync($"checkout -B {QuoteArg(options.Branch)}", cancellationToken).ConfigureAwait(false);
 
         if (isNewRepository)
-            await CommitCurrentStateIfChangedAsync("Initialize Nexus configuration history", cancellationToken).ConfigureAwait(false);
+            await CommitCurrentStateIfChangedAsync("Initial commit", cancellationToken).ConfigureAwait(false);
 
         _repositoryReady = true;
     }

@@ -71,7 +71,7 @@ internal record GitOptions() : NexusOptionsBase
 
     public string Branch { get; set; } = "main";
 
-    public int CommitThrottleSeconds { get; set; } = 30;
+    public int CommitThrottleSeconds { get; set; } = 300;
 
     public string? RemoteUrl { get; set; }
 
