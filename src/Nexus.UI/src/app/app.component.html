@@ -44,6 +44,9 @@
                     @if (selectedCatalog()?.properties) {
                       <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" (click)="isCatalogPropertiesOpen.set(true)" aria-label="View properties" pTooltip="View properties" tooltipPosition="top" [showDelay]="1000"><svg lucideCodeXml class="h-4 w-4" aria-hidden="true"></svg></button>
                     }
+                    @if (selectedCatalogInfo()?.pipelineInfo?.types?.length) {
+                      <button pButton type="button" size="small" severity="secondary" [text]="true" class="!px-2" (click)="isCatalogAboutOpen.set(true)" aria-label="About catalog" pTooltip="About" tooltipPosition="top" [showDelay]="1000"><svg lucideInfo class="h-4 w-4" aria-hidden="true"></svg></button>
+                    }
                   </div>
                 </div>
                 @if (selectedCatalogTitle()) {
@@ -243,6 +246,11 @@
   [header]="'Catalog properties: ' + selectedCatalogDisplayPath()"
   [data]="selectedCatalog()?.properties ?? null"
   [themeMode]="resolvedThemeMode()" />
+
+<app-catalog-about-dialog
+  [visible]="isCatalogAboutOpen()"
+  (visibleChange)="isCatalogAboutOpen.set($event)"
+  [pipelineInfo]="selectedCatalogInfo()?.pipelineInfo" />
 
 <p-dialog appRestoreFocus header="Catalog files" [visible]="isCatalogFilesOpen()" (visibleChange)="isCatalogFilesOpen.set($event)" [modal]="true" [blockScroll]="true" [dismissableMask]="true" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" [closeButtonProps]="{ ariaLabel: 'Close catalog files', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(40rem, calc(100vw - 2rem))', maxHeight: '88dvh' }">
   <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
