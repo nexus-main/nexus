@@ -1,14 +1,14 @@
 import { Component, computed, input, output } from '@angular/core'
 import { TreeNode } from 'primeng/api'
 import { Tree, TreeModule } from 'primeng/tree'
-import { TooltipModule } from 'primeng/tooltip'
+import { AppTooltipDirective } from '../app-tooltip.directive'
 import { CatalogNode } from '../nexus.service'
 import { abbreviateMiddle, lastSegment } from '../utils'
 
 @Component({
   selector: 'app-catalog-tree',
   standalone: true,
-  imports: [TreeModule, TooltipModule],
+  imports: [TreeModule, AppTooltipDirective],
   host: { class: 'block min-w-0' },
   template: `
     <p-tree
@@ -29,7 +29,7 @@ import { abbreviateMiddle, lastSegment } from '../utils'
     >
       <ng-template pTemplate="default" let-treeNode>
         @let node = treeNode.data;
-        <div class="flex min-w-0 items-center gap-2" [pTooltip]="node.title" [tooltipDisabled]="!node.title" [showDelay]="1000">
+        <div class="flex min-w-0 items-center gap-2" [pTooltip]="node.title" [tooltipDisabled]="!node.title">
           <span class="shrink-0 truncate font-mono text-[13px] font-semibold leading-5 text-[var(--p-text-color)]">
             <span class="sm:hidden">{{ abbreviateMiddle(treeNode.label, 28) }}</span>
             <span class="hidden sm:inline">{{ treeNode.label }}</span>

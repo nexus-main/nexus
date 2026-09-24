@@ -2,7 +2,6 @@ import { Component, computed, input, output } from '@angular/core'
 import { MenuItem } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { MenuModule } from 'primeng/menu'
-import { TooltipModule } from 'primeng/tooltip'
 import { AppIconComponent } from './app-icon.component'
 
 type ThemeMode = 'dark' | 'light' | 'system'
@@ -10,7 +9,7 @@ type ThemeMode = 'dark' | 'light' | 'system'
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [ButtonModule, MenuModule, TooltipModule, AppIconComponent],
+  imports: [ButtonModule, MenuModule, AppIconComponent],
   template: `
     <header class="content-panel overflow-hidden rounded-md">
       <div class="relative flex items-center justify-between gap-2 p-2.5 sm:gap-3 sm:p-3 lg:p-4">

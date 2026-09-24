@@ -7,14 +7,14 @@ import { InputTextModule } from 'primeng/inputtext'
 import { MessageModule } from 'primeng/message'
 import { ProgressBarModule } from 'primeng/progressbar'
 import { SelectModule } from 'primeng/select'
-import { TooltipModule } from 'primeng/tooltip'
+import { AppTooltipDirective } from '../app-tooltip.directive'
 import { V2, WriterDescription, WriterOption } from '../nexus.service'
 import { RestoreFocusDirective } from '../restore-focus.directive'
 
 @Component({
   selector: 'app-export-composer',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, ProgressBarModule, SelectModule, TooltipModule, RestoreFocusDirective],
+  imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, MessageModule, ProgressBarModule, SelectModule, AppTooltipDirective, RestoreFocusDirective],
   template: `
     <p-dialog appRestoreFocus [visible]="true" (visibleChange)="!$event && close.emit()" [modal]="true" [dismissableMask]="false" [closeOnEscape]="true" [blockScroll]="true" appendTo="body" [draggable]="false" [resizable]="false" [closeButtonProps]="{ ariaLabel: 'Close export composer', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'min(48rem, calc(100vw - 2rem))' }">
         <ng-template #header let-ariaLabelledBy="ariaLabelledBy">

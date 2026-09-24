@@ -10,7 +10,7 @@ import { SelectModule } from 'primeng/select'
 import { TabsModule } from 'primeng/tabs'
 import { ToastModule } from 'primeng/toast'
 import { ToggleSwitchModule } from 'primeng/toggleswitch'
-import { TooltipModule } from 'primeng/tooltip'
+import { AppTooltipDirective } from '../app-tooltip.directive'
 import { ConfirmationService, ConfirmEventType, MessageService } from 'primeng/api'
 import type { DialogPassThrough } from 'primeng/types/dialog'
 import { LucideCircleHelp, LucidePlus } from '@lucide/angular'
@@ -32,7 +32,7 @@ const mobilePipelineLayoutQuery = '(max-width: 760px)'
 @Component({
   selector: 'app-data-source-pipelines',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, ConfirmDialogModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, ToastModule, ToggleSwitchModule, TooltipModule, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
+  imports: [CommonModule, FormsModule, ButtonModule, ConfirmDialogModule, DialogModule, InputTextModule, MessageModule, SelectModule, TabsModule, ToastModule, ToggleSwitchModule, AppTooltipDirective, RestoreFocusDirective, JsonSchemaEditorComponent, LucideCircleHelp, LucidePlus],
   providers: [ConfirmationService, MessageService],
   templateUrl: './data-source-pipelines.component.html',
   styleUrl: './data-source-pipelines.component.css',

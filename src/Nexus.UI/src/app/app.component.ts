@@ -1,7 +1,7 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
 import { Component, HostListener, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucideInfo, LucidePaperclip, LucidePilcrow, LucideX } from '@lucide/angular'
+import { LucideChartColumn, LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucideInfo, LucidePaperclip, LucidePilcrow, LucideX } from '@lucide/angular'
 import { MenuItem, MessageService } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
@@ -12,13 +12,14 @@ import { MenuModule } from 'primeng/menu'
 import { ProgressBarModule } from 'primeng/progressbar'
 import { TabsModule } from 'primeng/tabs'
 import { ToastModule } from 'primeng/toast'
-import { TooltipModule } from 'primeng/tooltip'
+import { AppTooltipDirective } from './app-tooltip.directive'
 import { DrawerPassThrough } from 'primeng/types/drawer'
 import { BrowserStorageService } from './browser-storage.service'
 import { VisualizationChartComponent } from './charts/visualization-chart.component'
 import { VisualizationBuffers, VisualizationData, createVisualizationData, releaseVisualizationData } from './charts/visualization-data'
 import { dateTicks } from './resource-selection'
 import { CatalogAboutDialogComponent } from './components/catalog-about-dialog.component'
+import { AvailabilityDialogComponent } from './components/availability-dialog.component'
 import { AppHeaderComponent } from './components/app-header.component'
 import { CatalogTreeComponent } from './components/catalog-tree.component'
 import { ExportComposerComponent } from './components/export-composer.component'
@@ -125,7 +126,7 @@ type StoredExportSettings = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, ToastModule, TooltipModule, LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucideInfo, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogAboutDialogComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, GitComponent, PropertiesDialogComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, ToastModule, AppTooltipDirective, LucideChartColumn, LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucideInfo, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogAboutDialogComponent, AvailabilityDialogComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, GitComponent, PropertiesDialogComponent, VisualizationChartComponent, ResourceMatrixComponent],
   providers: [MessageService],
   templateUrl: './app.component.html',
 })
@@ -178,6 +179,7 @@ export class AppComponent implements OnDestroy {
   readonly isCatalogFilesOpen = signal(false)
   readonly isCatalogPropertiesOpen = signal(false)
   readonly isCatalogAboutOpen = signal(false)
+  readonly isAvailabilityOpen = signal(false)
   readonly isMobileCatalogOpen = signal(false)
   readonly visualizationOpen = signal(false)
   readonly compactLayout = signal(window.innerWidth < 640)
@@ -352,6 +354,7 @@ export class AppComponent implements OnDestroy {
   readonly selectedCatalogReadme = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'readme') ?? this.selectedCatalogInfo()?.readme ?? this.selectedNode()?.readme ?? '')
   readonly selectedCatalogDisplayPath = computed(() => formatCatalogDisplayPath(this.selectedCatalogId()))
   readonly selectedCatalogRange = computed(() => formatRange(this.selectedBundle()?.timeRange))
+  readonly selectedCatalogPipelineInfo = computed(() => this.selectedCatalogInfo()?.pipelineInfo ?? this.selectedNode()?.pipelineInfo ?? null)
   readonly selectedCatalogHasLicense = computed(() => !!(this.selectedCatalogInfo()?.license || this.selectedNode()?.license || this.selectedBundle()?.attachments.includes('LICENSE.md')))
   readonly selectedCatalogReadable = computed(() => this.selectedCatalogInfo()?.isReadable ?? this.selectedNode()?.isReadable)
   readonly selectedCatalogAttachments = computed(() => [...(this.selectedBundle()?.attachments ?? [])].sort((a, b) => a.localeCompare(b)))

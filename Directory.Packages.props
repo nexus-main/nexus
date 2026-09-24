@@ -5,7 +5,7 @@
   <ItemGroup>
     <PackageVersion Include="Apache.Arrow" Version="23.0.0" />
     <PackageVersion Include="Apollo3zehn.OpenApiClientGenerator" Version="1.0.0-beta.30.92" />
-    <PackageVersion Include="Apollo3zehn.PackageManagement" Version="1.0.0-beta.10" />
+    <PackageVersion Include="Apollo3zehn.PackageManagement" Version="1.0.0-beta.11" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="BlazorJsonForm" Version="1.0.0-beta.4" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.2" />

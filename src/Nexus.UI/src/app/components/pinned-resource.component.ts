@@ -2,13 +2,13 @@ import { CommonModule } from '@angular/common'
 import { Component, computed, input, output, signal } from '@angular/core'
 import { ButtonModule } from 'primeng/button'
 import { Popover, PopoverModule } from 'primeng/popover'
-import { TooltipModule } from 'primeng/tooltip'
+import { AppTooltipDirective } from '../app-tooltip.directive'
 import { ResourceSelection, RepresentationKind, representationKinds, kindValid, formatPeriod, requestPath } from '../resource-selection'
 
 @Component({
   selector: 'app-pinned-resource',
   standalone: true,
-  imports: [CommonModule, ButtonModule, PopoverModule, TooltipModule],
+  imports: [CommonModule, ButtonModule, PopoverModule, AppTooltipDirective],
   host: { class: 'block min-w-0' },
   template: `
     <div class="selected-resource-card mb-1 min-w-0 cursor-pointer rounded-sm border p-1 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-key/70" role="button" tabindex="0"

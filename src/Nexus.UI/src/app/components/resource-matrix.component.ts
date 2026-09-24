@@ -9,7 +9,7 @@ import { ContextMenu, ContextMenuModule } from 'primeng/contextmenu'
 import { DialogModule } from 'primeng/dialog'
 import { InputTextModule } from 'primeng/inputtext'
 import { TextareaModule } from 'primeng/textarea'
-import { TooltipModule } from 'primeng/tooltip'
+import { AppTooltipDirective } from '../app-tooltip.directive'
 import { MenuItem } from 'primeng/api'
 import { groupResourceRows } from '../resource-matrix'
 import type { MetadataDrafts, MetadataField } from '../resource-matrix'
@@ -21,7 +21,7 @@ import { type ThemeMode } from '../services/nexus-monaco-themes'
 @Component({
   selector: 'app-resource-matrix',
   standalone: true,
-  imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, ContextMenuModule, DialogModule, InputTextModule, TextareaModule, TooltipModule, PropertiesDialogComponent,
+  imports: [ScrollingModule, FormsModule, ButtonModule, CheckboxModule, ContextMenuModule, DialogModule, InputTextModule, TextareaModule, AppTooltipDirective, PropertiesDialogComponent,
     LucideChartNoAxesCombined, LucideChevronDown, LucideChevronUp, LucideCodeXml, LucideDownload, LucidePencil, LucideSlidersHorizontal, LucideTriangleAlert, LucideX],
   templateUrl: './resource-matrix.component.html',
   styleUrl: './resource-matrix.component.css',

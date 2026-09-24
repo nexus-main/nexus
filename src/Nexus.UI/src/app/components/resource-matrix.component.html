@@ -7,16 +7,16 @@
         <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="saving()" (click)="cancelEditing()">Cancel</button>
         <button pButton type="button" size="small" [disabled]="saving() || !writable() || !dirtyCount()" (click)="saveChanges()">{{ saving() ? 'Saving...' : 'Save changes' }}</button>
       } @else if (writable()) {
-        <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="loading() || saving()" (click)="startEditing()" aria-label="Edit metadata" pTooltip="Edit metadata" tooltipPosition="top" [showDelay]="1000"><svg lucidePencil aria-hidden="true"></svg></button>
+        <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="loading() || saving()" (click)="startEditing()" aria-label="Edit metadata" pTooltip="Edit metadata" tooltipPosition="top"><svg lucidePencil aria-hidden="true"></svg></button>
       }
-      <span class="toolbar-icon-action" [pTooltip]="exportDisabledReason()" [tooltipDisabled]="!exportDisabledReason()" tooltipPosition="top" [showDelay]="1000">
-        <button pButton type="button" severity="secondary" class="export-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!exportDisabledReason()" (click)="exportRequested.emit()" aria-label="Export" pTooltip="Export" tooltipPosition="top" [showDelay]="1000"><svg lucideDownload aria-hidden="true"></svg></button>
+      <span class="toolbar-icon-action" [pTooltip]="exportDisabledReason()" [tooltipDisabled]="!exportDisabledReason()" tooltipPosition="top">
+        <button pButton type="button" severity="secondary" class="export-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!exportDisabledReason()" (click)="exportRequested.emit()" aria-label="Export" pTooltip="Export" tooltipPosition="top"><svg lucideDownload aria-hidden="true"></svg></button>
       </span>
-      <span class="visualize-action" [pTooltip]="visualizationDisabledReason()" [tooltipDisabled]="!visualizationDisabledReason()" tooltipPosition="top" [showDelay]="1000">
+      <span class="visualize-action" [pTooltip]="visualizationDisabledReason()" [tooltipDisabled]="!visualizationDisabledReason()" tooltipPosition="top">
         @if (!visualizationPanelVisible()) {
-          <button pButton type="button" severity="secondary" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!visualizationDisabledReason()" (click)="visualize.emit()" aria-label="Visualize" pTooltip="Visualize" tooltipPosition="top" [showDelay]="1000"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
+          <button pButton type="button" severity="secondary" class="visualize-button" [text]="true" [disabled]="saving() || selectionLoading() || !selectedKeys().size || !!visualizationDisabledReason()" (click)="visualize.emit()" aria-label="Visualize" pTooltip="Visualize" tooltipPosition="top"><svg lucideChartNoAxesCombined aria-hidden="true"></svg></button>
         }
-        @if (visualizationSize()) { <span class="visualize-size" pTooltip="Estimated visualization size (Float32)" tooltipPosition="top" [showDelay]="1000" aria-label="Estimated visualization size">{{ visualizationSize() }}</span> }
+        @if (visualizationSize()) { <span class="visualize-size" pTooltip="Estimated visualization size (Float32)" tooltipPosition="top" aria-label="Estimated visualization size">{{ visualizationSize() }}</span> }
       </span>
     </div>
   </header>
@@ -79,10 +79,10 @@
         } @else {
           <button type="button" class="resource-identity" [disabled]="saving()" [attr.aria-haspopup]="narrow() ? 'dialog' : null" [attr.aria-label]="(narrow() ? (editing() && writable() ? 'Edit metadata for ' : 'Read details for ') : 'Activate ') + row.id + ', ' + formatPeriod(row.basePeriod)" (click)="activateRow(row, $event)">
             <span class="resource-line">
-              <span class="resource-name"><strong [pTooltip]="row.path" tooltipPosition="top" showDelay="1000">{{ row.id }}</strong>@if (value(row, 'unit')) { <span class="unit" [pTooltip]="value(row, 'unit')" [tooltipDisabled]="!value(row, 'unit')" tooltipPosition="top" showDelay="1000">{{ value(row, 'unit') }}</span> }</span>
+              <span class="resource-name"><strong [pTooltip]="row.path" tooltipPosition="top">{{ row.id }}</strong>@if (value(row, 'unit')) { <span class="unit" [pTooltip]="value(row, 'unit')" [tooltipDisabled]="!value(row, 'unit')" tooltipPosition="top">{{ value(row, 'unit') }}</span> }</span>
               @if (value(row, 'warning')) { <span class="warning" [pTooltip]="'Warning: ' + value(row, 'warning')" tooltipPosition="top"><svg lucideTriangleAlert aria-hidden="true"></svg><span>{{ value(row, 'warning') }}</span></span> }
             </span>
-            <span class="resource-line secondary-line"><span class="period">{{ formatPeriod(row.basePeriod) }}</span><span class="description" [pTooltip]="value(row, 'description')" [tooltipDisabled]="!value(row, 'description')" tooltipPosition="top" showDelay="1000">{{ value(row, 'description') }}</span></span>
+            <span class="resource-line secondary-line"><span class="period">{{ formatPeriod(row.basePeriod) }}</span><span class="description" [pTooltip]="value(row, 'description')" [tooltipDisabled]="!value(row, 'description')" tooltipPosition="top">{{ value(row, 'description') }}</span></span>
           </button>
         }
       </div>
