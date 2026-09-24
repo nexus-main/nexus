@@ -100,9 +100,8 @@ Catalog licenses are accepted with:
 The endpoint is available only through trusted header authentication. PATs cannot
 accept licenses interactively.
 
-Nexus resolves the current license on the server from `LICENSE.md` or the
-catalog license property. The client does not send license text or a license
-hash.
+Nexus resolves the current license on the server from the catalog's `LICENSE.md`
+attachment. The client does not send license text or a license hash.
 
 Accepted licenses are stored per user under the configured users path. The
 stored acceptance is keyed by the user subject, catalog ID, and current license

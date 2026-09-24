@@ -69,7 +69,7 @@ export class NexusService {
   async getCatalogChildren(catalogId = '/') {
     const children = await this.v1.catalogs.getChildCatalogInfos(catalogId)
     this.apiAvailable.set(true)
-    return [...children].sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''))
+    return [...children].filter(info => info.isVisible).sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''))
   }
 
   async getCatalogBundle(catalogId: string): Promise<CatalogBundle> {
@@ -212,8 +212,8 @@ export function prepareChildCatalogs(parentId: string, childInfos: V1.CatalogInf
 
   const result: PreparedCatalogNode[] = []
   for (const [segment, group] of groups) {
-    if (group.length > 1) {
-      const fakeId = `${normalizedParentId}/${segment}`
+    const fakeId = `${normalizedParentId}/${segment}`
+    if (group.length > 1 || group[0].id !== fakeId) {
       result.push({
         nodeKey: `fake:${normalizedParentId || '/'}:${fakeId}`,
         id: fakeId,

@@ -3,7 +3,6 @@
 
 using Microsoft.Extensions.Options;
 using Nexus.Core;
-using Nexus.DataModel;
 using Nexus.Utilities;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -65,12 +64,6 @@ internal class AcceptedLicenseService(
         {
             using var reader = new StreamReader(licenseStream);
             license = await reader.ReadToEndAsync(cancellationToken);
-        }
-
-        if (license is null)
-        {
-            var catalogInfo = await catalogContainer.GetLazyCatalogInfoAsync(cancellationToken);
-            license = catalogInfo.Catalog.Properties?.GetStringValue(DataModelExtensions.LicenseKey);
         }
 
         return license;

@@ -359,9 +359,6 @@ internal class Sample : IDataSource<object?>
             }
         });
 
-        if (catalogId == LicensedCatalogId)
-            AddLicensedCatalogProperties(catalogBuilder);
-
         if (catalogId == RemoteCatalogId)
             catalogBuilder.WithReadme(
 """
@@ -380,22 +377,6 @@ As soon as these credentials have been added, you should be granted full access 
 """);
 
         return catalogBuilder.Build();
-    }
-
-    private static void AddLicensedCatalogProperties(
-        ResourceCatalogBuilder catalogBuilder)
-    {
-        catalogBuilder.WithReadme(
-"""
-This catalog demonstrates how to access data sources that require accepting a license.
-""");
-
-        catalogBuilder.WithLicense(
-"""
-Temporary Sample Catalog License
-
-This temporary license is used to test catalog license acceptance behavior.
-""");
     }
 
     private static double ToUnixTimeStamp(

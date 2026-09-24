@@ -11,7 +11,6 @@ from ._data_model_extensions import to_unit_string
 from ._data_model_utilities import _get_representation_parameter_string
 
 _README = "readme"
-_LICENSE = "license"
 _DESCRIPTION = "description"
 _WARNING = "warning"
 _UNIT = "unit"
@@ -264,15 +263,6 @@ class ResourceCatalogBuilder:
                 description: The markdown readme to add.
         """
         return self.with_property(_README, readme)
-
-    def with_license(self, license: str) -> ResourceCatalogBuilder:
-        """
-        Adds a license.
-        
-            Args:
-                license: The markdown license to add.
-        """
-        return self.with_property(_LICENSE, license)
 
     def add_resource(self, resource: Resource) -> ResourceCatalogBuilder:
         """

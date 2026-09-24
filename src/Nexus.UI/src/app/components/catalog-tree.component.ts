@@ -34,6 +34,14 @@ import { abbreviateMiddle, lastSegment } from '../utils'
             <span class="sm:hidden">{{ abbreviateMiddle(treeNode.label, 28) }}</span>
             <span class="hidden sm:inline">{{ treeNode.label }}</span>
           </span>
+          @if (!node.isFake && node.isReadable === false) {
+            <span class="shrink-0 text-[var(--p-text-muted-color)]" aria-label="Catalog is not readable" pTooltip="Catalog is not readable" tooltipPosition="top">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 0 0-9 0v3" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 10.5h13.5v9H5.25z" />
+              </svg>
+            </span>
+          }
           @if (!node.isFake && node.title) {
             <span class="shrink-0 text-[10px] text-[var(--p-text-muted-color)]" aria-hidden="true">·</span>
             <span class="min-w-0 truncate text-xs text-[var(--p-text-muted-color)] opacity-90">{{ node.title }}</span>
