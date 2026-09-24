@@ -52,7 +52,6 @@ import {
 } from './nexus.service'
 import { abbreviateMiddle, compactPath, formatNumber, getStringProperty, lastSegment } from './utils'
 
-const defaultCatalogId = '/SAMPLE/LOCAL'
 const catalogExpansionStorageKey = 'nexus.catalog.expandedNodeKeys'
 const selectedResourcesStorageKey = 'nexus.selectedResources'
 const themeModeStorageKey = 'nexus.themeMode'
@@ -163,7 +162,7 @@ export class AppComponent implements OnDestroy {
   readonly searchCollapsedCatalogNodeKeys = signal<ReadonlySet<string>>(new Set())
   readonly catalogSearch = signal('')
   readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceSelection>>(new Map())
-  readonly activeResourcePath = signal('/SAMPLE/LOCAL/T1')
+  readonly activeResourcePath = signal('')
   readonly isExportOpen = signal(false)
   readonly isJobsOpen = signal(false)
   readonly isPackageReferencesOpen = signal(false)
@@ -524,7 +523,10 @@ export class AppComponent implements OnDestroy {
     this.systemThemeQuery.addEventListener('change', this.systemThemeListener)
 
     this.catalogHistoryPosition = writeSelectedCatalogToUrl(this.selectedCatalogId(), true)
-    void this.loadOverview().then(() => this.restoreSelectedResources())
+    void this.loadOverview().then(() => {
+      this.validateInitialCatalogSelection()
+      return this.restoreSelectedResources()
+    })
 
     effect(() => {
       const catalogId = this.selectedCatalogId()
@@ -1056,6 +1058,21 @@ export class AppComponent implements OnDestroy {
       this.nexus.apiAvailable.set(false)
     } finally {
       if (generation === this.catalogCacheGeneration) this.overviewLoading.set(false)
+    }
+  }
+
+  private validateInitialCatalogSelection() {
+    const catalogId = this.selectedCatalogId()
+    if (!catalogId || catalogId === '/' || this.overviewError()) return
+    const roots = this.rootCatalogInfos()
+    const segments = getCatalogSegments(catalogId)
+    if (!segments.length) return
+    const rootId = `/${segments[0]}`
+    if (!roots.some(info => info.id === rootId)) {
+      this.selectedCatalogId.set('')
+      this.selectedCatalogNodeKey.set('')
+      this.selectedCatalogInfo.set(null)
+      this.catalogHistoryPosition = writeSelectedCatalogToUrl('', true)
     }
   }
 
@@ -1991,7 +2008,7 @@ function subtractUtcRange(date: Date, unit: TimeRangePreset['unit'], amount: num
 
 function getSelectedCatalogIdFromUrl() {
   const catalogId = new URLSearchParams(window.location.search).get('catalog')?.trim()
-  return catalogId || defaultCatalogId
+  return catalogId ?? ''
 }
 
 function compareResources(left: ResourceRow, right: ResourceRow) {
@@ -2158,9 +2175,10 @@ function getCatalogSegments(catalogId: string) {
 function writeSelectedCatalogToUrl(catalogId: string, replace = false) {
   const url = new URL(window.location.href)
   const position = window.history.state?.nexusCatalogPosition ?? 0
-  if (url.searchParams.get('catalog') === catalogId && window.history.state?.nexusCatalogPosition !== undefined) return position
+  if (url.searchParams.get('catalog') === (catalogId || null) && window.history.state?.nexusCatalogPosition !== undefined) return position
   const nextPosition = replace ? position : position + 1
-  url.searchParams.set('catalog', catalogId)
+  if (catalogId) url.searchParams.set('catalog', catalogId)
+  else url.searchParams.delete('catalog')
   window.history[replace ? 'replaceState' : 'pushState']({ ...window.history.state, nexusCatalogPosition: nextPosition }, '', `${url.pathname}${url.search}${url.hash}`)
   return nextPosition
 }

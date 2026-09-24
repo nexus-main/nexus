@@ -13,9 +13,10 @@ h2, h3 { font-size: .95rem; font-weight: 600; }
 .tab-bar { display: flex; align-items: center; gap: .5rem; padding-bottom: .5rem; flex: 0 0 auto; }
 .tab-bar p-tablist { flex: 1; min-width: 0; }
 .tab-panels { display: flex; flex-direction: column; padding: .75rem 0; flex: 1 1 0; min-height: 0; overflow: hidden; }
+.pipeline-tabs-column ::ng-deep p-tabpanel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; flex: 1 1 0; }
 
 .pipeline-list, .pipeline-editor { min-width: 0; display: grid; gap: .8rem; }
-.pipeline-list { padding-right: .25rem; }
+.pipeline-list { padding-right: .25rem; overflow-y: auto; min-height: 0; }
 .registration-editor { min-width: 0; padding-left: 1rem; border-left: 1px solid var(--p-content-border-color); min-height: 0; height: 100%; display: flex; flex-direction: column; gap: .8rem; }
 .editor-host { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
 .registration-empty { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
