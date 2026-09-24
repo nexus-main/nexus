@@ -119,7 +119,7 @@ void AddServices(
     });
 
     // Authentication
-    services.AddNexusAuth(pathsOptions, securityOptions);
+    services.AddNexusAuth();
 
     // Open API
     services.AddNexusOpenApi();

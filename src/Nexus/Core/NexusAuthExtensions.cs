@@ -3,22 +3,16 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.DataProtection;
 using Nexus.Core;
-using Nexus.Utilities;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 internal static class NexusAuthExtensions
 {
     public static IServiceCollection AddNexusAuth(
-        this IServiceCollection services,
-        PathsOptions pathsOptions,
-        SecurityOptions securityOptions
+        this IServiceCollection services
     )
     {
-        services.AddDataProtection().UseEphemeralDataProtectionProvider();
-
         var builder = services
 
             .AddAuthentication(options =>

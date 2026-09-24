@@ -3,6 +3,7 @@ import { Component, DestroyRef, computed, effect, inject, input, output, signal 
 import { FormsModule } from '@angular/forms'
 import { DiffEditorComponent, type DiffEditorModel } from 'ngx-monaco-editor-v2'
 import type * as Monaco from 'monaco-editor'
+import { MessageService } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { DialogModule } from 'primeng/dialog'
 import { MessageModule } from 'primeng/message'
@@ -320,6 +321,7 @@ type GitDiffFile = {
 export class GitComponent {
   private readonly nexus = inject(NexusService)
   private readonly destroyRef = inject(DestroyRef)
+  private readonly messageService = inject(MessageService)
   private monaco: typeof Monaco | null = null
   readonly close = output<void>()
   readonly themeMode = input.required<ThemeMode>()
@@ -415,8 +417,8 @@ export class GitComponent {
     this.statusMessage.set('')
     this.confirmForce.set(false)
     try {
-      const job = await this.request<{ id: string }>('jobs/git/sync', { method: 'POST', body: JSON.stringify({ force }) })
-      this.statusMessage.set(`Started Git sync job ${job.id}.`)
+      await this.request<{ id: string }>('jobs/git/sync', { method: 'POST', body: JSON.stringify({ force }) })
+      this.messageService.add({ key: 'app-status', severity: 'success', summary: force ? 'Git force push started' : 'Git sync started', life: 1800 })
       await this.refresh()
     } catch (error) {
       this.showError('start Git sync', error)
@@ -458,7 +460,7 @@ export class GitComponent {
   }
 
   pushStatusLabel(value: GitPushStatus) {
-    if (value === 0 || value === 'NotConfigured') return 'not configured'
+    if (value === 0 || value === 'NotConfigured') return 'not pushed yet'
     if (value === 1 || value === 'Succeeded') return 'succeeded'
     if (value === 2 || value === 'Failed') return 'failed'
     return String(value)
