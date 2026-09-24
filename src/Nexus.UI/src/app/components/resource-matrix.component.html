@@ -88,7 +88,7 @@
       </div>
     </cdk-virtual-scroll-viewport>
     @if (!visibleRows().length) {
-      <div class="empty-state"><strong>{{ loading() ? 'Loading catalog' : search() ? 'No matching resources' : 'No representations available' }}</strong><p>{{ search() ? 'Try a different search, or clear it to see all groups.' : 'Resources with a valid sample period appear here.' }}</p></div>
+      <div class="empty-state"><strong>{{ loading() ? 'Loading catalog' : search() ? 'No matching resources' : 'No representations available' }}</strong>@if (search()) { <p>Try a different search, or clear it to see all groups.</p> }</div>
     }
   </div>
 </section>

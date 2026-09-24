@@ -1853,6 +1853,7 @@ class GitStatusResponse:
 
     Args:
         git_available: A value indicating whether the Git executable is available.
+        ssh_available: A value indicating whether the SSH executable is available.
         has_uncommitted_changes: A value indicating whether the local repository has uncommitted changes.
         current_commit_sha: The current commit SHA.
         last_pushed_commit_sha: The last commit SHA successfully pushed by this process.
@@ -1863,6 +1864,9 @@ class GitStatusResponse:
 
     git_available: bool
     """A value indicating whether the Git executable is available."""
+
+    ssh_available: bool
+    """A value indicating whether the SSH executable is available."""
 
     has_uncommitted_changes: bool
     """A value indicating whether the local repository has uncommitted changes."""

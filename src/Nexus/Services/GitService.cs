@@ -65,6 +65,7 @@ internal sealed class GitService(
     public async Task<GitStatusResponse> GetStatusAsync(CancellationToken cancellationToken)
     {
         var gitAvailable = await IsGitAvailableAsync(cancellationToken).ConfigureAwait(false);
+        var sshAvailable = await IsSshAvailableAsync(cancellationToken).ConfigureAwait(false);
 
         if (gitAvailable)
             await EnsureRepositoryAsync(cancellationToken).ConfigureAwait(false);
@@ -74,6 +75,7 @@ internal sealed class GitService(
 
         return new GitStatusResponse(
             GitAvailable: gitAvailable,
+            SshAvailable: sshAvailable,
             HasUncommittedChanges: hasUncommittedChanges,
             CurrentCommitSha: string.IsNullOrWhiteSpace(currentSha) ? null : currentSha,
             LastPushedCommitSha: _lastPushedCommitSha,
@@ -390,6 +392,20 @@ internal sealed class GitService(
         {
             Directory.CreateDirectory(_pathsOptions.Config);
             var result = await RunProcessAsync("git", "--version", _pathsOptions.Config, null, cancellationToken).ConfigureAwait(false);
+            return result.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task<bool> IsSshAvailableAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            Directory.CreateDirectory(_pathsOptions.Config);
+            var result = await RunProcessAsync("ssh", "-V", _pathsOptions.Config, null, cancellationToken).ConfigureAwait(false);
             return result.ExitCode == 0;
         }
         catch

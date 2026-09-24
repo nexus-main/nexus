@@ -3172,13 +3172,14 @@ public record GitConfigResponse(string Branch, int CommitThrottleSeconds, string
 /// The current Git repository and push status required by the admin UI.
 /// </summary>
 /// <param name="GitAvailable">A value indicating whether the Git executable is available.</param>
+/// <param name="SshAvailable">A value indicating whether the SSH executable is available.</param>
 /// <param name="HasUncommittedChanges">A value indicating whether the local repository has uncommitted changes.</param>
 /// <param name="CurrentCommitSha">The current commit SHA.</param>
 /// <param name="LastPushedCommitSha">The last commit SHA successfully pushed by this process.</param>
 /// <param name="LastSuccessfulPushAt">The last successful push time.</param>
 /// <param name="LastPushStatus">The last push status.</param>
 /// <param name="LastPushError">The last push error.</param>
-public record GitStatusResponse(bool GitAvailable, bool HasUncommittedChanges, string? CurrentCommitSha, string? LastPushedCommitSha, DateTime? LastSuccessfulPushAt, GitPushStatus LastPushStatus, string? LastPushError);
+public record GitStatusResponse(bool GitAvailable, bool SshAvailable, bool HasUncommittedChanges, string? CurrentCommitSha, string? LastPushedCommitSha, DateTime? LastSuccessfulPushAt, GitPushStatus LastPushStatus, string? LastPushError);
 
 /// <summary>
 /// The result of pushing configuration history to a remote Git repository.

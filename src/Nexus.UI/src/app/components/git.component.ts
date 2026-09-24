@@ -8,6 +8,7 @@ import { DialogModule } from 'primeng/dialog'
 import { MessageModule } from 'primeng/message'
 import { SelectModule } from 'primeng/select'
 import { TabsModule } from 'primeng/tabs'
+import { AppTooltipDirective } from '../app-tooltip.directive'
 import { NexusService } from '../nexus.service'
 import { RestoreFocusDirective } from '../restore-focus.directive'
 import { defineNexusMonacoThemes, getNexusMonacoTheme, type ThemeMode } from '../services/nexus-monaco-themes'
@@ -29,6 +30,7 @@ type GitConfigResponse = {
 
 type GitStatusResponse = {
   gitAvailable: boolean
+  sshAvailable: boolean
   hasUncommittedChanges: boolean
   currentCommitSha?: string | null
   lastPushedCommitSha?: string | null
@@ -56,7 +58,7 @@ type GitDiffFile = {
 @Component({
   selector: 'app-git',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, DialogModule, MessageModule, SelectModule, TabsModule, DiffEditorComponent, RestoreFocusDirective],
+  imports: [CommonModule, FormsModule, ButtonModule, DialogModule, MessageModule, SelectModule, TabsModule, DiffEditorComponent, AppTooltipDirective, RestoreFocusDirective],
   styleUrl: './git.component.css',
   template: `
     <p-dialog appRestoreFocus header="Administrator / Git" [visible]="true" (visibleChange)="!$event && close.emit()" [modal]="true" [blockScroll]="true" [dismissableMask]="false" [closeOnEscape]="true" [draggable]="false" [resizable]="false" appendTo="body" styleClass="git-dialog" [closeButtonProps]="{ ariaLabel: 'Close Git', severity: 'secondary', text: true, rounded: true }" [style]="{ width: 'calc(100vw - 2rem)' }" [contentStyle]="{ display: 'flex', flexDirection: 'column', minHeight: '0', height: '100%', overflow: 'hidden' }">
@@ -82,12 +84,12 @@ type GitDiffFile = {
             </div>
             @if (status(); as current) {
               <dl class="space-y-2 text-xs">
-                <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Git</dt><dd>{{ current.gitAvailable ? 'available' : 'not available' }}</dd></div>
-                <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Changes</dt><dd>{{ current.hasUncommittedChanges ? 'pending' : 'clean' }}</dd></div>
-                <div><dt class="text-[var(--p-text-muted-color)]">Current commit</dt><dd class="break-all font-mono">{{ current.currentCommitSha || 'none' }}</dd></div>
-                <div><dt class="text-[var(--p-text-muted-color)]">Last pushed commit</dt><dd class="break-all font-mono">{{ current.lastPushedCommitSha || 'none' }}</dd></div>
-                <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Last push</dt><dd>{{ pushStatusLabel(current.lastPushStatus) }}</dd></div>
-                <div><dt class="text-[var(--p-text-muted-color)]">Last success</dt><dd>{{ formatDate(current.lastSuccessfulPushAt) }}</dd></div>
+                <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">{{ toolAvailabilityLabel() }}</dt><dd class="min-w-0 truncate">{{ toolsAvailable() ? 'available' : 'not available' }}</dd></div>
+                <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Changes</dt><dd class="min-w-0 truncate">{{ current.hasUncommittedChanges ? 'pending' : 'clean' }}</dd></div>
+                <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Current commit</dt><dd class="min-w-0 truncate font-mono" [pTooltip]="current.currentCommitSha || undefined" [tooltipDisabled]="!current.currentCommitSha">{{ shortSha(current.currentCommitSha) }}</dd></div>
+                <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Last pushed</dt><dd class="min-w-0 truncate font-mono" [pTooltip]="current.lastPushedCommitSha || undefined" [tooltipDisabled]="!current.lastPushedCommitSha">{{ shortSha(current.lastPushedCommitSha) }}</dd></div>
+                <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Last push</dt><dd class="min-w-0 truncate">{{ pushStatusLabel(current.lastPushStatus) }}</dd></div>
+                <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Last success</dt><dd class="min-w-0 truncate">{{ formatDate(current.lastSuccessfulPushAt) }}</dd></div>
                 @if (current.lastPushError) { <div><dt class="text-rose-accent">Last error</dt><dd class="break-words text-rose-accent">{{ current.lastPushError }}</dd></div> }
               </dl>
             } @else {
@@ -102,7 +104,7 @@ type GitDiffFile = {
                 <div><dt class="text-[var(--p-text-muted-color)]">Remote URL</dt><dd class="break-all font-mono">{{ effective.remoteUrl || 'not configured' }}</dd></div>
                 <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Remote ready</dt><dd>{{ effective.isRemoteConfigured ? 'yes' : 'no' }}</dd></div>
                 <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Auth</dt><dd>{{ effective.authMode }}</dd></div>
-                <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Username</dt><dd>{{ effective.username || 'default' }}</dd></div>
+                @if (effective.authMode === 'HttpsToken') { <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">HTTPS username</dt><dd>{{ effective.username || 'x-access-token' }}</dd></div> }
                 <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Token</dt><dd>{{ effective.hasToken ? 'configured' : 'not configured' }}</dd></div>
                 <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">SSH key</dt><dd>{{ effective.hasSshPrivateKey ? 'configured' : 'not configured' }}</dd></div>
                 <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Throttle</dt><dd>{{ effective.commitThrottleSeconds }} s</dd></div>
@@ -117,7 +119,7 @@ type GitDiffFile = {
               <button pButton type="button" size="small" [outlined]="true" [disabled]="syncDisabled()" (click)="sync(false)">Sync now</button>
               <button pButton type="button" size="small" severity="danger" [outlined]="true" [disabled]="syncDisabled()" (click)="confirmForce.set(true)">Force push once</button>
             </div>
-            @if (!gitAvailable()) { <p class="mt-3 text-xs text-[var(--p-text-muted-color)]">Git is not available on this server.</p> }
+            @if (!toolsAvailable()) { <p class="mt-3 text-xs text-[var(--p-text-muted-color)]">{{ toolAvailabilityLabel() }} is not available on this server.</p> }
             @else if (!remoteConfigured()) { <p class="mt-3 text-xs text-[var(--p-text-muted-color)]">Remote Git settings are not configured.</p> }
             @if (confirmForce()) {
               <div class="mt-3 rounded-md border border-rose-core/25 bg-rose-core/10 p-3 text-xs text-rose-accent">
@@ -208,12 +210,12 @@ type GitDiffFile = {
                 </div>
                 @if (status(); as current) {
                   <dl class="space-y-2 text-xs">
-                    <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Git</dt><dd>{{ current.gitAvailable ? 'available' : 'not available' }}</dd></div>
-                    <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Changes</dt><dd>{{ current.hasUncommittedChanges ? 'pending' : 'clean' }}</dd></div>
-                    <div><dt class="text-[var(--p-text-muted-color)]">Current commit</dt><dd class="break-all font-mono">{{ current.currentCommitSha || 'none' }}</dd></div>
-                    <div><dt class="text-[var(--p-text-muted-color)]">Last pushed commit</dt><dd class="break-all font-mono">{{ current.lastPushedCommitSha || 'none' }}</dd></div>
-                    <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Last push</dt><dd>{{ pushStatusLabel(current.lastPushStatus) }}</dd></div>
-                    <div><dt class="text-[var(--p-text-muted-color)]">Last success</dt><dd>{{ formatDate(current.lastSuccessfulPushAt) }}</dd></div>
+                    <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">{{ toolAvailabilityLabel() }}</dt><dd class="min-w-0 truncate">{{ toolsAvailable() ? 'available' : 'not available' }}</dd></div>
+                    <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Changes</dt><dd class="min-w-0 truncate">{{ current.hasUncommittedChanges ? 'pending' : 'clean' }}</dd></div>
+                    <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Current commit</dt><dd class="min-w-0 truncate font-mono" [pTooltip]="current.currentCommitSha || undefined" [tooltipDisabled]="!current.currentCommitSha">{{ shortSha(current.currentCommitSha) }}</dd></div>
+                    <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Last pushed</dt><dd class="min-w-0 truncate font-mono" [pTooltip]="current.lastPushedCommitSha || undefined" [tooltipDisabled]="!current.lastPushedCommitSha">{{ shortSha(current.lastPushedCommitSha) }}</dd></div>
+                    <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Last push</dt><dd class="min-w-0 truncate">{{ pushStatusLabel(current.lastPushStatus) }}</dd></div>
+                    <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2"><dt class="text-[var(--p-text-muted-color)]">Last success</dt><dd class="min-w-0 truncate">{{ formatDate(current.lastSuccessfulPushAt) }}</dd></div>
                     @if (current.lastPushError) { <div><dt class="text-rose-accent">Last error</dt><dd class="break-words text-rose-accent">{{ current.lastPushError }}</dd></div> }
                   </dl>
                 } @else {
@@ -228,7 +230,7 @@ type GitDiffFile = {
                     <div><dt class="text-[var(--p-text-muted-color)]">Remote URL</dt><dd class="break-all font-mono">{{ effective.remoteUrl || 'not configured' }}</dd></div>
                     <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Remote ready</dt><dd>{{ effective.isRemoteConfigured ? 'yes' : 'no' }}</dd></div>
                     <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Auth</dt><dd>{{ effective.authMode }}</dd></div>
-                    <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Username</dt><dd>{{ effective.username || 'default' }}</dd></div>
+                    @if (effective.authMode === 'HttpsToken') { <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">HTTPS username</dt><dd>{{ effective.username || 'x-access-token' }}</dd></div> }
                     <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Token</dt><dd>{{ effective.hasToken ? 'configured' : 'not configured' }}</dd></div>
                     <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">SSH key</dt><dd>{{ effective.hasSshPrivateKey ? 'configured' : 'not configured' }}</dd></div>
                     <div class="grid grid-cols-2 gap-2"><dt class="text-[var(--p-text-muted-color)]">Throttle</dt><dd>{{ effective.commitThrottleSeconds }} s</dd></div>
@@ -243,7 +245,7 @@ type GitDiffFile = {
                   <button pButton type="button" size="small" [outlined]="true" [disabled]="syncDisabled()" (click)="sync(false)">Sync now</button>
                   <button pButton type="button" size="small" severity="danger" [outlined]="true" [disabled]="syncDisabled()" (click)="confirmForce.set(true)">Force push once</button>
                 </div>
-                @if (!gitAvailable()) { <p class="mt-3 text-xs text-[var(--p-text-muted-color)]">Git is not available on this server.</p> }
+                @if (!toolsAvailable()) { <p class="mt-3 text-xs text-[var(--p-text-muted-color)]">{{ toolAvailabilityLabel() }} is not available on this server.</p> }
                 @else if (!remoteConfigured()) { <p class="mt-3 text-xs text-[var(--p-text-muted-color)]">Remote Git settings are not configured.</p> }
                 @if (confirmForce()) {
                   <div class="mt-3 rounded-md border border-rose-core/25 bg-rose-core/10 p-3 text-xs text-rose-accent">
@@ -337,8 +339,10 @@ export class GitComponent {
   readonly renderSideBySide = signal(true)
   readonly diffEditorOptions = computed<Monaco.editor.IDiffEditorConstructionOptions>(() => ({ readOnly: true, renderSideBySide: this.renderSideBySide(), useInlineViewWhenSpaceIsLimited: false, minimap: { enabled: false }, automaticLayout: true, scrollBeyondLastLine: false }))
   readonly gitAvailable = computed(() => this.status()?.gitAvailable ?? false)
+  readonly sshRequired = computed(() => this.config()?.authMode === 'SshPrivateKey')
+  readonly toolsAvailable = computed(() => this.gitAvailable() && (!this.sshRequired() || (this.status()?.sshAvailable ?? false)))
   readonly remoteConfigured = computed(() => this.config()?.isRemoteConfigured ?? false)
-  readonly syncDisabled = computed(() => this.busy() || !this.gitAvailable() || !this.remoteConfigured())
+  readonly syncDisabled = computed(() => this.busy() || !this.toolsAvailable() || !this.remoteConfigured())
   readonly restoreDisabled = computed(() => this.busy() || !this.gitAvailable() || !this.selectedCommit())
   readonly originalModel = computed<DiffEditorModel>(() => {
     const file = this.selectedFile()
@@ -443,6 +447,14 @@ export class GitComponent {
     if (!value) return 'never'
     const date = new Date(value)
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  }
+
+  shortSha(value?: string | null) {
+    return value ? value.slice(0, 8) : 'none'
+  }
+
+  toolAvailabilityLabel() {
+    return this.sshRequired() ? 'Git + SSH' : 'Git'
   }
 
   pushStatusLabel(value: GitPushStatus) {

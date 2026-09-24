@@ -1882,6 +1882,10 @@
             "type": "boolean",
             "description": "A value indicating whether the Git executable is available."
           },
+          "sshAvailable": {
+            "type": "boolean",
+            "description": "A value indicating whether the SSH executable is available."
+          },
           "hasUncommittedChanges": {
             "type": "boolean",
             "description": "A value indicating whether the local repository has uncommitted changes."

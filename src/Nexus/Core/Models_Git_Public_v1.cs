@@ -54,6 +54,7 @@ public record GitConfigResponse(
 /// The current Git repository and push status required by the admin UI.
 /// </summary>
 /// <param name="GitAvailable">A value indicating whether the Git executable is available.</param>
+/// <param name="SshAvailable">A value indicating whether the SSH executable is available.</param>
 /// <param name="HasUncommittedChanges">A value indicating whether the local repository has uncommitted changes.</param>
 /// <param name="CurrentCommitSha">The current commit SHA.</param>
 /// <param name="LastPushedCommitSha">The last commit SHA successfully pushed by this process.</param>
@@ -62,6 +63,7 @@ public record GitConfigResponse(
 /// <param name="LastPushError">The last push error.</param>
 public record GitStatusResponse(
     bool GitAvailable,
+    bool SshAvailable,
     bool HasUncommittedChanges,
     string? CurrentCommitSha,
     string? LastPushedCommitSha,

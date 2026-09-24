@@ -1265,6 +1265,8 @@ export interface GitConfigResponse {
 export interface GitStatusResponse {
     /** A value indicating whether the Git executable is available. */
     gitAvailable?: boolean | undefined;
+    /** A value indicating whether the SSH executable is available. */
+    sshAvailable?: boolean | undefined;
     /** A value indicating whether the local repository has uncommitted changes. */
     hasUncommittedChanges?: boolean | undefined;
     /** The current commit SHA. */
