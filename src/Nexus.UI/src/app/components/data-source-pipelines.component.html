@@ -1,0 +1,241 @@
+<p-dialog appRestoreFocus header="Administrator / Data source pipelines" [visible]="true"
+  (visibleChange)="!$event && request({ kind: 'close' })" [modal]="true" [blockScroll]="true"
+  [dismissableMask]="false" [closeOnEscape]="false" [pt]="dialogPt" [closable]="!locked() && removingKey() === null"
+  [draggable]="false" [resizable]="false" appendTo="body" styleClass="data-source-pipelines-dialog"
+  [closeButtonProps]="{ ariaLabel: 'Close data source pipelines', severity: 'secondary', text: true, rounded: true }"
+  [style]="{ width: 'min(82rem, calc(100vw - 2rem))' }">
+  <div #panel tabindex="-1" class="pipelines-panel" [attr.aria-busy]="locked()">
+    <div class="pipeline-toolbar">
+      <button pButton type="button" size="small" severity="secondary" [outlined]="true"
+        [disabled]="editingLocked() || !loaded()" (click)="request({ kind: 'refresh' })">
+        {{ refreshing() ? 'Refreshing database...' : 'Refresh database' }}
+      </button>
+    </div>
+    @if (!administrator()) {
+      <p-message severity="error">Administrator permission is required to manage current-user pipelines.</p-message>
+    }
+    @if (error()) { <p-message severity="error">{{ error() }}</p-message> }
+    @if (draft()?.serverDiverged) {
+      <p-message severity="warn">This pipeline changed or was removed on the server. Your edits are retained, but saving is blocked to avoid overwriting server changes. Reload and confirm discarding local edits to use the latest pipeline.</p-message>
+      <button pButton type="button" size="small" severity="secondary"
+        [disabled]="locked() || !!pending() || confirmingDelete() || removingKey() !== null || !administrator()"
+        (click)="request({ kind: 'reload' })">Reload latest pipeline</button>
+    }
+    @if (descriptionError()) {
+      <p-message severity="warn">{{ descriptionError() }}</p-message>
+      <button pButton type="button" size="small" severity="secondary"
+        [disabled]="locked() || !!pending() || confirmingDelete() || removingKey() !== null || !administrator()"
+        (click)="request({ kind: 'descriptions' })">Retry source descriptions</button>
+    }
+    @if (loading()) { <p role="status">Loading pipelines and source descriptions...</p> }
+    @if (!loaded() && !loading() && administrator()) {
+      <button pButton type="button" size="small" [disabled]="locked() || !!pending() || confirmingDelete() || removingKey() !== null" (click)="request({ kind: 'reload' })">Retry loading</button>
+    }
+
+    @if (loaded() && administrator()) {
+      <div class="pipeline-workspace" [class.show-list]="mobileView() === 'list'" [class.show-pipeline]="mobileView() === 'pipeline'" [class.show-registration]="mobileView() === 'registration'">
+        <div class="pipeline-tabs-column">
+          <p-tabs [value]="pipelineTab()" (valueChange)="setPipelineTab($event)" [selectOnFocus]="true" [showNavigators]="false">
+            <div class="tab-bar">
+              <p-tablist>
+                <p-tab value="pipelines" class="min-w-0 flex-1 whitespace-normal text-center">Pipelines</p-tab>
+                <p-tab value="pipeline" class="min-w-0 flex-1 whitespace-normal text-center">Pipeline</p-tab>
+                <p-tab value="registration" class="mobile-editor-tab min-w-0 flex-1 whitespace-normal text-center">Editor</p-tab>
+              </p-tablist>
+            </div>
+            <p-tabpanels class="tab-panels">
+              <p-tabpanel value="pipelines">
+                <div class="pipeline-list" aria-label="Current-user pipelines">
+                  <button type="button" class="pipeline-entry new-pipeline" [disabled]="editingLocked()" (click)="request({ kind: 'pipeline', id: null })">
+                    <svg lucidePlus class="h-4 w-4" aria-hidden="true"></svg>
+                  </button>
+                  @if (draft(); as current) {
+                    @if (dirty()) {
+                      <button type="button" class="pipeline-entry draft-entry" [disabled]="editingLocked()" (click)="navigate('pipeline')">
+                        <strong>{{ current.id ? 'Continue unsaved edits' : 'New pipeline draft' }}</strong>
+                        <span class="not-saved">Not saved</span>
+                        @for (registration of current.registrations; track registration.key) {
+                          <span class="registration-line">
+                            <span class="registration-type">{{ registration.type || 'Untyped' }}</span>
+                            @if (registration.resourceLocator) { <span class="registration-locator">{{ displayLocator(registration.resourceLocator) }}</span> }
+                          </span>
+                        } @empty { <span class="registration-line"><span class="registration-type">Empty pipeline</span></span> }
+                      </button>
+                    }
+                  }
+                  @for (entry of entries(); track entry.id) {
+                    <button type="button" class="pipeline-entry" [class.selected]="draft()?.id === entry.id" [class.disabled-pipeline]="entry.pipeline.disabled"
+                      [attr.aria-current]="draft()?.id === entry.id ? 'true' : null" [disabled]="editingLocked()"
+                      (click)="request({ kind: 'pipeline', id: entry.id })">
+                      @if (entry.pipeline.disabled) { <span class="pipeline-state">Disabled</span> }
+                      @for (registration of entry.pipeline.registrations ?? []; track $index) {
+                        <span class="registration-line">
+                          <span class="registration-type">{{ registration.type || 'Untyped' }}</span>
+                          @if (registration.resourceLocator) { <span class="registration-locator">{{ displayLocator(registration.resourceLocator) }}</span> }
+                        </span>
+                      } @empty { <span class="registration-line"><span class="registration-type">Empty pipeline</span></span> }
+                    </button>
+                  } @empty {
+                    <p class="help">No saved pipelines. Create a pipeline, then add its data source registrations in processing order.</p>
+                  }
+                </div>
+              </p-tabpanel>
+              <p-tabpanel value="pipeline">
+                @if (draft(); as current) {
+                  <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
+                    [disabled]="editingLocked()" (click)="navigate('list')">Back to pipelines</button>
+                  <div class="pipeline-editor" aria-label="Pipeline editor">
+                    <span class="save-indicator {{ dirty() ? 'not-saved' : 'saved' }}">{{ dirty() ? 'Unsaved changes' : 'Saved' }}</span>
+                    <fieldset [disabled]="editingLocked()">
+                      <div class="switch-row">
+                        <p-toggleswitch styleClass="outlined-switch" inputId="pipeline-enabled"
+                          [dt]="{
+                            background: 'transparent',
+                            border: { color: 'var(--p-content-border-color)' },
+                            hover: { background: 'transparent', border: { color: 'var(--p-content-border-color)' } },
+                            checked: { background: 'transparent', border: { color: 'var(--p-primary-color)' }, hover: { background: 'transparent', border: { color: 'var(--p-primary-color)' } } },
+                            handle: { background: 'var(--p-text-muted-color)', hover: { background: 'var(--p-text-muted-color)' }, checked: { background: 'var(--p-primary-color)', hover: { background: 'var(--p-primary-color)' } } }
+                          }"
+                          [ngModel]="!current.disabled" (ngModelChange)="setPipelineEnabled($event)" [disabled]="editingLocked()" />
+                        <label for="pipeline-enabled">{{ current.disabled ? 'Disabled' : 'Enabled' }}</label>
+                      </div>
+                      <div class="field">
+                        <label for="pipeline-visibility">Visibility pattern</label>
+                        <div class="input-with-help">
+                          <input pInputText pSize="small" id="pipeline-visibility"
+                            [ngModel]="current.visibilityPattern ?? ''" (ngModelChange)="setPattern('visibilityPattern', $event || null)" />
+                          <svg lucideCircleHelp class="h-4 w-4 help-icon" aria-hidden="true"
+                            [pTooltip]="'Selects catalog IDs using server-evaluated .NET regular expressions. Empty selects all. Controls listing; readable catalogs are always visible. Neither flag grants access.'"
+                            tooltipPosition="right" [escape]="false" />
+                        </div>
+                      </div>
+                    </fieldset>
+                    <div class="section-heading">
+                      <h3>Registrations</h3>
+                      <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="addStage()">Add registration</button>
+                    </div>
+                    <ol class="registrations">
+                      @for (registration of current.registrations; track registration.key; let index = $index) {
+                        <li [class.selected]="selectedKey() === registration.key">
+                          <div class="registration-header">
+                            <button type="button" class="stage-select" [disabled]="editingLocked()" [attr.aria-current]="selectedKey() === registration.key ? 'true' : null" (click)="navigate('registration', registration.key)">
+                              <span class="stage-number">{{ index + 1 }}</span>
+                              <span>{{ registration.type || 'Select a source type' }}
+                                @if (hasIssue(registration.key)) { <small class="invalid-label">Needs attention</small> }
+                              </span>
+                            </button>
+                            <div class="stage-actions">
+                              <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="editingLocked() || index === 0" [attr.aria-label]="'Move registration ' + (index + 1) + ' up'" (click)="moveStage(registration.key, -1)">Up</button>
+                              <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="editingLocked() || index === current.registrations.length - 1" [attr.aria-label]="'Move registration ' + (index + 1) + ' down'" (click)="moveStage(registration.key, 1)">Down</button>
+                              <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked()" [attr.aria-label]="'Remove registration ' + (index + 1)" (click)="removeStage(registration.key)">Remove</button>
+                            </div>
+                          </div>
+                          <fieldset [disabled]="editingLocked()">
+                            <div class="field">
+                              <label id="reg-type-label-{{ registration.key }}" for="reg-type-{{ registration.key }}">Source type</label>
+                              <p-select [inputId]="'reg-type-' + registration.key" [ariaLabelledBy]="'reg-type-label-' + registration.key" appendTo="body"
+                                [options]="typeOptions()" [ngModel]="registration.type" [disabled]="editingLocked() || !!registration.type"
+                                (ngModelChange)="editRegistration(registration.key, 'type', $event)" placeholder="Select installed source" size="small" />
+                            </div>
+                            <div class="field">
+                              <label [for]="'reg-locator-' + registration.key">Resource locator</label>
+                              <label class="nullable"><input type="checkbox" [ngModel]="registration.resourceLocator === null"
+                                (ngModelChange)="editRegistration(registration.key, 'resourceLocator', $event ? null : '')" /> Null (not supplied)</label>
+                              <input pInputText pSize="small" [id]="'reg-locator-' + registration.key" [disabled]="registration.resourceLocator === null"
+                                [ngModel]="registration.resourceLocator" (ngModelChange)="editRegistration(registration.key, 'resourceLocator', $event)" />
+                            </div>
+                            <div class="field">
+                              <label [for]="'reg-info-url-' + registration.key">Info URL</label>
+                              <label class="nullable"><input type="checkbox" [ngModel]="registration.infoUrl === null"
+                                (ngModelChange)="editRegistration(registration.key, 'infoUrl', $event ? null : '')" /> Null (not supplied)</label>
+                              <input pInputText pSize="small" [id]="'reg-info-url-' + registration.key" [disabled]="registration.infoUrl === null"
+                                [ngModel]="registration.infoUrl" (ngModelChange)="editRegistration(registration.key, 'infoUrl', $event)" />
+                            </div>
+                          </fieldset>
+                          @if (removingKey() === registration.key) {
+                            <section class="decision" role="alertdialog" aria-modal="false" aria-labelledby="registration-remove-title">
+                              <h3 id="registration-remove-title">Remove registration {{ index + 1 }}?</h3>
+                              <p>This removes this stage and its configuration edits from the draft. Other stages are kept. Save the pipeline to apply the removal.</p>
+                              <div class="actions">
+                                <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="confirmRemoveStage()">Remove registration</button>
+                                <button pButton type="button" size="small" severity="secondary" [disabled]="locked()" (click)="removingKey.set(null)">Keep registration</button>
+                              </div>
+                            </section>
+                          }
+                        </li>
+                      } @empty { <li class="help">Add at least one registration before saving.</li> }
+                    </ol>
+                  </div>
+                } @else { <p class="help empty-pipeline">Select a pipeline or create a new one.</p> }
+              </p-tabpanel>
+              <p-tabpanel value="registration" class="mobile-editor-panel">
+                <section class="registration-editor mobile-registration-editor" aria-label="Registration configuration">
+                  <ng-container [ngTemplateOutlet]="registrationEditorContent"></ng-container>
+                </section>
+              </p-tabpanel>
+            </p-tabpanels>
+          </p-tabs>
+        </div>
+
+        <section class="registration-editor desktop-registration-editor" aria-label="Registration configuration">
+          <button pButton type="button" size="small" severity="secondary" [text]="true" class="mobile-back"
+            [disabled]="editingLocked()" (click)="navigate('pipeline')">Back to pipeline</button>
+          <ng-container [ngTemplateOutlet]="registrationEditorContent"></ng-container>
+        </section>
+
+        <ng-template #registrationEditorContent>
+          @for (registration of selected() ? [selected()!] : []; track registration.key) {
+            <h2>Registration configuration</h2>
+            <div class="editor-host" [attr.inert]="editingLocked() ? '' : null">
+              <app-json-schema-editor [schema]="selectedSchema()" [value]="registration.configuration" [rawText]="registration.rawText" [themeMode]="themeMode()"
+                (rawTextChange)="editText(registration.key, $event)" (saveRequested)="save()" />
+            </div>
+          } @empty {
+            <div class="registration-empty">
+              <p>{{ draft() ? 'Select a registration to edit its configuration.' : 'Select a pipeline to get started.' }}</p>
+            </div>
+          }
+        </ng-template>
+      </div>
+
+      @if (draft()) {
+        @if (prepared(); as result) {
+          @if (!result.valid) {
+            <details class="validation-summary" open>
+              <summary>Saving blocked: {{ result.issues.length }} validation issues across this pipeline</summary>
+              <ul>
+                @for (issue of result.issues; track $index) {
+                  <li>
+                    @if (issue.key !== undefined) {
+                      <button type="button" [disabled]="editingLocked()" (click)="navigate('registration', issue.key)">{{ issue.message }}</button>
+                    } @else { {{ issue.message }} }
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+        }
+      }
+
+      <div class="pipeline-footer">
+        @if (confirmingDelete()) {
+          <span class="flex items-center gap-2 text-xs text-rose-accent">Delete this pipeline?</span>
+          <div class="actions">
+            <button pButton type="button" size="small" severity="secondary" [text]="true" [disabled]="locked()" (click)="cancelDelete()">No</button>
+            <button pButton type="button" size="small" severity="danger" [disabled]="locked() || !administrator()" (click)="remove()">{{ busy() ? 'Deleting...' : 'Yes, delete' }}</button>
+          </div>
+        } @else {
+          <button pButton type="button" size="small" severity="danger" [text]="true" [disabled]="editingLocked() || !draft()?.id" (click)="requestDelete()">Delete pipeline</button>
+          <div class="actions">
+            <button pButton type="button" size="small" severity="secondary" [disabled]="editingLocked()" (click)="request({ kind: 'close' })">Close</button>
+            <button pButton type="button" size="small" severity="primary" [outlined]="true" [disabled]="editingLocked() || !draft() || !dirty() || !prepared()?.valid" (click)="save()">{{ busy() ? 'Working...' : 'Save pipeline' }}</button>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</p-dialog>
+
+<p-confirmdialog key="unsavedChanges" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body" />
+
+<p-toast key="status" position="bottom-center" [style]="{ width: 'min(32rem, calc(100vw - 2rem))' }" appendTo="body" />

@@ -17,7 +17,6 @@ using System.Data;
 using System.Net;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Controllers.V1;
 
@@ -31,7 +30,8 @@ namespace Nexus.Controllers.V1;
 internal class CatalogsController(
     AppState appState,
     IDatabaseService databaseService,
-    IDataControllerService dataControllerService
+    IDataControllerService dataControllerService,
+    IAcceptedLicenseService acceptedLicenseService
 ) : ControllerBase
 {
     // POST     /api/catalogs/search-items
@@ -53,6 +53,8 @@ internal class CatalogsController(
     private readonly IDatabaseService _databaseService = databaseService;
 
     private readonly IDataControllerService _dataControllerService = dataControllerService;
+
+    private readonly IAcceptedLicenseService _acceptedLicenseService = acceptedLicenseService;
 
     /// <summary>
     /// Searches for the given resource paths and returns the corresponding catalog items.
@@ -91,7 +93,12 @@ internal class CatalogsController(
             {
                 var catalogContainer = group.First().Request.Container;
 
-                if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                if (!await AuthUtilities.IsCatalogReadableAsync(
+                    catalogContainer,
+                    User,
+                    _acceptedLicenseService,
+                    cancellationToken
+                ))
                     throw new UnauthorizedAccessException($"The current user is not permitted to access catalog {catalogContainer.Id}.");
             }
         }
@@ -147,66 +154,60 @@ internal class CatalogsController(
             var childContainers = await catalogContainer.GetChildCatalogContainersAsync(cancellationToken);
             var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
 
-            return childContainers
-                .Where(childContainer => isAdmin || AuthUtilities.IsCatalogEnabled(childContainer.Id, User))
-                .Select(childContainer =>
+            var catalogInfos = new List<CatalogInfo>();
+
+            foreach (var childContainer in childContainers
+                .Where(childContainer => isAdmin || AuthUtilities.IsCatalogEnabled(childContainer.Id, User)))
+            {
+                // TODO: Create CatalogInfo along with CatalogContainer to improve performance and reduce GC pressure?
+
+                var id = childContainer.Id;
+                var title = childContainer.Title;
+                var contact = childContainer.Metadata.Contact;
+
+                string? readme = default;
+
+                if (_databaseService.TryReadAttachment(childContainer.Id, "README.md", out var readmeStream))
                 {
-                    // TODO: Create CatalogInfo along with CatalogContainer to improve performance and reduce GC pressure?
+                    using var reader = new StreamReader(readmeStream);
+                    readme = reader.ReadToEnd();
+                }
 
-                    var id = childContainer.Id;
-                    var title = childContainer.Title;
-                    var contact = childContainer.Metadata.Contact;
+                var license = await _acceptedLicenseService.GetLicenseAsync(childContainer, cancellationToken);
+                var isReadable = await AuthUtilities.IsCatalogReadableAsync(
+                    childContainer,
+                    User,
+                    _acceptedLicenseService,
+                    cancellationToken
+                );
+                var isWritable = AuthUtilities.IsCatalogWritable(childContainer.Id, childContainer.Metadata, User);
 
-                    string? readme = default;
+                var isVisible = isReadable ||
+                    Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
 
-                    if (_databaseService.TryReadAttachment(childContainer.Id, "README.md", out var readmeStream))
-                    {
-                        using var reader = new StreamReader(readmeStream);
-                        readme = reader.ReadToEnd();
-                    }
+                var packageReferenceIds = childContainer.PackageReferenceIds;
 
-                    string? license = default;
+                var pipelineInfo = new PipelineInfo(
+                    childContainer.PipelineId,
+                    Types: childContainer.Pipeline.Registrations.Select(x => x.Type).ToArray(),
+                    InfoUrls: childContainer.Pipeline.Registrations.Select(x => x.InfoUrl).ToArray()
+                );
 
-                    if (_databaseService.TryReadAttachment(childContainer.Id, "LICENSE.md", out var licenseStream))
-                    {
-                        using var reader = new StreamReader(licenseStream);
-                        license = reader.ReadToEnd();
-                    }
+                catalogInfos.Add(new CatalogInfo(
+                    id,
+                    title,
+                    contact,
+                    readme,
+                    license,
+                    isReadable,
+                    isWritable,
+                    isVisible,
+                    packageReferenceIds,
+                    pipelineInfo
+                ));
+            }
 
-                    var isReadable = AuthUtilities.IsCatalogReadable(childContainer.Id, childContainer.Metadata, childContainer.Owner, User);
-                    var isWritable = AuthUtilities.IsCatalogWritable(childContainer.Id, childContainer.Metadata, User);
-
-                    var isReleased = childContainer.Owner is null ||
-                        childContainer.IsReleasable && Regex.IsMatch(id, childContainer.Pipeline.ReleasePattern ?? "");
-
-                    var isVisible = isReadable ||
-                        Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
-
-                    var isOwner = childContainer.Owner?.FindFirstValue(Claims.Subject) == User.FindFirstValue(Claims.Subject);
-                    var packageReferenceIds = childContainer.PackageReferenceIds;
-
-                    var pipelineInfo = new PipelineInfo(
-                        childContainer.PipelineId,
-                        Types: childContainer.Pipeline.Registrations.Select(x => x.Type).ToArray(),
-                        InfoUrls: childContainer.Pipeline.Registrations.Select(x => x.InfoUrl).ToArray()
-                    );
-
-                    return new CatalogInfo(
-                        id,
-                        title,
-                        contact,
-                        readme,
-                        license,
-                        isReadable,
-                        isWritable,
-                        isReleased,
-                        isVisible,
-                        isOwner,
-                        packageReferenceIds,
-                        pipelineInfo
-                    );
-                })
-                .ToArray();
+            return catalogInfos.ToArray();
         }, cancellationToken);
 
         return response;
@@ -286,24 +287,41 @@ internal class CatalogsController(
 
         var response = await ProtectCatalogAsync<string?>(catalogId, ensureReadable: false, ensureWritable: false, async catalogContainer =>
         {
-            string? license = default;
-
-            if (_databaseService.TryReadAttachment(catalogContainer.Id, "LICENSE.md", out var licenseStream))
-            {
-                using var reader = new StreamReader(licenseStream);
-                license = await reader.ReadToEndAsync();
-            }
-
-            if (license is null)
-            {
-                var catalogInfo = await catalogContainer.GetLazyCatalogInfoAsync(cancellationToken);
-                license = catalogInfo.Catalog.Properties?.GetStringValue(DataModelExtensions.LicenseKey);
-            }
-
-            return license;
+            return await _acceptedLicenseService.GetLicenseAsync(catalogContainer, cancellationToken);
         }, cancellationToken);
 
         return response;
+    }
+
+    /// <summary>
+    /// Accepts the current license of the specified catalog.
+    /// </summary>
+    /// <param name="catalogId">The catalog identifier.</param>
+    /// <param name="cancellationToken">A token to cancel the current operation.</param>
+    [HttpPost("{catalogId}/accept-license")]
+    [Authorize(AuthenticationSchemes = HeaderAuthenticationDefaults.AuthenticationScheme)]
+    public async Task<IActionResult> AcceptLicenseAsync(
+        string catalogId,
+        CancellationToken cancellationToken)
+    {
+        catalogId = WebUtility.UrlDecode(catalogId);
+
+        return await ProtectCatalogNonGenericAsync(catalogId, ensureReadable: false, ensureWritable: false, async catalogContainer =>
+        {
+            var license = await _acceptedLicenseService.GetLicenseAsync(catalogContainer, cancellationToken);
+
+            if (string.IsNullOrEmpty(license))
+                return NotFound($"The catalog {catalogId} does not have a license.");
+
+            var userId = User.FindFirst(NexusClaimTypes.Subject)?.Value;
+
+            if (userId is null)
+                return StatusCode(StatusCodes.Status403Forbidden, "The current user has no subject claim.");
+
+            await _acceptedLicenseService.AcceptAsync(userId, catalogContainer.Id, license);
+
+            return NoContent();
+        }, cancellationToken);
     }
 
     /// <summary>
@@ -513,8 +531,12 @@ internal class CatalogsController(
 
         if (catalogContainer is not null)
         {
-            if (ensureReadable && !AuthUtilities.IsCatalogReadable(
-                catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+            if (ensureReadable && !await AuthUtilities.IsCatalogReadableAsync(
+                catalogContainer,
+                User,
+                _acceptedLicenseService,
+                cancellationToken
+            ))
             {
                 return StatusCode(
                     StatusCodes.Status403Forbidden,

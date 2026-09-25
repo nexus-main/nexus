@@ -29,30 +29,30 @@ public class CatalogContainersExtensionsTests
                 {
                     "/" => new CatalogContainer[]
                     {
-                        new (new CatalogRegistration("/A", default), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new (new CatalogRegistration("/SOFT/A", default, LinkTarget: "/A/B/C"), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new (new CatalogRegistration("/SOFT/B", default, LinkTarget: "/SOFT/A"), default, default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A", default), default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/SOFT/A", default, LinkTarget: "/A/B/C"), default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/SOFT/B", default, LinkTarget: "/SOFT/A"), default, default!, default!, default!, catalogManager, default!, default!),
                     },
                     "/A" =>
                     [
-                        new (new CatalogRegistration("/A/C", default), default, default, default!,  default!, default!, catalogManager, default!, default!),
-                        new (new CatalogRegistration("/A/B", default), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new (new CatalogRegistration("/A/D", default), default, default, default!, default!, default!, catalogManager, default!, default!)
+                        new (new CatalogRegistration("/A/C", default), default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/B", default), default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/D", default), default, default!, default!, default!, catalogManager, default!, default!)
                     ],
                     "/A/B" =>
                     [
-                        new (new CatalogRegistration("/A/B/D", default), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new (new CatalogRegistration("/A/B/C", default), default, default, default!, default!, default!, catalogManager, default!, default!)
+                        new (new CatalogRegistration("/A/B/D", default), default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/B/C", default), default, default!, default!, default!, catalogManager, default!, default!)
                     ],
                     "/A/D" =>
                     [
-                        new (new CatalogRegistration("/A/D/F", default), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new (new CatalogRegistration("/A/D/E", default), default, default, default!, default!, default!, catalogManager, default!, default!),
-                        new (new CatalogRegistration("/A/D/E2", default), default, default, default!, default!, default!, catalogManager, default!, default!)
+                        new (new CatalogRegistration("/A/D/F", default), default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/D/E", default), default, default!, default!, default!, catalogManager, default!, default!),
+                        new (new CatalogRegistration("/A/D/E2", default), default, default!, default!, default!, catalogManager, default!, default!)
                     ],
                     "/A/F" =>
                     [
-                        new (new CatalogRegistration("/A/F/H", default), default, default, default!, default!, default!, catalogManager, default!, default!)
+                        new (new CatalogRegistration("/A/F/H", default), default, default!, default!, default!, catalogManager, default!, default!)
                     ],
                     _ => throw new Exception($"Unsupported combination: {parent.Id}.")
                 });
@@ -133,7 +133,7 @@ public class CatalogContainersExtensionsTests
                 {
                     "/" => new CatalogContainer[]
                     {
-                        new (new CatalogRegistration("/A/B/C", default), default, default, default!, default!, default!, default!, default!, dataControllerService),
+                        new (new CatalogRegistration("/A/B/C", default), default, default, default!, default!, default!, default!, dataControllerService),
                     },
                     _ => throw new Exception("Unsupported combination.")
                 });

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "files": ["src/app/resource-selection.test.ts", "src/app/resource-matrix.test.ts", "src/app/json-schema.test.ts", "src/app/data-source-pipelines.test.ts", "src/app/yaml-monaco.test.ts", "src/app/nexus-ui-setup.test.ts"],
+  "include": ["src/app/charts/*.test.ts"]
+}

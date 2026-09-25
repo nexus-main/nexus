@@ -27,83 +27,80 @@ internal class UpgradeConfigurationService(
 
     public async Task UpgradeAsync()
     {
-        foreach (var (userId, pipelineMap) in await _pipelineService.GetAllAsync())
+        var pipelineMap = await _pipelineService.GetAllAsync();
+
+        foreach (var (pipelineId, pipeline) in pipelineMap)
         {
-            _logger.LogDebug("Upgrade source registration configurations for user {UserId}", userId);
+            _logger.LogTrace("Upgrade pipeline {PipelineId}", pipelineId);
 
-            foreach (var (pipelineId, pipeline) in pipelineMap)
+            var index = 0;
+            var isDirty = false;
+            var registrations = pipeline.Registrations.ToList();
+
+            foreach (var registration in pipeline.Registrations)
             {
-                _logger.LogTrace("Upgrade pipeline {PipelineId}", pipelineId);
+                var dataSourceTypeName = registration.Type;
 
-                var index = 0;
-                var isDirty = false;
-                var registrations = pipeline.Registrations.ToList();
-
-                foreach (var registration in pipeline.Registrations)
+                try
                 {
-                    var dataSourceTypeName = registration.Type;
+                    var dataSourceType = _extensionHive.GetExtensionType(dataSourceTypeName);
 
-                    try
-                    {
-                        var dataSourceType = _extensionHive.GetExtensionType(dataSourceTypeName);
+                    if (!dataSourceType.IsAssignableTo(typeof(IUpgradableDataSource)))
+                        continue;
 
-                        if (!dataSourceType.IsAssignableTo(typeof(IUpgradableDataSource)))
-                            continue;
+                    /* Upgrade */
+                    var upgradableDataSource = (IUpgradableDataSource)Activator.CreateInstance(dataSourceType)!;
+                    var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
-                        /* Upgrade */
-                        var upgradableDataSource = (IUpgradableDataSource)Activator.CreateInstance(dataSourceType)!;
-                        var timeoutTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+                    var upgradedConfiguration = await upgradableDataSource.UpgradeSourceConfigurationAsync(
+                        registration.Configuration,
+                        timeoutTokenSource.Token
+                    );
 
-                        var upgradedConfiguration = await upgradableDataSource.UpgradeSourceConfigurationAsync(
-                            registration.Configuration,
-                            timeoutTokenSource.Token
+                    /* Ensure deserialization works */
+                    var sourceInterfaceTypes = dataSourceType.GetInterfaces();
+
+                    if (!sourceInterfaceTypes.Contains(typeof(IUpgradableDataSource)))
+                        continue;
+
+                    var genericInterface = sourceInterfaceTypes
+                        .FirstOrDefault(x =>
+                            x.IsGenericType &&
+                            x.GetGenericTypeDefinition() == typeof(IDataSource<>)
                         );
 
-                        /* Ensure deserialization works */
-                        var sourceInterfaceTypes = dataSourceType.GetInterfaces();
+                    if (genericInterface is null)
+                        throw new Exception("Data sources must implement IDataSource<T>.");
 
-                        if (!sourceInterfaceTypes.Contains(typeof(IUpgradableDataSource)))
-                            continue;
+                    var configurationType = genericInterface.GenericTypeArguments[0];
 
-                        var genericInterface = sourceInterfaceTypes
-                            .FirstOrDefault(x =>
-                                x.IsGenericType &&
-                                x.GetGenericTypeDefinition() == typeof(IDataSource<>)
-                            );
+                    _ = JsonSerializer.Deserialize(upgradedConfiguration, configurationType, JsonSerializerOptions.Web);
 
-                        if (genericInterface is null)
-                            throw new Exception("Data sources must implement IDataSource<T>.");
-
-                        var configurationType = genericInterface.GenericTypeArguments[0];
-
-                        _ = JsonSerializer.Deserialize(upgradedConfiguration, configurationType, JsonSerializerOptions.Web);
-
-                        /* Update pipeline */
-                        if (!JsonElement.DeepEquals(registration.Configuration, upgradedConfiguration))
+                    /* Update pipeline */
+                    if (!JsonElement.DeepEquals(registration.Configuration, upgradedConfiguration))
+                    {
+                        registrations[index] = registration with
                         {
-                            registrations[index] = registration with
-                            {
-                                Configuration = upgradedConfiguration
-                            };
+                            Configuration = upgradedConfiguration
+                        };
 
-                            isDirty = true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Unable to upgrade source registration");
-                    }
-
-                    finally
-                    {
-                        index++;
+                        isDirty = true;
                     }
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Unable to upgrade source registration");
+                }
 
-                /* Save changes */
-                if (isDirty)
-                    _ = _pipelineService.TryUpdateAsync(userId, pipelineId, pipeline with { Registrations = registrations });
+                finally
+                {
+                    index++;
+                }
             }
+
+            /* Save changes */
+            if (isDirty)
+                _ = _pipelineService.TryUpdateAsync(pipelineId, pipeline with { Registrations = registrations });
         }
     }
 }

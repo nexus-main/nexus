@@ -1,0 +1,1531 @@
+import { HttpRequestHandler } from "./_shared";
+
+/**
+ * Provides access to the V1 API.
+ */
+export interface IV1 {
+    artifacts: IArtifactsClient;
+    catalogs: ICatalogsClient;
+    data: IDataClient;
+    git: IGitClient;
+    jobs: IJobsClient;
+    packageReferences: IPackageReferencesClient;
+    sources: ISourcesClient;
+    system: ISystemClient;
+    users: IUsersClient;
+    writers: IWritersClient;
+
+}
+
+/**
+ * Provides access to the V1 API.
+ */
+export class V1 implements IV1 {
+    public artifacts: ArtifactsClient;
+    public catalogs: CatalogsClient;
+    public data: DataClient;
+    public git: GitClient;
+    public jobs: JobsClient;
+    public packageReferences: PackageReferencesClient;
+    public sources: SourcesClient;
+    public system: SystemClient;
+    public users: UsersClient;
+    public writers: WritersClient;
+
+
+    constructor(invoke: HttpRequestHandler) {
+        this.artifacts = new ArtifactsClient(invoke);
+        this.catalogs = new CatalogsClient(invoke);
+        this.data = new DataClient(invoke);
+        this.git = new GitClient(invoke);
+        this.jobs = new JobsClient(invoke);
+        this.packageReferences = new PackageReferencesClient(invoke);
+        this.sources = new SourcesClient(invoke);
+        this.system = new SystemClient(invoke);
+        this.users = new UsersClient(invoke);
+        this.writers = new WritersClient(invoke);
+
+    }
+
+}
+
+/**
+ * Provides methods to interact with artifacts.
+ */
+export interface IArtifactsClient {
+    /**
+     * Gets the specified artifact.
+     * @param artifactId The artifact identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    download(artifactId: string, signal?: AbortSignal): Promise<Response>;
+
+}
+
+/**
+ * Provides methods to interact with artifacts.
+ */
+export class ArtifactsClient implements IArtifactsClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets the specified artifact.
+     * @param artifactId The artifact identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async download(artifactId: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/artifacts/{artifactId}";
+        __url = __url.replace("{artifactId}", encodeURIComponent(String(artifactId)));
+
+        return this._invoke<Response>("GET", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with catalogs.
+ */
+export interface ICatalogsClient {
+    /**
+     * Searches for the given resource paths and returns the corresponding catalog items.
+     * @param resourcePaths The list of resource paths.
+     * @param signal The signal to cancel the current operation.
+     */
+    searchCatalogItems(resourcePaths: string[], signal?: AbortSignal): Promise<Record<string, CatalogItem>>;
+
+    /**
+     * Gets the specified catalog.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    get(catalogId: string, signal?: AbortSignal): Promise<ResourceCatalog>;
+
+    /**
+     * Gets a list of child catalog info for the provided parent catalog identifier.
+     * @param catalogId The parent catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    getChildCatalogInfos(catalogId: string, signal?: AbortSignal): Promise<CatalogInfo[]>;
+
+    /**
+     * Gets the specified catalog's time range.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    getTimeRange(catalogId: string, signal?: AbortSignal): Promise<CatalogTimeRange>;
+
+    /**
+     * Gets the specified catalog's availability.
+     * @param catalogId The catalog identifier.
+     * @param begin Start date/time.
+     * @param end End date/time.
+     * @param step Step period.
+     * @param signal The signal to cancel the current operation.
+     */
+    getAvailability(catalogId: string, begin: string, end: string, step: string, signal?: AbortSignal): Promise<CatalogAvailability>;
+
+    /**
+     * Gets the license of the catalog if available.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    getLicense(catalogId: string, signal?: AbortSignal): Promise<string | null>;
+
+    /**
+     * Accepts the current license of the specified catalog.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    acceptLicense(catalogId: string, signal?: AbortSignal): Promise<Response>;
+
+    /**
+     * Gets all attachments for the specified catalog.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    getAttachments(catalogId: string, signal?: AbortSignal): Promise<string[]>;
+
+    /**
+     * Uploads the specified attachment.
+     * @param catalogId The catalog identifier.
+     * @param attachmentId The attachment identifier.
+     * @param content The binary file content.
+     * @param signal The signal to cancel the current operation.
+     */
+    uploadAttachment(catalogId: string, attachmentId: string, content: BodyInit, signal?: AbortSignal): Promise<Response>;
+
+    /**
+     * Deletes the specified attachment.
+     * @param catalogId The catalog identifier.
+     * @param attachmentId The attachment identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    deleteAttachment(catalogId: string, attachmentId: string, signal?: AbortSignal): Promise<Response>;
+
+    /**
+     * Gets the specified attachment.
+     * @param catalogId The catalog identifier.
+     * @param attachmentId The attachment identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    getAttachmentStream(catalogId: string, attachmentId: string, signal?: AbortSignal): Promise<Response>;
+
+    /**
+     * Gets the catalog metadata.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    getMetadata(catalogId: string, signal?: AbortSignal): Promise<CatalogMetadata>;
+
+    /**
+     * Puts the catalog metadata.
+     * @param catalogId The catalog identifier.
+     * @param metadata The catalog metadata to set.
+     * @param signal The signal to cancel the current operation.
+     */
+    setMetadata(catalogId: string, metadata: CatalogMetadata, signal?: AbortSignal): Promise<Response>;
+
+}
+
+/**
+ * Provides methods to interact with catalogs.
+ */
+export class CatalogsClient implements ICatalogsClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Searches for the given resource paths and returns the corresponding catalog items.
+     * @param resourcePaths The list of resource paths.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async searchCatalogItems(resourcePaths: string[], signal?: AbortSignal): Promise<Record<string, CatalogItem>> {
+        let __url = "/api/v1/catalogs/search-items";
+
+        return this._invoke<Record<string, CatalogItem>>("POST", __url, "application/json", "application/json", JSON.stringify(resourcePaths), signal);
+    }
+
+    /**
+     * Gets the specified catalog.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async get(catalogId: string, signal?: AbortSignal): Promise<ResourceCatalog> {
+        let __url = "/api/v1/catalogs/{catalogId}";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<ResourceCatalog>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets a list of child catalog info for the provided parent catalog identifier.
+     * @param catalogId The parent catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getChildCatalogInfos(catalogId: string, signal?: AbortSignal): Promise<CatalogInfo[]> {
+        let __url = "/api/v1/catalogs/{catalogId}/child-catalog-infos";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<CatalogInfo[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the specified catalog's time range.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getTimeRange(catalogId: string, signal?: AbortSignal): Promise<CatalogTimeRange> {
+        let __url = "/api/v1/catalogs/{catalogId}/timerange";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<CatalogTimeRange>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the specified catalog's availability.
+     * @param catalogId The catalog identifier.
+     * @param begin Start date/time.
+     * @param end End date/time.
+     * @param step Step period.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getAvailability(catalogId: string, begin: string, end: string, step: string, signal?: AbortSignal): Promise<CatalogAvailability> {
+        let __url = "/api/v1/catalogs/{catalogId}/availability";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        const __searchParams = new URLSearchParams();
+        __searchParams.set("begin", String(begin));
+        __searchParams.set("end", String(end));
+        __searchParams.set("step", String(step));
+        const __query = __searchParams.toString();
+        if (__query)
+            __url += "?" + __query;
+
+        return this._invoke<CatalogAvailability>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the license of the catalog if available.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getLicense(catalogId: string, signal?: AbortSignal): Promise<string | null> {
+        let __url = "/api/v1/catalogs/{catalogId}/license";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<string | null>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Accepts the current license of the specified catalog.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async acceptLicense(catalogId: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/catalogs/{catalogId}/accept-license";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<Response>("POST", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets all attachments for the specified catalog.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getAttachments(catalogId: string, signal?: AbortSignal): Promise<string[]> {
+        let __url = "/api/v1/catalogs/{catalogId}/attachments";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<string[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Uploads the specified attachment.
+     * @param catalogId The catalog identifier.
+     * @param attachmentId The attachment identifier.
+     * @param content The binary file content.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async uploadAttachment(catalogId: string, attachmentId: string, content: BodyInit, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/catalogs/{catalogId}/attachments/{attachmentId}";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+        __url = __url.replace("{attachmentId}", encodeURIComponent(String(attachmentId)));
+
+        return this._invoke<Response>("PUT", __url, "application/octet-stream", "application/octet-stream", content, signal);
+    }
+
+    /**
+     * Deletes the specified attachment.
+     * @param catalogId The catalog identifier.
+     * @param attachmentId The attachment identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async deleteAttachment(catalogId: string, attachmentId: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/catalogs/{catalogId}/attachments/{attachmentId}";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+        __url = __url.replace("{attachmentId}", encodeURIComponent(String(attachmentId)));
+
+        return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the specified attachment.
+     * @param catalogId The catalog identifier.
+     * @param attachmentId The attachment identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getAttachmentStream(catalogId: string, attachmentId: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/catalogs/{catalogId}/attachments/{attachmentId}/content";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+        __url = __url.replace("{attachmentId}", encodeURIComponent(String(attachmentId)));
+
+        return this._invoke<Response>("GET", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the catalog metadata.
+     * @param catalogId The catalog identifier.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getMetadata(catalogId: string, signal?: AbortSignal): Promise<CatalogMetadata> {
+        let __url = "/api/v1/catalogs/{catalogId}/metadata";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<CatalogMetadata>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Puts the catalog metadata.
+     * @param catalogId The catalog identifier.
+     * @param metadata The catalog metadata to set.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async setMetadata(catalogId: string, metadata: CatalogMetadata, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/catalogs/{catalogId}/metadata";
+        __url = __url.replace("{catalogId}", encodeURIComponent(String(catalogId)));
+
+        return this._invoke<Response>("PUT", __url, "application/octet-stream", "application/json", JSON.stringify(metadata), signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with data.
+ */
+export interface IDataClient {
+    /**
+     * Gets the requested data.
+     * @param resourcePath The path to the resource data to stream.
+     * @param begin Start date/time.
+     * @param end End date/time.
+     * @param signal The signal to cancel the current operation.
+     */
+    getStream(resourcePath: string, begin: string, end: string, signal?: AbortSignal): Promise<Response>;
+
+}
+
+/**
+ * Provides methods to interact with data.
+ */
+export class DataClient implements IDataClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets the requested data.
+     * @param resourcePath The path to the resource data to stream.
+     * @param begin Start date/time.
+     * @param end End date/time.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getStream(resourcePath: string, begin: string, end: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/data";
+
+        const __searchParams = new URLSearchParams();
+        __searchParams.set("resourcePath", String(resourcePath));
+        __searchParams.set("begin", String(begin));
+        __searchParams.set("end", String(end));
+        const __query = __searchParams.toString();
+        if (__query)
+            __url += "?" + __query;
+
+        return this._invoke<Response>("GET", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with git.
+ */
+export interface IGitClient {
+    /**
+     * Gets the effective Git configuration without secrets.
+     * @param signal The signal to cancel the current operation.
+     */
+    getConfig(signal?: AbortSignal): Promise<GitConfigResponse>;
+
+    /**
+     * Gets the current Git status.
+     * @param signal The signal to cancel the current operation.
+     */
+    getStatus(signal?: AbortSignal): Promise<GitStatusResponse>;
+
+    /**
+     * Gets the configuration history.
+     * @param signal The signal to cancel the current operation.
+     */
+    getHistory(signal?: AbortSignal): Promise<GitHistoryEntry[]>;
+
+    /**
+     * Gets file-level changes for a commit.
+     * @param commitSha
+     * @param signal The signal to cancel the current operation.
+     */
+    getDiff(commitSha: string, signal?: AbortSignal): Promise<GitDiffFile[]>;
+
+    /**
+     * Restores the configuration from a commit by creating a new commit.
+     * @param request
+     * @param signal The signal to cancel the current operation.
+     */
+    restore(request: GitRestoreRequest, signal?: AbortSignal): Promise<GitRestoreResponse>;
+
+}
+
+/**
+ * Provides methods to interact with git.
+ */
+export class GitClient implements IGitClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets the effective Git configuration without secrets.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getConfig(signal?: AbortSignal): Promise<GitConfigResponse> {
+        let __url = "/api/v1/git/config";
+
+        return this._invoke<GitConfigResponse>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the current Git status.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getStatus(signal?: AbortSignal): Promise<GitStatusResponse> {
+        let __url = "/api/v1/git/status";
+
+        return this._invoke<GitStatusResponse>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the configuration history.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getHistory(signal?: AbortSignal): Promise<GitHistoryEntry[]> {
+        let __url = "/api/v1/git/history";
+
+        return this._invoke<GitHistoryEntry[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets file-level changes for a commit.
+     * @param commitSha
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getDiff(commitSha: string, signal?: AbortSignal): Promise<GitDiffFile[]> {
+        let __url = "/api/v1/git/diff/{commitSha}";
+        __url = __url.replace("{commitSha}", encodeURIComponent(String(commitSha)));
+
+        return this._invoke<GitDiffFile[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Restores the configuration from a commit by creating a new commit.
+     * @param request
+     * @param signal The signal to cancel the current operation.
+     */
+    public async restore(request: GitRestoreRequest, signal?: AbortSignal): Promise<GitRestoreResponse> {
+        let __url = "/api/v1/git/restore";
+
+        return this._invoke<GitRestoreResponse>("POST", __url, "application/json", "application/json", JSON.stringify(request), signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with jobs.
+ */
+export interface IJobsClient {
+    /**
+     * Gets a list of jobs.
+     * @param signal The signal to cancel the current operation.
+     */
+    getJobs(signal?: AbortSignal): Promise<Job[]>;
+
+    /**
+     * Cancels the specified job.
+     * @param jobId
+     * @param signal The signal to cancel the current operation.
+     */
+    cancelJob(jobId: string, signal?: AbortSignal): Promise<Response>;
+
+    /**
+     * Gets the status of the specified job.
+     * @param jobId
+     * @param signal The signal to cancel the current operation.
+     */
+    getJobStatus(jobId: string, signal?: AbortSignal): Promise<JobStatus>;
+
+    /**
+     * Creates a new export job.
+     * @param parameters Export parameters.
+     * @param signal The signal to cancel the current operation.
+     */
+    export(parameters: ExportParameters, signal?: AbortSignal): Promise<Job>;
+
+    /**
+     * Creates a new job which reloads all extensions and resets the resource catalog.
+     * @param signal The signal to cancel the current operation.
+     */
+    refreshDatabase(signal?: AbortSignal): Promise<Job>;
+
+    /**
+     * Clears the aggregation data cache for the specified period of time.
+     * @param catalogId The catalog identifier.
+     * @param begin Start date/time.
+     * @param end End date/time.
+     * @param signal The signal to cancel the current operation.
+     */
+    clearCache(catalogId: string, begin: string, end: string, signal?: AbortSignal): Promise<Job>;
+
+    /**
+     * Creates a new Git synchronization job.
+     * @param parameters
+     * @param signal The signal to cancel the current operation.
+     */
+    syncGit(parameters: GitSyncRequest, signal?: AbortSignal): Promise<Job>;
+
+}
+
+/**
+ * Provides methods to interact with jobs.
+ */
+export class JobsClient implements IJobsClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets a list of jobs.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getJobs(signal?: AbortSignal): Promise<Job[]> {
+        let __url = "/api/v1/jobs";
+
+        return this._invoke<Job[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Cancels the specified job.
+     * @param jobId
+     * @param signal The signal to cancel the current operation.
+     */
+    public async cancelJob(jobId: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/jobs/{jobId}";
+        __url = __url.replace("{jobId}", encodeURIComponent(String(jobId)));
+
+        return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the status of the specified job.
+     * @param jobId
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getJobStatus(jobId: string, signal?: AbortSignal): Promise<JobStatus> {
+        let __url = "/api/v1/jobs/{jobId}/status";
+        __url = __url.replace("{jobId}", encodeURIComponent(String(jobId)));
+
+        return this._invoke<JobStatus>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Creates a new export job.
+     * @param parameters Export parameters.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async export(parameters: ExportParameters, signal?: AbortSignal): Promise<Job> {
+        let __url = "/api/v1/jobs/export";
+
+        return this._invoke<Job>("POST", __url, "application/json", "application/json", JSON.stringify(parameters), signal);
+    }
+
+    /**
+     * Creates a new job which reloads all extensions and resets the resource catalog.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async refreshDatabase(signal?: AbortSignal): Promise<Job> {
+        let __url = "/api/v1/jobs/refresh-database";
+
+        return this._invoke<Job>("POST", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Clears the aggregation data cache for the specified period of time.
+     * @param catalogId The catalog identifier.
+     * @param begin Start date/time.
+     * @param end End date/time.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async clearCache(catalogId: string, begin: string, end: string, signal?: AbortSignal): Promise<Job> {
+        let __url = "/api/v1/jobs/clear-cache";
+
+        const __searchParams = new URLSearchParams();
+        __searchParams.set("catalogId", String(catalogId));
+        __searchParams.set("begin", String(begin));
+        __searchParams.set("end", String(end));
+        const __query = __searchParams.toString();
+        if (__query)
+            __url += "?" + __query;
+
+        return this._invoke<Job>("POST", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Creates a new Git synchronization job.
+     * @param parameters
+     * @param signal The signal to cancel the current operation.
+     */
+    public async syncGit(parameters: GitSyncRequest, signal?: AbortSignal): Promise<Job> {
+        let __url = "/api/v1/jobs/git/sync";
+
+        return this._invoke<Job>("POST", __url, "application/json", "application/json", JSON.stringify(parameters), signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with package references.
+ */
+export interface IPackageReferencesClient {
+    /**
+     * Gets the list of package references.
+     * @param signal The signal to cancel the current operation.
+     */
+    get(signal?: AbortSignal): Promise<Record<string, PackageReference>>;
+
+    /**
+     * Creates a package reference.
+     * @param packageReference The package reference to create.
+     * @param signal The signal to cancel the current operation.
+     */
+    create(packageReference: PackageReference, signal?: AbortSignal): Promise<string>;
+
+    /**
+     * Updates a package reference.
+     * @param id The identifier of the package reference to update.
+     * @param packageReference The new package reference.
+     * @param signal The signal to cancel the current operation.
+     */
+    update(packageReference: PackageReference, id?: string | undefined, signal?: AbortSignal): Promise<Response>;
+
+    /**
+     * Deletes a package reference.
+     * @param id The ID of the package reference.
+     * @param signal The signal to cancel the current operation.
+     */
+    delete(id: string, signal?: AbortSignal): Promise<void>;
+
+    /**
+     * Gets package versions.
+     * @param packageReference The package reference to get versions for.
+     * @param signal The signal to cancel the current operation.
+     */
+    getVersions(packageReference: PackageReference, signal?: AbortSignal): Promise<string[]>;
+
+}
+
+/**
+ * Provides methods to interact with package references.
+ */
+export class PackageReferencesClient implements IPackageReferencesClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets the list of package references.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async get(signal?: AbortSignal): Promise<Record<string, PackageReference>> {
+        let __url = "/api/v1/packagereferences";
+
+        return this._invoke<Record<string, PackageReference>>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Creates a package reference.
+     * @param packageReference The package reference to create.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async create(packageReference: PackageReference, signal?: AbortSignal): Promise<string> {
+        let __url = "/api/v1/packagereferences";
+
+        return this._invoke<string>("POST", __url, "application/json", "application/json", JSON.stringify(packageReference), signal);
+    }
+
+    /**
+     * Updates a package reference.
+     * @param id The identifier of the package reference to update.
+     * @param packageReference The new package reference.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async update(packageReference: PackageReference, id?: string | undefined, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/packagereferences";
+
+        const __searchParams = new URLSearchParams();
+        if (id !== undefined && id !== null)
+            __searchParams.set("id", String(id));
+        const __query = __searchParams.toString();
+        if (__query)
+            __url += "?" + __query;
+
+        return this._invoke<Response>("PUT", __url, "application/octet-stream", "application/json", JSON.stringify(packageReference), signal);
+    }
+
+    /**
+     * Deletes a package reference.
+     * @param id The ID of the package reference.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async delete(id: string, signal?: AbortSignal): Promise<void> {
+        let __url = "/api/v1/packagereferences/{id}";
+        __url = __url.replace("{id}", encodeURIComponent(String(id)));
+
+        return this._invoke<void>("DELETE", __url, undefined, undefined, undefined, signal);
+    }
+
+    /**
+     * Gets package versions.
+     * @param packageReference The package reference to get versions for.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getVersions(packageReference: PackageReference, signal?: AbortSignal): Promise<string[]> {
+        let __url = "/api/v1/packagereferences/versions";
+
+        return this._invoke<string[]>("POST", __url, "application/json", "application/json", JSON.stringify(packageReference), signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with sources.
+ */
+export interface ISourcesClient {
+    /**
+     * Gets the list of source descriptions.
+     * @param signal The signal to cancel the current operation.
+     */
+    getDescriptions(signal?: AbortSignal): Promise<ExtensionDescription[]>;
+
+    /**
+     * Gets the list of data source pipelines.
+     * @param signal The signal to cancel the current operation.
+     */
+    getPipelines(signal?: AbortSignal): Promise<Record<string, DataSourcePipeline>>;
+
+    /**
+     * Creates a data source pipeline.
+     * @param pipeline The pipeline to create.
+     * @param signal The signal to cancel the current operation.
+     */
+    createPipeline(pipeline: DataSourcePipeline, signal?: AbortSignal): Promise<string>;
+
+    /**
+     * Updates a data source pipeline.
+     * @param pipelineId The identifier of the pipeline to update.
+     * @param pipeline The new pipeline.
+     * @param signal The signal to cancel the current operation.
+     */
+    updatePipeline(pipelineId: string, pipeline: DataSourcePipeline, signal?: AbortSignal): Promise<Response>;
+
+    /**
+     * Deletes a data source pipeline.
+     * @param pipelineId The identifier of the pipeline to delete.
+     * @param signal The signal to cancel the current operation.
+     */
+    deletePipeline(pipelineId: string, signal?: AbortSignal): Promise<Response>;
+
+}
+
+/**
+ * Provides methods to interact with sources.
+ */
+export class SourcesClient implements ISourcesClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets the list of source descriptions.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getDescriptions(signal?: AbortSignal): Promise<ExtensionDescription[]> {
+        let __url = "/api/v1/sources/descriptions";
+
+        return this._invoke<ExtensionDescription[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the list of data source pipelines.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getPipelines(signal?: AbortSignal): Promise<Record<string, DataSourcePipeline>> {
+        let __url = "/api/v1/sources/pipelines";
+
+        return this._invoke<Record<string, DataSourcePipeline>>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Creates a data source pipeline.
+     * @param pipeline The pipeline to create.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async createPipeline(pipeline: DataSourcePipeline, signal?: AbortSignal): Promise<string> {
+        let __url = "/api/v1/sources/pipelines";
+
+        return this._invoke<string>("POST", __url, "application/json", "application/json", JSON.stringify(pipeline), signal);
+    }
+
+    /**
+     * Updates a data source pipeline.
+     * @param pipelineId The identifier of the pipeline to update.
+     * @param pipeline The new pipeline.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async updatePipeline(pipelineId: string, pipeline: DataSourcePipeline, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/sources/pipelines/{pipelineId}";
+        __url = __url.replace("{pipelineId}", encodeURIComponent(String(pipelineId)));
+
+        return this._invoke<Response>("PUT", __url, "application/octet-stream", "application/json", JSON.stringify(pipeline), signal);
+    }
+
+    /**
+     * Deletes a data source pipeline.
+     * @param pipelineId The identifier of the pipeline to delete.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async deletePipeline(pipelineId: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/sources/pipelines/{pipelineId}";
+        __url = __url.replace("{pipelineId}", encodeURIComponent(String(pipelineId)));
+
+        return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with system.
+ */
+export interface ISystemClient {
+    /**
+     * Gets the system configuration.
+     * @param signal The signal to cancel the current operation.
+     */
+    get(signal?: AbortSignal): Promise<SystemResponse>;
+
+}
+
+/**
+ * Provides methods to interact with system.
+ */
+export class SystemClient implements ISystemClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets the system configuration.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async get(signal?: AbortSignal): Promise<SystemResponse> {
+        let __url = "/api/v1/system";
+
+        return this._invoke<SystemResponse>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with users.
+ */
+export interface IUsersClient {
+    /**
+     * Deletes a personal access token.
+     * @param value The personal access token to delete.
+     * @param signal The signal to cancel the current operation.
+     */
+    deleteTokenByValue(value: string, signal?: AbortSignal): Promise<Response>;
+
+    /**
+     * Gets the current user.
+     * @param signal The signal to cancel the current operation.
+     */
+    getMe(signal?: AbortSignal): Promise<MeResponse>;
+
+    /**
+     * Gets all personal access tokens.
+     * @param signal The signal to cancel the current operation.
+     */
+    getTokens(signal?: AbortSignal): Promise<Record<string, PersonalAccessToken>>;
+
+    /**
+     * Creates a personal access token.
+     * @param token The personal access token to create.
+     * @param signal The signal to cancel the current operation.
+     */
+    createToken(token: PersonalAccessToken, signal?: AbortSignal): Promise<string>;
+
+    /**
+     * Deletes a personal access token.
+     * @param tokenId The identifier of the personal access token.
+     * @param signal The signal to cancel the current operation.
+     */
+    deleteToken(tokenId: string, signal?: AbortSignal): Promise<Response>;
+
+}
+
+/**
+ * Provides methods to interact with users.
+ */
+export class UsersClient implements IUsersClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Deletes a personal access token.
+     * @param value The personal access token to delete.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async deleteTokenByValue(value: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/users/tokens/delete";
+
+        const __searchParams = new URLSearchParams();
+        __searchParams.set("value", String(value));
+        const __query = __searchParams.toString();
+        if (__query)
+            __url += "?" + __query;
+
+        return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets the current user.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getMe(signal?: AbortSignal): Promise<MeResponse> {
+        let __url = "/api/v1/users/me";
+
+        return this._invoke<MeResponse>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Gets all personal access tokens.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getTokens(signal?: AbortSignal): Promise<Record<string, PersonalAccessToken>> {
+        let __url = "/api/v1/users/tokens";
+
+        return this._invoke<Record<string, PersonalAccessToken>>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+    /**
+     * Creates a personal access token.
+     * @param token The personal access token to create.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async createToken(token: PersonalAccessToken, signal?: AbortSignal): Promise<string> {
+        let __url = "/api/v1/users/tokens/create";
+
+        return this._invoke<string>("POST", __url, "application/json", "application/json", JSON.stringify(token), signal);
+    }
+
+    /**
+     * Deletes a personal access token.
+     * @param tokenId The identifier of the personal access token.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async deleteToken(tokenId: string, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v1/users/tokens/{tokenId}";
+        __url = __url.replace("{tokenId}", encodeURIComponent(String(tokenId)));
+
+        return this._invoke<Response>("DELETE", __url, "application/octet-stream", undefined, undefined, signal);
+    }
+
+}
+
+/**
+ * Provides methods to interact with writers.
+ */
+export interface IWritersClient {
+    /**
+     * Gets the list of writer descriptions.
+     * @param signal The signal to cancel the current operation.
+     */
+    getDescriptions(signal?: AbortSignal): Promise<ExtensionDescription[]>;
+
+}
+
+/**
+ * Provides methods to interact with writers.
+ */
+export class WritersClient implements IWritersClient {
+    private _invoke: HttpRequestHandler;
+
+    constructor(invoke: HttpRequestHandler) {
+        this._invoke = invoke;
+    }
+
+    /**
+     * Gets the list of writer descriptions.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getDescriptions(signal?: AbortSignal): Promise<ExtensionDescription[]> {
+        let __url = "/api/v1/writers/descriptions";
+
+        return this._invoke<ExtensionDescription[]>("GET", __url, "application/json", undefined, undefined, signal);
+    }
+
+}
+
+
+/**
+ * A catalog item consists of a catalog, a resource and a representation.
+ */
+export interface CatalogItem {
+    /** The catalog. */
+    catalog?: ResourceCatalog | undefined;
+    /** The resource. */
+    resource?: Resource | undefined;
+    /** The representation. */
+    representation?: Representation | undefined;
+    /** The optional dictionary of representation parameters and its arguments. */
+    parameters?: Record<string, string> | null;
+}
+
+
+/**
+ * A catalog is a top level element and holds a list of resources.
+ */
+export interface ResourceCatalog {
+    /** Gets the identifier. */
+    id?: string | undefined;
+    /** Gets the properties. */
+    properties?: Record<string, unknown> | null;
+    /** Gets the list of representations. */
+    resources?: Resource[] | null;
+}
+
+
+/**
+ * A resource is part of a resource catalog and holds a list of representations.
+ */
+export interface Resource {
+    /** Gets the identifier. */
+    id?: string | undefined;
+    /** Gets the properties. */
+    properties?: Record<string, unknown> | null;
+    /** Gets the list of representations. */
+    representations?: Representation[] | null;
+}
+
+
+/**
+ * A representation is part of a resource.
+ */
+export interface Representation {
+    /** The data type. */
+    dataType?: NexusDataType | undefined;
+    /** The sample period. */
+    samplePeriod?: string | undefined;
+    /** The optional list of parameters. */
+    parameters?: Record<string, unknown> | null;
+}
+
+
+/**
+ * Specifies the Nexus data type.
+ */
+export enum NexusDataType {
+    UInt8 = "UInt8",
+    UInt16 = "UInt16",
+    UInt32 = "UInt32",
+    UInt64 = "UInt64",
+    Int8 = "Int8",
+    Int16 = "Int16",
+    Int32 = "Int32",
+    Int64 = "Int64",
+    Float32 = "Float32",
+    Float64 = "Float64"
+}
+
+
+/**
+ * A structure for catalog information.
+ */
+export interface CatalogInfo {
+    /** The identifier. */
+    id?: string | undefined;
+    /** A nullable title. */
+    title?: string | null;
+    /** A nullable contact. */
+    contact?: string | null;
+    /** A nullable readme. */
+    readme?: string | null;
+    /** A nullable license. */
+    license?: string | null;
+    /** A boolean which indicates if the catalog is accessible. */
+    isReadable?: boolean | undefined;
+    /** A boolean which indicates if the catalog is editable. */
+    isWritable?: boolean | undefined;
+    /** A boolean which indicates if the catalog is visible. */
+    isVisible?: boolean | undefined;
+    /** The package reference identifiers. */
+    packageReferenceIds?: string[] | undefined;
+    /** A structure for pipeline info. */
+    pipelineInfo?: PipelineInfo | undefined;
+}
+
+
+/**
+ * A structure for pipeline information.
+ */
+export interface PipelineInfo {
+    /** The pipeline identifier. */
+    id?: string | undefined;
+    /** An array of data source types. */
+    types?: string[] | undefined;
+    /** An array of data source info URLs. */
+    infoUrls?: (string | null)[] | undefined;
+}
+
+
+/**
+ * A catalog time range.
+ */
+export interface CatalogTimeRange {
+    /** The date/time of the first data in the catalog. */
+    begin?: string | undefined;
+    /** The date/time of the last data in the catalog. */
+    end?: string | undefined;
+}
+
+
+/**
+ * The catalog availability.
+ */
+export interface CatalogAvailability {
+    /** The actual availability data. */
+    data?: number[] | undefined;
+}
+
+
+/**
+ * A structure for catalog metadata.
+ */
+export interface CatalogMetadata {
+    /** The contact. */
+    contact?: string | null;
+    /** A list of groups the catalog is part of. */
+    groupMemberships?: string[] | null;
+    /** Overrides for the catalog. */
+    overrides?: ResourceCatalog | null;
+}
+
+
+/**
+ * The effective Git configuration without secret values.
+ */
+export interface GitConfigResponse {
+    /** The configured Git branch. */
+    branch?: string | undefined;
+    /** The number of seconds Nexus waits before committing configuration changes. */
+    commitThrottleSeconds?: number | undefined;
+    /** The configured remote Git repository URL. */
+    remoteUrl?: string | null;
+    /** The configured HTTPS username. */
+    username?: string | null;
+    /** A value indicating whether an HTTPS token is configured. */
+    hasToken?: boolean | undefined;
+    /** A value indicating whether an SSH private key is configured. */
+    hasSshPrivateKey?: boolean | undefined;
+    /** The authentication mode inferred from the remote URL. */
+    authMode?: string | undefined;
+    /** The Git commit author name. */
+    commitAuthorName?: string | undefined;
+    /** The Git commit author email. */
+    commitAuthorEmail?: string | undefined;
+    /** A value indicating whether remote backup has enough configuration to push. */
+    isRemoteConfigured?: boolean | undefined;
+}
+
+
+/**
+ * The current Git repository and push status required by the admin UI.
+ */
+export interface GitStatusResponse {
+    /** A value indicating whether the Git executable is available. */
+    gitAvailable?: boolean | undefined;
+    /** A value indicating whether the SSH executable is available. */
+    sshAvailable?: boolean | undefined;
+    /** A value indicating whether the local repository has uncommitted changes. */
+    hasUncommittedChanges?: boolean | undefined;
+    /** The current commit SHA. */
+    currentCommitSha?: string | null;
+    /** The last commit SHA successfully pushed by this process. */
+    lastPushedCommitSha?: string | null;
+    /** The last successful push time. */
+    lastSuccessfulPushAt?: string | null;
+    /** The last push status. */
+    lastPushStatus?: GitPushStatus | undefined;
+    /** The last push error. */
+    lastPushError?: string | null;
+}
+
+
+/**
+ * The result of pushing configuration history to a remote Git repository.
+ */
+export enum GitPushStatus {
+    NotConfigured = "NotConfigured",
+    Succeeded = "Succeeded",
+    Failed = "Failed"
+}
+
+
+/**
+ * A Git commit in the configuration history.
+ */
+export interface GitHistoryEntry {
+    /** The full commit SHA. */
+    sha?: string | undefined;
+    /** The abbreviated commit SHA. */
+    shortSha?: string | undefined;
+    /** The commit date. */
+    date?: string | undefined;
+    /** The commit author name. */
+    authorName?: string | undefined;
+    /** The commit author email. */
+    authorEmail?: string | undefined;
+    /** The commit message. */
+    message?: string | undefined;
+}
+
+
+/**
+ * A changed file in a Git commit.
+ */
+export interface GitDiffFile {
+    /** The repository-relative file path. */
+    path?: string | undefined;
+    /** The Git file status. */
+    status?: string | undefined;
+    /** The file text before the commit. */
+    originalText?: string | null;
+    /** The file text after the commit. */
+    modifiedText?: string | null;
+}
+
+
+/**
+ * The result of restoring configuration from a commit.
+ */
+export interface GitRestoreResponse {
+    /** The commit SHA created by the restore operation. */
+    commitSha?: string | undefined;
+    /** A human-readable result message. */
+    message?: string | undefined;
+}
+
+
+/**
+ * A request to restore configuration from a commit.
+ */
+export interface GitRestoreRequest {
+    /** The commit SHA to restore. */
+    commitSha?: string | undefined;
+}
+
+
+/**
+ * Description of a job.
+ */
+export interface Job {
+    /** The global unique identifier. */
+    id?: string | undefined;
+    /** The job type. */
+    type?: string | undefined;
+    /** The owner of the job. */
+    owner?: string | undefined;
+    /** The job parameters. */
+    parameters?: unknown | null;
+}
+
+
+/**
+ * Describes the status of the job.
+ */
+export interface JobStatus {
+    /** The start date/time. */
+    start?: string | undefined;
+    /** The status. */
+    status?: TaskStatus | undefined;
+    /** The progress from 0 to 1. */
+    progress?: number | undefined;
+    /** The nullable exception message. */
+    exceptionMessage?: string | null;
+    /** The nullable result. */
+    result?: unknown | null;
+}
+
+
+/**
+ *
+ */
+export enum TaskStatus {
+    Created = "Created",
+    WaitingForActivation = "WaitingForActivation",
+    WaitingToRun = "WaitingToRun",
+    Running = "Running",
+    WaitingForChildrenToComplete = "WaitingForChildrenToComplete",
+    RanToCompletion = "RanToCompletion",
+    Canceled = "Canceled",
+    Faulted = "Faulted"
+}
+
+
+/**
+ * A structure for export parameters.
+ */
+export interface ExportParameters {
+    /** The start date/time. */
+    begin?: string | undefined;
+    /** The end date/time. */
+    end?: string | undefined;
+    /** The file period. */
+    filePeriod?: string | undefined;
+    /** The writer type. If null, data will be read (and possibly cached) but not returned. This is useful for data pre-aggregation. */
+    type?: string | null;
+    /** The resource paths to export. */
+    resourcePaths?: string[] | undefined;
+    /** The configuration. */
+    configuration?: Record<string, unknown> | null;
+}
+
+
+/**
+ * A request to synchronize local configuration history with the configured remote.
+ */
+export interface GitSyncRequest {
+    /** A value indicating whether to force-push once. */
+    force?: boolean | undefined;
+}
+
+
+/**
+ * A package reference.
+ */
+export interface PackageReference {
+    /** The provider which loads the package. */
+    provider?: string | undefined;
+    /** The configuration of the package reference. */
+    configuration?: Record<string, string> | undefined;
+}
+
+
+/**
+ * An extension description.
+ */
+export interface ExtensionDescription {
+    /** The extension type. */
+    type?: string | undefined;
+    /** The extension version. */
+    version?: string | undefined;
+    /** A nullable description. */
+    description?: string | null;
+    /** A nullable project website URL. */
+    projectUrl?: string | null;
+    /** A nullable source repository URL. */
+    repositoryUrl?: string | null;
+    /** Additional information about the extension. */
+    additionalInformation?: Record<string, unknown> | undefined;
+}
+
+
+/**
+ * A data source pipeline.
+ */
+export interface DataSourcePipeline {
+    /** The list of pipeline elements (data source registrations). */
+    registrations?: DataSourceRegistration[] | undefined;
+    /** An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible. */
+    visibilityPattern?: string | null;
+    /** An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled. */
+    disabled?: boolean | undefined;
+}
+
+
+/**
+ * A data source registration.
+ */
+export interface DataSourceRegistration {
+    /** The type of the data source. */
+    type?: string | undefined;
+    /** An optional URL which points to the data. */
+    resourceLocator?: string | null;
+    /** Configuration parameters for the instantiated source. */
+    configuration?: unknown | undefined;
+    /** An optional info URL. */
+    infoUrl?: string | null;
+}
+
+
+/**
+ * A system response.
+ */
+export interface SystemResponse {
+    /** The Nexus version. */
+    version?: string | undefined;
+    /** The application name. */
+    applicationName?: string | null;
+    /** The help link. */
+    helpLink?: string | null;
+    /** The logout URL. */
+    logoutUrl?: string | null;
+}
+
+
+/**
+ * A me response.
+ */
+export interface MeResponse {
+    /** The user id. */
+    userId?: string | undefined;
+    /** The user name. */
+    name?: string | undefined;
+    /** The user claims. */
+    claims?: TokenClaim[] | undefined;
+}
+
+
+/**
+ * A revoke token request.
+ */
+export interface TokenClaim {
+    /** The claim type. */
+    type?: string | undefined;
+    /** The claim value. */
+    value?: string | undefined;
+}
+
+
+/**
+ * A personal access token.
+ */
+export interface PersonalAccessToken {
+    /** The token description. */
+    description?: string | undefined;
+    /** The date/time when the token expires. */
+    expires?: string | undefined;
+    /** The claims that will be part of the token. */
+    claims?: TokenClaim[] | undefined;
+    /** A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator. */
+    grantClaims?: TokenClaim[] | undefined;
+}

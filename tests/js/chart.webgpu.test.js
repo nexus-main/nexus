@@ -12,7 +12,7 @@ const scriptNames = [
 ];
 const scripts = scriptNames.map(name => ({
     name,
-    source: fs.readFileSync(path.join(__dirname, '../../src/Nexus/wwwroot/js', name), 'utf8'),
+    source: fs.readFileSync(path.join(__dirname, '../../src/Nexus.UI/src/charts', name), 'utf8'),
 }));
 
 function deferred() {

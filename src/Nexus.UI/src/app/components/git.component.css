@@ -1,0 +1,44 @@
+:host { display: contents; }
+
+.git-workspace,
+.git-panel,
+.git-desktop-tabs,
+.git-mobile-tabs,
+.git-mobile-tab-panels,
+.git-mobile-details,
+.git-history-panel,
+.git-history-grid,
+.git-commit-panel,
+.git-editor-host,
+.git-editor,
+.git-empty-state { min-height: 0; }
+
+.git-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; min-height: 0; }
+.git-desktop-tabs { overflow: hidden; }
+:host ::ng-deep .git-desktop-tabs > .p-tabpanels { background: transparent; color: var(--p-text-color); }
+.git-mobile-tabs { display: none; }
+.git-mobile-tab-bar { flex: 0 0 auto; padding-bottom: .75rem; }
+.git-mobile-tab-panels { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; padding: 0; }
+.git-mobile-panel-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
+.git-mobile-details { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; }
+:host ::ng-deep .git-mobile-tabs > .p-tabpanels > .p-tabpanel[hidden] { display: none; }
+.git-desktop-tabs .git-history-panel { height: 100%; }
+.git-history-panel { display: flex; flex-direction: column; }
+.git-history-grid { overflow: hidden; }
+.git-commit-panel { background: color-mix(in srgb, var(--p-content-background) 96%, var(--p-primary-color)); }
+.git-editor-host { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; overflow: hidden; }
+.git-editor { display: block; flex: 1 1 0; height: 100%; min-height: 0; }
+.git-empty-state { background: color-mix(in srgb, var(--p-content-background) 96%, var(--p-primary-color)); color: var(--p-text-muted-color); }
+
+:host ::ng-deep .git-editor .editor-container,
+:host ::ng-deep .git-editor .monaco-editor,
+:host ::ng-deep .git-editor .diff-editor,
+:host ::ng-deep .git-editor .overflow-guard { height: 100% !important; min-height: 0; }
+
+button:disabled { cursor: not-allowed; opacity: .55; }
+button:not(:disabled) { cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--p-primary-color); outline-offset: 2px; }
+
+@media (max-width: 767.98px) {
+  .git-mobile-tabs { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; }
+}

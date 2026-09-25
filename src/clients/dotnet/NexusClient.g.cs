@@ -1136,6 +1136,11 @@ public interface IV1
     IDataClient Data { get; }
 
     /// <summary>
+    /// Gets the <see cref="IGitClient"/>.
+    /// </summary>
+    IGitClient Git { get; }
+
+    /// <summary>
     /// Gets the <see cref="IJobsClient"/>.
     /// </summary>
     IJobsClient Jobs { get; }
@@ -1180,6 +1185,7 @@ public class V1 : IV1
         Artifacts = new ArtifactsClient(client);
         Catalogs = new CatalogsClient(client);
         Data = new DataClient(client);
+        Git = new GitClient(client);
         Jobs = new JobsClient(client);
         PackageReferences = new PackageReferencesClient(client);
         Sources = new SourcesClient(client);
@@ -1197,6 +1203,9 @@ public class V1 : IV1
 
     /// <inheritdoc />
     public IDataClient Data { get; }
+
+    /// <inheritdoc />
+    public IGitClient Git { get; }
 
     /// <inheritdoc />
     public IJobsClient Jobs { get; }
@@ -1361,6 +1370,19 @@ public interface ICatalogsClient
     /// <param name="catalogId">The catalog identifier.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<string?> GetLicenseAsync(string catalogId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Accepts the current license of the specified catalog.
+    /// </summary>
+    /// <param name="catalogId">The catalog identifier.</param>
+    HttpResponseMessage AcceptLicense(string catalogId);
+
+    /// <summary>
+    /// Accepts the current license of the specified catalog.
+    /// </summary>
+    /// <param name="catalogId">The catalog identifier.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> AcceptLicenseAsync(string catalogId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets all attachments for the specified catalog.
@@ -1615,6 +1637,28 @@ public class CatalogsClient : ICatalogsClient
     }
 
     /// <inheritdoc />
+    public HttpResponseMessage AcceptLicense(string catalogId)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/catalogs/{catalogId}/accept-license");
+        __urlBuilder.Replace("{catalogId}", Uri.EscapeDataString(catalogId));
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/octet-stream", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> AcceptLicenseAsync(string catalogId, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/catalogs/{catalogId}/accept-license");
+        __urlBuilder.Replace("{catalogId}", Uri.EscapeDataString(catalogId));
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/octet-stream", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public IReadOnlyList<string> GetAttachments(string catalogId)
     {
         var __urlBuilder = new StringBuilder();
@@ -1833,6 +1877,186 @@ public class DataClient : IDataClient
 }
 
 /// <summary>
+/// Provides methods to interact with git.
+/// </summary>
+public interface IGitClient
+{
+    /// <summary>
+    /// Gets the effective Git configuration without secrets.
+    /// </summary>
+    GitConfigResponse GetConfig();
+
+    /// <summary>
+    /// Gets the effective Git configuration without secrets.
+    /// </summary>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<GitConfigResponse> GetConfigAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the current Git status.
+    /// </summary>
+    GitStatusResponse GetStatus();
+
+    /// <summary>
+    /// Gets the current Git status.
+    /// </summary>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<GitStatusResponse> GetStatusAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the configuration history.
+    /// </summary>
+    IReadOnlyList<GitHistoryEntry> GetHistory();
+
+    /// <summary>
+    /// Gets the configuration history.
+    /// </summary>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<IReadOnlyList<GitHistoryEntry>> GetHistoryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets file-level changes for a commit.
+    /// </summary>
+    /// <param name="commitSha"></param>
+    IReadOnlyList<GitDiffFile> GetDiff(string commitSha);
+
+    /// <summary>
+    /// Gets file-level changes for a commit.
+    /// </summary>
+    /// <param name="commitSha"></param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<IReadOnlyList<GitDiffFile>> GetDiffAsync(string commitSha, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Restores the configuration from a commit by creating a new commit.
+    /// </summary>
+    /// <param name="request"></param>
+    GitRestoreResponse Restore(GitRestoreRequest request);
+
+    /// <summary>
+    /// Restores the configuration from a commit by creating a new commit.
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<GitRestoreResponse> RestoreAsync(GitRestoreRequest request, CancellationToken cancellationToken = default);
+
+}
+
+/// <inheritdoc />
+public class GitClient : IGitClient
+{
+    private NexusClient ___client;
+    
+    internal GitClient(NexusClient client)
+    {
+        ___client = client;
+    }
+
+    /// <inheritdoc />
+    public GitConfigResponse GetConfig()
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/config");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<GitConfigResponse>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<GitConfigResponse> GetConfigAsync(CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/config");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<GitConfigResponse>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public GitStatusResponse GetStatus()
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/status");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<GitStatusResponse>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<GitStatusResponse> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/status");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<GitStatusResponse>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<GitHistoryEntry> GetHistory()
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/history");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<IReadOnlyList<GitHistoryEntry>>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<GitHistoryEntry>> GetHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/history");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<IReadOnlyList<GitHistoryEntry>>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<GitDiffFile> GetDiff(string commitSha)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/diff/{commitSha}");
+        __urlBuilder.Replace("{commitSha}", Uri.EscapeDataString(commitSha));
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<IReadOnlyList<GitDiffFile>>("GET", __url, "application/json", default, default);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<GitDiffFile>> GetDiffAsync(string commitSha, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/diff/{commitSha}");
+        __urlBuilder.Replace("{commitSha}", Uri.EscapeDataString(commitSha));
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<IReadOnlyList<GitDiffFile>>("GET", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public GitRestoreResponse Restore(GitRestoreRequest request)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/restore");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<GitRestoreResponse>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<GitRestoreResponse> RestoreAsync(GitRestoreRequest request, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/git/restore");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<GitRestoreResponse>("POST", __url, "application/json", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+    }
+
+}
+
+/// <summary>
 /// Provides methods to interact with jobs.
 /// </summary>
 public interface IJobsClient
@@ -1914,6 +2138,19 @@ public interface IJobsClient
     /// <param name="end">End date/time.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<Job> ClearCacheAsync(string catalogId, DateTime begin, DateTime end, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new Git synchronization job.
+    /// </summary>
+    /// <param name="parameters"></param>
+    Job SyncGit(GitSyncRequest parameters);
+
+    /// <summary>
+    /// Creates a new Git synchronization job.
+    /// </summary>
+    /// <param name="parameters"></param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<Job> SyncGitAsync(GitSyncRequest parameters, CancellationToken cancellationToken = default);
 
 }
 
@@ -2071,6 +2308,26 @@ public class JobsClient : IJobsClient
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<Job>("POST", __url, "application/json", default, default, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Job SyncGit(GitSyncRequest parameters)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/jobs/git/sync");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<Job>("POST", __url, "application/json", "application/json", JsonContent.Create(parameters, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<Job> SyncGitAsync(GitSyncRequest parameters, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v1/jobs/git/sync");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<Job>("POST", __url, "application/json", "application/json", JsonContent.Create(parameters, options: Utilities.JsonOptions), cancellationToken);
     }
 
 }
@@ -2296,62 +2553,54 @@ public interface ISourcesClient
     /// <summary>
     /// Gets the list of data source pipelines.
     /// </summary>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    IReadOnlyDictionary<string, DataSourcePipeline> GetPipelines(string? userId = default);
+    IReadOnlyDictionary<string, DataSourcePipeline> GetPipelines();
 
     /// <summary>
     /// Gets the list of data source pipelines.
     /// </summary>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, DataSourcePipeline>> GetPipelinesAsync(string? userId = default, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, DataSourcePipeline>> GetPipelinesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a data source pipeline.
     /// </summary>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="pipeline">The pipeline to create.</param>
-    Guid CreatePipeline(DataSourcePipeline pipeline, string? userId = default);
+    Guid CreatePipeline(DataSourcePipeline pipeline);
 
     /// <summary>
     /// Creates a data source pipeline.
     /// </summary>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="pipeline">The pipeline to create.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default);
+    Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates a data source pipeline.
     /// </summary>
     /// <param name="pipelineId">The identifier of the pipeline to update.</param>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="pipeline">The new pipeline.</param>
-    HttpResponseMessage UpdatePipeline(Guid pipelineId, DataSourcePipeline pipeline, string? userId = default);
+    HttpResponseMessage UpdatePipeline(Guid pipelineId, DataSourcePipeline pipeline);
 
     /// <summary>
     /// Updates a data source pipeline.
     /// </summary>
     /// <param name="pipelineId">The identifier of the pipeline to update.</param>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="pipeline">The new pipeline.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> UpdatePipelineAsync(Guid pipelineId, DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default);
+    Task<HttpResponseMessage> UpdatePipelineAsync(Guid pipelineId, DataSourcePipeline pipeline, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a data source pipeline.
     /// </summary>
     /// <param name="pipelineId">The identifier of the pipeline to delete.</param>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    HttpResponseMessage DeletePipeline(Guid pipelineId, string? userId = default);
+    HttpResponseMessage DeletePipeline(Guid pipelineId);
 
     /// <summary>
     /// Deletes a data source pipeline.
     /// </summary>
     /// <param name="pipelineId">The identifier of the pipeline to delete.</param>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> DeletePipelineAsync(Guid pipelineId, string? userId = default, CancellationToken cancellationToken = default);
+    Task<HttpResponseMessage> DeletePipelineAsync(Guid pipelineId, CancellationToken cancellationToken = default);
 
 }
 
@@ -2386,148 +2635,84 @@ public class SourcesClient : ISourcesClient
     }
 
     /// <inheritdoc />
-    public IReadOnlyDictionary<string, DataSourcePipeline> GetPipelines(string? userId = default)
+    public IReadOnlyDictionary<string, DataSourcePipeline> GetPipelines()
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.Invoke<IReadOnlyDictionary<string, DataSourcePipeline>>("GET", __url, "application/json", default, default);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, DataSourcePipeline>> GetPipelinesAsync(string? userId = default, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<string, DataSourcePipeline>> GetPipelinesAsync(CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<IReadOnlyDictionary<string, DataSourcePipeline>>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Guid CreatePipeline(DataSourcePipeline pipeline, string? userId = default)
+    public Guid CreatePipeline(DataSourcePipeline pipeline)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.Invoke<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(pipeline, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
-    public Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<Guid> CreatePipelineAsync(DataSourcePipeline pipeline, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(pipeline, options: Utilities.JsonOptions), cancellationToken);
     }
 
     /// <inheritdoc />
-    public HttpResponseMessage UpdatePipeline(Guid pipelineId, DataSourcePipeline pipeline, string? userId = default)
+    public HttpResponseMessage UpdatePipeline(Guid pipelineId, DataSourcePipeline pipeline)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines/{pipelineId}");
         __urlBuilder.Replace("{pipelineId}", Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!));
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.Invoke<HttpResponseMessage>("PUT", __url, "application/octet-stream", "application/json", JsonContent.Create(pipeline, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
-    public Task<HttpResponseMessage> UpdatePipelineAsync(Guid pipelineId, DataSourcePipeline pipeline, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> UpdatePipelineAsync(Guid pipelineId, DataSourcePipeline pipeline, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines/{pipelineId}");
         __urlBuilder.Replace("{pipelineId}", Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!));
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<HttpResponseMessage>("PUT", __url, "application/octet-stream", "application/json", JsonContent.Create(pipeline, options: Utilities.JsonOptions), cancellationToken);
     }
 
     /// <inheritdoc />
-    public HttpResponseMessage DeletePipeline(Guid pipelineId, string? userId = default)
+    public HttpResponseMessage DeletePipeline(Guid pipelineId)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines/{pipelineId}");
         __urlBuilder.Replace("{pipelineId}", Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!));
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.Invoke<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default);
     }
 
     /// <inheritdoc />
-    public Task<HttpResponseMessage> DeletePipelineAsync(Guid pipelineId, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<HttpResponseMessage> DeletePipelineAsync(Guid pipelineId, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/sources/pipelines/{pipelineId}");
         __urlBuilder.Replace("{pipelineId}", Uri.EscapeDataString(Convert.ToString(pipelineId, CultureInfo.InvariantCulture)!));
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default, cancellationToken);
@@ -2541,26 +2726,15 @@ public class SourcesClient : ISourcesClient
 public interface ISystemClient
 {
     /// <summary>
-    /// Gets the default file type.
+    /// Gets the system configuration.
     /// </summary>
-    string GetDefaultFileType();
+    SystemResponse Get();
 
     /// <summary>
-    /// Gets the default file type.
+    /// Gets the system configuration.
     /// </summary>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> GetDefaultFileTypeAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets the configured help link.
-    /// </summary>
-    string GetHelpLink();
-
-    /// <summary>
-    /// Gets the configured help link.
-    /// </summary>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> GetHelpLinkAsync(CancellationToken cancellationToken = default);
+    Task<SystemResponse> GetAsync(CancellationToken cancellationToken = default);
 
 }
 
@@ -2575,43 +2749,23 @@ public class SystemClient : ISystemClient
     }
 
     /// <inheritdoc />
-    public string GetDefaultFileType()
+    public SystemResponse Get()
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/file-type");
+        __urlBuilder.Append("/api/v1/system");
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<string>("GET", __url, "application/json", default, default);
+        return ___client.Invoke<SystemResponse>("GET", __url, "application/json", default, default);
     }
 
     /// <inheritdoc />
-    public Task<string> GetDefaultFileTypeAsync(CancellationToken cancellationToken = default)
+    public Task<SystemResponse> GetAsync(CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/file-type");
+        __urlBuilder.Append("/api/v1/system");
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<string>("GET", __url, "application/json", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public string GetHelpLink()
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/help-link");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<string>("GET", __url, "application/json", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<string> GetHelpLinkAsync(CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/system/help-link");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<string>("GET", __url, "application/json", default, default, cancellationToken);
+        return ___client.InvokeAsync<SystemResponse>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
 }
@@ -2621,34 +2775,6 @@ public class SystemClient : ISystemClient
 /// </summary>
 public interface IUsersClient
 {
-    /// <summary>
-    /// Authenticates the user.
-    /// </summary>
-    /// <param name="scheme">The authentication scheme to challenge.</param>
-    /// <param name="returnUrl">The URL to return after successful authentication.</param>
-    HttpResponseMessage Authenticate(string scheme, string returnUrl);
-
-    /// <summary>
-    /// Authenticates the user.
-    /// </summary>
-    /// <param name="scheme">The authentication scheme to challenge.</param>
-    /// <param name="returnUrl">The URL to return after successful authentication.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> AuthenticateAsync(string scheme, string returnUrl, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Logs out the user.
-    /// </summary>
-    /// <param name="returnUrl">The URL to return after logout.</param>
-    void SignOut(string returnUrl);
-
-    /// <summary>
-    /// Logs out the user.
-    /// </summary>
-    /// <param name="returnUrl">The URL to return after logout.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task SignOutAsync(string returnUrl, CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Deletes a personal access token.
     /// </summary>
@@ -2674,43 +2800,28 @@ public interface IUsersClient
     Task<MeResponse> GetMeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Allows the user to reauthenticate in case of modified claims.
+    /// Gets all personal access tokens.
     /// </summary>
-    HttpResponseMessage ReAuthenticate();
-
-    /// <summary>
-    /// Allows the user to reauthenticate in case of modified claims.
-    /// </summary>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default);
+    IReadOnlyDictionary<string, PersonalAccessToken> GetTokens();
 
     /// <summary>
     /// Gets all personal access tokens.
     /// </summary>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
-    IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string? userId = default);
-
-    /// <summary>
-    /// Gets all personal access tokens.
-    /// </summary>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string? userId = default, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a personal access token.
     /// </summary>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="token">The personal access token to create.</param>
-    string CreateToken(PersonalAccessToken token, string? userId = default);
+    string CreateToken(PersonalAccessToken token);
 
     /// <summary>
     /// Creates a personal access token.
     /// </summary>
-    /// <param name="userId">The optional user identifier. If not specified, the current user will be used.</param>
     /// <param name="token">The personal access token to create.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> CreateTokenAsync(PersonalAccessToken token, string? userId = default, CancellationToken cancellationToken = default);
+    Task<string> CreateTokenAsync(PersonalAccessToken token, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a personal access token.
@@ -2725,97 +2836,6 @@ public interface IUsersClient
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<HttpResponseMessage> DeleteTokenAsync(Guid tokenId, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Accepts the license of the specified catalog.
-    /// </summary>
-    /// <param name="catalogId">The catalog identifier.</param>
-    HttpResponseMessage AcceptLicense(string catalogId);
-
-    /// <summary>
-    /// Accepts the license of the specified catalog.
-    /// </summary>
-    /// <param name="catalogId">The catalog identifier.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> AcceptLicenseAsync(string catalogId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets a list of users.
-    /// </summary>
-    IReadOnlyDictionary<string, NexusUser> GetUsers();
-
-    /// <summary>
-    /// Gets a list of users.
-    /// </summary>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, NexusUser>> GetUsersAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Creates a user.
-    /// </summary>
-    /// <param name="user">The user to create.</param>
-    string CreateUser(NexusUser user);
-
-    /// <summary>
-    /// Creates a user.
-    /// </summary>
-    /// <param name="user">The user to create.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> CreateUserAsync(NexusUser user, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Deletes a user.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    HttpResponseMessage DeleteUser(string userId);
-
-    /// <summary>
-    /// Deletes a user.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> DeleteUserAsync(string userId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets all claims.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    IReadOnlyDictionary<string, NexusClaim> GetClaims(string userId);
-
-    /// <summary>
-    /// Gets all claims.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<IReadOnlyDictionary<string, NexusClaim>> GetClaimsAsync(string userId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Creates a claim.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    /// <param name="claim">The claim to create.</param>
-    Guid CreateClaim(string userId, NexusClaim claim);
-
-    /// <summary>
-    /// Creates a claim.
-    /// </summary>
-    /// <param name="userId">The identifier of the user.</param>
-    /// <param name="claim">The claim to create.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<Guid> CreateClaimAsync(string userId, NexusClaim claim, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Deletes a claim.
-    /// </summary>
-    /// <param name="claimId">The identifier of the claim.</param>
-    HttpResponseMessage DeleteClaim(Guid claimId);
-
-    /// <summary>
-    /// Deletes a claim.
-    /// </summary>
-    /// <param name="claimId">The identifier of the claim.</param>
-    /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<HttpResponseMessage> DeleteClaimAsync(Guid claimId, CancellationToken cancellationToken = default);
-
 }
 
 /// <inheritdoc />
@@ -2826,78 +2846,6 @@ public class UsersClient : IUsersClient
     internal UsersClient(NexusClient client)
     {
         ___client = client;
-    }
-
-    /// <inheritdoc />
-    public HttpResponseMessage Authenticate(string scheme, string returnUrl)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/authenticate");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        __queryValues["scheme"] = Uri.EscapeDataString(scheme);
-
-        __queryValues["returnUrl"] = Uri.EscapeDataString(returnUrl);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/octet-stream", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<HttpResponseMessage> AuthenticateAsync(string scheme, string returnUrl, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/authenticate");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        __queryValues["scheme"] = Uri.EscapeDataString(scheme);
-
-        __queryValues["returnUrl"] = Uri.EscapeDataString(returnUrl);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/octet-stream", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public void SignOut(string returnUrl)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/signout");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        __queryValues["returnUrl"] = Uri.EscapeDataString(returnUrl);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
-
-        var __url = __urlBuilder.ToString();
-        ___client.Invoke<object>("POST", __url, default, default, default);
-    }
-
-    /// <inheritdoc />
-    public Task SignOutAsync(string returnUrl, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/signout");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        __queryValues["returnUrl"] = Uri.EscapeDataString(returnUrl);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<object>("POST", __url, default, default, default, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -2955,92 +2903,40 @@ public class UsersClient : IUsersClient
     }
 
     /// <inheritdoc />
-    public HttpResponseMessage ReAuthenticate()
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/reauthenticate");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<HttpResponseMessage> ReAuthenticateAsync(CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/reauthenticate");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens(string? userId = default)
+    public IReadOnlyDictionary<string, PersonalAccessToken> GetTokens()
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.Invoke<IReadOnlyDictionary<string, PersonalAccessToken>>("GET", __url, "application/json", default, default);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(string? userId = default, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<string, PersonalAccessToken>> GetTokensAsync(CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<IReadOnlyDictionary<string, PersonalAccessToken>>("GET", __url, "application/json", default, default, cancellationToken);
     }
 
     /// <inheritdoc />
-    public string CreateToken(PersonalAccessToken token, string? userId = default)
+    public string CreateToken(PersonalAccessToken token)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens/create");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.Invoke<string>("POST", __url, "application/json", "application/json", JsonContent.Create(token, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
-    public Task<string> CreateTokenAsync(PersonalAccessToken token, string? userId = default, CancellationToken cancellationToken = default)
+    public Task<string> CreateTokenAsync(PersonalAccessToken token, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens/create");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        if (userId is not null)
-            __queryValues["userId"] = Uri.EscapeDataString(Convert.ToString(userId, CultureInfo.InvariantCulture)!);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<string>("POST", __url, "application/json", "application/json", JsonContent.Create(token, options: Utilities.JsonOptions), cancellationToken);
@@ -3063,168 +2959,6 @@ public class UsersClient : IUsersClient
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens/{tokenId}");
         __urlBuilder.Replace("{tokenId}", Uri.EscapeDataString(Convert.ToString(tokenId, CultureInfo.InvariantCulture)!));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public HttpResponseMessage AcceptLicense(string catalogId)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/accept-license");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        __queryValues["catalogId"] = Uri.EscapeDataString(catalogId);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<HttpResponseMessage> AcceptLicenseAsync(string catalogId, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/accept-license");
-
-        var __queryValues = new Dictionary<string, string>();
-
-        __queryValues["catalogId"] = Uri.EscapeDataString(catalogId);
-
-        var __query = "?" + string.Join('&', __queryValues.Select(entry => $"{entry.Key}={entry.Value}"));
-        __urlBuilder.Append(__query);
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("GET", __url, "application/octet-stream", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyDictionary<string, NexusUser> GetUsers()
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyDictionary<string, NexusUser>>("GET", __url, "application/json", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, NexusUser>> GetUsersAsync(CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyDictionary<string, NexusUser>>("GET", __url, "application/json", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public string CreateUser(NexusUser user)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<string>("POST", __url, "application/json", "application/json", JsonContent.Create(user, options: Utilities.JsonOptions));
-    }
-
-    /// <inheritdoc />
-    public Task<string> CreateUserAsync(NexusUser user, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users");
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<string>("POST", __url, "application/json", "application/json", JsonContent.Create(user, options: Utilities.JsonOptions), cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public HttpResponseMessage DeleteUser(string userId)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/{userId}");
-        __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<HttpResponseMessage> DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/{userId}");
-        __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyDictionary<string, NexusClaim> GetClaims(string userId)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/{userId}/claims");
-        __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<IReadOnlyDictionary<string, NexusClaim>>("GET", __url, "application/json", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyDictionary<string, NexusClaim>> GetClaimsAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/{userId}/claims");
-        __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<IReadOnlyDictionary<string, NexusClaim>>("GET", __url, "application/json", default, default, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Guid CreateClaim(string userId, NexusClaim claim)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/{userId}/claims");
-        __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(claim, options: Utilities.JsonOptions));
-    }
-
-    /// <inheritdoc />
-    public Task<Guid> CreateClaimAsync(string userId, NexusClaim claim, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/{userId}/claims");
-        __urlBuilder.Replace("{userId}", Uri.EscapeDataString(userId));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<Guid>("POST", __url, "application/json", "application/json", JsonContent.Create(claim, options: Utilities.JsonOptions), cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public HttpResponseMessage DeleteClaim(Guid claimId)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/claims/{claimId}");
-        __urlBuilder.Replace("{claimId}", Uri.EscapeDataString(Convert.ToString(claimId, CultureInfo.InvariantCulture)!));
-
-        var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default);
-    }
-
-    /// <inheritdoc />
-    public Task<HttpResponseMessage> DeleteClaimAsync(Guid claimId, CancellationToken cancellationToken = default)
-    {
-        var __urlBuilder = new StringBuilder();
-        __urlBuilder.Append("/api/v1/users/claims/{claimId}");
-        __urlBuilder.Replace("{claimId}", Uri.EscapeDataString(Convert.ToString(claimId, CultureInfo.InvariantCulture)!));
 
         var __url = __urlBuilder.ToString();
         return ___client.InvokeAsync<HttpResponseMessage>("DELETE", __url, "application/octet-stream", default, default, cancellationToken);
@@ -3384,12 +3118,10 @@ public enum NexusDataType
 /// <param name="License">A nullable license.</param>
 /// <param name="IsReadable">A boolean which indicates if the catalog is accessible.</param>
 /// <param name="IsWritable">A boolean which indicates if the catalog is editable.</param>
-/// <param name="IsReleased">A boolean which indicates if the catalog is released.</param>
 /// <param name="IsVisible">A boolean which indicates if the catalog is visible.</param>
-/// <param name="IsOwner">A boolean which indicates if the catalog is owned by the current user.</param>
 /// <param name="PackageReferenceIds">The package reference identifiers.</param>
 /// <param name="PipelineInfo">A structure for pipeline info.</param>
-public record CatalogInfo(string Id, string? Title, string? Contact, string? Readme, string? License, bool IsReadable, bool IsWritable, bool IsReleased, bool IsVisible, bool IsOwner, IReadOnlyList<Guid> PackageReferenceIds, PipelineInfo PipelineInfo);
+public record CatalogInfo(string Id, string? Title, string? Contact, string? Readme, string? License, bool IsReadable, bool IsWritable, bool IsVisible, IReadOnlyList<Guid> PackageReferenceIds, PipelineInfo PipelineInfo);
 
 /// <summary>
 /// A structure for pipeline information.
@@ -3419,6 +3151,89 @@ public record CatalogAvailability(IReadOnlyList<double> Data);
 /// <param name="GroupMemberships">A list of groups the catalog is part of.</param>
 /// <param name="Overrides">Overrides for the catalog.</param>
 public record CatalogMetadata(string? Contact, IReadOnlyList<string>? GroupMemberships, ResourceCatalog? Overrides);
+
+/// <summary>
+/// The effective Git configuration without secret values.
+/// </summary>
+/// <param name="Branch">The configured Git branch.</param>
+/// <param name="CommitThrottleSeconds">The number of seconds Nexus waits before committing configuration changes.</param>
+/// <param name="RemoteUrl">The configured remote Git repository URL.</param>
+/// <param name="Username">The configured HTTPS username.</param>
+/// <param name="HasToken">A value indicating whether an HTTPS token is configured.</param>
+/// <param name="HasSshPrivateKey">A value indicating whether an SSH private key is configured.</param>
+/// <param name="AuthMode">The authentication mode inferred from the remote URL.</param>
+/// <param name="CommitAuthorName">The Git commit author name.</param>
+/// <param name="CommitAuthorEmail">The Git commit author email.</param>
+/// <param name="IsRemoteConfigured">A value indicating whether remote backup has enough configuration to push.</param>
+public record GitConfigResponse(string Branch, int CommitThrottleSeconds, string? RemoteUrl, string? Username, bool HasToken, bool HasSshPrivateKey, string AuthMode, string CommitAuthorName, string CommitAuthorEmail, bool IsRemoteConfigured);
+
+/// <summary>
+/// The current Git repository and push status required by the admin UI.
+/// </summary>
+/// <param name="GitAvailable">A value indicating whether the Git executable is available.</param>
+/// <param name="SshAvailable">A value indicating whether the SSH executable is available.</param>
+/// <param name="HasUncommittedChanges">A value indicating whether the local repository has uncommitted changes.</param>
+/// <param name="CurrentCommitSha">The current commit SHA.</param>
+/// <param name="LastPushedCommitSha">The last commit SHA successfully pushed by this process.</param>
+/// <param name="LastSuccessfulPushAt">The last successful push time.</param>
+/// <param name="LastPushStatus">The last push status.</param>
+/// <param name="LastPushError">The last push error.</param>
+public record GitStatusResponse(bool GitAvailable, bool SshAvailable, bool HasUncommittedChanges, string? CurrentCommitSha, string? LastPushedCommitSha, DateTime? LastSuccessfulPushAt, GitPushStatus LastPushStatus, string? LastPushError);
+
+/// <summary>
+/// The result of pushing configuration history to a remote Git repository.
+/// </summary>
+public enum GitPushStatus
+{
+    /// <summary>
+    /// NotConfigured
+    /// </summary>
+    NotConfigured,
+
+    /// <summary>
+    /// Succeeded
+    /// </summary>
+    Succeeded,
+
+    /// <summary>
+    /// Failed
+    /// </summary>
+    Failed
+}
+
+
+/// <summary>
+/// A Git commit in the configuration history.
+/// </summary>
+/// <param name="Sha">The full commit SHA.</param>
+/// <param name="ShortSha">The abbreviated commit SHA.</param>
+/// <param name="Date">The commit date.</param>
+/// <param name="AuthorName">The commit author name.</param>
+/// <param name="AuthorEmail">The commit author email.</param>
+/// <param name="Message">The commit message.</param>
+public record GitHistoryEntry(string Sha, string ShortSha, DateTime Date, string AuthorName, string AuthorEmail, string Message);
+
+/// <summary>
+/// A changed file in a Git commit.
+/// </summary>
+/// <param name="Path">The repository-relative file path.</param>
+/// <param name="Status">The Git file status.</param>
+/// <param name="OriginalText">The file text before the commit.</param>
+/// <param name="ModifiedText">The file text after the commit.</param>
+public record GitDiffFile(string Path, string Status, string? OriginalText, string? ModifiedText);
+
+/// <summary>
+/// The result of restoring configuration from a commit.
+/// </summary>
+/// <param name="CommitSha">The commit SHA created by the restore operation.</param>
+/// <param name="Message">A human-readable result message.</param>
+public record GitRestoreResponse(string CommitSha, string Message);
+
+/// <summary>
+/// A request to restore configuration from a commit.
+/// </summary>
+/// <param name="CommitSha">The commit SHA to restore.</param>
+public record GitRestoreRequest(string CommitSha);
 
 /// <summary>
 /// Description of a job.
@@ -3498,6 +3313,12 @@ public enum TaskStatus
 public record ExportParameters(DateTime Begin, DateTime End, TimeSpan FilePeriod, string? Type, IReadOnlyList<string> ResourcePaths, IReadOnlyDictionary<string, JsonElement>? Configuration);
 
 /// <summary>
+/// A request to synchronize local configuration history with the configured remote.
+/// </summary>
+/// <param name="Force">A value indicating whether to force-push once.</param>
+public record GitSyncRequest(bool Force);
+
+/// <summary>
 /// A package reference.
 /// </summary>
 /// <param name="Provider">The provider which loads the package.</param>
@@ -3519,9 +3340,9 @@ public record ExtensionDescription(string Type, string Version, string? Descript
 /// A data source pipeline.
 /// </summary>
 /// <param name="Registrations">The list of pipeline elements (data source registrations).</param>
-/// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
 /// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
-public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrations, string? ReleasePattern, string? VisibilityPattern);
+/// <param name="Disabled">An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled.</param>
+public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrations, string? VisibilityPattern, bool Disabled);
 
 /// <summary>
 /// A data source registration.
@@ -3533,33 +3354,21 @@ public record DataSourcePipeline(IReadOnlyList<DataSourceRegistration> Registrat
 public record DataSourceRegistration(string Type, Uri? ResourceLocator, JsonElement Configuration, string? InfoUrl);
 
 /// <summary>
+/// A system response.
+/// </summary>
+/// <param name="Version">The Nexus version.</param>
+/// <param name="ApplicationName">The application name.</param>
+/// <param name="HelpLink">The help link.</param>
+/// <param name="LogoutUrl">The logout URL.</param>
+public record SystemResponse(string Version, string? ApplicationName, string? HelpLink, string? LogoutUrl);
+
+/// <summary>
 /// A me response.
 /// </summary>
 /// <param name="UserId">The user id.</param>
-/// <param name="User">The user.</param>
-public record MeResponse(string UserId, NexusUser User);
-
-/// <summary>
-/// Represents a user.
-/// </summary>
 /// <param name="Name">The user name.</param>
-/// <param name="Claims">The list of claims.</param>
-public record NexusUser(string Name, IReadOnlyList<NexusClaim> Claims);
-
-/// <summary>
-/// Represents a claim.
-/// </summary>
-/// <param name="Type">The claim type.</param>
-/// <param name="Value">The claim value.</param>
-public record NexusClaim(string Type, string Value);
-
-/// <summary>
-/// A personal access token.
-/// </summary>
-/// <param name="Description">The token description.</param>
-/// <param name="Expires">The date/time when the token expires.</param>
-/// <param name="Claims">The claims that will be part of the token.</param>
-public record PersonalAccessToken(string Description, DateTime Expires, IReadOnlyList<TokenClaim> Claims);
+/// <param name="Claims">The user claims.</param>
+public record MeResponse(string UserId, string Name, IReadOnlyList<TokenClaim> Claims);
 
 /// <summary>
 /// A revoke token request.
@@ -3567,6 +3376,15 @@ public record PersonalAccessToken(string Description, DateTime Expires, IReadOnl
 /// <param name="Type">The claim type.</param>
 /// <param name="Value">The claim value.</param>
 public record TokenClaim(string Type, string Value);
+
+/// <summary>
+/// A personal access token.
+/// </summary>
+/// <param name="Description">The token description.</param>
+/// <param name="Expires">The date/time when the token expires.</param>
+/// <param name="Claims">The claims that will be part of the token.</param>
+/// <param name="GrantClaims">A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator.</param>
+public record PersonalAccessToken(string Description, DateTime Expires, IReadOnlyList<TokenClaim> Claims, IReadOnlyList<TokenClaim> GrantClaims);
 
 
 

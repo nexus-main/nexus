@@ -1,0 +1,118 @@
+{
+  "nonNullableRoot": {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "requiredNullable"
+    ],
+    "properties": {
+      "requiredNullable": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "optionalNonNullable": {
+        "type": "string"
+      },
+      "optionalNullable": {
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "nullableReference": {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "child": {
+        "oneOf": [
+          {
+            "type": "null"
+          },
+          {
+            "$ref": "#/definitions/ChildConfiguration"
+          }
+        ]
+      }
+    },
+    "definitions": {
+      "ChildConfiguration": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "dictionaryRoot": {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "additionalProperties": {
+      "$ref": "#/definitions/ChildConfiguration"
+    },
+    "definitions": {
+      "ChildConfiguration": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "nullableValueRoot": {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "anyOf": [
+      {
+        "type": "null"
+      },
+      {
+        "type": "integer",
+        "format": "int32"
+      }
+    ]
+  },
+  "formats": {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "guid"
+      },
+      "count": {
+        "type": "integer",
+        "format": "uint64"
+      },
+      "amount": {
+        "type": "number",
+        "format": "decimal"
+      },
+      "time": {
+        "type": "string",
+        "format": "time"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  }
+}

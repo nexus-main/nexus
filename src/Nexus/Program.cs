@@ -5,15 +5,11 @@ using System.Globalization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Formatters;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Nexus.Components;
 using Nexus.Core;
 using Nexus.Extensibility;
 using Nexus.Services;
-using Nexus.UI.Components;
 using Serilog;
-using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 // culture
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
@@ -80,7 +76,7 @@ try
     ConfigurePipeline(app);
 
     // initialize app state
-    await InitializeAppAsync(app.Services, pathsOptions, app.Logger);
+    await InitializeAppAsync(app);
 
     // Run
     app.Run();
@@ -101,13 +97,6 @@ void AddServices(
     PathsOptions pathsOptions,
     SecurityOptions securityOptions)
 {
-    // Database
-    Directory.CreateDirectory(pathsOptions.Config);
-    var filePath = Path.Combine(pathsOptions.Config, "users.db");
-
-    services.AddDbContext<UserDbContext>(
-        options => options.UseSqlite($"Data Source={filePath}"));
-
     // Forwarded headers
     services.Configure<ForwardedHeadersOptions>(options =>
     {
@@ -130,34 +119,10 @@ void AddServices(
     });
 
     // Authentication
-    services.AddNexusAuth(pathsOptions, securityOptions);
+    services.AddNexusAuth();
 
     // Open API
     services.AddNexusOpenApi();
-
-    // Default Identity Provider
-    if (!securityOptions.OidcProviders.Any())
-        services.AddNexusIdentityProvider();
-
-    // Razor components
-    services.AddRazorComponents()
-        .AddInteractiveWebAssemblyComponents();
-
-    /*
-     * login view: We tried to use Blazor Webs ability to render pages
-     * on the server but it does not work properly. With the command
-     * dotnet new blazor --all-interactive --interactivity WebAssembly --no-https
-     * it is possible to simply define server side razor pages without
-     * any changes and because prerendering is enabled by default it is
-     * being displayed shortly but then Blazor starts and redirects
-     * the user to a "Not found" page.
-     *
-     * Related issue:
-     * https://github.com/dotnet/aspnetcore/issues/51046
-     */
-
-    // Razor pages (for login view)
-    services.AddRazorPages();
 
     // Routing
     services.AddRouting(options => options.LowercaseUrls = true);
@@ -167,7 +132,6 @@ void AddServices(
 
     // Custom
     services.AddTransient<IDataService, DataService>();
-    services.AddScoped<IDBService, DbService>();
     services.AddScoped(provider => provider.GetService<IHttpContextAccessor>()!.HttpContext!.User);
 
     services.AddSingleton<AppState>();
@@ -175,18 +139,23 @@ void AddServices(
     services.AddSingleton<IPipelineService, PipelineService>();
     services.AddSingleton<IUpgradeConfigurationService, UpgradeConfigurationService>();
     services.AddSingleton<ITokenService, TokenService>();
+    services.AddSingleton<IAcceptedLicenseService, AcceptedLicenseService>();
     services.AddSingleton<IMemoryTracker, MemoryTracker>();
     services.AddSingleton<IJobService, JobService>();
+    services.AddSingleton<GitService>();
+    services.AddSingleton<IGitService>(serviceProvider => serviceProvider.GetRequiredService<GitService>());
+    services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GitService>());
     services.AddSingleton<IDataControllerService, DataControllerService>();
     services.AddSingleton<ICatalogManager, CatalogManager>();
     services.AddSingleton<IProcessingService, ProcessingService>();
     services.AddSingleton<ICacheService, CacheService>();
     services.AddSingleton<IDatabaseService, DatabaseService>();
-    services.AddSingleton<CustomCookieAuthenticationEvents>();
+    services.AddSingleton<DevelopmentSampleLicenseSeeder>();
 
     // Options
     services.Configure<GeneralOptions>(configuration.GetSection(GeneralOptions.Section));
     services.Configure<DataOptions>(configuration.GetSection(DataOptions.Section));
+    services.Configure<GitOptions>(configuration.GetSection(GitOptions.Section));
     services.Configure<PathsOptions>(configuration.GetSection(PathsOptions.Section));
     services.Configure<SecurityOptions>(configuration.GetSection(SecurityOptions.Section));
 
@@ -205,19 +174,13 @@ void ConfigurePipeline(WebApplication app)
 
     app.UseForwardedHeaders();
 
-    if (app.Environment.IsDevelopment())
-        app.UseWebAssemblyDebugging();
-
-    // static files
-    app.MapStaticAssets();
+    // static files (Angular production bundle served from wwwroot)
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
 
     // Open API
     var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
     app.UseNexusOpenApi(provider, addExplorer: true);
-
-    // default Identity Provider
-    if (!securityOptions.OidcProviders.Any())
-        app.UseNexusIdentityProvider();
 
     // Serilog Request Logging (https://andrewlock.net/using-serilog-aspnetcore-in-asp-net-core-3-reducing-log-verbosity/)
     // LogContext properties are not included by default in request logging, workaround: https://nblumhardt.com/2019/10/serilog-mvc-logging/
@@ -225,9 +188,6 @@ void ConfigurePipeline(WebApplication app)
 
     // routing (for REST API)
     app.UseRouting();
-
-    // anti forgery
-    app.UseAntiforgery();
 
     // workaround for chrome/edge browser: https://stackoverflow.com/a/69764358
     app.UseCookiePolicy(new CookiePolicyOptions
@@ -246,33 +206,25 @@ void ConfigurePipeline(WebApplication app)
     /* REST API */
     app.MapControllers();
 
-    /* Login view */
-    app.MapRazorPages();
+    /* SPA fallback: serve index.html for client-side routes */
+    app.MapFallbackToFile("{*path:nonfile}", "index.html");
 
     /* Debugging (print all routes) */
     app.MapGet("/debug/routes", (IEnumerable<EndpointDataSource> endpointSources) =>
         string.Join("\n", endpointSources.SelectMany(source => source.Endpoints)));
-
-    // razor components
-    app.MapRazorComponents<App>()
-        .AddInteractiveWebAssemblyRenderMode()
-        .AddAdditionalAssemblies(typeof(MainLayout).Assembly);
 }
 
-async Task InitializeAppAsync(
-    IServiceProvider serviceProvider,
-    PathsOptions pathsOptions,
-    ILogger logger)
+async Task InitializeAppAsync(WebApplication app)
 {
-    var appState = serviceProvider.GetRequiredService<AppState>();
+    var serviceProvider = app.Services;
+
+    if (app.Environment.IsDevelopment())
+    {
+        var developmentSampleLicenseSeeder = serviceProvider.GetRequiredService<DevelopmentSampleLicenseSeeder>();
+        developmentSampleLicenseSeeder.Seed();
+    }
+
     var appStateManager = serviceProvider.GetRequiredService<AppStateManager>();
-    var databaseService = serviceProvider.GetRequiredService<IDatabaseService>();
-
-    // database
-    using var scope = serviceProvider.CreateScope();
-    using var userContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
-
-    await userContext.Database.EnsureCreatedAsync();
 
     // packages and catalogs
     await appStateManager.RefreshDatabaseAsync(new Progress<double>(), CancellationToken.None);

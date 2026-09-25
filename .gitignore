@@ -1,12 +1,17 @@
+.angular/
 .vs/
 .venv/
 
 artifacts/
-BenchmarkDotNet.Artifacts
+dist/
+BenchmarkDotNet.Artifacts/
+node_modules/
 
 doc/_site
 /**/obj
 **/wwwroot/lib/
+**/node_modules/
+**/package-lock.json
 
 doc/api/*
 

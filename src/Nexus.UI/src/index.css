@@ -1,0 +1,437 @@
+@layer theme, base, primeng, components, utilities;
+@import 'tailwindcss';
+
+:root {
+  color: #f8fafc;
+  background: #020617;
+  color-scheme: dark;
+  --nexus-logo-from: #3dd9ef;
+  --nexus-logo-to: #22d3ee;
+  --nexus-cyan-core: #67e8f9;
+  --nexus-cyan-text: #cffafe;
+  --nexus-violet-core: #a78bfa;
+  --nexus-violet-text: #ddd6fe;
+  --nexus-lime-core: #bef264;
+  --nexus-lime-text: #ecfccb;
+  --nexus-amber-core: #fbbf24;
+  --nexus-amber-text: #fde68a;
+  --nexus-rose-core: #fb7185;
+  --nexus-rose-text: #ffe4e6;
+  --nexus-orange-core: #fb923c;
+  --nexus-orange-text: #ffedd5;
+  --nexus-emerald-core: #34d399;
+  --nexus-emerald-text: #d1fae5;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme='light'] {
+  color: #0f172a;
+  background: #f8fafc;
+  color-scheme: light;
+  --nexus-logo-from: #0e7490;
+  --nexus-logo-to: #164e63;
+  --nexus-cyan-core: #06b6d4;
+  --nexus-cyan-text: #155e75;
+  --nexus-violet-core: #7c3aed;
+  --nexus-violet-text: #6d28d9;
+  --nexus-lime-core: #84cc16;
+  --nexus-lime-text: #3f6212;
+  --nexus-amber-core: #d97706;
+  --nexus-amber-text: #92400e;
+  --nexus-rose-core: #e11d48;
+  --nexus-rose-text: #9f1239;
+  --nexus-orange-core: #ea580c;
+  --nexus-orange-text: #9a3412;
+  --nexus-emerald-core: #059669;
+  --nexus-emerald-text: #065f46;
+}
+
+html,
+body,
+app-root {
+  min-height: 100%;
+}
+
+app-root {
+  display: block;
+}
+
+/* CDK owns this wrapper; constrain it so long row content cannot widen the list. */
+app-resource-matrix .cdk-virtual-scroll-content-wrapper {
+  width: 100%;
+  max-width: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  background:
+    radial-gradient(circle at 18% 4%, rgba(0, 190, 255, 0.24), transparent 32rem),
+    radial-gradient(circle at 86% 10%, rgba(111, 66, 255, 0.24), transparent 30rem),
+    linear-gradient(135deg, #050712 0%, #07111f 44%, #0b0f1d 100%);
+}
+
+:root[data-theme='light'] body {
+  background:
+    radial-gradient(circle at 18% 4%, rgba(14, 165, 233, 0.16), transparent 32rem),
+    radial-gradient(circle at 86% 10%, rgba(124, 58, 237, 0.12), transparent 30rem),
+    linear-gradient(135deg, #f8fafc 0%, #eef6ff 46%, #f6f3ff 100%);
+}
+
+.overflow-auto,
+.overflow-y-auto {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--p-primary-color) 30%, transparent);
+  color: var(--p-text-color);
+}
+
+* { scrollbar-width: thin; scrollbar-color: var(--p-content-border-color) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--p-content-border-color); }
+::-webkit-scrollbar-thumb:hover { background: var(--p-text-muted-color); }
+
+@theme {
+  --color-surface: var(--p-content-background);
+  --color-surface-border: var(--p-content-border-color);
+  --color-ink: var(--p-text-color);
+  --color-ink-muted: var(--p-text-muted-color);
+  --color-key: var(--p-primary-color);
+  --color-key-hover: var(--p-primary-hover-color);
+  --color-overlay: var(--p-text-color);
+  --color-cyan-accent: var(--nexus-cyan-text);
+  --color-cyan-core: var(--nexus-cyan-core);
+  --color-violet-accent: var(--nexus-violet-text);
+  --color-violet-core: var(--nexus-violet-core);
+  --color-lime-accent: var(--nexus-lime-text);
+  --color-lime-core: var(--nexus-lime-core);
+  --color-amber-accent: var(--nexus-amber-text);
+  --color-amber-core: var(--nexus-amber-core);
+  --color-rose-accent: var(--nexus-rose-text);
+  --color-rose-core: var(--nexus-rose-core);
+  --color-orange-accent: var(--nexus-orange-text);
+  --color-orange-core: var(--nexus-orange-core);
+  --color-emerald-accent: var(--nexus-emerald-text);
+  --color-emerald-core: var(--nexus-emerald-core);
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+.content-panel {
+  border: 1px solid var(--p-content-border-color);
+  background: var(--p-content-background);
+}
+
+.setup-drop-zone {
+  --setup-drop-dash: var(--nexus-cyan-core);
+  --setup-drop-panel: color-mix(in srgb, var(--p-content-background) 94%, transparent);
+  --setup-drop-title: var(--nexus-cyan-text);
+  --setup-drop-text: var(--p-text-muted-color);
+  position: relative;
+  color: var(--setup-drop-text);
+  background: var(--setup-drop-panel);
+  box-shadow: 0 22px 48px color-mix(in srgb, var(--p-text-color) 14%, transparent);
+}
+
+.setup-drop-zone::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background:
+    repeating-linear-gradient(90deg, var(--setup-drop-dash) 0 12px, transparent 12px 22px) top left / 44px 1px repeat-x,
+    repeating-linear-gradient(90deg, var(--setup-drop-dash) 0 12px, transparent 12px 22px) bottom left / 44px 1px repeat-x,
+    repeating-linear-gradient(180deg, var(--setup-drop-dash) 0 12px, transparent 12px 22px) top left / 1px 44px repeat-y,
+    repeating-linear-gradient(180deg, var(--setup-drop-dash) 0 12px, transparent 12px 22px) top right / 1px 44px repeat-y;
+  animation: setup-drop-zone-dashes 1.2s linear infinite;
+}
+
+.setup-drop-zone > :first-child {
+  color: var(--setup-drop-title);
+}
+
+@keyframes setup-drop-zone-dashes {
+  to { background-position: 44px 0, -44px 100%, 0 44px, 100% -44px; }
+}
+
+.p-select-overlay { font-size: 0.8125rem; }
+
+.p-tooltip .p-tooltip-text {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* Toast: tight symmetric padding, align icons with the summary line. */
+.p-toast .p-toast-message-content {
+  padding: 0.5rem 0.75rem;
+  align-items: flex-start;
+}
+.p-toast .p-toast-detail:empty {
+  display: none;
+}
+.p-toast .p-toast-message-icon {
+  margin-top: 0.1875rem;
+}
+.p-toast .p-toast-close-button {
+  margin: 0;
+  right: 0;
+}
+
+/* Success toast: emerald green matching the access-token "New token" box. */
+.p-toast-message-success {
+  background: color-mix(in srgb, var(--nexus-emerald-core) 8%, var(--p-content-background));
+  border-color: color-mix(in srgb, var(--nexus-emerald-core) 30%, transparent);
+  color: var(--nexus-emerald-text);
+}
+.p-toast-message-success .p-toast-summary,
+.p-toast-message-success .p-toast-detail {
+  color: var(--nexus-emerald-text);
+}
+.p-toast-message-success .p-toast-message-icon {
+  color: var(--nexus-emerald-core);
+}
+.p-toast-message-success .p-toast-close-button {
+  color: var(--nexus-emerald-text);
+}
+
+.p-button.p-button-text.p-button-icon-only:enabled:hover,
+.p-button.p-button-text:enabled:hover:has(> svg:only-child),
+.p-button.p-button-text:enabled:hover:has(> .p-button-icon:only-child) {
+  color: var(--p-primary-hover-color);
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
+.nexus-icon-button-active {
+  color: var(--p-primary-color) !important;
+  background: color-mix(in srgb, var(--p-primary-color) 18%, transparent) !important;
+}
+
+.nexus-icon-button-active:enabled:hover {
+  color: var(--p-primary-hover-color) !important;
+  background: color-mix(in srgb, var(--p-primary-color) 24%, transparent) !important;
+}
+
+.nexus-catalog-icon-button.p-button {
+  min-width: 40px;
+  height: 36px;
+  padding: 0;
+}
+
+.nexus-catalog-icon-button.p-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nexus-catalog-icon-button.p-button:has(span) {
+  width: auto;
+  padding-inline: 0.5rem;
+}
+
+.nexus-progress-outlined .p-progressbar {
+  height: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--p-text-muted-color) 28%, transparent);
+  background: color-mix(in srgb, var(--p-text-muted-color) 8%, transparent);
+  box-shadow: none;
+}
+
+.nexus-progress-outlined .p-progressbar-value {
+  border-right: 1px solid color-mix(in srgb, var(--p-primary-color) 50%, transparent);
+  background: color-mix(in srgb, var(--p-primary-color) 14%, transparent);
+  box-shadow: none;
+}
+
+.nexus-progress-outlined .p-progressbar-label {
+  color: var(--p-text-muted-color);
+}
+
+.nexus-progress-immediate .p-progressbar-value {
+  transition: none;
+}
+
+.backdrop-blur,
+.backdrop-blur-sm {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.scanline {
+  background-image: linear-gradient(color-mix(in srgb, var(--p-text-color) 3%, transparent) 1px, transparent 1px);
+  background-size: 100% 34px;
+}
+
+/* Theme-aware chart surface. */
+.chart-surface {
+  background-color: color-mix(in srgb, var(--p-content-background) 60%, transparent);
+}
+
+/* Theme-aware selected resource card. */
+.selected-resource-card {
+  border-color: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
+  background-color: color-mix(in srgb, var(--p-primary-color) 3.5%, transparent);
+}
+
+.selected-resource-card:hover {
+  border-color: color-mix(in srgb, var(--p-primary-color) 25%, transparent);
+  background-color: color-mix(in srgb, var(--p-primary-color) 6%, transparent);
+}
+
+/* Global so method options retain their colors when the popover moves to body. */
+.method-original {
+  color: var(--nexus-cyan-text);
+  border-color: color-mix(in srgb, var(--nexus-cyan-core) 45%, transparent);
+  background-color: color-mix(in srgb, var(--nexus-cyan-core) 15%, transparent);
+}
+
+.method-selected.method-original {
+  border-color: color-mix(in srgb, var(--nexus-cyan-core) 60%, transparent);
+  background-color: color-mix(in srgb, var(--nexus-cyan-core) 25%, transparent);
+}
+
+.method-resampled {
+  color: var(--nexus-lime-text);
+  border-color: color-mix(in srgb, var(--nexus-lime-core) 45%, transparent);
+  background-color: color-mix(in srgb, var(--nexus-lime-core) 15%, transparent);
+}
+
+.method-selected.method-resampled {
+  border-color: color-mix(in srgb, var(--nexus-lime-core) 60%, transparent);
+  background-color: color-mix(in srgb, var(--nexus-lime-core) 25%, transparent);
+}
+
+.method-aggregated {
+  color: var(--nexus-orange-text);
+  border-color: color-mix(in srgb, var(--nexus-orange-core) 55%, transparent);
+  background-color: color-mix(in srgb, var(--nexus-orange-core) 18%, transparent);
+}
+
+.method-selected.method-aggregated {
+  border-color: color-mix(in srgb, var(--nexus-orange-core) 70%, transparent);
+  background-color: color-mix(in srgb, var(--nexus-orange-core) 28%, transparent);
+}
+
+.method-invalid {
+  color: var(--nexus-rose-text);
+  border-color: color-mix(in srgb, var(--nexus-rose-core) 45%, transparent);
+  background-color: color-mix(in srgb, var(--nexus-rose-core) 15%, transparent);
+}
+
+.method-unselected {
+  color: var(--p-text-muted-color);
+  border-color: color-mix(in srgb, var(--p-text-muted-color) 35%, transparent);
+  background-color: transparent;
+}
+
+.method-unselected:enabled:hover {
+  background-color: color-mix(in srgb, var(--p-text-muted-color) 8%, transparent);
+}
+
+.p-tab {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.range-menu.p-menu,
+.header-menu.p-menu,
+.resource-context-menu.p-contextmenu {
+  font-size: 0.8125rem;
+}
+
+.range-menu .p-menu-item-link,
+.header-menu .p-menu-item-link,
+.resource-context-menu .p-contextmenu-item-link {
+  padding-block: 0.375rem;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  color: var(--p-text-color);
+  font-weight: 800;
+}
+
+.markdown-body h1 {
+  font-size: 1.25rem;
+}
+
+.markdown-body h2 {
+  font-size: 1.1rem;
+}
+
+.markdown-body h3 {
+  font-size: 1rem;
+}
+
+.markdown-body a {
+  color: var(--p-primary-color);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.markdown-body pre {
+  overflow: auto;
+  border-radius: 1rem;
+  border: 1px solid var(--p-content-border-color);
+  background: color-mix(in srgb, var(--p-content-background) 72%, transparent);
+  padding: 1rem;
+}
+
+.markdown-body code {
+  color: var(--p-primary-color);
+  font-size: 0.86em;
+}
+
+.markdown-body ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+
+/* Data source pipelines dialog: always full height to avoid resize on item switch. */
+.data-source-pipelines-dialog,
+.git-dialog {
+  height: calc(100dvh - 2rem) !important;
+  max-height: calc(100dvh - 2rem) !important;
+  margin: 1rem !important;
+}
+
+.data-source-pipelines-dialog .p-dialog-content,
+.git-dialog .p-dialog-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+/* Package references dialog: fullscreen on mobile. */
+@media (max-width: 640px) {
+  .package-references-dialog,
+  .data-source-pipelines-dialog,
+  .git-dialog {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+}

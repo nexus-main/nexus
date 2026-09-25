@@ -8,9 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../Nexus/Nexus.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Apollo3zehn.OpenApiClientGenerator" />
   </ItemGroup>
 

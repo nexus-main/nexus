@@ -5,7 +5,5 @@ namespace Nexus.Core;
 
 internal enum NexusRoles
 {
-    Administrator,
-
-    User
+    Administrator
 }

@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Nexus.Services;
 using Nexus.Utilities;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Core;
 
@@ -18,7 +17,6 @@ internal static class PersonalAccessTokenAuthenticationDefaults
 
 internal class PersonalAccessTokenAuthHandler(
     ITokenService tokenService,
-    IDBService dbService,
     IOptions<SecurityOptions> securityOptions,
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
@@ -29,9 +27,7 @@ internal class PersonalAccessTokenAuthHandler(
 
     private readonly ITokenService _tokenService = tokenService;
 
-    private readonly IDBService _dbService = dbService;
-
-    protected async override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var headerValues = Request.Headers.Authorization;
         var principal = default(ClaimsPrincipal);
@@ -46,17 +42,13 @@ internal class PersonalAccessTokenAuthHandler(
                 var parts = headerValue.Split(' ', count: 2);
                 var (userId, secret) = AuthUtilities.TokenValueToComponents(parts[1]);
 
-                var user = await _dbService.FindUserAsync(userId);
-
-                if (user is null)
-                    continue;
-
                 if (_tokenService.TryGet(userId, secret, out var token))
                 {
                     if (DateTime.UtcNow >= token.Expires)
-                        return AuthenticateResult.NoResult();
+                        return Task.FromResult(AuthenticateResult.NoResult());
 
-                    var userClaims = user.Claims
+                    /* The pat_user_ prefixed claims represent what the token creator could do. */
+                    var userClaims = token.GrantClaims
                         .Select(claim => new Claim(NexusClaimsHelper.ToPatUserClaimType(claim.Type), claim.Value));
 
                     var tokenClaimsRead = token.Claims
@@ -69,43 +61,46 @@ internal class PersonalAccessTokenAuthHandler(
 
                     var tokenClaimsRole = token.Claims
                         .Where(tokenClaim =>
-                            tokenClaim.Type == Claims.Role &&
-                            user.Claims.Any(userClaim => userClaim.Type == Claims.Role && userClaim.Value == tokenClaim.Value))
-                        .Select(claim => new Claim(NexusClaimsHelper.ToPatClaimType(Claims.Role), claim.Value));
+                            tokenClaim.Type == NexusClaimTypes.Role &&
+                            token.GrantClaims.Any(grantClaim => grantClaim.Type == NexusClaimTypes.Role && grantClaim.Value == tokenClaim.Value))
+                        .Select(claim => new Claim(NexusClaimsHelper.ToPatClaimType(NexusClaimTypes.Role), claim.Value));
+
+                    var name = token.GrantClaims
+                        .FirstOrDefault(claim => claim.Type == NexusClaimTypes.Name)?.Value ?? userId;
 
                     var claims = Enumerable.Empty<Claim>()
-                        .Append(new Claim(Claims.Subject, userId))
-                        .Append(new Claim(Claims.Name, user.Name))
-                        .Append(new Claim(Claims.Role, nameof(NexusRoles.User)))
+                        .Append(new Claim(NexusClaimTypes.Subject, userId))
+                        .Append(new Claim(NexusClaimTypes.Name, name))
                         .Concat(userClaims)
                         .Concat(tokenClaimsRead)
                         .Concat(tokenClaimsWrite)
                         .Concat(tokenClaimsRole);
 
                     var claimsToBeAdmin = token.Claims
-                        .Any(claim => claim.Type == Claims.Role && claim.Value == nameof(NexusRoles.Administrator));
+                        .Any(claim => claim.Type == NexusClaimTypes.Role && claim.Value == nameof(NexusRoles.Administrator));
 
-                    var isAdmin = user.Claims
-                        .Any(claim => claim.Type == Claims.Role && claim.Value == nameof(NexusRoles.Administrator));
+                    var isAdmin = token.GrantClaims
+                        .Any(claim => claim.Type == NexusClaimTypes.Role && claim.Value == nameof(NexusRoles.Administrator));
 
                     /* Only act as admin if you claim to be one and you are one, otherwise the PAT would be too powerful */
                     if (claimsToBeAdmin && isAdmin)
-                        claims = claims.Append(new Claim(Claims.Role, nameof(NexusRoles.Administrator)));
+                        claims = claims.Append(new Claim(NexusClaimTypes.Role, nameof(NexusRoles.Administrator)));
 
                     var identity = new ClaimsIdentity(
                         claims,
                         Scheme.Name,
-                        nameType: Claims.Name,
-                        roleType: Claims.Role
+                        nameType: NexusClaimTypes.Name,
+                        roleType: NexusClaimTypes.Role
                     );
 
                     principal ??= new ClaimsPrincipal();
                     principal.AddIdentity(identity);
 
-                    var userIdParts = userId.Split('@', count: 2);
-                    var scheme = userIdParts.Length == 2 ? userIdParts[1] : default;
+                    var enabledCatalogsPattern = token.GrantClaims
+                        .FirstOrDefault(claim => claim.Type == NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM)?.Value
+                        ?? _securityOptions.EnabledCatalogsPattern;
 
-                    AuthUtilities.SetEnabledCatalogPatternClaim(principal, scheme, _securityOptions);
+                    AuthUtilities.SetEnabledCatalogPatternClaim(principal, enabledCatalogsPattern);
                 }
             }
         }
@@ -123,6 +118,6 @@ internal class PersonalAccessTokenAuthHandler(
             result = AuthenticateResult.Success(ticket);
         }
 
-        return result;
+        return Task.FromResult(result);
     }
 }

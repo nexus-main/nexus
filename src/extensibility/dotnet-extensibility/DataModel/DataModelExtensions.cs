@@ -22,11 +22,6 @@ public static partial class DataModelExtensions
     public const string ReadmeKey = "readme";
 
     /// <summary>
-    /// A constant with the key for a license property.
-    /// </summary>
-    public const string LicenseKey = "license";
-
-    /// <summary>
     /// A constant with the key for a description property.
     /// </summary>
     public const string DescriptionKey = "description";
@@ -62,17 +57,6 @@ public static partial class DataModelExtensions
     public static ResourceCatalogBuilder WithReadme(this ResourceCatalogBuilder catalogBuilder, string readme)
     {
         return catalogBuilder.WithProperty(ReadmeKey, readme);
-    }
-
-    /// <summary>
-    /// Adds a license.
-    /// </summary>
-    /// <param name="catalogBuilder">The catalog builder.</param>
-    /// <param name="license">The markdown license to add.</param>
-    /// <returns>A resource catalog builder.</returns>
-    public static ResourceCatalogBuilder WithLicense(this ResourceCatalogBuilder catalogBuilder, string license)
-    {
-        return catalogBuilder.WithProperty(LicenseKey, license);
     }
 
     /// <summary>

@@ -147,13 +147,13 @@ public class DataServiceTests
         var resource1 = new Resource(id: "Resource1");
         var catalog1 = new ResourceCatalog(id: "/A/B/C");
         var catalogItem1 = new CatalogItem(catalog1, resource1, representation1, Parameters: default);
-        var catalogContainer1 = new CatalogContainer(new CatalogRegistration(catalog1.Id, string.Empty), default, default, pipeline1, default!, default!, default!, default!, default!);
+        var catalogContainer1 = new CatalogContainer(new CatalogRegistration(catalog1.Id, string.Empty), default, pipeline1, default!, default!, default!, default!, default!);
 
         var representation2 = new Representation(dataType: NexusDataType.Float32, samplePeriod: samplePeriod);
         var resource2 = new Resource(id: "Resource2");
         var catalog2 = new ResourceCatalog(id: "/F/G/H");
         var catalogItem2 = new CatalogItem(catalog2, resource2, representation2, Parameters: default);
-        var catalogContainer2 = new CatalogContainer(new CatalogRegistration(catalog2.Id, string.Empty), default, default, pipeline2, default!, default!, default!, default!, default!);
+        var catalogContainer2 = new CatalogContainer(new CatalogRegistration(catalog2.Id, string.Empty), default, pipeline2, default!, default!, default!, default!, default!);
 
         // export parameters
         var exportParameters = new ExportParameters(
@@ -172,6 +172,7 @@ public class DataServiceTests
             default!,
             dataControllerService,
             databaseService,
+            Mock.Of<IAcceptedLicenseService>(),
             memoryTracker,
             logger,
             loggerFactory);
@@ -287,7 +288,6 @@ public class DataServiceTests
                     new CatalogContainer(
                         new CatalogRegistration(catalog.Id, string.Empty),
                         default,
-                        default,
                         pipeline,
                         default!,
                         default!,
@@ -328,6 +328,7 @@ public class DataServiceTests
             user,
             dataControllerService,
             default!,
+            Mock.Of<IAcceptedLicenseService>(),
             memoryTracker,
             logger,
             loggerFactory);
@@ -419,7 +420,6 @@ public class DataServiceTests
                     new CatalogContainer(
                         new CatalogRegistration(catalog.Id, string.Empty),
                         default,
-                        default,
                         pipeline,
                         default!,
                         default!,
@@ -459,6 +459,7 @@ public class DataServiceTests
             user,
             dataControllerService,
             default!,
+            Mock.Of<IAcceptedLicenseService>(),
             memoryTracker,
             Mock.Of<ILogger<DataService>>(),
             loggerFactory);
@@ -662,7 +663,6 @@ public class DataServiceTests
                     new CatalogContainer(
                         new CatalogRegistration(catalog.Id, string.Empty),
                         default,
-                        default,
                         pipeline,
                         default!,
                         default!,
@@ -702,6 +702,7 @@ public class DataServiceTests
             user,
             dataControllerService,
             default!,
+            Mock.Of<IAcceptedLicenseService>(),
             memoryTracker,
             Mock.Of<ILogger<DataService>>(),
             loggerFactory);

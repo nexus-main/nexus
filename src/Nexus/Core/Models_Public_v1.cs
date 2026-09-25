@@ -9,68 +9,17 @@ using System.Text.Json.Serialization;
 namespace Nexus.Core.V1;
 
 /// <summary>
-/// Represents a user.
-/// </summary>
-public class NexusUser(
-    string id,
-    string name)
-{
-    /// <inheritdoc/>
-    [JsonIgnore]
-    [ValidateNever]
-    public string Id { get; set; } = id;
-
-    /// <summary>
-    /// The user name.
-    /// </summary>
-    public string Name { get; set; } = name;
-
-    /// <summary>
-    /// The list of claims.
-    /// </summary>
-    public List<NexusClaim> Claims { get; set; } = [];
-}
-
-/// <summary>
-/// Represents a claim.
-/// </summary>
-public class NexusClaim(Guid id, string type, string value)
-{
-    /// <inheritdoc/>
-    [JsonIgnore]
-    [ValidateNever]
-    public Guid Id { get; set; } = id;
-
-    /// <summary>
-    /// The claim type.
-    /// </summary>
-    public string Type { get; init; } = type;
-
-    /// <summary>
-    /// The claim value.
-    /// </summary>
-    public string Value { get; init; } = value;
-
-#pragma warning disable CS1591
-
-    // https://learn.microsoft.com/en-us/ef/core/modeling/relationships?tabs=fluent-api%2Cfluent-api-simple-key%2Csimple-key#no-foreign-key-property
-    [JsonIgnore]
-    [ValidateNever]
-    public NexusUser Owner { get; set; } = default!;
-
-#pragma warning restore CS1591
-}
-
-/// <summary>
 /// A personal access token.
 /// </summary>
 /// <param name="Description">The token description.</param>
 /// <param name="Expires">The date/time when the token expires.</param>
 /// <param name="Claims">The claims that will be part of the token.</param>
+/// <param name="GrantClaims">A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator.</param>
 public record PersonalAccessToken(
     string Description,
     DateTime Expires,
-    IReadOnlyList<TokenClaim> Claims
+    IReadOnlyList<TokenClaim> Claims,
+    IReadOnlyList<TokenClaim> GrantClaims
 );
 
 /// <summary>
@@ -81,16 +30,6 @@ public record PersonalAccessToken(
 public record TokenClaim(
     string Type,
     string Value
-);
-
-/// <summary>
-/// Describes an OpenID connect provider.
-/// </summary>
-/// <param name="Scheme">The scheme.</param>
-/// <param name="DisplayName">The display name.</param>
-public record AuthenticationSchemeDescription(
-    string Scheme,
-    string DisplayName
 );
 
 /// <summary>
@@ -139,9 +78,7 @@ public record ExtensionDescription(
 /// <param name="License">A nullable license.</param>
 /// <param name="IsReadable">A boolean which indicates if the catalog is accessible.</param>
 /// <param name="IsWritable">A boolean which indicates if the catalog is editable.</param>
-/// <param name="IsReleased">A boolean which indicates if the catalog is released.</param>
 /// <param name="IsVisible">A boolean which indicates if the catalog is visible.</param>
-/// <param name="IsOwner">A boolean which indicates if the catalog is owned by the current user.</param>
 /// <param name="PackageReferenceIds">The package reference identifiers.</param>
 /// <param name="PipelineInfo">A structure for pipeline info.</param>
 public record CatalogInfo(
@@ -152,9 +89,7 @@ public record CatalogInfo(
     string? License,
     bool IsReadable,
     bool IsWritable,
-    bool IsReleased,
     bool IsVisible,
-    bool IsOwner,
     Guid[] PackageReferenceIds,
     PipelineInfo PipelineInfo
 );
@@ -195,12 +130,12 @@ public record CatalogAvailability(
 /// A data source pipeline.
 /// </summary>
 /// <param name="Registrations">The list of pipeline elements (data source registrations).</param>
-/// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
 /// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
+/// <param name="Disabled">An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled.</param>
 public record DataSourcePipeline(
     IReadOnlyList<DataSourceRegistration> Registrations,
-    string? ReleasePattern = default,
-    string? VisibilityPattern = default
+    string? VisibilityPattern = default,
+    bool Disabled = false
 );
 
 /// <summary>
@@ -251,8 +186,24 @@ public record JobStatus(
 /// A me response.
 /// </summary>
 /// <param name="UserId">The user id.</param>
-/// <param name="User">The user.</param>
+/// <param name="Name">The user name.</param>
+/// <param name="Claims">The user claims.</param>
 public record MeResponse(
     string UserId,
-    NexusUser User
+    string Name,
+    IReadOnlyList<TokenClaim> Claims
+);
+
+/// <summary>
+/// A system response.
+/// </summary>
+/// <param name="Version">The Nexus version.</param>
+/// <param name="ApplicationName">The application name.</param>
+/// <param name="HelpLink">The help link.</param>
+/// <param name="LogoutUrl">The logout URL.</param>
+public record SystemResponse(
+    string Version,
+    string? ApplicationName,
+    string? HelpLink,
+    string? LogoutUrl
 );

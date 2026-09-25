@@ -1,3 +1,11 @@
+## v2.0.0-beta.58 - tbd
+- Improve Git backup configuration and status handling, including startup sync/push, SSH key authentication, remote history, and safer data protection startup behavior.
+- Improve catalog access handling by replacing release filtering with visibility-based discoverability, keeping visible-but-unreadable catalogs in the tree, and showing restricted catalog guidance in the UI.
+- Add catalog resource availability metadata support for representation-specific availability windows, including sample `P1` 10 Hz/1 s availability rules.
+- Improve authentication defaults and documentation by treating forwarded preferred usernames as optional display metadata while using stable subject identifiers for job ownership.
+- Add UI refinements for catalog loading, resource matrix empty states, application/header controls, settings import/export, availability charts, catalog details dialogs, pipeline editing, and development-only auth/catalog testing.
+- Regenerate OpenAPI and .NET, Python, and TypeScript clients after API contract updates.
+
 ## v2.0.0-beta.57 - 2026-09-14
 - Restore the legacy `/api/v1/data` raw double stream response for compatibility with v1 clients.
 

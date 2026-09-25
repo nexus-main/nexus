@@ -6,7 +6,6 @@ using Nexus.DataModel;
 using Nexus.Services;
 using Nexus.Utilities;
 using System.Diagnostics;
-using System.Security.Claims;
 
 namespace Nexus.Core;
 
@@ -29,7 +28,6 @@ internal class CatalogContainer
 
     public CatalogContainer(
         CatalogRegistration catalogRegistration,
-        ClaimsPrincipal? owner,
         Guid pipelineId,
         DataSourcePipeline pipeline,
         Guid[] packageReferenceIds,
@@ -42,7 +40,6 @@ internal class CatalogContainer
         Title = catalogRegistration.Title;
         IsTransient = catalogRegistration.IsTransient;
         LinkTarget = catalogRegistration.LinkTarget;
-        Owner = owner;
         PipelineId = pipelineId;
         Pipeline = pipeline;
         PackageReferenceIds = packageReferenceIds;
@@ -51,9 +48,6 @@ internal class CatalogContainer
         _catalogManager = catalogManager;
         _databaseService = databaseService;
         _dataControllerService = dataControllerService;
-
-        if (owner is not null)
-            IsReleasable = AuthUtilities.IsCatalogWritable(Id, metadata, owner);
     }
 
     public string Id { get; }
@@ -63,8 +57,6 @@ internal class CatalogContainer
     public bool IsTransient { get; }
 
     public string? LinkTarget { get; }
-
-    public ClaimsPrincipal? Owner { get; }
 
     public string PhysicalName => Id.TrimStart('/').Replace('/', '_');
 
@@ -76,13 +68,10 @@ internal class CatalogContainer
 
     public CatalogMetadata Metadata { get; internal set; }
 
-    public bool IsReleasable { get; }
-
     public static CatalogContainer CreateRoot(ICatalogManager catalogManager, IDatabaseService databaseService)
     {
         return new CatalogContainer(
             new CatalogRegistration(RootCatalogId, string.Empty),
-            default!,
             default!,
             default!,
             default!,

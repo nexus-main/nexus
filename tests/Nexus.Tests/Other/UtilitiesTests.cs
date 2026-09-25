@@ -5,12 +5,10 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.DataModel;
 using Nexus.Utilities;
-using OpenIddict.Abstractions;
 using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Text.Json;
 using Xunit;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Other;
 
@@ -43,7 +41,7 @@ public class UtilitiesTests
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(Claims.Role, nameof(NexusRoles.Administrator))]
+            ? [new Claim(NexusClaimTypes.Role, nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
@@ -52,15 +50,15 @@ public class UtilitiesTests
                     .Concat(canReadCatalog.Select(value => new Claim(nameof(NexusClaims.CanReadCatalog), value)))
                     .Concat(canReadCatalogGroup.Select(value => new Claim(nameof(NexusClaims.CanReadCatalogGroup), value))),
                 authenticationType,
-                nameType: Claims.Name,
-                roleType: Claims.Role
+                nameType: NexusClaimTypes.Name,
+                roleType: NexusClaimTypes.Role
             )
         );
 
         principal.AddClaim(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM, enabledCatalogsPattern);
 
         // Act
-        var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
+        var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, principal);
 
         // Assert
         Assert.Equal(expected, actual);
@@ -88,11 +86,11 @@ public class UtilitiesTests
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(NexusClaimsHelper.ToPatUserClaimType(Claims.Role), nameof(NexusRoles.Administrator))]
+            ? [new Claim(NexusClaimsHelper.ToPatUserClaimType(NexusClaimTypes.Role), nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var claimsToBeAdminClaim = claimsToBeAdmin
-            ? [new Claim(NexusClaimsHelper.ToPatClaimType(Claims.Role), nameof(NexusRoles.Administrator))]
+            ? [new Claim(NexusClaimsHelper.ToPatClaimType(NexusClaimTypes.Role), nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
@@ -103,15 +101,15 @@ public class UtilitiesTests
                     .Concat(patCanReadCatalogGroup.Select(value => new Claim(NexusClaimsHelper.ToPatClaimType(nameof(NexusClaims.CanReadCatalogGroup)), value)))
                     .Concat(patUserCanReadCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanReadCatalog)), value))),
                 PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme,
-                nameType: Claims.Name,
-                roleType: Claims.Role
+                nameType: NexusClaimTypes.Name,
+                roleType: NexusClaimTypes.Role
             )
         );
 
         principal.AddClaim(NexusClaimsConstants.ENABLED_CATALOGS_PATTERN_CLAIM, enabledCatalogsPattern);
 
         // Act
-        var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, default!, principal);
+        var actual = AuthUtilities.IsCatalogReadable(catalogId, catalogMetadata, principal);
 
         // Assert
         Assert.Equal(expected, actual);
@@ -144,7 +142,7 @@ public class UtilitiesTests
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(Claims.Role, nameof(NexusRoles.Administrator))]
+            ? [new Claim(NexusClaimTypes.Role, nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
@@ -153,8 +151,8 @@ public class UtilitiesTests
                     .Concat(canWriteCatalog.Select(value => new Claim(nameof(NexusClaims.CanWriteCatalog), value)))
                     .Concat(canWriteCatalogGroup.Select(value => new Claim(nameof(NexusClaims.CanWriteCatalogGroup), value))),
                 authenticationType,
-                nameType: Claims.Name,
-                roleType: Claims.Role
+                nameType: NexusClaimTypes.Name,
+                roleType: NexusClaimTypes.Role
             )
         );
 
@@ -190,11 +188,11 @@ public class UtilitiesTests
         var catalogMetadata = new CatalogMetadata(default, GroupMemberships: ["A"], default);
 
         var adminClaim = isAdmin
-            ? [new Claim(NexusClaimsHelper.ToPatUserClaimType(Claims.Role), nameof(NexusRoles.Administrator))]
+            ? [new Claim(NexusClaimsHelper.ToPatUserClaimType(NexusClaimTypes.Role), nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var claimsToBeAdminClaim = claimsToBeAdmin
-            ? [new Claim(NexusClaimsHelper.ToPatClaimType(Claims.Role), nameof(NexusRoles.Administrator))]
+            ? [new Claim(NexusClaimsHelper.ToPatClaimType(NexusClaimTypes.Role), nameof(NexusRoles.Administrator))]
             : Array.Empty<Claim>();
 
         var principal = new ClaimsPrincipal(
@@ -205,8 +203,8 @@ public class UtilitiesTests
                     .Concat(canWriteCatalogGroup.Select(value => new Claim(NexusClaimsHelper.ToPatClaimType(nameof(NexusClaims.CanWriteCatalogGroup)), value)))
                     .Concat(patUserCanWriteCatalog.Select(value => new Claim(NexusClaimsHelper.ToPatUserClaimType(nameof(NexusClaims.CanWriteCatalog)), value))),
                 PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme,
-                nameType: Claims.Name,
-                roleType: Claims.Role
+                nameType: NexusClaimTypes.Name,
+                roleType: NexusClaimTypes.Role
             )
         );
 
