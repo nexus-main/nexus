@@ -101,9 +101,9 @@ button:disabled, input:disabled { cursor: not-allowed; }
 .warning svg { width: 13px; height: 13px; }
 .field-cell input { width: 100%; min-width: 0; height: 28px; min-height: 0; padding: 3px 5px; border: 0; box-shadow: none; background: color-mix(in srgb, var(--p-content-hover-background) 75%, var(--p-content-background)); color: inherit; font-size: 11px; }
 .field-cell input:hover, .field-cell input:focus { background: var(--p-content-hover-background); }
-.empty-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; text-align: center; pointer-events: none; }
-.empty-state strong { font-size: 14px; }
-.empty-state p { margin: 0; font-size: 12px; color: var(--p-text-muted-color); }
+.empty-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; text-align: center; pointer-events: none; color: var(--p-text-muted-color); }
+.empty-state strong { font-size: 14px; color: var(--p-text-muted-color); }
+.empty-state p { margin: 0; font-size: 12px; }
 .detail-content { min-width: 0; color: var(--p-text-color); }
 .detail-path { overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 12px; }
 .detail-content .edit-help { padding: 8px 0; }

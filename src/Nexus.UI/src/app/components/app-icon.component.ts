@@ -1,12 +1,12 @@
 import { Component, input } from '@angular/core'
-import { LucideCircleHelp, LucideCodeXml, LucideDownload, LucideGitBranch, LucideInfo, LucideKeyRound, LucideListChecks, LucideLogOut, LucideMapPin, LucideMonitor, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideSunMoon, LucideUpload, LucideWaypoints } from '@lucide/angular'
+import { LucideCircleHelp, LucideCodeXml, LucideDownload, LucideGitBranch, LucideInfo, LucideKeyRound, LucideListChecks, LucideLogOut, LucideMapPin, LucideMonitor, LucideMoon, LucidePackage, LucideSettings, LucideShield, LucideSun, LucideSunMoon, LucideUpload, LucideUser, LucideWaypoints } from '@lucide/angular'
 
-export type AppIconName = 'api' | 'download' | 'git' | 'help' | 'info' | 'key' | 'jobs' | 'log-out' | 'map-pin' | 'monitor' | 'moon' | 'package' | 'settings' | 'sun' | 'sun-moon' | 'upload' | 'waypoints'
+export type AppIconName = 'api' | 'download' | 'git' | 'help' | 'info' | 'key' | 'jobs' | 'log-out' | 'map-pin' | 'monitor' | 'moon' | 'package' | 'settings' | 'shield' | 'sun' | 'sun-moon' | 'upload' | 'user' | 'waypoints'
 
 @Component({
   selector: 'app-icon',
   standalone: true,
-  imports: [LucideCircleHelp, LucideCodeXml, LucideDownload, LucideGitBranch, LucideInfo, LucideKeyRound, LucideListChecks, LucideLogOut, LucideMapPin, LucideMonitor, LucideMoon, LucidePackage, LucideSettings, LucideSun, LucideSunMoon, LucideUpload, LucideWaypoints],
+  imports: [LucideCircleHelp, LucideCodeXml, LucideDownload, LucideGitBranch, LucideInfo, LucideKeyRound, LucideListChecks, LucideLogOut, LucideMapPin, LucideMonitor, LucideMoon, LucidePackage, LucideSettings, LucideShield, LucideSun, LucideSunMoon, LucideUpload, LucideUser, LucideWaypoints],
   template: `
     @switch (name()) {
       @case ('api') { <svg lucideCodeXml aria-hidden="true"></svg> }
@@ -22,9 +22,11 @@ export type AppIconName = 'api' | 'download' | 'git' | 'help' | 'info' | 'key' |
       @case ('moon') { <svg lucideMoon aria-hidden="true"></svg> }
       @case ('package') { <svg lucidePackage aria-hidden="true"></svg> }
       @case ('settings') { <svg lucideSettings aria-hidden="true"></svg> }
+      @case ('shield') { <svg lucideShield aria-hidden="true"></svg> }
       @case ('sun') { <svg lucideSun aria-hidden="true"></svg> }
       @case ('sun-moon') { <svg lucideSunMoon aria-hidden="true"></svg> }
       @case ('upload') { <svg lucideUpload aria-hidden="true"></svg> }
+      @case ('user') { <svg lucideUser aria-hidden="true"></svg> }
       @case ('waypoints') { <svg lucideWaypoints aria-hidden="true"></svg> }
     }
   `,
