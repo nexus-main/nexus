@@ -108,7 +108,7 @@ internal class JobsController(
         }
 
         //
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
         var job = new Job(Guid.NewGuid(), "export", username, parameters);
         var dataService = _serviceProvider.GetRequiredService<IDataService>();
 
@@ -139,5 +139,10 @@ internal class JobsController(
     private string GetAcceptUrl(Guid jobId)
     {
         return $"{Request.Scheme}://{Request.Host}{Request.Path}/{jobId}/status";
+    }
+
+    private string GetUserId()
+    {
+        return User.FindFirst(NexusClaimTypes.Subject)!.Value;
     }
 }

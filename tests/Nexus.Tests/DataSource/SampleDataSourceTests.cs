@@ -38,18 +38,58 @@ public class SampleDataSourceTests
         var expectedIds = new List<string>() { "T1", "V1", "unix_time1", "unix_time2", "P1" };
         var expectedUnits = new List<string>() { "°C", "m/s", default!, default!, "bar" };
         var expectedGroups = new List<string>() { "Group 1", "Group 1", "Group 2", "Group 2", "Group 1" };
-        var expectedDataTypes = new List<NexusDataType>() { NexusDataType.Float32, NexusDataType.Float32, NexusDataType.Float64, NexusDataType.Float64, NexusDataType.Float32 };
+        var expectedDataTypes = new List<NexusDataType>() { NexusDataType.Float32, NexusDataType.Float32, NexusDataType.Float64, NexusDataType.Float64, NexusDataType.Float32, NexusDataType.Float32 };
 
         Assert.True(expectedIds.SequenceEqual(actualIds));
         Assert.True(expectedUnits.SequenceEqual(actualUnits));
         Assert.True(expectedGroups.SequenceEqual(actualGroups));
         Assert.True(expectedDataTypes.SequenceEqual(actualDataTypes));
 
+        var p1 = actual.Resources!.Single(resource => resource.Id == "P1");
+        var p1SamplePeriods = p1.Representations!.Select(representation => representation.SamplePeriod).ToList();
+        Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(100)], p1SamplePeriods);
+
         var resources = actual.Properties!["resources"];
-        var availabilityRule = Assert.Single(resources.GetProperty("availability").EnumerateArray());
-        Assert.Equal($"^{Sample.LocalCatalogId}/P1$", availabilityRule.GetProperty("pattern").GetString());
-        Assert.Equal("2020-01-01T00:00:00Z", availabilityRule.GetProperty("begin").GetString());
-        Assert.Equal("2021-01-01T00:00:00Z", availabilityRule.GetProperty("end").GetString());
+        var availabilityRules = resources.GetProperty("availability").EnumerateArray().ToList();
+        Assert.Collection(
+            availabilityRules,
+            rule =>
+            {
+                Assert.Equal($"^{Sample.LocalCatalogId}/P1/1_s#base=1_s$", rule.GetProperty("pattern").GetString());
+                Assert.Equal("2020-01-01T00:00:00Z", rule.GetProperty("begin").GetString());
+                Assert.Null(rule.GetProperty("end").GetString());
+            },
+            rule =>
+            {
+                Assert.Equal($"^{Sample.LocalCatalogId}/P1/100_ms#base=100_ms$", rule.GetProperty("pattern").GetString());
+                Assert.Null(rule.GetProperty("begin").GetString());
+                Assert.Equal("2020-01-01T00:00:00Z", rule.GetProperty("end").GetString());
+            });
+    }
+
+    [Fact]
+    public async Task ProvidesOnlyLocalCatalogRegistrationOutsideDevelopment()
+    {
+        // Arrange
+        var previousEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
+
+        try
+        {
+            var dataSource = new Sample() as IDataSource<object?>;
+
+            // Act
+            var actual = await dataSource.GetCatalogRegistrationsAsync("/", CancellationToken.None);
+
+            // Assert
+            Assert.Contains(actual, registration => registration.Path == Sample.LocalCatalogId);
+            Assert.DoesNotContain(actual, registration => registration.Path == Sample.RemoteCatalogId);
+            Assert.DoesNotContain(actual, registration => registration.Path == Sample.LicensedCatalogId);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previousEnvironment);
+        }
     }
 
     [Fact]

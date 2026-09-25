@@ -6,7 +6,7 @@ import type { DataSourcePipeline, ExtensionDescription } from '../../../clients/
 
 const schema = { type: 'object', properties: { name: { type: 'string', minLength: 1 }, count: { type: 'integer', default: 5 } }, required: ['name'] }
 const descriptions: ExtensionDescription[] = [{ type: 'Source', version: '1.0', additionalInformation: { 'source-configuration-schema': schema } }]
-const pipeline = (): DataSourcePipeline => ({ releasePattern: null, visibilityPattern: '', registrations: [
+const pipeline = (): DataSourcePipeline => ({ visibilityPattern: '', registrations: [
   { type: 'Source', resourceLocator: 'file:///data', infoUrl: null, configuration: { name: 'first', extra: { enabled: true } } },
   { type: 'Source', resourceLocator: null, infoUrl: '', configuration: { name: 'second' } },
 ] })
@@ -132,12 +132,11 @@ describe('pipeline draft round trips', () => {
     }
   })
 
-  it('leaves .NET regex text and nullable metadata untouched', () => {
-    const draft = { ...createPipelineDraft('id', pipeline()), releasePattern: '(?i)^/CAT/(?<name>.+)$', visibilityPattern: null }
+  it('leaves nullable metadata untouched', () => {
+    const draft = { ...createPipelineDraft('id', pipeline()), visibilityPattern: null }
     const result = preparePipeline(draft, descriptions)
     assert.equal(result.valid, true)
     if (result.valid) {
-      assert.equal(result.payload.releasePattern, draft.releasePattern)
       assert.equal(result.payload.visibilityPattern, null)
       assert.equal(result.payload.registrations![0].infoUrl, null)
       assert.equal(result.payload.registrations![1].infoUrl, '')
@@ -203,7 +202,7 @@ describe('pipeline reload reconciliation', () => {
     assert.equal(next.serverDiverged, false)
     assert.equal(preparePipeline(next, []).valid, false)
     // A later descriptions-only retry and metadata edit must send the upgraded configuration.
-    const result = preparePipeline({ ...next, releasePattern: '^/new' }, descriptions)
+    const result = preparePipeline({ ...next, visibilityPattern: '^/new' }, descriptions)
     assert.equal(result.valid, true)
     if (result.valid) assert.deepEqual(result.payload.registrations, server.registrations)
     assert.deepEqual(original.original, pipeline())
@@ -239,7 +238,7 @@ describe('pipeline reload reconciliation', () => {
   })
 
   it('does not confuse object property order with server changes, but detects stage and unknown-property changes', () => {
-    const draft = { ...createPipelineDraft('id', pipeline()), releasePattern: '^/local' }
+    const draft = { ...createPipelineDraft('id', pipeline()), visibilityPattern: '^/local' }
     const reorderedProperties = JSON.parse(JSON.stringify(pipeline(), (_key, value) =>
       value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).reverse()) : value))
     assert.equal(reconcilePipelineDraft(draft, { id: reorderedProperties }), draft)
@@ -251,7 +250,7 @@ describe('pipeline reload reconciliation', () => {
   it('handles server deletions without silently dropping dirty drafts', () => {
     const clean = createPipelineDraft('id', pipeline())
     assert.equal(reconcilePipelineDraft(clean, {}), null)
-    const dirty = { ...clean, releasePattern: '^/local' }
+    const dirty = { ...clean, visibilityPattern: '^/local' }
     const next = reconcilePipelineDraft(dirty, {})!
     assert.equal(next.serverDiverged, true)
     assert.equal(next.registrations, dirty.registrations)

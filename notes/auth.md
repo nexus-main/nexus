@@ -16,10 +16,14 @@ no `users.json`, and no per-user claim store.
 The header names are configured with `SecurityOptions` in
 `src/Nexus/Core/NexusOptions.cs`.
 
-- `ForwardedUserHeaderName`: subject header, default `X-Forwarded-User`, mapped to claim `sub`
-- `ForwardedPreferredUsernameHeaderName`: display name header, default `X-Forwarded-Preferred-Username`, mapped to claim `name`
-- `ForwardedGroupsHeaderName`: groups header, default `X-Forwarded-Groups`
-- `ForwardedClaimsHeaderName`: Nexus claim header for roles and Nexus permissions
+- `Security.UserHeader`: subject header, default `X-Forwarded-User`, mapped to the Nexus subject claim
+- `Security.NameHeader`: optional display-name header, default `X-Forwarded-Preferred-Username`, mapped to the Nexus name claim when present
+- `Security.GroupsHeader`: groups header, default `X-Forwarded-Groups`
+- Catalog permission headers: Nexus claim headers for read/write catalog permissions
+
+`Security.UserHeader` is the required stable user identifier. OIDC deployments should map it from a guaranteed stable identifier such as `sub`.
+
+`Security.NameHeader` is optional display metadata. OIDC `preferred_username` is not guaranteed, so Nexus must not require `X-Forwarded-Preferred-Username` for default deployments. `/api/v1/users/me` exposes this value as `name` when present and falls back to the stable user id when absent. Authorization and job ownership use the subject claim, not the preferred username.
 
 Claim headers contain comma-separated lists. Nexus expands each list value into
 repeated claims of the corresponding type. Values are trimmed and empty segments

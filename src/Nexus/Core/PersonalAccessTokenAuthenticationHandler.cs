@@ -27,7 +27,7 @@ internal class PersonalAccessTokenAuthHandler(
 
     private readonly ITokenService _tokenService = tokenService;
 
-    protected async override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var headerValues = Request.Headers.Authorization;
         var principal = default(ClaimsPrincipal);
@@ -45,7 +45,7 @@ internal class PersonalAccessTokenAuthHandler(
                 if (_tokenService.TryGet(userId, secret, out var token))
                 {
                     if (DateTime.UtcNow >= token.Expires)
-                        return AuthenticateResult.NoResult();
+                        return Task.FromResult(AuthenticateResult.NoResult());
 
                     /* The pat_user_ prefixed claims represent what the token creator could do. */
                     var userClaims = token.GrantClaims
@@ -118,6 +118,6 @@ internal class PersonalAccessTokenAuthHandler(
             result = AuthenticateResult.Success(ticket);
         }
 
-        return result;
+        return Task.FromResult(result);
     }
 }

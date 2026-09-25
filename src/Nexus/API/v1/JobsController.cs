@@ -55,7 +55,7 @@ internal class JobsController(
     public ActionResult<List<Job>> GetJobs()
     {
         var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
-        var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
+        var username = GetUserId();
         var result = _jobService
             .GetJobs()
             .Select(jobControl => jobControl.Job)
@@ -76,7 +76,7 @@ internal class JobsController(
         if (_jobService.TryGetJob(jobId, out var jobControl))
         {
             var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
-            var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
+            var username = GetUserId();
             if (jobControl.Job.Owner == username || isAdmin)
             {
                 jobControl.CancellationTokenSource.Cancel();
@@ -106,7 +106,7 @@ internal class JobsController(
         if (_jobService.TryGetJob(jobId, out var jobControl))
         {
             var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
-            var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
+            var username = GetUserId();
 
             if (jobControl.Job.Owner == username || isAdmin)
             {
@@ -213,7 +213,7 @@ internal class JobsController(
         }
 
         //
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
         var job = new Job(Guid.NewGuid(), "export", username, v2Parameters);
         var dataService = _serviceProvider.GetRequiredService<IDataService>();
 
@@ -247,7 +247,7 @@ internal class JobsController(
     [HttpPost("refresh-database")]
     public ActionResult<Job> RefreshDatabase()
     {
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
 
         var job = new Job(Guid.NewGuid(), "refresh-database", username, default);
         var progress = new Progress<double>();
@@ -284,7 +284,7 @@ internal class JobsController(
         [BindRequired] DateTime end,
         CancellationToken cancellationToken)
     {
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
         var job = new Job(Guid.NewGuid(), "clear-cache", username, default);
 
         var response = await ProtectCatalogNonGenericAsync(catalogId, catalogContainer =>
@@ -319,7 +319,7 @@ internal class JobsController(
     [HttpPost("git/sync")]
     public ActionResult<Job> SyncGit(GitSyncRequest parameters)
     {
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
         var job = new Job(Guid.NewGuid(), "git-sync", username, parameters);
         var progress = new Progress<double>();
         var gitService = _serviceProvider.GetRequiredService<IGitService>();
@@ -348,6 +348,12 @@ internal class JobsController(
     {
         return $"{Request.Scheme}://{Request.Host}{Request.Path}/{jobId}/status";
     }
+
+    private string GetUserId()
+    {
+        return User.FindFirst(NexusClaimTypes.Subject)!.Value;
+    }
+
     private async Task<ActionResult> ProtectCatalogNonGenericAsync(
         string catalogId,
         Func<CatalogContainer, Task<ActionResult>> action,

@@ -5,6 +5,7 @@ import { MenuModule } from 'primeng/menu'
 import { AppIconComponent } from './app-icon.component'
 
 type ThemeMode = 'dark' | 'light' | 'system'
+type DevAuthMode = 'admin' | 'user'
 
 @Component({
   selector: 'app-header',
@@ -37,9 +38,9 @@ type ThemeMode = 'dark' | 'light' | 'system'
           <span class="text-xl leading-none">☰</span>
         </button>
 
-        <div class="hidden items-center gap-2 rounded-lg border border-cyan-core/20 bg-cyan-core/10 px-3 py-2 text-xs text-cyan-accent sm:flex">
-          <app-icon name="map-pin" class="h-4 w-4 shrink-0" />
-          <span class="max-w-48 truncate font-mono">{{ endpointHost() }}</span>
+        <div class="hidden min-w-0 flex-col leading-tight sm:flex">
+          <span class="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-ink-muted">Instance</span>
+          <span class="max-w-56 truncate text-sm font-semibold text-ink">{{ applicationName() ?? endpointHost() }}</span>
         </div>
 
         <p-menu #adminMenu styleClass="header-menu" [model]="adminMenuItems()" [popup]="true" appendTo="body">
@@ -85,6 +86,8 @@ type ThemeMode = 'dark' | 'light' | 'system'
             } @else {
               <div class="flex cursor-pointer items-center gap-2 px-3 py-2" (click)="$event.stopPropagation(); item.command?.($event)">
                 @if (item.icon === 'key') { <app-icon name="key" class="h-4 w-4 shrink-0" /> }
+                @if (item.icon === 'shield') { <app-icon name="shield" class="h-4 w-4 shrink-0" /> }
+                @if (item.icon === 'user') { <app-icon name="user" class="h-4 w-4 shrink-0" /> }
                 <span>{{ item.label }}</span>
               </div>
             }
@@ -120,10 +123,13 @@ type ThemeMode = 'dark' | 'light' | 'system'
 })
 export class AppHeaderComponent {
   readonly endpointHost = input.required<string>()
+  readonly applicationName = input<string | null | undefined>(null)
   readonly jobCount = input.required<number>()
   readonly userInitials = input.required<string>()
   readonly themeMode = input.required<ThemeMode>()
   readonly isAdministrator = input(false)
+  readonly isDevelopmentMode = input(false)
+  readonly devAuthMode = input<DevAuthMode>('admin')
   readonly helpLink = input<string | null | undefined>(null)
   readonly logoutUrl = input<string | null | undefined>(null)
   readonly openPackageReferences = output<void>()
@@ -134,6 +140,7 @@ export class AppHeaderComponent {
   readonly openJobs = output<void>()
   readonly openAccessTokens = output<void>()
   readonly openAbout = output<void>()
+  readonly changeDevAuthMode = output<DevAuthMode>()
   readonly adminMenuItems = computed<MenuItem[]>(() => {
     const items: MenuItem[] = []
     if (this.isAdministrator()) {
@@ -152,6 +159,16 @@ export class AppHeaderComponent {
   })
   readonly userMenuItems = computed<MenuItem[]>(() => {
     const items: MenuItem[] = [{ label: 'Access tokens', icon: 'key', command: () => this.openAccessTokens.emit() }]
+
+    if (this.isDevelopmentMode()) {
+      const mode = this.devAuthMode()
+      items.push(
+        { separator: true },
+        { label: mode === 'admin' ? 'Admin mode (current)' : 'Admin mode', icon: 'shield', command: () => this.changeDevAuthMode.emit('admin') },
+        { label: mode === 'user' ? 'User mode (current)' : 'User mode', icon: 'user', command: () => this.changeDevAuthMode.emit('user') },
+      )
+    }
+
     if (this.logoutUrl()) items.push({ separator: true }, { label: 'Logout', icon: 'log-out', url: this.logoutUrl()! })
     return items
   })

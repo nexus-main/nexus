@@ -408,6 +408,13 @@ describe('execution range validation', () => {
 describe('resource availability', () => {
   const avRow: ResourceRow = { ...resource, id: 'P1', path: '/catalog/P1' }
   const otherRow: ResourceRow = { ...resource, id: 'P2', path: '/catalog/P2' }
+  const representationResource: ResourceRow = {
+    ...resource,
+    id: 'T1',
+    path: '/SAMPLE/LOCAL/T1',
+    representations: [{ samplePeriod: '100 ms' }, { samplePeriod: '20 ms' }],
+  }
+  const [tenHzRow, fiftyHzRow] = representationRows([representationResource])
   const selectedBegin = '2020-06-01T00:00:00Z'
   const selectedEnd = '2020-07-01T00:00:00Z'
 
@@ -488,5 +495,23 @@ describe('resource availability', () => {
       { pattern: '^/catalog/P1$', begin: '2020-01-01T00:00:00Z', end: '2020-06-01T00:00:00Z' },
     ] } }
     assert.equal(resourceAvailableForRange(avRow, properties2, selectedBegin, selectedEnd), false)
+  })
+
+  it('matches representation rows by canonical representation path', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/SAMPLE/LOCAL/T1/100_ms#base=100_ms$', begin: '2021-01-01T00:00:00Z', end: '2022-01-01T00:00:00Z' },
+    ] } }
+
+    assert.equal(resourceAvailableForRange(tenHzRow, properties, selectedBegin, selectedEnd), false)
+    assert.equal(resourceAvailableForRange(fiftyHzRow, properties, selectedBegin, selectedEnd), true)
+  })
+
+  it('allows broad representation path patterns to match all representations of a resource', () => {
+    const properties = { resources: { availability: [
+      { pattern: '^/SAMPLE/LOCAL/T1/', begin: '2021-01-01T00:00:00Z', end: '2022-01-01T00:00:00Z' },
+    ] } }
+
+    assert.equal(resourceAvailableForRange(tenHzRow, properties, selectedBegin, selectedEnd), false)
+    assert.equal(resourceAvailableForRange(fiftyHzRow, properties, selectedBegin, selectedEnd), false)
   })
 })

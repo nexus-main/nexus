@@ -12,6 +12,7 @@ namespace Nexus.Core;
 internal static class HeaderAuthenticationDefaults
 {
     public const string AuthenticationScheme = "header";
+    public const string DevelopmentRoleHeader = "X-Nexus-Dev-Role";
 }
 
 internal class HeaderAuthenticationHandler(
@@ -38,20 +39,23 @@ internal class HeaderAuthenticationHandler(
 
     private AuthenticateResult HandleAuthenticate()
     {
+        var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
         var userId = Request.Headers[_securityOptions.UserHeader].FirstOrDefault();
 
         if (string.IsNullOrEmpty(userId))
         {
-            var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-
-            if (environmentName == "Development")
+            if (isDevelopment)
             {
                 var devClaims = new List<Claim>()
                 {
                     new(NexusClaimTypes.Subject, "star-lord"),
-                    new(NexusClaimTypes.Name, "Star Lord"),
-                    new(NexusClaimTypes.Role, nameof(NexusRoles.Administrator))
+                    new(NexusClaimTypes.Name, "Star Lord")
                 };
+
+                var devRole = Request.Headers[HeaderAuthenticationDefaults.DevelopmentRoleHeader].FirstOrDefault();
+
+                if (!string.Equals(devRole, "user", StringComparison.OrdinalIgnoreCase))
+                    devClaims.Add(new(NexusClaimTypes.Role, nameof(NexusRoles.Administrator)));
 
                 var devIdentity = new ClaimsIdentity(
                     devClaims,
@@ -80,7 +84,9 @@ internal class HeaderAuthenticationHandler(
             claims.Add(new Claim(NexusClaimTypes.Name, name));
 
         var groups = ParseClaimHeader(_securityOptions.GroupsHeader);
-        var isAdmin = groups.Any(group => group == _securityOptions.AdministratorGroup);
+        var isAdmin = isDevelopment
+            ? IsDevelopmentAdminMode()
+            : groups.Any(group => group == _securityOptions.AdministratorGroup);
 
         if (isAdmin)
             claims.Add(new Claim(NexusClaimTypes.Role, nameof(NexusRoles.Administrator)));
@@ -123,5 +129,12 @@ internal class HeaderAuthenticationHandler(
     {
         foreach (var value in ParseClaimHeader(headerName))
             claims.Add(new Claim(claimType, value));
+    }
+
+    private bool IsDevelopmentAdminMode()
+    {
+        var devRole = Request.Headers[HeaderAuthenticationDefaults.DevelopmentRoleHeader].FirstOrDefault();
+
+        return !string.Equals(devRole, "user", StringComparison.OrdinalIgnoreCase);
     }
 }

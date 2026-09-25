@@ -17,7 +17,6 @@ export interface PipelineDraft {
   id: string | null
   original: DataSourcePipeline
   disabled: boolean
-  releasePattern: string | null
   visibilityPattern: string | null
   registrations: RegistrationDraft[]
   nextKey: number
@@ -34,21 +33,21 @@ export function sourceSchema(descriptions: ExtensionDescription[], type: string)
   return descriptions.find(description => description.type === type)?.additionalInformation?.['source-configuration-schema']
 }
 
-export function createPipelineDraft(id: string | null = null, pipeline: DataSourcePipeline = { registrations: [], releasePattern: null, visibilityPattern: null }): PipelineDraft {
+export function createPipelineDraft(id: string | null = null, pipeline: DataSourcePipeline = { registrations: [], visibilityPattern: null }): PipelineDraft {
   const original = structuredClone(pipeline)
   const registrations = (original.registrations ?? []).map((registration, key) => ({
     key, original: registration, type: registration.type ?? '',
     resourceLocator: registration.resourceLocator ?? null, infoUrl: registration.infoUrl ?? null,
     configuration: registration.configuration, rawText: undefined,
   }))
-  const draft: PipelineDraft = { id, original, disabled: original.disabled ?? false, releasePattern: original.releasePattern ?? null,
+  const draft: PipelineDraft = { id, original, disabled: original.disabled ?? false,
     visibilityPattern: original.visibilityPattern ?? null, registrations, nextKey: registrations.length, baseline: null, serverDiverged: false }
   if (id !== null) draft.baseline = draftFingerprint(draft)
   return draft
 }
 
 function draftFingerprint(draft: PipelineDraft): string {
-  return JSON.stringify([draft.disabled, draft.releasePattern, draft.visibilityPattern,
+  return JSON.stringify([draft.disabled, draft.visibilityPattern,
     draft.registrations.map(({ original: _original, ...registration }) => registration)])
 }
 
@@ -84,7 +83,7 @@ export function updateRegistration(draft: PipelineDraft, key: number, patch: Par
   return { ...draft, registrations: draft.registrations.map(registration => registration.key === key ? { ...registration, ...patch } : registration) }
 }
 
-export function updatePipeline(draft: PipelineDraft, patch: Partial<Pick<PipelineDraft, 'disabled' | 'releasePattern' | 'visibilityPattern'>>): PipelineDraft {
+export function updatePipeline(draft: PipelineDraft, patch: Partial<Pick<PipelineDraft, 'disabled' | 'visibilityPattern'>>): PipelineDraft {
   return { ...draft, ...patch }
 }
 
@@ -131,7 +130,7 @@ export function preparePipeline(draft: PipelineDraft, descriptions: ExtensionDes
     return { ...registration.original, type: registration.type, resourceLocator: registration.resourceLocator,
       infoUrl: registration.infoUrl, configuration }
   })
-  const payload = { ...draft.original, releasePattern: draft.releasePattern, visibilityPattern: draft.visibilityPattern, registrations }
+  const payload = { ...draft.original, visibilityPattern: draft.visibilityPattern, registrations }
   if (draft.disabled) payload.disabled = true
   else delete payload.disabled
   // Also protect unknown envelope properties from unsafe values on a round trip.

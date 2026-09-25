@@ -100,16 +100,6 @@
                         <label for="pipeline-enabled">{{ current.disabled ? 'Disabled' : 'Enabled' }}</label>
                       </div>
                       <div class="field">
-                        <label for="pipeline-release">Release pattern</label>
-                        <div class="input-with-help">
-                          <input pInputText pSize="small" id="pipeline-release"
-                            [ngModel]="current.releasePattern ?? ''" (ngModelChange)="setPattern('releasePattern', $event || null)" />
-                          <svg lucideCircleHelp class="h-4 w-4 help-icon" aria-hidden="true"
-                            [pTooltip]="'Selects catalog IDs using server-evaluated .NET regular expressions. Empty selects all. Applies only when the owner can release the catalog.'"
-                            tooltipPosition="right" [escape]="false" />
-                        </div>
-                      </div>
-                      <div class="field">
                         <label for="pipeline-visibility">Visibility pattern</label>
                         <div class="input-with-help">
                           <input pInputText pSize="small" id="pipeline-visibility"

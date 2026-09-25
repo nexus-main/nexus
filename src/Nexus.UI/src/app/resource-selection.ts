@@ -361,7 +361,7 @@ export function executionRangeError(begin: string, end: string, period: bigint, 
 }
 
 export function resourceAvailableForRange(
-  resource: ResourceRow,
+  resource: ResourceRow | RepresentationRow,
   catalogProperties: Record<string, unknown> | null | undefined,
   selectedBegin: string,
   selectedEnd: string,
@@ -398,7 +398,7 @@ export function resourceAvailableForRange(
       if (endTicks === null) continue
     }
 
-    if (!regex.test(resource.path)) continue
+    if (!regex.test(resourceAvailabilityPath(resource))) continue
     matched = true
 
     const beginOk = beginTicks === null || beginTicks < selectedEndTicks
@@ -407,4 +407,11 @@ export function resourceAvailableForRange(
   }
 
   return !matched
+}
+
+function resourceAvailabilityPath(resource: ResourceRow | RepresentationRow): string {
+  if (!('basePeriod' in resource)) return resource.path
+
+  const period = formatPeriod(resource.basePeriod, '_')
+  return `${resource.path}/${period}#base=${period}`
 }

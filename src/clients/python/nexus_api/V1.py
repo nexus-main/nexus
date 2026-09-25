@@ -1685,7 +1685,6 @@ class CatalogInfo:
         license: A nullable license.
         is_readable: A boolean which indicates if the catalog is accessible.
         is_writable: A boolean which indicates if the catalog is editable.
-        is_released: A boolean which indicates if the catalog is released.
         is_visible: A boolean which indicates if the catalog is visible.
         package_reference_ids: The package reference identifiers.
         pipeline_info: A structure for pipeline info.
@@ -1711,9 +1710,6 @@ class CatalogInfo:
 
     is_writable: bool
     """A boolean which indicates if the catalog is editable."""
-
-    is_released: bool
-    """A boolean which indicates if the catalog is released."""
 
     is_visible: bool
     """A boolean which indicates if the catalog is visible."""
@@ -2173,16 +2169,12 @@ class DataSourcePipeline:
 
     Args:
         registrations: The list of pipeline elements (data source registrations).
-        release_pattern: An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.
         visibility_pattern: An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.
         disabled: An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled.
     """
 
     registrations: list[DataSourceRegistration]
     """The list of pipeline elements (data source registrations)."""
-
-    release_pattern: Optional[str]
-    """An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released."""
 
     visibility_pattern: Optional[str]
     """An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible."""
@@ -2223,12 +2215,16 @@ class SystemResponse:
 
     Args:
         version: The Nexus version.
+        application_name: The application name.
         help_link: The help link.
         logout_url: The logout URL.
     """
 
     version: str
     """The Nexus version."""
+
+    application_name: Optional[str]
+    """The application name."""
 
     help_link: Optional[str]
     """The help link."""

@@ -182,8 +182,6 @@ internal class CatalogsController(
                 );
                 var isWritable = AuthUtilities.IsCatalogWritable(childContainer.Id, childContainer.Metadata, User);
 
-                var isReleased = Regex.IsMatch(id, childContainer.Pipeline.ReleasePattern ?? "");
-
                 var isVisible = isReadable ||
                     Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
 
@@ -203,7 +201,6 @@ internal class CatalogsController(
                     license,
                     isReadable,
                     isWritable,
-                    isReleased,
                     isVisible,
                     packageReferenceIds,
                     pipelineInfo

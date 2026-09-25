@@ -76,7 +76,7 @@ try
     ConfigurePipeline(app);
 
     // initialize app state
-    await InitializeAppAsync(app.Services);
+    await InitializeAppAsync(app);
 
     // Run
     app.Run();
@@ -150,6 +150,7 @@ void AddServices(
     services.AddSingleton<IProcessingService, ProcessingService>();
     services.AddSingleton<ICacheService, CacheService>();
     services.AddSingleton<IDatabaseService, DatabaseService>();
+    services.AddSingleton<DevelopmentSampleLicenseSeeder>();
 
     // Options
     services.Configure<GeneralOptions>(configuration.GetSection(GeneralOptions.Section));
@@ -213,8 +214,16 @@ void ConfigurePipeline(WebApplication app)
         string.Join("\n", endpointSources.SelectMany(source => source.Endpoints)));
 }
 
-async Task InitializeAppAsync(IServiceProvider serviceProvider)
+async Task InitializeAppAsync(WebApplication app)
 {
+    var serviceProvider = app.Services;
+
+    if (app.Environment.IsDevelopment())
+    {
+        var developmentSampleLicenseSeeder = serviceProvider.GetRequiredService<DevelopmentSampleLicenseSeeder>();
+        developmentSampleLicenseSeeder.Seed();
+    }
+
     var appStateManager = serviceProvider.GetRequiredService<AppStateManager>();
 
     // packages and catalogs

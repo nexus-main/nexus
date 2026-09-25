@@ -84,7 +84,7 @@ internal class Sample : IDataSource<object?>
 
     public const string RemoteCatalogId = "/SAMPLE/REMOTE";
 
-    public const string LicensedCatalogId = "/SAMPLE/LICENSED";
+    public const string LicensedCatalogId = "/DEV/LICENSED";
 
     private const string LocalCatalogTitle = "Simulates a local catalog";
 
@@ -304,6 +304,29 @@ internal class Sample : IDataSource<object?>
             .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
+        var p1Parameters = new Dictionary<string, JsonElement>()
+        {
+            ["height"] = JsonSerializer.SerializeToElement(new
+            {
+                type = "input-integer",
+                label = "Height",
+                @default = 10,
+                minimum = 1,
+                maximum = 100
+            }),
+            ["mode"] = JsonSerializer.SerializeToElement(new
+            {
+                type = "select",
+                label = "Mode",
+                @default = "mean",
+                items = new Dictionary<string, string>()
+                {
+                    ["mean"] = "Mean",
+                    ["max"] = "Maximum"
+                }
+            })
+        };
+
         var resourceE = new ResourceBuilder(id: "P1")
             .WithUnit("bar")
             .WithDescription("Test Resource A")
@@ -311,28 +334,11 @@ internal class Sample : IDataSource<object?>
             .AddRepresentation(new Representation(
                 dataType: NexusDataType.Float32,
                 samplePeriod: TimeSpan.FromSeconds(1),
-                parameters: new Dictionary<string, JsonElement>()
-                {
-                    ["height"] = JsonSerializer.SerializeToElement(new
-                    {
-                        type = "input-integer",
-                        label = "Height",
-                        @default = 10,
-                        minimum = 1,
-                        maximum = 100
-                    }),
-                    ["mode"] = JsonSerializer.SerializeToElement(new
-                    {
-                        type = "select",
-                        label = "Mode",
-                        @default = "mean",
-                        items = new Dictionary<string, string>()
-                        {
-                            ["mean"] = "Mean",
-                            ["max"] = "Maximum"
-                        }
-                    })
-                }))
+                parameters: p1Parameters))
+            .AddRepresentation(new Representation(
+                dataType: NexusDataType.Float32,
+                samplePeriod: TimeSpan.FromMilliseconds(100),
+                parameters: p1Parameters))
             .Build();
 
         var catalogBuilder = new ResourceCatalogBuilder(catalogId);
@@ -352,9 +358,15 @@ internal class Sample : IDataSource<object?>
             {
                 new
                 {
-                    pattern = $"^{catalogId}/P1$",
-                    begin = "2020-01-01T00:00:00Z",
-                    end = "2021-01-01T00:00:00Z"
+                    pattern = $"^{catalogId}/P1/1_s#base=1_s$",
+                    begin = (string?)"2020-01-01T00:00:00Z",
+                    end = (string?)null
+                },
+                new
+                {
+                    pattern = $"^{catalogId}/P1/100_ms#base=100_ms$",
+                    begin = (string?)null,
+                    end = (string?)"2020-01-01T00:00:00Z"
                 }
             }
         });

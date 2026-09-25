@@ -39,7 +39,6 @@ internal sealed class GitService(
     private Timer? _commitTimer;
     private bool _repositoryReady;
     private string? _lastPushedCommitSha;
-    private DateTimeOffset? _lastPushAttemptAt;
     private DateTimeOffset? _lastSuccessfulPushAt;
     private GitPushStatus _lastPushStatus = GitPushStatus.NotConfigured;
     private string? _lastPushError;
@@ -224,6 +223,7 @@ internal sealed class GitService(
         try
         {
             await EnsureRepositoryAsync(stoppingToken).ConfigureAwait(false);
+            await SyncAsync(force: false, new Progress<double>(), stoppingToken).ConfigureAwait(false);
             StartWatcher();
             await Task.Delay(Timeout.Infinite, stoppingToken).ConfigureAwait(false);
         }
@@ -358,8 +358,6 @@ internal sealed class GitService(
             _lastPushError = null;
             return GitPushStatus.NotConfigured;
         }
-
-        _lastPushAttemptAt = DateTimeOffset.UtcNow;
 
         using var sshKey = CreateSshKeyFileIfNeeded(options);
         var remoteUrl = BuildRemoteUrl(options);

@@ -265,7 +265,7 @@ export class DataSourcePipelinesComponent {
     return globalThis.matchMedia?.(mobilePipelineLayoutQuery).matches ?? false
   }
 
-  setPattern(field: 'releasePattern' | 'visibilityPattern', value: string | null): void {
+  setPattern(field: 'visibilityPattern', value: string | null): void {
     if (!this.editingLocked()) this.draft.update(draft => draft ? updatePipeline(draft, { [field]: value }) : draft)
   }
 

@@ -78,7 +78,6 @@ public record ExtensionDescription(
 /// <param name="License">A nullable license.</param>
 /// <param name="IsReadable">A boolean which indicates if the catalog is accessible.</param>
 /// <param name="IsWritable">A boolean which indicates if the catalog is editable.</param>
-/// <param name="IsReleased">A boolean which indicates if the catalog is released.</param>
 /// <param name="IsVisible">A boolean which indicates if the catalog is visible.</param>
 /// <param name="PackageReferenceIds">The package reference identifiers.</param>
 /// <param name="PipelineInfo">A structure for pipeline info.</param>
@@ -90,7 +89,6 @@ public record CatalogInfo(
     string? License,
     bool IsReadable,
     bool IsWritable,
-    bool IsReleased,
     bool IsVisible,
     Guid[] PackageReferenceIds,
     PipelineInfo PipelineInfo
@@ -132,12 +130,10 @@ public record CatalogAvailability(
 /// A data source pipeline.
 /// </summary>
 /// <param name="Registrations">The list of pipeline elements (data source registrations).</param>
-/// <param name="ReleasePattern">An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.</param>
 /// <param name="VisibilityPattern">An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.</param>
 /// <param name="Disabled">An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled.</param>
 public record DataSourcePipeline(
     IReadOnlyList<DataSourceRegistration> Registrations,
-    string? ReleasePattern = default,
     string? VisibilityPattern = default,
     bool Disabled = false
 );
@@ -202,10 +198,12 @@ public record MeResponse(
 /// A system response.
 /// </summary>
 /// <param name="Version">The Nexus version.</param>
+/// <param name="ApplicationName">The application name.</param>
 /// <param name="HelpLink">The help link.</param>
 /// <param name="LogoutUrl">The logout URL.</param>
 public record SystemResponse(
     string Version,
+    string? ApplicationName,
     string? HelpLink,
     string? LogoutUrl
 );

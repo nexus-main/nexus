@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core'
+import { Injectable, isDevMode, signal } from '@angular/core'
 import { NexusClient, type BufferProvider } from '@nexus-api/_client'
 import * as V1 from '@nexus-api/V1'
 import * as V2 from '@nexus-api/V2'
@@ -56,12 +56,18 @@ export type SessionOverview = {
   roots: V1.CatalogInfo[]
 }
 
+export type DevAuthMode = 'admin' | 'user'
+
+const devAuthModeStorageKey = 'nexus.devAuthMode'
+const devAuthRoleHeader = 'X-Nexus-Dev-Role'
+
 @Injectable({ providedIn: 'root' })
 export class NexusService {
   readonly endpoint = globalThis.location?.origin ?? 'http://localhost:4200'
   readonly apiAvailable = signal(false)
   readonly system = signal<V1.SystemResponse | null>(null)
   readonly currentUser = signal<V1.MeResponse | null>(null)
+  readonly devAuthMode = signal<DevAuthMode>(getInitialDevAuthMode())
   private readonly client = new NexusClient(this.endpoint)
   readonly v1 = new V1.V1(this.invoke.bind(this))
   readonly v2 = new V2.V2(this.invoke.bind(this))
@@ -69,7 +75,8 @@ export class NexusService {
   async getCatalogChildren(catalogId = '/') {
     const children = await this.v1.catalogs.getChildCatalogInfos(catalogId)
     this.apiAvailable.set(true)
-    return [...children].filter(info => info.isVisible).sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''))
+    const devChildren = isDevMode() && catalogId === '/' ? [createRestrictedDevCatalog()] : []
+    return [...children, ...devChildren].filter(info => info.isVisible).sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''))
   }
 
   async getCatalogBundle(catalogId: string): Promise<CatalogBundle> {
@@ -141,6 +148,13 @@ export class NexusService {
     this.apiAvailable.set(true)
   }
 
+  setDevAuthMode(mode: DevAuthMode) {
+    const nextMode = mode === 'user' ? 'user' : 'admin'
+    this.devAuthMode.set(nextMode)
+
+    if (isDevMode()) localStorage.setItem(devAuthModeStorageKey, nextMode)
+  }
+
   async exportResources(parameters: V2.ExportParameters) {
     return this.v2.jobs.export(parameters)
   }
@@ -176,6 +190,7 @@ export class NexusService {
     const headers = new Headers()
     if (accept) headers.set('Accept', accept)
     if (contentType) headers.set('Content-Type', contentType)
+    if (isDevMode()) headers.set(devAuthRoleHeader, this.devAuthMode())
 
     const response = await fetch(`${this.endpoint}${url}`, { method, headers, body, signal })
     if (!response.ok) throw new Error(`Nexus request failed: ${response.status} ${response.statusText}`)
@@ -204,7 +219,7 @@ export function prepareChildCatalogs(parentId: string, childInfos: V1.CatalogInf
   const groups = new Map<string, V1.CatalogInfo[]>()
 
   for (const info of childInfos) {
-    if (!(info.isReleased && info.isVisible)) continue
+    if (!info.isVisible) continue
     const remainder = (info.id ?? '').slice(normalizedParentId.length)
     const nextSegment = remainder.split('/').filter(Boolean)[0] ?? ''
     groups.set(nextSegment, [...(groups.get(nextSegment) ?? []), info])
@@ -223,7 +238,6 @@ export function prepareChildCatalogs(parentId: string, childInfos: V1.CatalogInf
         license: null,
         isReadable: true,
         isWritable: false,
-        isReleased: true,
         isVisible: true,
         packageReferenceIds: [],
         pipelineInfo: { id: '', types: [], infoUrls: [] },
@@ -285,6 +299,27 @@ function getString(record: Record<string, unknown> | null | undefined, key: stri
 function getStringArray(record: Record<string, unknown> | null | undefined, key: string) {
   const value = record?.[key]
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function createRestrictedDevCatalog(): V1.CatalogInfo {
+  return {
+    id: '/DEV/RESTRICTED',
+    title: 'Restricted development catalog',
+    contact: 'nexus-dev@example.invalid',
+    readme: 'This synthetic catalog is visible in Angular dev mode only, but it is intentionally not readable.',
+    license: null,
+    isReadable: false,
+    isWritable: false,
+    isVisible: true,
+    packageReferenceIds: [],
+    pipelineInfo: { id: '', types: ['dev'], infoUrls: [] },
+  }
+}
+
+function getInitialDevAuthMode(): DevAuthMode {
+  if (!isDevMode()) return 'admin'
+
+  return localStorage.getItem(devAuthModeStorageKey) === 'user' ? 'user' : 'admin'
 }
 
 export { V1, V2 }

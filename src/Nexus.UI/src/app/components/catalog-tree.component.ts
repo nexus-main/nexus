@@ -35,7 +35,7 @@ import { abbreviateMiddle, lastSegment } from '../utils'
             <span class="hidden sm:inline">{{ treeNode.label }}</span>
           </span>
           @if (!node.isFake && node.isReadable === false) {
-            <span class="shrink-0 text-[var(--p-text-muted-color)]" aria-label="Catalog is not readable" pTooltip="Catalog is not readable" tooltipPosition="top">
+            <span class="shrink-0 text-[var(--p-text-muted-color)]" aria-label="Catalog is not readable" pTooltip="You can see this catalog, but you do not have read access." tooltipPosition="top">
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 0 0-9 0v3" />
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 10.5h13.5v9H5.25z" />

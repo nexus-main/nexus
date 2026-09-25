@@ -1175,8 +1175,6 @@ export interface CatalogInfo {
     isReadable?: boolean | undefined;
     /** A boolean which indicates if the catalog is editable. */
     isWritable?: boolean | undefined;
-    /** A boolean which indicates if the catalog is released. */
-    isReleased?: boolean | undefined;
     /** A boolean which indicates if the catalog is visible. */
     isVisible?: boolean | undefined;
     /** The package reference identifiers. */
@@ -1457,8 +1455,6 @@ export interface ExtensionDescription {
 export interface DataSourcePipeline {
     /** The list of pipeline elements (data source registrations). */
     registrations?: DataSourceRegistration[] | undefined;
-    /** An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released. */
-    releasePattern?: string | null;
     /** An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible. */
     visibilityPattern?: string | null;
     /** An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled. */
@@ -1487,6 +1483,8 @@ export interface DataSourceRegistration {
 export interface SystemResponse {
     /** The Nexus version. */
     version?: string | undefined;
+    /** The application name. */
+    applicationName?: string | null;
     /** The help link. */
     helpLink?: string | null;
     /** The logout URL. */

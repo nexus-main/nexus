@@ -1709,10 +1709,6 @@
             "type": "boolean",
             "description": "A boolean which indicates if the catalog is editable."
           },
-          "isReleased": {
-            "type": "boolean",
-            "description": "A boolean which indicates if the catalog is released."
-          },
           "isVisible": {
             "type": "boolean",
             "description": "A boolean which indicates if the catalog is visible."
@@ -2216,11 +2212,6 @@
               "$ref": "#/components/schemas/DataSourceRegistration"
             }
           },
-          "releasePattern": {
-            "type": "string",
-            "description": "An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.",
-            "nullable": true
-          },
           "visibilityPattern": {
             "type": "string",
             "description": "An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.",
@@ -2265,6 +2256,11 @@
           "version": {
             "type": "string",
             "description": "The Nexus version."
+          },
+          "applicationName": {
+            "type": "string",
+            "description": "The application name.",
+            "nullable": true
           },
           "helpLink": {
             "type": "string",

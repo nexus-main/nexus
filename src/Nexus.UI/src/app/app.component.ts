@@ -1,7 +1,7 @@
 import { CommonModule, DOCUMENT } from '@angular/common'
-import { Component, HostListener, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core'
+import { Component, HostListener, OnDestroy, computed, effect, inject, isDevMode, signal, viewChild } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { LucideChartColumn, LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucideInfo, LucidePaperclip, LucidePilcrow, LucideX } from '@lucide/angular'
+import { LucideChartColumn, LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucideInfo, LucideLoaderCircle, LucidePaperclip, LucidePilcrow, LucideRefreshCw, LucideX } from '@lucide/angular'
 import { MenuItem, MessageService } from 'primeng/api'
 import { ButtonModule } from 'primeng/button'
 import { CheckboxModule } from 'primeng/checkbox'
@@ -40,6 +40,7 @@ import { RestoreFocusDirective } from './restore-focus.directive'
 import {
   CatalogBundle,
   CatalogNode,
+  DevAuthMode,
   NexusService,
   ResourceRow,
   SessionOverview,
@@ -125,7 +126,7 @@ type StoredExportSettings = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, ToastModule, AppTooltipDirective, LucideChartColumn, LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucideInfo, LucidePaperclip, LucidePilcrow, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogAboutDialogComponent, AvailabilityDialogComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, GitComponent, PropertiesDialogComponent, VisualizationChartComponent, ResourceMatrixComponent],
+  imports: [CommonModule, FormsModule, ButtonModule, CheckboxModule, DialogModule, DrawerModule, InputTextModule, MenuModule, ProgressBarModule, TabsModule, ToastModule, AppTooltipDirective, LucideChartColumn, LucideCodeXml, LucideCopy, LucideExternalLink, LucideFileText, LucideInfo, LucideLoaderCircle, LucidePaperclip, LucidePilcrow, LucideRefreshCw, LucideX, MarkdownPipe, RestoreFocusDirective, AppHeaderComponent, CatalogAboutDialogComponent, AvailabilityDialogComponent, CatalogTreeComponent, ExportComposerComponent, PinnedResourceComponent, PackageReferencesComponent, AccessTokensComponent, DataSourcePipelinesComponent, GitComponent, PropertiesDialogComponent, VisualizationChartComponent, ResourceMatrixComponent],
   providers: [MessageService],
   templateUrl: './app.component.html',
 })
@@ -275,13 +276,23 @@ export class AppComponent implements OnDestroy {
   readonly jobs = computed(() => this.overview()?.jobs ?? [])
   readonly exportJobHistory = computed(() => this.jobHistory().filter(entry => this.isExportJobEntry(entry)))
   readonly jobHistoryCount = computed(() => this.exportJobHistory().length)
-  readonly userName = computed(() => this.nexus.currentUser()?.name ?? 'Prototype user')
+  readonly userName = computed(() => this.nexus.currentUser()?.name ?? 'Start Lord')
   readonly isAdministrator = computed(() => this.nexus.currentUser()?.claims?.some(claim => claim.type === 'role' && claim.value === 'Administrator') ?? false)
+  readonly isDevelopmentMode = isDevMode()
+  readonly devAuthMode = this.nexus.devAuthMode
   readonly endpointHost = computed(() => new URL(this.nexus.endpoint).host)
+  readonly applicationName = computed(() => this.nexus.system()?.applicationName ?? null)
   readonly helpLink = computed(() => this.nexus.system()?.helpLink ?? null)
   readonly logoutUrl = computed(() => this.nexus.system()?.logoutUrl ?? null)
   readonly nexusVersion = computed(() => this.nexus.system()?.version ?? '')
   readonly userInitials = computed(() => getInitials(this.userName()))
+
+  changeDevAuthMode(mode: DevAuthMode) {
+    if (this.devAuthMode() === mode) return
+
+    this.nexus.setDevAuthMode(mode)
+    window.location.reload()
+  }
 
   readonly catalogNodes = computed(() => {
     const nodes: CatalogNode[] = []
@@ -351,6 +362,7 @@ export class AppComponent implements OnDestroy {
   readonly selectedCatalog = computed(() => this.selectedBundle()?.catalog)
   readonly selectedCatalogTitle = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'title') ?? this.selectedCatalogInfo()?.title ?? '')
   readonly selectedCatalogReadme = computed(() => getStringProperty(this.selectedCatalog()?.properties, 'readme') ?? this.selectedCatalogInfo()?.readme ?? this.selectedNode()?.readme ?? '')
+  readonly selectedCatalogContact = computed(() => this.selectedCatalogInfo()?.contact ?? this.selectedNode()?.contact ?? '')
   readonly selectedCatalogDisplayPath = computed(() => formatCatalogDisplayPath(this.selectedCatalogId()))
   readonly selectedCatalogRange = computed(() => formatRange(this.selectedBundle()?.timeRange))
   readonly selectedCatalogPipelineInfo = computed(() => this.selectedCatalogInfo()?.pipelineInfo ?? this.selectedNode()?.pipelineInfo ?? null)
@@ -358,6 +370,7 @@ export class AppComponent implements OnDestroy {
   readonly selectedCatalogReadable = computed(() => this.selectedCatalogInfo()?.isReadable ?? this.selectedNode()?.isReadable)
   readonly selectedCatalogAttachments = computed(() => [...(this.selectedBundle()?.attachments ?? [])].sort((a, b) => a.localeCompare(b)))
   readonly licenseAcceptanceVisible = computed(() => this.apiAvailable() && !this.isSelectedFake() && this.selectedCatalogHasLicense() && this.selectedCatalogReadable() === false)
+  readonly selectedCatalogRestricted = computed(() => this.apiAvailable() && !this.isSelectedFake() && !this.licenseAcceptanceVisible() && this.selectedCatalogReadable() === false)
   readonly acceptedLicenseVisible = computed(() => this.apiAvailable() && !this.isSelectedFake() && this.selectedCatalogHasLicense() && this.selectedCatalogReadable() === true)
   readonly resourceMetadataWritable = computed(() => {
     const id = this.selectedCatalogId()
@@ -1061,14 +1074,26 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  async reloadCatalogs() {
+    this.catalogCacheGeneration++
+    this.catalogLoadGeneration++
+    this.catalogBundleCache.clear()
+    this.catalogBundleRequests.clear()
+    this.childRequests.clear()
+    this.childMap.set(new Map())
+    this.selectedCatalogInfo.set(null)
+    this.selectedBundle.set(null)
+    await this.loadOverview()
+    await this.loadSelectedCatalog(this.selectedCatalogId(), this.isSelectedFake(), this.apiAvailable())
+  }
+
   private validateInitialCatalogSelection() {
     const catalogId = this.selectedCatalogId()
     if (!catalogId || catalogId === '/' || this.overviewError()) return
     const roots = this.rootCatalogInfos()
     const segments = getCatalogSegments(catalogId)
     if (!segments.length) return
-    const rootId = `/${segments[0]}`
-    if (!roots.some(info => info.id === rootId)) {
+    if (!roots.some(info => info.id && (catalogId === info.id || catalogId.startsWith(`${info.id}/`)))) {
       this.selectedCatalogId.set('')
       this.selectedCatalogNodeKey.set('')
       this.selectedCatalogInfo.set(null)
@@ -1106,6 +1131,13 @@ export class AppComponent implements OnDestroy {
     }
 
     if (this.licenseAcceptanceVisible()) {
+      this.catalogLoading.set(false)
+      this.catalogError.set(null)
+      this.selectedBundle.set(null)
+      return
+    }
+
+    if (this.selectedCatalogRestricted()) {
       this.catalogLoading.set(false)
       this.catalogError.set(null)
       this.selectedBundle.set(null)

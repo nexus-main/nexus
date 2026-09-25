@@ -45,6 +45,7 @@ internal class SystemController(
     {
         return new SystemResponse(
             _appState.Version,
+            _generalOptions.ApplicationName,
             _generalOptions.HelpLink ?? (_environment.IsDevelopment() ? DEVELOPMENT_HELP_LINK : null),
             _securityOptions.LogoutUrl ?? (_environment.IsDevelopment() ? "/" : null)
         );

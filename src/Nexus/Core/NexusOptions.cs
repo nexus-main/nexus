@@ -49,7 +49,7 @@ internal record GeneralOptions() : NexusOptionsBase
 {
     public const string Section = "General";
 
-    public string? ApplicationName { get; set; } = "Nexus";
+    public string? ApplicationName { get; set; }
 
     public string? HelpLink { get; set; }
 }
@@ -123,7 +123,7 @@ internal partial record SecurityOptions() : NexusOptionsBase
 
     public string GroupsHeader { get; set; } = "X-Forwarded-Groups";
 
-    public string AdministratorGroup { get; set; } = "nexus-admin";
+    public string AdministratorGroup { get; set; } = "admins";
 
     public string EnabledCatalogsPattern { get; set; } = DEFAULT_ENABLED_CATALOGS_PATTERN;
 

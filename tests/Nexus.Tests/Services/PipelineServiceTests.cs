@@ -75,11 +75,11 @@ public class PipelineServiceTests
         {
             [id1] = new DataSourcePipeline(
                 Registrations: [],
-                ReleasePattern: ".^"
+                VisibilityPattern: ".^"
             ),
             [id2] = new DataSourcePipeline(
                 Registrations: [],
-                ReleasePattern: ".*"
+                VisibilityPattern: ".*"
             )
         };
 
@@ -106,11 +106,11 @@ public class PipelineServiceTests
         {
             [id1] = new DataSourcePipeline(
                 Registrations: [],
-                ReleasePattern: ".^"
+                VisibilityPattern: ".^"
             ),
             [id2] = new DataSourcePipeline(
                 Registrations: [],
-                ReleasePattern: ".*"
+                VisibilityPattern: ".*"
             )
         };
 
@@ -119,7 +119,7 @@ public class PipelineServiceTests
 
         var newPipeline = new DataSourcePipeline(
             Registrations: [],
-            ReleasePattern: "foo"
+            VisibilityPattern: "foo"
         );
 
         var expected = pipelineMap.ToDictionary(x => x.Key, x => x.Value);
@@ -150,11 +150,11 @@ public class PipelineServiceTests
         {
             [id1] = new DataSourcePipeline(
                 Registrations: [],
-                ReleasePattern: ".^"
+                VisibilityPattern: ".^"
             ),
             [id2] = new DataSourcePipeline(
                 Registrations: [],
-                ReleasePattern: ".*"
+                VisibilityPattern: ".*"
             )
         };
 
@@ -183,11 +183,11 @@ public class PipelineServiceTests
         {
             [id1] = new DataSourcePipeline(
                 Registrations: [],
-                ReleasePattern: ".^"
+                VisibilityPattern: ".^"
             ),
             [id2] = new DataSourcePipeline(
                 Registrations: [],
-                ReleasePattern: ".*"
+                VisibilityPattern: ".*"
             )
         };
 
