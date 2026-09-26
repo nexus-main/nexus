@@ -15,9 +15,7 @@ internal class CatalogContainer
 {
     public const string RootCatalogId = "/";
 
-    internal ILogger? Logger => _logger;
-
-    private readonly ILogger? _logger;
+    internal ILogger? Logger { get; }
 
     private readonly SemaphoreSlim _semaphore = new(initialCount: 1, maxCount: 1);
 
@@ -43,7 +41,7 @@ internal class CatalogContainer
         string? sourceId = default,
         ILogger? logger = default)
     {
-        _logger = logger;
+        Logger = logger;
 
         Id = catalogRegistration.Path;
         Title = catalogRegistration.Title;
@@ -131,7 +129,7 @@ internal class CatalogContainer
             _databaseService,
             _dataControllerService,
             target.SourceId,
-            _logger);
+            Logger);
     }
 
     public async Task<CatalogTimeRange> GetTimeRangeAsync(CancellationToken cancellationToken)
