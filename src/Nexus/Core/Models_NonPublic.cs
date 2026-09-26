@@ -27,7 +27,9 @@ internal record ReadUnit(
 internal record CatalogItemRequest(
     CatalogItem Item,
     CatalogItem? BaseItem,
-    CatalogContainer Container);
+    CatalogContainer Container,
+    CatalogItem? SourceItem = default,
+    CatalogItem? SourceBaseItem = default);
 
 internal record CatalogState(
     CatalogContainer Root,

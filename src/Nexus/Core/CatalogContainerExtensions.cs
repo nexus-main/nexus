@@ -1,6 +1,7 @@
 ﻿// MIT License
 // Copyright (c) [2024] [nexus-main]
 
+using Microsoft.Extensions.Logging;
 using Nexus.DataModel;
 
 namespace Nexus.Core;
@@ -50,7 +51,26 @@ internal static class CatalogContainerExtensions
             };
         }
 
-        return new CatalogItemRequest(catalogItem, baseCatalogItem, catalogContainer);
+        CatalogItem? sourceItem = default;
+        CatalogItem? sourceBaseItem = default;
+
+        if (catalogContainer.SourceId != catalogContainer.Id)
+        {
+            sourceItem = WithCatalogId(catalogItem, catalogContainer.SourceId);
+            sourceBaseItem = baseCatalogItem is null
+                ? null
+                : WithCatalogId(baseCatalogItem, catalogContainer.SourceId);
+        }
+
+        return new CatalogItemRequest(catalogItem, baseCatalogItem, catalogContainer, sourceItem, sourceBaseItem);
+
+        static CatalogItem WithCatalogId(CatalogItem item, string catalogId)
+        {
+            return item with
+            {
+                Catalog = item.Catalog with { Id = catalogId }
+            };
+        }
     }
 
     public static async Task<CatalogContainer?> TryFindCatalogContainerAsync(
@@ -58,7 +78,8 @@ internal static class CatalogContainerExtensions
         CatalogContainer root,
         string catalogId,
         CancellationToken cancellationToken,
-        int recursionCounter = 0)
+        int recursionCounter = 0,
+        HashSet<string>? visitedLinkIds = default)
     {
         var childCatalogContainers = await parent.GetChildCatalogContainersAsync(cancellationToken);
         var catalogIdWithTrailingSlash = catalogId + "/"; /* The slashes are important to correctly find /A/D/E2 in the tests */
@@ -73,28 +94,88 @@ internal static class CatalogContainerExtensions
         /* CatalogContainer is the searched one */
         else if (catalogContainer.Id == catalogId)
         {
-            if (catalogContainer.LinkTarget is null)
-            {
-                return catalogContainer;
-            }
-
-            /* It is a soft link */
-            else
+            if (catalogContainer.LinkTarget is not null)
             {
                 if (recursionCounter >= 10)
-                    return null;
+                {
+                    catalogContainer.Logger?.LogWarning(
+                        "Soft-link resolution stopped at catalog {CatalogId} after reaching the maximum recursion depth while resolving {CatalogPath}.",
+                        catalogContainer.Id,
+                        catalogId);
 
-                return await root.TryFindCatalogContainerAsync(
+                    return null;
+                }
+
+                visitedLinkIds ??= new(StringComparer.OrdinalIgnoreCase);
+
+                if (!visitedLinkIds.Add(catalogContainer.Id))
+                {
+                    catalogContainer.Logger?.LogWarning(
+                        "Soft-link resolution stopped after detecting a cycle at catalog {CatalogId} while resolving {CatalogPath}.",
+                        catalogContainer.Id,
+                        catalogId);
+
+                    return null;
+                }
+
+                var target = await root.TryFindCatalogContainerAsync(
                     root,
                     catalogContainer.LinkTarget,
                     cancellationToken,
-                    ++recursionCounter
+                    recursionCounter + 1,
+                    visitedLinkIds
                 );
+
+                return target is null
+                    ? null
+                    : catalogContainer.CreateLinkView(target);
             }
+
+            return catalogContainer;
         }
 
         /* CatalogContainer is (grand)-parent of the searched one */
         else
-            return await catalogContainer.TryFindCatalogContainerAsync(root, catalogId, cancellationToken);
+        {
+            if (catalogContainer.LinkTarget is not null)
+            {
+                if (recursionCounter >= 10)
+                {
+                    catalogContainer.Logger?.LogWarning(
+                        "Soft-link resolution stopped at catalog {CatalogId} after reaching the maximum recursion depth while resolving {CatalogPath}.",
+                        catalogContainer.Id,
+                        catalogId);
+
+                    return null;
+                }
+
+                visitedLinkIds ??= new(StringComparer.OrdinalIgnoreCase);
+
+                if (!visitedLinkIds.Add(catalogContainer.Id))
+                {
+                    catalogContainer.Logger?.LogWarning(
+                        "Soft-link resolution stopped after detecting a cycle at catalog {CatalogId} while resolving {CatalogPath}.",
+                        catalogContainer.Id,
+                        catalogId);
+
+                    return null;
+                }
+
+                var target = await root.TryFindCatalogContainerAsync(
+                    root,
+                    catalogContainer.LinkTarget,
+                    cancellationToken,
+                    recursionCounter + 1,
+                    visitedLinkIds
+                );
+
+                if (target is null)
+                    return null;
+
+                catalogContainer = catalogContainer.CreateLinkView(target, applyAliasRange: false);
+            }
+
+            return await catalogContainer.TryFindCatalogContainerAsync(root, catalogId, cancellationToken, recursionCounter, visitedLinkIds);
+        }
     }
 }

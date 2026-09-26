@@ -60,7 +60,7 @@ internal class AcceptedLicenseService(
     {
         string? license = default;
 
-        if (_databaseService.TryReadAttachment(catalogContainer.Id, "LICENSE.md", out var licenseStream))
+        if (_databaseService.TryReadAttachment(catalogContainer.SourceId, "LICENSE.md", out var licenseStream))
         {
             using var reader = new StreamReader(licenseStream);
             license = await reader.ReadToEndAsync(cancellationToken);

@@ -37,7 +37,10 @@ internal class CatalogManager(
         DataSourcePipeline Pipeline,
         Guid[] PackageReferenceIds,
         CatalogMetadata Metadata
-    );
+    )
+    {
+        public string? SourceId { get; init; }
+    }
 
     private readonly IDataControllerService _dataControllerService = dataControllerService;
 
@@ -173,19 +176,37 @@ internal class CatalogManager(
 
             try
             {
+                var sourcePath = parent.SourceId == CatalogContainer.RootCatalogId
+                    ? CatalogContainer.RootCatalogId
+                    : parent.SourceId + "/";
+
                 var catalogRegistrations = await controller
-                    .GetCatalogRegistrationsAsync(parent.Id + "/", cancellationToken);
+                    .GetCatalogRegistrationsAsync(sourcePath, cancellationToken);
 
                 var prototypes = catalogRegistrations.Select(catalogRegistration =>
                 {
-                    var metadata = LoadMetadata(catalogRegistration.Path);
+                    var sourceId = catalogRegistration.Path;
+
+                    if (parent.SourceId != parent.Id)
+                    {
+                        var suffix = parent.SourceId == CatalogContainer.RootCatalogId
+                            ? catalogRegistration.Path
+                            : catalogRegistration.Path[parent.SourceId.Length..];
+
+                        catalogRegistration = catalogRegistration with { Path = JoinCatalogPath(parent.Id, suffix) };
+                    }
+
+                    var metadata = LoadMetadata(sourceId);
 
                     return new CatalogPrototype(
                         catalogRegistration,
                         parent.PipelineId,
                         parent.Pipeline,
                         parent.PackageReferenceIds,
-                        metadata);
+                        metadata)
+                    {
+                        SourceId = sourceId
+                    };
                 });
 
                 catalogContainers = ProcessCatalogPrototypes(prototypes.ToArray());
@@ -219,12 +240,24 @@ internal class CatalogManager(
                 prototype.Metadata,
                 this,
                 _databaseService,
-                _dataControllerService);
+                _dataControllerService,
+                prototype.SourceId,
+                _logger);
 
             return catalogContainer;
         });
 
         return catalogContainers.ToArray();
+    }
+
+    internal static string JoinCatalogPath(string parentPath, string childPath)
+    {
+        if (string.IsNullOrEmpty(childPath))
+            return parentPath;
+
+        return parentPath == CatalogContainer.RootCatalogId
+            ? CatalogContainer.RootCatalogId + childPath.TrimStart('/')
+            : parentPath.TrimEnd('/') + "/" + childPath.TrimStart('/');
     }
 
     private CatalogMetadata LoadMetadata(string catalogId)
