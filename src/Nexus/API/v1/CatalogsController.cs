@@ -180,8 +180,7 @@ internal class CatalogsController(
                     _acceptedLicenseService,
                     cancellationToken
                 );
-                var isWritable = childContainer.SourceId == childContainer.Id &&
-                    AuthUtilities.IsCatalogWritable(childContainer.Id, childContainer.Metadata, User);
+                var isWritable = AuthUtilities.IsCatalogWritable(childContainer, User);
 
                 var isVisible = isReadable ||
                     Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
@@ -596,8 +595,14 @@ internal class CatalogsController(
                     $"The current user is not permitted to read the catalog {catalogId}.");
             }
 
-            if (ensureWritable && !AuthUtilities.IsCatalogWritable(
-                catalogContainer.Id, catalogContainer.Metadata, User))
+            if (ensureWritable && catalogContainer.SourceId != catalogContainer.Id)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Alias catalogs are read-only views and cannot be modified.");
+            }
+
+            if (ensureWritable && !AuthUtilities.IsCatalogWritable(catalogContainer, User))
             {
                 return StatusCode(
                     StatusCodes.Status403Forbidden,

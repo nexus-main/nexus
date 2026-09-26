@@ -66,6 +66,17 @@ internal static class AuthUtilities
     }
 
     public static bool IsCatalogWritable(
+        CatalogContainer catalogContainer,
+        ClaimsPrincipal user
+    )
+    {
+        if (catalogContainer.SourceId != catalogContainer.Id)
+            return false;
+
+        return IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, user);
+    }
+
+    public static bool IsCatalogWritable(
         string catalogId,
         CatalogMetadata catalogMetadata,
         ClaimsPrincipal user

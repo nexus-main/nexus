@@ -364,11 +364,11 @@ internal class JobsController(
 
         if (catalogContainer is not null)
         {
-            if (!AuthUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
-                return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
-
             if (catalogContainer.SourceId != catalogContainer.Id)
                 return StatusCode(StatusCodes.Status403Forbidden, "Alias catalogs are read-only views and cannot be modified.");
+
+            if (!AuthUtilities.IsCatalogWritable(catalogContainer, User))
+                return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
 
             return await action.Invoke(catalogContainer);
         }

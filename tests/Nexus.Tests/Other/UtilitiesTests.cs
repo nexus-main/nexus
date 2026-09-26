@@ -165,6 +165,34 @@ public class UtilitiesTests
         Assert.Equal(expected, actual);
     }
 
+    [Fact]
+    public void CanDetermineAliasCatalogWritability()
+    {
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                claims: [new Claim(NexusClaimTypes.Role, nameof(NexusRoles.Administrator))],
+                authenticationType: "Basic",
+                nameType: NexusClaimTypes.Name,
+                roleType: NexusClaimTypes.Role
+            )
+        );
+
+        var catalogContainer = new CatalogContainer(
+            new CatalogRegistration("/ALIAS", default, LinkTarget: "/SOURCE"),
+            default,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            sourceId: "/SOURCE");
+
+        var actual = AuthUtilities.IsCatalogWritable(catalogContainer, principal);
+
+        Assert.False(actual);
+    }
+
     [Theory]
 
     [InlineData(true, true, "", new string[0], new string[0], new string[0], true)]
