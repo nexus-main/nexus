@@ -391,12 +391,12 @@ public class CatalogContainersExtensionsTests
             default!,
             default!);
 
-        var actual = alias.CreateLinkView(target);
+        alias.ResolveLinkTarget(target);
 
-        Assert.Equal("/ALIAS", actual.Id);
-        Assert.Equal("/SOURCE", actual.SourceId);
-        Assert.Equal(targetBegin, actual.Begin);
-        Assert.Equal(targetEnd, actual.End);
+        Assert.Equal("/ALIAS", alias.Id);
+        Assert.Equal("/SOURCE", alias.SourceId);
+        Assert.Equal(targetBegin, alias.Begin);
+        Assert.Equal(targetEnd, alias.End);
     }
 
     [Fact]

@@ -126,9 +126,11 @@ internal static class CatalogContainerExtensions
                     visitedLinkIds
                 );
 
-                return target is null
-                    ? null
-                    : catalogContainer.CreateLinkView(target);
+                if (target is null)
+                    return null;
+
+                catalogContainer.ResolveLinkTarget(target);
+                return catalogContainer;
             }
 
             return catalogContainer;
@@ -172,7 +174,7 @@ internal static class CatalogContainerExtensions
                 if (target is null)
                     return null;
 
-                catalogContainer = catalogContainer.CreateLinkView(target, applyAliasRange: false);
+                catalogContainer.ResolveLinkTarget(target, applyAliasRange: false);
             }
 
             return await catalogContainer.TryFindCatalogContainerAsync(root, catalogId, cancellationToken, recursionCounter, visitedLinkIds);

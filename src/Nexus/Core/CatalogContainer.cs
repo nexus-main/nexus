@@ -23,6 +23,22 @@ internal class CatalogContainer
 
     private CatalogContainer[]? _childCatalogContainers;
 
+    private CatalogContainer? _resolvedLinkTarget;
+
+    private bool _applyLinkTargetRange;
+
+    private readonly DateTime? _begin;
+
+    private readonly DateTime? _end;
+
+    private readonly string _sourceId;
+
+    private readonly Guid _pipelineId;
+
+    private readonly DataSourcePipeline _pipeline;
+
+    private readonly Guid[] _packageReferenceIds;
+
     private readonly ICatalogManager _catalogManager;
 
     private readonly IDatabaseService _databaseService;
@@ -47,21 +63,22 @@ internal class CatalogContainer
         Title = catalogRegistration.Title;
         IsTransient = catalogRegistration.IsTransient;
         LinkTarget = catalogRegistration.LinkTarget;
-        Begin = NormalizeDateTime(catalogRegistration.Begin);
-        End = NormalizeDateTime(catalogRegistration.End);
-        SourceId = sourceId ?? catalogRegistration.Path;
-        PipelineId = pipelineId;
-        Pipeline = pipeline;
-        PackageReferenceIds = packageReferenceIds;
+        _begin = NormalizeDateTime(catalogRegistration.Begin);
+        _end = NormalizeDateTime(catalogRegistration.End);
+        _sourceId = sourceId ?? catalogRegistration.Path;
+        _pipelineId = pipelineId;
+        _pipeline = pipeline;
+        _packageReferenceIds = packageReferenceIds;
         Metadata = metadata;
+        _applyLinkTargetRange = true;
 
-        if (Begin > End)
+        if (_begin > _end)
         {
             logger?.LogWarning(
                 "Catalog registration {CatalogId} has begin {Begin} after end {End}; it will expose an empty effective time range.",
                 Id,
-                Begin,
-                End);
+                _begin,
+                _end);
         }
 
         _catalogManager = catalogManager;
@@ -77,19 +94,19 @@ internal class CatalogContainer
 
     public string? LinkTarget { get; }
 
-    public DateTime? Begin { get; }
+    public DateTime? Begin => GetEffectiveBegin();
 
-    public DateTime? End { get; }
+    public DateTime? End => GetEffectiveEnd();
 
-    public string SourceId { get; }
+    public string SourceId => _resolvedLinkTarget?.SourceId ?? _sourceId;
 
     public string PhysicalName => Id.TrimStart('/').Replace('/', '_');
 
-    public Guid PipelineId { get; }
+    public Guid PipelineId => _resolvedLinkTarget?.PipelineId ?? _pipelineId;
 
-    public DataSourcePipeline Pipeline { get; }
+    public DataSourcePipeline Pipeline => _resolvedLinkTarget?.Pipeline ?? _pipeline;
 
-    public Guid[] PackageReferenceIds { get; }
+    public Guid[] PackageReferenceIds => _resolvedLinkTarget?.PackageReferenceIds ?? _packageReferenceIds;
 
     public CatalogMetadata Metadata { get; internal set; }
 
@@ -105,31 +122,10 @@ internal class CatalogContainer
             databaseService, default!);
     }
 
-    public CatalogContainer CreateLinkView(CatalogContainer target, bool applyAliasRange = true)
+    internal void ResolveLinkTarget(CatalogContainer target, bool applyAliasRange = true)
     {
-        var begin = applyAliasRange
-            ? Begin is null || (target.Begin is not null && target.Begin.Value > Begin.Value)
-                ? target.Begin
-                : Begin
-            : target.Begin;
-
-        var end = applyAliasRange
-            ? End is null || (target.End is not null && target.End.Value < End.Value)
-                ? target.End
-                : End
-            : target.End;
-
-        return new CatalogContainer(
-            new CatalogRegistration(Id, target.Title, target.IsTransient, default, begin, end),
-            target.PipelineId,
-            target.Pipeline,
-            target.PackageReferenceIds,
-            target.Metadata,
-            _catalogManager,
-            _databaseService,
-            _dataControllerService,
-            target.SourceId,
-            Logger);
+        _resolvedLinkTarget = target;
+        _applyLinkTargetRange = applyAliasRange;
     }
 
     public async Task<CatalogTimeRange> GetTimeRangeAsync(CancellationToken cancellationToken)
@@ -217,7 +213,7 @@ internal class CatalogContainer
 
     public async Task UpdateMetadataAsync(CatalogMetadata metadata)
     {
-        if (SourceId != Id)
+        if (LinkTarget is not null || SourceId != Id)
             throw new InvalidOperationException("Alias catalogs are read-only views and cannot be modified.");
 
         await _semaphore.WaitAsync().ConfigureAwait(false);
@@ -238,6 +234,32 @@ internal class CatalogContainer
         {
             _semaphore.Release();
         }
+    }
+
+    private DateTime? GetEffectiveBegin()
+    {
+        if (_resolvedLinkTarget is null)
+            return _begin;
+
+        if (!_applyLinkTargetRange)
+            return _resolvedLinkTarget.Begin;
+
+        return _begin is null || (_resolvedLinkTarget.Begin is not null && _resolvedLinkTarget.Begin.Value > _begin.Value)
+            ? _resolvedLinkTarget.Begin
+            : _begin;
+    }
+
+    private DateTime? GetEffectiveEnd()
+    {
+        if (_resolvedLinkTarget is null)
+            return _end;
+
+        if (!_applyLinkTargetRange)
+            return _resolvedLinkTarget.End;
+
+        return _end is null || (_resolvedLinkTarget.End is not null && _resolvedLinkTarget.End.Value < _end.Value)
+            ? _resolvedLinkTarget.End
+            : _end;
     }
 
     private async Task EnsureLazyCatalogInfoAsync(CancellationToken cancellationToken)
