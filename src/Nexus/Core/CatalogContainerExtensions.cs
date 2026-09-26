@@ -174,7 +174,7 @@ internal static class CatalogContainerExtensions
                 if (target is null)
                     return null;
 
-                catalogContainer.ResolveLinkTarget(target, applyAliasRange: false);
+                catalogContainer.ResolveLinkTarget(target);
             }
 
             return await catalogContainer.TryFindCatalogContainerAsync(root, catalogId, cancellationToken, recursionCounter, visitedLinkIds);

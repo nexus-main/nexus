@@ -25,8 +25,6 @@ internal class CatalogContainer
 
     private CatalogContainer? _resolvedLinkTarget;
 
-    private bool _applyLinkTargetRange;
-
     private readonly DateTime? _begin;
 
     private readonly DateTime? _end;
@@ -70,7 +68,6 @@ internal class CatalogContainer
         _pipeline = pipeline;
         _packageReferenceIds = packageReferenceIds;
         Metadata = metadata;
-        _applyLinkTargetRange = true;
 
         if (_begin > _end)
         {
@@ -122,10 +119,9 @@ internal class CatalogContainer
             databaseService, default!);
     }
 
-    internal void ResolveLinkTarget(CatalogContainer target, bool applyAliasRange = true)
+    internal void ResolveLinkTarget(CatalogContainer target)
     {
         _resolvedLinkTarget = target;
-        _applyLinkTargetRange = applyAliasRange;
     }
 
     public async Task<CatalogTimeRange> GetTimeRangeAsync(CancellationToken cancellationToken)
@@ -241,9 +237,6 @@ internal class CatalogContainer
         if (_resolvedLinkTarget is null)
             return _begin;
 
-        if (!_applyLinkTargetRange)
-            return _resolvedLinkTarget.Begin;
-
         return _begin is null || (_resolvedLinkTarget.Begin is not null && _resolvedLinkTarget.Begin.Value > _begin.Value)
             ? _resolvedLinkTarget.Begin
             : _begin;
@@ -253,9 +246,6 @@ internal class CatalogContainer
     {
         if (_resolvedLinkTarget is null)
             return _end;
-
-        if (!_applyLinkTargetRange)
-            return _resolvedLinkTarget.End;
 
         return _end is null || (_resolvedLinkTarget.End is not null && _resolvedLinkTarget.End.Value < _end.Value)
             ? _resolvedLinkTarget.End
