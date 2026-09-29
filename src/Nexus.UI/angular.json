@@ -7,7 +7,7 @@
       "projectType": "application",
       "root": "",
       "sourceRoot": "src",
-      "prefix": "nexus",
+      "prefix": "app",
       "architect": {
         "build": {
           "builder": "@angular/build:application",
