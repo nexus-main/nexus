@@ -2,32 +2,9 @@
     const ns = window.__nexusChartWebGpu;
     const {
         instances, dotNetHelpers, getInstance, valueOf,
-        overviewBucketSize, reducedPointsPerBucket, syntheticStreamChunkLength, rawChunkLength,
+        overviewBucketSize, reducedPointsPerBucket, streamChunkLength, rawChunkLength,
         rangeWorkgroupSize, maxRangeWorkgroups,
     } = ns;
-
-    function getSyntheticWorker(instance) {
-        if (instance.syntheticWorker)
-            return instance.syntheticWorker;
-
-        const worker = new Worker('js/chart.synthetic.worker.js');
-        worker.onmessage = event => instance.workerCallbacks.get(event.data.requestId)?.onmessage(event);
-        worker.onerror = event => {
-            const callbacks = [...instance.workerCallbacks.values()];
-            instance.workerCallbacks.clear();
-            instance.syntheticWorker = null;
-            worker.terminate();
-            for (const callback of callbacks)
-                callback.onerror(event);
-        };
-        instance.syntheticWorker = worker;
-        return worker;
-    }
-
-    function cancelWorkerRequest(instance, requestId) {
-        instance.workerCallbacks.delete(requestId);
-        instance.syntheticWorker?.postMessage({ type: 'cancel', requestId });
-    }
 
     function getSeriesKey(id, version, length) {
         return `${id}:${version}:${length}`;
@@ -53,8 +30,6 @@
     function destroyRawRequest(instance, key, request) {
         if (instance.rawRequests.get(key) === request)
             instance.rawRequests.delete(key);
-
-        instance.workerCallbacks.delete(request.requestId);
 
         if (request.reservationActive) {
             instance.rawReservedBytes -= request.byteLength;
@@ -105,7 +80,6 @@
     function removeRawSeries(instance, id) {
         for (const [key, request] of instance.rawRequests) {
             if (request.id === id) {
-                cancelWorkerRequest(instance, request.requestId);
                 request.reject(ns.cancellationError(`Raw chunk request superseded for series ${id}`));
                 destroyRawRequest(instance, key, request);
             }
@@ -115,16 +89,6 @@
             if (chunk.id === id)
                 destroyRawChunk(instance, key, chunk);
         }
-    }
-
-    function cancelGeneration(instance, id, reason) {
-        const job = instance.generationJobs.get(id);
-        if (!job)
-            return;
-
-        job.cancelled = true;
-        cancelWorkerRequest(instance, job.requestId);
-        job.reject(ns.cancellationError(reason));
     }
 
     function synchronizeSeries(instance, activeIds) {
@@ -137,13 +101,7 @@
             destroySeriesBuffer(instance, cached);
             instance.seriesBuffers.delete(key);
             removeRawSeries(instance, cached.id);
-            cancelGeneration(instance, cached.id, `Series ${cached.id} was removed`);
             instance.uploadGenerations.delete(cached.id);
-        }
-
-        for (const id of instance.generationJobs.keys()) {
-            if (!active.has(id))
-                cancelGeneration(instance, id, `Series ${id} was removed`);
         }
 
         for (const [token, upload] of instance.chunkedUploadSessions) {
@@ -188,152 +146,6 @@
         return range;
     }
 
-    async function generateSyntheticSeriesAsync(chartId, id, version, length, kind) {
-        const instance = await getInstance(chartId);
-
-        if (!instance)
-            throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
-
-        if (!Number.isSafeInteger(length) || length < 2 || length > 1000000000)
-            throw new Error(`Synthetic series length must be an integer between 2 and 1,000,000,000 (received ${length})`);
-
-        const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
-        instance.uploadGenerations.set(id, generation);
-        cancelGeneration(instance, id, `Synthetic generation superseded for series ${id}`);
-        removeRawSeries(instance, id);
-        const overviewBucketCount = Math.ceil(length / overviewBucketSize);
-        const overviewLength = overviewBucketCount * reducedPointsPerBucket;
-        const overviewBytes = overviewLength * 2 * Float32Array.BYTES_PER_ELEMENT;
-        const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
-
-        if (overviewBytes > deviceLimit)
-            throw new Error(`Persistent overview requires ${overviewBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
-
-        const transientBytes = Math.min(syntheticStreamChunkLength, length) * Float32Array.BYTES_PER_ELEMENT;
-        if (transientBytes > deviceLimit)
-            throw new Error(`Synthetic stream chunk requires ${transientBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
-
-        let transientBuffer = null;
-        let overviewBuffer = null;
-        let paramsBuffer = null;
-        try {
-            transientBuffer = ns.createTrackedBuffer(instance, {
-                size: transientBytes,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            });
-            overviewBuffer = ns.createTrackedBuffer(instance, { size: overviewBytes, usage: GPUBufferUsage.STORAGE });
-            paramsBuffer = ns.createTrackedBuffer(instance, { size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-        } catch (error) {
-            ns.destroyTrackedBuffer(instance, transientBuffer);
-            ns.destroyTrackedBuffer(instance, overviewBuffer);
-            ns.destroyTrackedBuffer(instance, paramsBuffer);
-            throw error;
-        }
-        const bindGroup = instance.device.createBindGroup({
-            layout: instance.overviewPipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: { buffer: transientBuffer } },
-                { binding: 1, resource: { buffer: overviewBuffer } },
-                { binding: 2, resource: { buffer: paramsBuffer } },
-            ],
-        });
-        const worker = getSyntheticWorker(instance);
-        const requestId = ++instance.workerRequestId;
-        let rangeMinimum = 0;
-        let rangeMaximum = 0;
-        let rangeHasValue = false;
-
-        let rejectGeneration;
-        const job = {
-            requestId,
-            cancelled: false,
-            handlerPromise: null,
-            reject: error => rejectGeneration?.(error),
-        };
-        instance.generationJobs.set(id, job);
-
-        function ensureGenerationIsActive() {
-            if (job.cancelled || instances.get(chartId) !== instance || instance.uploadGenerations.get(id) !== generation)
-                throw ns.cancellationError(`Synthetic generation superseded for series ${id}`);
-        }
-
-        try {
-            await new Promise((resolve, reject) => {
-                rejectGeneration = reject;
-                instance.workerCallbacks.set(requestId, {
-                    onerror: event => reject(new Error(event.message)),
-                    onmessage: event => {
-                        if (event.data.requestId !== requestId)
-                            return;
-
-                        if (event.data.complete) {
-                            if (job.cancelled)
-                                reject(ns.cancellationError(`Synthetic generation superseded for series ${id}`));
-                            else
-                                resolve();
-                            return;
-                        }
-
-                        const handlerPromise = (async () => {
-                            ensureGenerationIsActive();
-                            const values = event.data.values;
-                            const chunkRange = await processOverviewChunkAsync(
-                                instance, transientBuffer, paramsBuffer, bindGroup,
-                                event.data.offset, values, values.length);
-                            ensureGenerationIsActive();
-                            if (chunkRange.hasValue) {
-                                rangeMinimum = rangeHasValue ? Math.min(rangeMinimum, chunkRange.minimum) : chunkRange.minimum;
-                                rangeMaximum = rangeHasValue ? Math.max(rangeMaximum, chunkRange.maximum) : chunkRange.maximum;
-                                rangeHasValue = true;
-                            }
-                            worker.postMessage({ type: 'ack', requestId });
-                        })();
-                        job.handlerPromise = handlerPromise;
-                        handlerPromise.catch(error => {
-                            reject(error);
-                        }).finally(() => {
-                            if (job.handlerPromise === handlerPromise)
-                                job.handlerPromise = null;
-                        });
-                    },
-                });
-                worker.postMessage({ type: 'stream', requestId, length, kind, chunkLength: syntheticStreamChunkLength });
-            });
-
-            ensureGenerationIsActive();
-
-            for (const [existingKey, existing] of instance.seriesBuffers) {
-                if (existing.id === id) {
-                    destroySeriesBuffer(instance, existing);
-                    instance.seriesBuffers.delete(existingKey);
-                }
-            }
-
-            const cached = {
-                id, version, kind, length, buffer: overviewBuffer, pointBuffer: overviewBuffer,
-                overviewLength, overviewBucketCount, byteLength: overviewBytes, dataMode: 1, synthetic: true, decimations: new Map(),
-            };
-            instance.seriesBuffers.set(getSeriesKey(id, version, length), cached);
-            overviewBuffer = null;
-            return { hasValue: rangeHasValue, minimum: rangeMinimum, maximum: rangeMaximum };
-        } finally {
-            if (job.handlerPromise) {
-                try {
-                    await job.handlerPromise;
-                } catch {
-                    // The outer generation promise reports the handler failure.
-                }
-            }
-
-            if (instance.generationJobs.get(id) === job)
-                instance.generationJobs.delete(id);
-            ns.destroyTrackedBuffer(instance, transientBuffer);
-            ns.destroyTrackedBuffer(instance, overviewBuffer);
-            ns.destroyTrackedBuffer(instance, paramsBuffer);
-            cancelWorkerRequest(instance, requestId);
-        }
-    }
-
     async function beginChunkedSeriesAsync(chartId, id, version, length) {
         const instance = await getInstance(chartId);
         if (!instance)
@@ -344,7 +156,7 @@
         const overviewBucketCount = Math.ceil(length / overviewBucketSize);
         const overviewLength = overviewBucketCount * reducedPointsPerBucket;
         const overviewBytes = overviewLength * 2 * Float32Array.BYTES_PER_ELEMENT;
-        const transientBytes = Math.min(syntheticStreamChunkLength, length) * Float32Array.BYTES_PER_ELEMENT;
+        const transientBytes = Math.min(streamChunkLength, length) * Float32Array.BYTES_PER_ELEMENT;
         const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
         if (overviewBytes > deviceLimit)
             throw new Error(`Persistent overview requires ${overviewBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
@@ -734,55 +546,27 @@
             resolveRequest = resolve;
             rejectRequest = reject;
         });
-        const buffer = source.synthetic
-            ? null
-            : ns.createTrackedBuffer(instance, {
-                size: byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            });
+        const buffer = ns.createTrackedBuffer(instance, {
+            size: byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
         const request = {
             id: source.id, requestId, promise, resolve: resolveRequest, reject: rejectRequest, byteLength,
             buffer, offset, count, writtenLength: 0, reservationActive: true,
         };
         instance.rawRequests.set(key, request);
         const callbacks = {
-            byteLength,
             onerror: event => {
                 destroyRawRequest(instance, key, request);
                 rejectRequest(new Error(`Raw chunk ${chunkIndex} generation failed: ${event.message}`));
             },
-            onmessage: event => {
-                if (event.data.requestId !== requestId)
-                    return;
-
-                try {
-                    if (instances.get(source.chartId) !== instance || instance.uploadGenerations.get(source.id) !== source.generation)
-                        throw ns.cancellationError(`Raw chunk request superseded for series ${source.id}`);
-
-                    const values = event.data.values;
-                    const syntheticBuffer = ns.createTrackedBuffer(instance, {
-                        size: values.byteLength,
-                        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-                    });
-                    instance.device.queue.writeBuffer(syntheticBuffer, 0, values);
-                    completeRawRequest(instance, key, request, syntheticBuffer, values.length);
-                } catch (error) {
-                    destroyRawRequest(instance, key, request);
-                    rejectRequest(error);
-                }
-            },
         };
-        if (source.synthetic) {
-            instance.workerCallbacks.set(requestId, callbacks);
-            getSyntheticWorker(instance).postMessage({ type: 'raw', requestId, offset, count, kind: source.kind });
-        } else {
-            const helper = dotNetHelpers.get(source.chartId);
-            if (!helper)
-                callbacks.onerror({ message: `Chart ${source.chartId} is no longer active` });
-            else
-                helper.invokeMethodAsync('ProvideSeriesChunk', source.id, offset, count, requestId)
-                    .catch(error => callbacks.onerror({ message: error?.message ?? error }));
-        }
+        const helper = dotNetHelpers.get(source.chartId);
+        if (!helper)
+            callbacks.onerror({ message: `Chart ${source.chartId} is no longer active` });
+        else
+            helper.invokeMethodAsync('ProvideSeriesChunk', source.id, offset, count, requestId)
+                .catch(error => callbacks.onerror({ message: error?.message ?? error }));
         return promise;
     }
 
@@ -901,8 +685,8 @@
     }
 
     Object.assign(ns, {
-        getSyntheticWorker, cancelWorkerRequest, getSeriesKey, destroySeriesBuffer, destroyRawChunk,
-        evictRawChunks, removeRawSeries, cancelGeneration, synchronizeSeries, generateSyntheticSeriesAsync,
+        getSeriesKey, destroySeriesBuffer, destroyRawChunk,
+        evictRawChunks, removeRawSeries, synchronizeSeries,
         destroyChunkedUpload, beginChunkedSeriesAsync,
         appendChunkedSeries, processChunkedSeriesUploadAsync,
         appendSeriesChunk,

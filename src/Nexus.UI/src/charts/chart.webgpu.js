@@ -4,10 +4,10 @@
         instances, pendingInstances, lifecycleEpochs, failureStates, dotNetHelpers, configuredCacheBudgets,
         valueOf, colorOf, ensureCanvasSize, getCanvasContext, releaseCanvasContext, getReducedOutputLength,
         getSharedGpu, getInstance, getLifecycleEpoch, advanceLifecycleEpoch, isCancellationError,
-        reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, getSyntheticWorker, evictRawChunks,
+        reportRuntimeFailure, destroyInstance, releaseSharedGpuIfUnused, evictRawChunks,
         createTrackedBuffer, destroyTrackedBuffer, ensureGpuCapacity,
         synchronizeSeries,
-        generateSyntheticSeriesAsync, beginChunkedSeriesAsync,
+        beginChunkedSeriesAsync,
         appendChunkedSeries: appendChunkedSeriesImpl,
         processChunkedSeriesUploadAsync,
         completeChunkedSeriesAsync, abortChunkedSeries,
@@ -164,7 +164,7 @@
         return { first, segmentCount: visibleLength - 1, zoomedLeft, dx };
     }
 
-    function getSyntheticOverviewZoom(payload, series, source, plot) {
+    function getOverviewZoom(payload, series, source, plot) {
         const timeWindow = getTimeWindow(payload, series, source.length);
 
         if (!timeWindow)
@@ -379,7 +379,7 @@
                 cached.chartId = chartId;
                 cached.generation = instance.uploadGenerations.get(cached.id);
                 cached.lifecycleEpoch = getLifecycleEpoch(chartId);
-                if (cached.chunked || cached.synthetic) {
+                if (cached.chunked) {
                     const rawItems = getRawRenderItems(instance, cached, series, payload, plot, encoder, target, protectedRawKeys);
                     if (rawItems) {
                         for (const rawItem of rawItems)
@@ -388,8 +388,8 @@
                     }
                 }
 
-                const zoomInfo = cached.chunked || cached.synthetic
-                    ? getSyntheticOverviewZoom(payload, series, cached, plot)
+                const zoomInfo = cached.chunked
+                    ? getOverviewZoom(payload, series, cached, plot)
                     : getZoomInfo(payload, series, cached.length, plot);
 
                 if (!zoomInfo)
@@ -512,10 +512,6 @@
             if (instance)
                 synchronizeSeries(instance, activeIds);
         },
-        generateSyntheticSeries(chartId, id, version, length, kind) {
-            return runRuntimeOperation(chartId, 'WebGPU data generation failed', () =>
-                generateSyntheticSeriesAsync(chartId, id, version, length, kind));
-        },
         beginChunkedSeries(chartId, id, version, length) {
             return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
                 beginChunkedSeriesAsync(chartId, id, version, length));
@@ -607,10 +603,9 @@
             releaseCanvasContext,
             getReducedOutputLength,
             reducedPointsPerBucket,
-            getSyntheticWorker,
             getTimeWindow,
             getZoomInfo,
-            getSyntheticOverviewZoom,
+            getOverviewZoom,
             getRawRenderItems,
             scheduleRender,
             releaseTarget,

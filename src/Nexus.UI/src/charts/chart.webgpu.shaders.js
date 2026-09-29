@@ -12,7 +12,7 @@
     const defaultCacheBudget = 512 * 1024 * 1024;
     const overviewBucketSize = 256;
     const reducedPointsPerBucket = 3;
-    const syntheticStreamChunkLength = 4 * 1024 * 1024;
+    const streamChunkLength = 4 * 1024 * 1024;
     const rawChunkLength = 1024 * 1024;
 
     const shader = `
@@ -680,7 +680,7 @@ fn reduceRange(
         decimationWorkgroupSize, decimationFactor, decimationBucketsPerPixel,
         maxDecimationBuckets, rangeWorkgroupSize, maxRangeWorkgroups,
         defaultCacheBudget, overviewBucketSize, reducedPointsPerBucket,
-        syntheticStreamChunkLength, rawChunkLength, shader, overviewShader,
+        streamChunkLength, rawChunkLength, shader, overviewShader,
         pointDecimationShader, decimationShader, rangeShader,
     });
 })();

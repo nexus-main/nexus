@@ -78,7 +78,6 @@ function createDevice(options = {}) {
 
 function createEnvironment(options = {}) {
     const devices = [];
-    const workers = [];
     const mapRequests = [];
     let requestDeviceCalls = 0;
     const failures = [];
@@ -122,16 +121,6 @@ function createEnvironment(options = {}) {
         Math,
         JSON,
         performance: { now: () => 1 },
-        Worker: class {
-            constructor(url) {
-                this.url = url;
-                this.messages = [];
-                this.terminated = false;
-                workers.push(this);
-            }
-            postMessage(message) { this.messages.push(message); }
-            terminate() { this.terminated = true; }
-        },
         GPUBufferUsage: { STORAGE: 1, COPY_DST: 2, COPY_SRC: 4, MAP_READ: 8, UNIFORM: 16 },
         GPUMapMode: { READ: 1 },
         navigator: options.noGpu ? {} : {
@@ -180,7 +169,6 @@ function createEnvironment(options = {}) {
         api: context.nexus.chartWebGpu,
         hooks,
         devices,
-        workers,
         mapRequests,
         failures,
         helper,
@@ -406,35 +394,6 @@ test('an exact raw chunk boundary renders from the preceding overlap chunk', asy
 
     assert.equal(items.length, 1);
     assert.equal(instance.rawRequests.has('series:1:1'), true);
-    environment.api.dispose('chart');
-});
-
-test('synthetic cancellation waits for in-flight range work before destroying buffers', async () => {
-    const environment = createEnvironment({ deferMapAsync: true });
-    environment.api.initialize('chart', environment.helper('chart'));
-    await settle();
-    const instance = environment.hooks.instances.get('chart');
-    const firstGeneration = environment.api.generateSyntheticSeries('chart', 'series', 1, 2, 'Sine');
-    await settle();
-    const requestId = instance.generationJobs.get('series').requestId;
-    const transientBuffer = environment.devices[0].buffers[0];
-    const overviewBuffer = environment.devices[0].buffers[1];
-    instance.workerCallbacks.get(requestId).onmessage({
-        data: { requestId, offset: 0, values: new Float32Array([1, 2]) },
-    });
-    await settle();
-
-    const replacement = environment.api.generateSyntheticSeries('chart', 'series', 2, 2, 'Sine');
-    replacement.catch(() => {});
-    await settle();
-    assert.equal(transientBuffer.destroyed, false);
-    assert.equal(overviewBuffer.destroyed, false);
-
-    environment.mapRequests.shift()();
-    await assert.rejects(firstGeneration, /superseded/);
-    await settle();
-    assert.equal(transientBuffer.destroyed, true);
-    assert.equal(overviewBuffer.destroyed, true);
     environment.api.dispose('chart');
 });
 
@@ -668,21 +627,6 @@ test('canvas context is configured once and unconfigured when replaced', async (
     assert.equal(instance.previewRenderKeys.has('series'), false);
 });
 
-test('synthetic work reuses one worker per chart and terminates it on disposal', async () => {
-    const environment = createEnvironment();
-    environment.api.initialize('chart', environment.helper('chart'));
-    await settle();
-    const instance = environment.hooks.instances.get('chart');
-
-    const first = environment.hooks.getSyntheticWorker(instance);
-    const second = environment.hooks.getSyntheticWorker(instance);
-
-    assert.equal(first, second);
-    assert.equal(environment.workers.length, 1);
-    environment.api.dispose('chart');
-    assert.equal(first.terminated, true);
-});
-
 test('series zoom uses sample period instead of stretching each series to its length', () => {
     const environment = createEnvironment();
     const plot = { plotLeft: 10, plotWidth: 600 };
@@ -714,7 +658,7 @@ test('time-domain zoom clips a series without changing its sample spacing', () =
     assert.equal(zoom.dx, 80);
 });
 
-test('synthetic overview uses the same temporal endpoint as direct rendering', () => {
+test('overview zoom uses the same temporal endpoint as direct rendering', () => {
     const environment = createEnvironment();
     const plot = { plotLeft: 10, plotWidth: 600 };
     const payload = { Zoom: { Left: 0, Right: 1 } };
@@ -722,7 +666,7 @@ test('synthetic overview uses the same temporal endpoint as direct rendering', (
     const source = { length: 60, overviewBucketCount: 1 };
 
     const direct = environment.hooks.getZoomInfo(payload, series, source.length, plot);
-    const overview = environment.hooks.getSyntheticOverviewZoom(payload, series, source, plot);
+    const overview = environment.hooks.getOverviewZoom(payload, series, source, plot);
     const directLastX = direct.zoomedLeft + direct.segmentCount * direct.dx;
     const overviewLastX = overview.zoomedLeft + (59 / 256 - overview.xOrigin) * overview.dx;
 

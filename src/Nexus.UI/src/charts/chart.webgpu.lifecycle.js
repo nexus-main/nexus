@@ -155,18 +155,11 @@
         instance.disposed = true;
         ns.invalidateChartRenders?.(instance.chartId);
 
-        for (const id of [...instance.generationJobs.keys()])
-            ns.cancelGeneration(instance, id, reason);
-
         for (const request of instance.rawRequests.values()) {
-            ns.cancelWorkerRequest(instance, request.requestId);
             instance.rawReservedBytes -= request.byteLength;
             request.reject(cancellationError(reason));
         }
         instance.rawRequests.clear();
-        instance.syntheticWorker?.terminate();
-        instance.syntheticWorker = null;
-        instance.workerCallbacks.clear();
 
         for (const [key, chunk] of instance.rawChunks)
             ns.destroyRawChunk(instance, key, chunk);
@@ -360,10 +353,7 @@
                     rawReservedBytes: 0,
                     rawChunks: new Map(),
                     rawRequests: new Map(),
-                    generationJobs: new Map(),
                     workerRequestId: 0,
-                    syntheticWorker: null,
-                    workerCallbacks: new Map(),
                     lastPayloads: new Map(),
                     disposed: false,
                 };
