@@ -5,6 +5,7 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "typecheck": "tsc --noEmit --project tsconfig.json",
         "test": "vitest run",
         "test:watch": "vitest"
     },

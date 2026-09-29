@@ -78,8 +78,24 @@ jobs:
           dotnet test -c Release /p:BuildProjectReferences=false
           pyright
           pytest
-          (cd src/clients/typescript && npm install --no-package-lock && npx tsc --strict --noEmit --moduleResolution bundler --module ES2022 --target ES2022 --lib DOM,ES2022 index.ts)
-          (cd tests/clients/typescript-tests && npm install --no-package-lock && npx tsc --noEmit --project tsconfig.json && npx vitest run)
+
+      - name: Install TypeScript client dependencies
+        working-directory: src/clients/typescript
+        run: npm install --no-package-lock
+
+      - name: Type-check TypeScript client
+        working-directory: src/clients/typescript
+        run: npm run typecheck
+
+      - name: Install TypeScript client test dependencies
+        working-directory: tests/clients/typescript-tests
+        run: npm install --no-package-lock
+
+      - name: Test TypeScript client
+        working-directory: tests/clients/typescript-tests
+        run: |
+          npm run typecheck
+          npm test
 
       - name: Docker Build
         run: |
