@@ -200,7 +200,7 @@ internal class DataSourceController(
         TimeSpan step,
         CancellationToken cancellationToken)
     {
-        var stepCount = (int)Math.Ceiling((end - begin).Ticks / (double)step.Ticks);
+        var stepCount = (int)((end - begin).Ticks / step.Ticks);
         var availabilities = new double[stepCount, _dataSources.Length];
 
         for (int dataSourceIndex = 0; dataSourceIndex < _dataSources.Length; dataSourceIndex++)
@@ -442,7 +442,8 @@ internal class DataSourceController(
                 {
                     var data = manager.Request.Data;
                     var status = manager.Request.Status;
-                    var sourceElementSize = catalogItemRequest.Item.Representation.ElementSize;
+                    var sourceItem = catalogItemRequest.SourceItem ?? catalogItemRequest.Item;
+                    var sourceElementSize = sourceItem.Representation.ElementSize;
                     var elementOffset = 0;
 
                     while (elementOffset < targetElementCount)
@@ -493,30 +494,58 @@ internal class DataSourceController(
                     }
                 };
 
+                var sourceItem = catalogItemRequest.SourceItem ?? catalogItemRequest.Item;
+
                 manager = new ReadRequestManager(
-                    catalogItemRequest.Item,
+                    sourceItem,
                     targetElementCount,
                     onCompleted,
                     cancellationToken);
 
-                return (readUnit, manager);
+                ReadRequest? sourceReadRequest = null;
+                var readRange = new ContainedTimeRange(begin, end);
+
+                if (catalogItemRequest.Container is null /* for unit tests */ ||
+                    catalogItemRequest.Container.TryGetSampleAlignedContainedRange(
+                        begin,
+                        end,
+                        sourceItem.Representation.SamplePeriod,
+                        out readRange
+                    )
+                )
+                {
+                    var elementOffset = NexusUtilities.Scale(readRange.Begin - begin, sourceItem.Representation.SamplePeriod);
+                    var elementCount = ExtensibilityUtilities.CalculateElementCountInt32(readRange.Begin, readRange.End, sourceItem.Representation.SamplePeriod);
+                    var byteOffset = elementOffset * sourceItem.Representation.ElementSize;
+                    var byteCount = elementCount * sourceItem.Representation.ElementSize;
+
+                    sourceReadRequest = new ReadRequest(
+                        manager.Request.OriginalResourceName,
+                        manager.Request.CatalogItem,
+                        manager.Request.Data.Slice(byteOffset, byteCount),
+                        manager.Request.Status.Slice(elementOffset, elementCount),
+                        _ => manager.Request.CompleteAsync(),
+                        cancellationToken);
+                }
+
+                return (readUnit, manager, sourceReadRequest, readBegin: readRange.Begin, readEnd: readRange.End);
             })
             .ToArray();
 
         try
         {
-            var readRequests = tuples
-                .Select(tuple => tuple.manager.Request)
+            var sourceReadRequests = tuples
+                .Where(tuple => tuple.sourceReadRequest is not null)
                 .ToArray();
 
             try
             {
                 for (int pipelinePosition = 0; pipelinePosition < _dataSources.Length; pipelinePosition++)
                 {
-                    var currentReadRequests = readRequests
-                        .Where(request =>
-                            request.CatalogItem.Resource.Properties is null ||
-                            request.CatalogItem.Resource.Properties
+                    var currentReadRequests = sourceReadRequests
+                        .Where(tuple =>
+                            tuple.sourceReadRequest!.CatalogItem.Resource.Properties is null ||
+                            tuple.sourceReadRequest.CatalogItem.Resource.Properties
                                 .GetIntValue(
                                     DataModelExtensions.NEXUS_KEY,
                                     DataModelExtensions.PIPELINE_POSITION_KEY
@@ -527,14 +556,17 @@ internal class DataSourceController(
                     if (currentReadRequests.Length == 0)
                         continue;
 
-                    await _dataSources[pipelinePosition].ReadAsync(
-                        begin,
-                        end,
-                        currentReadRequests,
-                        readDataHandler,
-                        progress,
-                        cancellationToken
-                    );
+                    foreach (var rangeGroup in currentReadRequests.GroupBy(tuple => (tuple.readBegin, tuple.readEnd)))
+                    {
+                        await _dataSources[pipelinePosition].ReadAsync(
+                            rangeGroup.Key.readBegin,
+                            rangeGroup.Key.readEnd,
+                            rangeGroup.Select(tuple => tuple.sourceReadRequest!).ToArray(),
+                            readDataHandler,
+                            progress,
+                            cancellationToken
+                        );
+                    }
                 }
             }
             catch (OutOfMemoryException)
@@ -580,6 +612,8 @@ internal class DataSourceController(
     {
         var item = readUnit.CatalogItemRequest.Item;
         var baseItem = readUnit.CatalogItemRequest.BaseItem!;
+        var cacheItem = readUnit.CatalogItemRequest.SourceItem ?? item;
+        var sourceBaseItem = readUnit.CatalogItemRequest.SourceBaseItem ?? baseItem;
         var samplePeriod = item.Representation.SamplePeriod;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
         var targetElementCount = targetByteCount / (int)readUnit.Precision;
@@ -601,33 +635,52 @@ internal class DataSourceController(
             targetBuffer = poolBuffer.Memory[..targetElementCount];
         }
 
-        /* read request */
-        var readElementCount = ExtensibilityUtilities.CalculateElementCountInt32(begin, end, baseSamplePeriod);
+        targetBuffer.Span.Fill(double.NaN);
 
-        using var readRequestManager = new ReadRequestManager(baseItem, readElementCount, onCompleted: null, cancellationToken);
+        var readRange = new ContainedTimeRange(begin, end);
+
+        var hasContainedRange = readUnit.CatalogItemRequest.Container is null || readUnit.CatalogItemRequest.Container.TryGetSampleAlignedContainedRange(
+            begin,
+            end,
+            samplePeriod,
+            out readRange);
+
+        /* read request */
+        var readElementCount = hasContainedRange
+            ? ExtensibilityUtilities.CalculateElementCountInt32(readRange.Begin, readRange.End, baseSamplePeriod)
+            : 0;
+
+        using var readRequestManager = new ReadRequestManager(sourceBaseItem, readElementCount, onCompleted: null, cancellationToken);
         var readRequest = readRequestManager.Request;
 
         /* go */
         try
         {
+            if (!hasContainedRange)
+                return;
+
+            var targetOffset = NexusUtilities.Scale(readRange.Begin - begin, samplePeriod);
+            var targetCount = ExtensibilityUtilities.CalculateElementCountInt32(readRange.Begin, readRange.End, samplePeriod);
+            var containedTargetBuffer = targetBuffer.Slice(targetOffset, targetCount);
+
             /* load data from cache */
             _logger.LogTrace("Load data from cache");
 
             List<Interval> uncachedIntervals;
 
-            var disableCache = _dataOptions.CachePattern is not null && !Regex.IsMatch(readUnit.CatalogItemRequest.Item.Catalog.Id, _dataOptions.CachePattern);
+            var disableCache = _dataOptions.CachePattern is not null && !Regex.IsMatch(cacheItem.Catalog.Id, _dataOptions.CachePattern);
 
             if (disableCache)
             {
-                uncachedIntervals = [new Interval(begin, end)];
+                uncachedIntervals = [new Interval(readRange.Begin, readRange.End)];
             }
 
             else
             {
                 uncachedIntervals = await _cacheService.ReadAsync(
-                    item,
-                    begin,
-                    targetBuffer,
+                    cacheItem,
+                    readRange.Begin,
+                    containedTargetBuffer,
                     cancellationToken);
             }
 
@@ -644,7 +697,7 @@ internal class DataSourceController(
 
             foreach (var interval in uncachedIntervals)
             {
-                var offset = interval.Begin - begin;
+                var offset = interval.Begin - readRange.Begin;
                 var length = interval.End - interval.Begin;
 
                 var slicedReadRequest = new ReadRequest(
@@ -674,7 +727,7 @@ internal class DataSourceController(
 
                 /* process */
                 var slicedTargetBuffer = targetBuffer.Slice(
-                    start: NexusUtilities.Scale(offset, targetSamplePeriod),
+                    start: targetOffset + NexusUtilities.Scale(offset, targetSamplePeriod),
                     length: NexusUtilities.Scale(length, targetSamplePeriod)
                 );
 
@@ -692,9 +745,9 @@ internal class DataSourceController(
             if (!disableCache)
             {
                 await _cacheService.UpdateAsync(
-                    item,
-                    begin,
-                    targetBuffer,
+                    cacheItem,
+                    readRange.Begin,
+                    containedTargetBuffer,
                     uncachedIntervals,
                     cancellationToken
                 );
@@ -745,12 +798,15 @@ internal class DataSourceController(
     {
         var item = readUnit.CatalogItemRequest.Item;
         var baseItem = readUnit.CatalogItemRequest.BaseItem!;
+        var sourceBaseItem = readUnit.CatalogItemRequest.SourceBaseItem ?? baseItem;
         var samplePeriod = item.Representation.SamplePeriod;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
 
         /* target buffer */
         var targetBuffer = readUnit.DataWriter
             .GetMemory(targetByteCount)[..targetByteCount];
+
+        FillNaN(targetBuffer, readUnit.Precision);
 
         /* Calculate rounded begin and end values.
          *
@@ -775,12 +831,35 @@ internal class DataSourceController(
          * length       = 1500 ms == 15 elements
          */
 
-        var roundedBegin = begin.RoundDown(baseSamplePeriod);
-        var roundedEnd = end.RoundUp(baseSamplePeriod);
+        var container = readUnit.CatalogItemRequest.Container;
+        var isUnrestricted = container is null || (container.MinBegin is null && container.MaxEnd is null);
+
+        var containedRange = new ContainedTimeRange(begin, end);
+
+        if (!isUnrestricted && !container!.TryGetSampleAlignedContainedRange(
+            begin,
+            end,
+            samplePeriod,
+            out containedRange))
+        {
+            return;
+        }
+
+        var roundedBegin = isUnrestricted
+            ? begin.RoundDown(baseSamplePeriod)
+            : containedRange.Begin.RoundUp(baseSamplePeriod);
+
+        var roundedEnd = isUnrestricted
+            ? end.RoundUp(baseSamplePeriod)
+            : containedRange.End.RoundDown(baseSamplePeriod);
+
+        if (roundedBegin >= roundedEnd)
+            return;
+
         var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
 
         /* read request */
-        using var readRequestManager = new ReadRequestManager(baseItem, roundedElementCount, onCompleted: null, cancellationToken);
+        using var readRequestManager = new ReadRequestManager(sourceBaseItem, roundedElementCount, onCompleted: null, cancellationToken);
         var readRequest = readRequestManager.Request;
 
         /* go */
@@ -807,16 +886,25 @@ internal class DataSourceController(
             }
 
             /* process */
-            var offset = NexusUtilities.Scale(begin - roundedBegin, targetSamplePeriod);
+            var targetOffset = isUnrestricted
+                ? 0
+                : NexusUtilities.Scale(roundedBegin - begin, targetSamplePeriod);
+
+            var targetCount = isUnrestricted
+                ? targetByteCount / (int)readUnit.Precision
+                : NexusUtilities.Scale(roundedEnd - roundedBegin, targetSamplePeriod);
+            var slicedTargetBuffer = targetBuffer.Slice(targetOffset * (int)readUnit.Precision, targetCount * (int)readUnit.Precision);
 
             _processingService.Resample(
                 baseItem.Representation.DataType,
                 readRequest.Data,
                 readRequest.Status,
-                targetBuffer,
+                slicedTargetBuffer,
                 readUnit.Precision,
                 blockSize,
-                offset);
+                offset: isUnrestricted
+                    ? NexusUtilities.Scale(begin - roundedBegin, targetSamplePeriod)
+                    : 0);
         }
         catch (OutOfMemoryException)
         {
@@ -865,11 +953,13 @@ internal class DataSourceController(
             var (catalogItemRequest, dataWriter) = catalogItemRequestPipeWriter;
 
             var item = catalogItemRequest.BaseItem is null
-                ? catalogItemRequest.Item
-                : catalogItemRequest.BaseItem;
+                ? catalogItemRequest.SourceItem ?? catalogItemRequest.Item
+                : catalogItemRequest.SourceBaseItem ?? catalogItemRequest.BaseItem;
 
-            /* _catalogMap is guaranteed to contain the current catalog
-             * because GetCatalogAsync is called before ReadAsync */
+            /* _catalogCache is guaranteed to contain the current catalog
+             * because GetCatalogAsync is called before ReadAsync. It is keyed
+             * by the backing source catalog id, which is what the data source
+             * sees; SourceItem / SourceBaseItem carry that id for alias views. */
             if (_catalogCache.TryGetValue(item.Catalog.Id, out var catalog))
             {
                 var readUnit = new ReadUnit(catalogItemRequest, precision, dataWriter);

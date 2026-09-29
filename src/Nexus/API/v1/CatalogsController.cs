@@ -30,7 +30,6 @@ namespace Nexus.Controllers.V1;
 internal class CatalogsController(
     AppState appState,
     IDatabaseService databaseService,
-    IDataControllerService dataControllerService,
     IAcceptedLicenseService acceptedLicenseService
 ) : ControllerBase
 {
@@ -51,8 +50,6 @@ internal class CatalogsController(
     private readonly AppState _appState = appState;
 
     private readonly IDatabaseService _databaseService = databaseService;
-
-    private readonly IDataControllerService _dataControllerService = dataControllerService;
 
     private readonly IAcceptedLicenseService _acceptedLicenseService = acceptedLicenseService;
 
@@ -127,8 +124,7 @@ internal class CatalogsController(
 
         var response = ProtectCatalogAsync<ResourceCatalog>(catalogId, ensureReadable: true, ensureWritable: false, async catalogContainer =>
         {
-            var lazyCatalogInfo = await catalogContainer.GetLazyCatalogInfoAsync(cancellationToken);
-            var catalog = lazyCatalogInfo.Catalog;
+            var catalog = await catalogContainer.GetCatalogAsync(cancellationToken);
 
             return catalog;
         }, cancellationToken);
@@ -151,7 +147,8 @@ internal class CatalogsController(
 
         var response = await ProtectCatalogAsync<CatalogInfo[]>(catalogId, ensureReadable: false, ensureWritable: false, async catalogContainer =>
         {
-            var childContainers = await catalogContainer.GetChildCatalogContainersAsync(cancellationToken);
+            var root = _appState.CatalogState.Root;
+            var childContainers = await catalogContainer.GetChildCatalogContainersAsync(root, cancellationToken);
             var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
 
             var catalogInfos = new List<CatalogInfo>();
@@ -167,7 +164,7 @@ internal class CatalogsController(
 
                 string? readme = default;
 
-                if (_databaseService.TryReadAttachment(childContainer.Id, "README.md", out var readmeStream))
+                if (_databaseService.TryReadAttachment(childContainer.BackingSourceId, "README.md", out var readmeStream))
                 {
                     using var reader = new StreamReader(readmeStream);
                     readme = reader.ReadToEnd();
@@ -180,7 +177,7 @@ internal class CatalogsController(
                     _acceptedLicenseService,
                     cancellationToken
                 );
-                var isWritable = AuthUtilities.IsCatalogWritable(childContainer.Id, childContainer.Metadata, User);
+                var isWritable = AuthUtilities.IsCatalogWritable(childContainer, User);
 
                 var isVisible = isReadable ||
                     Regex.IsMatch(id, childContainer.Pipeline.VisibilityPattern ?? "");
@@ -227,8 +224,7 @@ internal class CatalogsController(
 
         var response = ProtectCatalogAsync<CatalogTimeRange>(catalogId, ensureReadable: true, ensureWritable: false, async catalogContainer =>
         {
-            using var dataSource = await _dataControllerService.GetDataSourceControllerAsync(catalogContainer.Pipeline, cancellationToken);
-            return await dataSource.GetTimeRangeAsync(catalogContainer.Id, cancellationToken);
+            return await catalogContainer.GetTimeRangeAsync(cancellationToken);
         }, cancellationToken);
 
         return response;
@@ -251,22 +247,26 @@ internal class CatalogsController(
         CancellationToken cancellationToken)
     {
         catalogId = WebUtility.UrlDecode(catalogId);
-        begin = begin.ToUniversalTime();
-        end = end.ToUniversalTime();
+        begin = NexusUtilities.NormalizeToUtc(begin);
+        end = NexusUtilities.NormalizeToUtc(end);
 
         if (begin >= end)
-            return UnprocessableEntity("The end date/time must be before the begin date/time.");
+            return UnprocessableEntity("The end date/time must be after the begin date/time.");
 
         if (step <= TimeSpan.Zero)
             return UnprocessableEntity("The step must be > 0.");
 
-        if ((end - begin).Ticks / step.Ticks > 1000)
+        var stepCount = (int)((end - begin).Ticks / step.Ticks);
+
+        if (stepCount == 0)
+            return UnprocessableEntity("The step must be smaller than or equal to the requested time range.");
+
+        if (stepCount > 1000)
             return UnprocessableEntity("The number of steps is too large.");
 
         var response = await ProtectCatalogAsync<CatalogAvailability>(catalogId, ensureReadable: true, ensureWritable: false, async catalogContainer =>
         {
-            using var dataSource = await _dataControllerService.GetDataSourceControllerAsync(catalogContainer.Pipeline, cancellationToken);
-            return await dataSource.GetAvailabilityAsync(catalogContainer.Id, begin, end, step, cancellationToken);
+            return await catalogContainer.GetAvailabilityAsync(begin, end, step, cancellationToken);
         }, cancellationToken);
 
         return response;
@@ -338,7 +338,7 @@ internal class CatalogsController(
 
         var response = ProtectCatalogAsync(catalogId, ensureReadable: true, ensureWritable: false, catalog =>
         {
-            return Task.FromResult<ActionResult<string[]>>(_databaseService.EnumerateAttachments(catalogId).ToArray());
+            return Task.FromResult<ActionResult<string[]>>(_databaseService.EnumerateAttachments(catalog.BackingSourceId).ToArray());
         }, cancellationToken);
 
         return response;
@@ -364,6 +364,9 @@ internal class CatalogsController(
 
         var response = ProtectCatalogNonGenericAsync(catalogId, ensureReadable: false, ensureWritable: true, async catalog =>
         {
+            if (catalog.IsAliasView)
+                return StatusCode(StatusCodes.Status403Forbidden, "Alias catalogs are read-only views and cannot be modified.");
+
             try
             {
                 using var attachmentStream = _databaseService.WriteAttachment(catalogId, attachmentId);
@@ -411,6 +414,9 @@ internal class CatalogsController(
 
         var response = ProtectCatalogNonGenericAsync(catalogId, ensureReadable: false, ensureWritable: true, catalog =>
         {
+            if (catalog.IsAliasView)
+                return Task.FromResult<ActionResult<object>>(StatusCode(StatusCodes.Status403Forbidden, "Alias catalogs are read-only views and cannot be modified."));
+
             try
             {
                 _databaseService.DeleteAttachment(catalogId, attachmentId);
@@ -446,7 +452,7 @@ internal class CatalogsController(
         {
             try
             {
-                if (_databaseService.TryReadAttachment(catalogId, attachmentId, out var attachmentStream))
+                if (_databaseService.TryReadAttachment(catalog.BackingSourceId, attachmentId, out var attachmentStream))
                 {
                     Response.Headers.ContentLength = attachmentStream.Length;
                     return Task.FromResult<ActionResult<object>>(
@@ -504,6 +510,9 @@ internal class CatalogsController(
 
         var response = await ProtectCatalogNonGenericAsync(catalogId, ensureReadable: false, ensureWritable: true, async catalogContainer =>
         {
+            if (catalogContainer.IsAliasView)
+                return StatusCode(StatusCodes.Status403Forbidden, "Alias catalogs are read-only views and cannot be modified.");
+
             if (metadata.Overrides?.Id != catalogContainer.Id)
                 return UnprocessableEntity("The catalog ID does not match the ID of the catalog to update.");
 
@@ -527,7 +536,7 @@ internal class CatalogsController(
 
         var catalogContainer = catalogId == CatalogContainer.RootCatalogId
             ? root
-            : await root.TryFindCatalogContainerAsync(root, catalogId, cancellationToken);
+            : await root.TryResolveCatalogContainerAsync(root, catalogId, cancellationToken);
 
         if (catalogContainer is not null)
         {
@@ -543,8 +552,14 @@ internal class CatalogsController(
                     $"The current user is not permitted to read the catalog {catalogId}.");
             }
 
-            if (ensureWritable && !AuthUtilities.IsCatalogWritable(
-                catalogContainer.Id, catalogContainer.Metadata, User))
+            if (ensureWritable && catalogContainer.IsAliasView)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Alias catalogs are read-only views and cannot be modified.");
+            }
+
+            if (ensureWritable && !AuthUtilities.IsCatalogWritable(catalogContainer, User))
             {
                 return StatusCode(
                     StatusCodes.Status403Forbidden,

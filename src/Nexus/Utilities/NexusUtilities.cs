@@ -160,4 +160,22 @@ internal static partial class NexusUtilities
 
         return filePath;
     }
+
+    // Treats DateTimeKind.Unspecified as UTC without shifting ticks, and converts Local to UTC.
+    // This avoids the deployment-dependent behavior of DateTime.ToUniversalTime(), which assumes
+    // Unspecified values are local and shifts them by the server's timezone offset.
+    public static DateTime NormalizeToUtc(DateTime dateTime)
+    {
+        return dateTime.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+            : dateTime.ToUniversalTime();
+    }
+
+    public static DateTime? NormalizeToUtc(DateTime? dateTime)
+    {
+        if (dateTime is null)
+            return null;
+
+        return NormalizeToUtc(dateTime.Value);
+    }
 }
