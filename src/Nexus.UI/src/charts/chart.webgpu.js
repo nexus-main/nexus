@@ -24,7 +24,6 @@
     evictRawChunks,
     createTrackedBuffer,
     destroyTrackedBuffer,
-    ensureGpuCapacity,
     synchronizeSeries,
     beginChunkedSeriesAsync,
     appendChunkedSeries: appendChunkedSeriesImpl,
@@ -450,7 +449,7 @@
       return;
     }
 
-    const { device, format, pipeline } = instance;
+    const { device, pipeline } = instance;
     const target = valueOf(payload, "Target") ?? "series";
 
     if (

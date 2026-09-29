@@ -146,27 +146,6 @@
     ns.destroyTrackedBuffer(instance, upload.paramsBuffer);
   }
 
-  async function processOverviewChunkAsync(
-    instance,
-    transientBuffer,
-    paramsBuffer,
-    bindGroup,
-    offset,
-    values,
-    count,
-  ) {
-    instance.device.queue.writeBuffer(transientBuffer, 0, values);
-
-    return await processUploadedOverviewChunkAsync(
-      instance,
-      transientBuffer,
-      paramsBuffer,
-      bindGroup,
-      offset,
-      count,
-    );
-  }
-
   async function processUploadedOverviewChunkAsync(
     instance,
     transientBuffer,
@@ -407,76 +386,6 @@
 
     throw new Error(
       "Synchronous chunk upload requires a MemoryView, typed array, ArrayBuffer, or array payload",
-    );
-  }
-
-  async function readFloatDataReferenceAsync(dataReference, dataLength) {
-    if (dataReference instanceof Float32Array) {
-      const actualLength = getDataLength(dataLength, dataReference.length, "sample");
-
-      return actualLength === dataReference.length
-        ? dataReference
-        : dataReference.subarray(0, actualLength);
-    }
-
-    if (ArrayBuffer.isView(dataReference)) {
-      if (
-        dataReference instanceof Uint8Array ||
-        dataReference instanceof Int8Array ||
-        dataReference instanceof Uint8ClampedArray
-      ) {
-        const bytes = new Uint8Array(
-          dataReference.buffer,
-          dataReference.byteOffset,
-          dataReference.byteLength,
-        );
-        const actualByteLength = getDataLength(dataLength, bytes.byteLength, "byte");
-
-        if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
-          throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
-        }
-
-        return new Float32Array(
-          bytes.buffer,
-          bytes.byteOffset,
-          actualByteLength / Float32Array.BYTES_PER_ELEMENT,
-        );
-      }
-
-      const values = Float32Array.from(dataReference);
-      const actualLength = getDataLength(dataLength, values.length, "sample");
-
-      return actualLength === values.length ? values : values.subarray(0, actualLength);
-    }
-
-    if (dataReference instanceof ArrayBuffer) {
-      const actualByteLength = getDataLength(dataLength, dataReference.byteLength, "byte");
-
-      if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
-        throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
-      }
-
-      return new Float32Array(dataReference, 0, actualByteLength / Float32Array.BYTES_PER_ELEMENT);
-    }
-
-    if (Array.isArray(dataReference)) {
-      const values = Float32Array.from(dataReference);
-      const actualLength = getDataLength(dataLength, values.length, "sample");
-
-      return actualLength === values.length ? values : values.subarray(0, actualLength);
-    }
-
-    const bytes = new Uint8Array(await dataReference.arrayBuffer());
-    const actualByteLength = getDataLength(dataLength, bytes.byteLength, "byte");
-
-    if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
-      throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
-    }
-
-    return new Float32Array(
-      bytes.buffer,
-      bytes.byteOffset,
-      actualByteLength / Float32Array.BYTES_PER_ELEMENT,
     );
   }
 
@@ -827,7 +736,6 @@
 
     const values = readFloatDataReferenceSync(dataReference, dataLength);
     const byteOffset = offset * Float32Array.BYTES_PER_ELEMENT;
-    const byteLength = values.byteLength;
 
     if (!request.buffer) {
       throw new Error(`Raw chunk request ${requestId} has no destination buffer`);

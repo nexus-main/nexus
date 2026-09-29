@@ -468,7 +468,7 @@ export class ResourceMatrixComponent {
     strip.scrollBy({ left: delta });
   }
 
-  selectionDisabled(row: RepresentationRow): boolean {
+  selectionDisabled(_row: RepresentationRow): boolean {
     return this.saving() || this.loading() || this.selectionLoading();
   }
 

@@ -95,7 +95,6 @@ import {
   SessionOverview,
   V1,
   V2,
-  WriterDescription,
   buildExportParameters,
   mapResources,
   prepareChildCatalogs,
@@ -1540,30 +1539,6 @@ export class AppComponent implements OnDestroy {
     }
 
     return null;
-  }
-
-  private describeSetupImportWarnings(parsed: ParsedNexusUiSetup) {
-    const warnings: string[] = [];
-
-    if (parsed.legacyUiSettings?.catalogHidePatterns?.length) {
-      warnings.push(
-        "Catalog hide patterns are preserved for compatibility, but this UI has no catalog hiding setting to apply.",
-      );
-    }
-
-    if (parsed.legacyUiSettings?.chartGpuCacheBudgetMiB !== undefined) {
-      warnings.push(
-        "Chart cache budget is not part of setup export settings and will not be imported.",
-      );
-    }
-
-    if (parsed.source === "legacy-ui-settings") {
-      warnings.push(
-        "Legacy settings do not include time range, export period, precision, or resource paths.",
-      );
-    }
-
-    return warnings;
   }
 
   readonly refreshPipelineDatabase = async (): Promise<boolean> => {
@@ -3588,24 +3563,6 @@ function fromDateTimeLocalValue(value: string) {
   const withSeconds = value.length === 16 ? `${value}:00` : value;
 
   return `${withSeconds}Z`;
-}
-
-function resolveRangeEndpoint(value: string, reference: Date) {
-  if (value === "now") {
-    return toUtcSecondString(reference);
-  }
-
-  const relativeDuration = /^-PT(\d+)([HM])$/.exec(value);
-
-  if (!relativeDuration) {
-    return value;
-  }
-
-  const amount = Number(relativeDuration[1]);
-  const unit = relativeDuration[2];
-  const offsetMs = amount * (unit === "H" ? 60 : 1) * 60 * 1000;
-
-  return toUtcSecondString(new Date(reference.valueOf() - offsetMs));
 }
 
 function toUtcSecondString(date: Date) {

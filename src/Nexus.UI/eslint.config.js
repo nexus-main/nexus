@@ -14,6 +14,8 @@ import eslintConfigPrettier from "eslint-config-prettier";
 //   - curly ("all"): require braces on every if/else/for/while. Prettier then
 //     expands the block across multiple lines with correct indentation, which
 //     is what forbids the single-line `if (x) return;` form.
+//   - @typescript-eslint/no-unused-vars: error on unused locals, imports, and
+//     parameters. Variables/args/caught-errors prefixed with `_` are exempt.
 const paddingLineBetweenStatements = [
   "error",
   // blank line after a run of variable declarations
@@ -40,8 +42,17 @@ export default tseslint.config(
         sourceType: "module",
       },
     },
+    plugins: { "@typescript-eslint": tseslint.plugin },
     rules: {
       "padding-line-between-statements": paddingLineBetweenStatements,
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   eslintConfigPrettier,
