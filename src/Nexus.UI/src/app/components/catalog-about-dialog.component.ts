@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, output, signal } from "@angular/core";
+import { Component, effect, inject, input, output, signal } from "@angular/core";
 import { LucideExternalLink, LucideInfo, LucideX } from "@lucide/angular";
 import { DialogModule } from "primeng/dialog";
 import { RestoreFocusDirective } from "../restore-focus.directive";

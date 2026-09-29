@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
-  configurationText, configurationYamlText, createSchemaScaffold, createSchemaValue, getSchemaView, parseConfigurationText, parseJsonSafely, schemaPointer, validateConfiguration,
+  configurationText, configurationYamlText, createSchemaScaffold, parseConfigurationText, parseJsonSafely, validateConfiguration,
 } from '../../../src/Nexus.UI/src/app/json-schema.ts'
 
 const draft4 = 'http://json-schema.org/draft-04/schema#'
@@ -35,16 +35,13 @@ describe('server-generated configuration contracts', () => {
     assert.equal(validateConfiguration(reference, { child: null }).valid, true)
     assert.equal(validateConfiguration(reference, { child: {} }).valid, false)
     assert.equal(validateConfiguration(reference, { child: { name: 'child' } }).valid, true)
-    assert.equal(getSchemaView(reference, ['#/properties/child']).nullable, true)
     const dictionary = serverSchemas['dictionaryRoot']
     assert.equal(validateConfiguration(dictionary, { first: { name: 'child' } }).valid, true)
     assert.equal(validateConfiguration(dictionary, { first: null }).valid, false)
-    assert.equal(getSchemaView(dictionary).allowAdditional, true)
     const value = serverSchemas['nullableValueRoot']
     assert.equal(validateConfiguration(value, null).valid, true)
     assert.equal(validateConfiguration(value, 12).valid, true)
     assert.equal(validateConfiguration(value, 1.5).valid, false)
-    assert.equal(getSchemaView(value).nullable, true)
   })
 })
 const registrationSchema = {
@@ -119,14 +116,10 @@ describe('Draft 4 configuration validation', () => {
         assert.equal(result.valid, false)
         assert.match(result.errors.join(' '), /OpenAPI nullable/)
       }
-      assert.equal(getSchemaView(schema).nullable, false)
-      assert.equal(getSchemaView(schema).kind, 'raw')
       const nested = { type: 'object', properties: { optional: schema } }
       assert.equal(validateConfiguration(nested, {}).valid, false)
-      assert.equal(getSchemaView(nested, ['#/properties/optional']).nullable, false)
     }
     assert.equal(validateConfiguration({ type: ['string', 'null'] }, null).valid, true)
-    assert.equal(getSchemaView({ type: ['string', 'null'] }).nullable, true)
     assert.equal(validateConfiguration({ type: 'object', default: { nullable: true } }, {}).valid, true)
   })
 
@@ -151,7 +144,6 @@ describe('Draft 4 configuration validation', () => {
     const invalid = validateConfiguration(schema, [0.30000000000000004])
     assert.equal(invalid.valid, false)
     assert.match(invalid.errors.join(' '), /\/0.*multipleOf/)
-    assert.equal(getSchemaView({ enum: [0.3, 0.30000000000000004], multipleOf: 0.1 }).enumValues.length, 1)
   })
   it('validates the original schema without coercion, defaults or removal', () => {
     const value = { requiredNullable: null, samples: ['2'], unknown: 1 }
@@ -174,10 +166,6 @@ describe('Draft 4 configuration validation', () => {
       assert.equal(validateConfiguration(schema, {}).valid, !required)
       assert.equal(validateConfiguration(schema, { setting: null }).valid, nullable)
       assert.equal(validateConfiguration(schema, { setting: 'value' }).valid, true)
-      const view = getSchemaView(schema)
-      const property = view.properties[0]
-      assert.equal(property.required, required)
-      assert.equal(getSchemaView(schema, property.paths).nullable, nullable)
     }
   })
 
@@ -201,7 +189,6 @@ describe('Draft 4 configuration validation', () => {
         assert.equal(result.valid, false)
         assert.ok(result.errors.length)
       }
-      assert.equal(getSchemaView(schema).kind, 'raw')
     }
   })
 
@@ -218,7 +205,6 @@ describe('Draft 4 configuration validation', () => {
     const schema = { type: 'string', format: 'date-time' }
     const value = '2026-09-16T12:30:00+02:00'
     assert.equal(validateConfiguration(schema, value).valid, true)
-    assert.equal(getSchemaView(schema).kind, 'string')
     assert.equal(validateConfiguration(schema, 'yesterday').valid, false)
     assert.equal(validateConfiguration(schema, new Date()).valid, false)
   })
@@ -227,7 +213,6 @@ describe('Draft 4 configuration validation', () => {
     const schema = { $ref: '#/definitions/value', minLength: 100, definitions: { value: { type: 'string' } } }
     assert.equal(validateConfiguration(schema, 'text').valid, true)
     assert.equal(validateConfiguration(schema, 1).valid, false)
-    assert.equal(getSchemaView(schema).kind, 'string')
   })
 
   it('fails closed for Ajv ref/type sibling limitations rather than using incorrect semantics', () => {
@@ -235,7 +220,6 @@ describe('Draft 4 configuration validation', () => {
     const result = validateConfiguration(schema, 'text')
     assert.equal(result.valid, false)
     assert.match(result.errors.join(' '), /sibling type/)
-    assert.equal(getSchemaView(schema).kind, 'raw')
   })
 
   it('applies enum, array and unknown-field constraints', () => {
@@ -258,7 +242,6 @@ describe('Draft 4 configuration validation', () => {
       const result = validateConfiguration(schema, {})
       assert.equal(result.valid, false)
       assert.match(result.errors.join(' '), /Unsupported format/)
-      assert.equal(getSchemaView(schema).kind, 'raw')
     }
     assert.equal(validateConfiguration({ type: 'object', default: { format: 'not a schema' } }, {}).valid, true)
     assert.equal(validateConfiguration({ $ref: '#/definitions/value', format: 'ignored-sibling', definitions: { value: { type: 'string' } } }, 'ok').valid, true)
@@ -276,7 +259,6 @@ describe('Draft 4 configuration validation', () => {
         assert.equal(validateConfiguration(schema, value).valid, false, `${format}: ${value}`)
       }
       assert.equal(validateConfiguration(schema, null).valid, true)
-      assert.equal(getSchemaView(schema).kind, 'string')
     }
     for (const value of ['P1D', 'PT1H', 'P1W']) {
       assert.equal(validateConfiguration({ type: 'string', format: 'duration' }, value).valid, true)
@@ -342,128 +324,6 @@ describe('safe JSON parsing', () => {
     const description = '{"type":"integer","format":"int64","maximum":9223372036854775807}'
     assert.equal(parseJsonSafely(description).valid, false)
     assert.equal(validateConfiguration(JSON.parse(description), 42).valid, true)
-  })
-})
-
-describe('conservative schema form projection', () => {
-  it('uses aligned enum display names without changing values or weakening enum validation', () => {
-    const schema = { type: ['integer', 'null'], enum: [null, 0, 1, 2], 'x-enumNames': ['Null', 'None', 'Read', 'Write'],
-      'x-enumDisplayNames': ['Null label', 'No access', '', 'Write access'], not: { enum: [1] } }
-    const view = getSchemaView(schema)
-    assert.deepEqual(view.enumValues, [0, 2])
-    assert.deepEqual(view.enumLabels, ['No access', 'Write access'])
-    assert.equal(validateConfiguration(schema, 3).valid, false)
-    assert.equal(validateConfiguration(schema, 'No access').valid, false)
-    const names = { enum: [0, 1], 'x-enumNames': ['None', 'Read'], 'x-enumDisplayNames': ['Mismatched'] }
-    assert.deepEqual(getSchemaView(names).enumLabels, ['None', 'Read'])
-    assert.deepEqual(getSchemaView({ enum: [0, 1], 'x-enumNames': ['Mismatched'] }).enumLabels, ['0', '1'])
-    assert.deepEqual(getSchemaView({ enum: [0, 1], 'x-enumNames': ['None', 'Read'], 'x-enumDisplayNames': ['', null] }).enumLabels, ['None', 'Read'])
-    const flags = { type: 'integer', 'x-enumFlags': true }
-    assert.equal(getSchemaView(flags).kind, 'integer')
-    assert.equal(validateConfiguration(flags, 3).valid, true)
-    assert.equal(validateConfiguration({ ...flags, enum: [0, 1, 2] }, 3).valid, false)
-  })
-  it('unwraps single-branch NJsonSchema ref wrappers and retains wrapper constraints', () => {
-    for (const union of ['oneOf', 'anyOf']) {
-      const schema = { type: 'object', properties: {
-        setting: { title: 'Setting', [union]: [{ $ref: '#/definitions/value' }], enum: ['allowed'] },
-      }, definitions: { value: { type: ['null', 'string'], default: 'not injected' } } }
-      const snapshot = structuredClone(schema)
-      const view = getSchemaView(schema, getSchemaView(schema).properties[0].paths)
-      assert.equal(view.kind, 'enum')
-      assert.deepEqual(view.enumValues, ['allowed'])
-      assert.equal(view.nullable, false)
-      assert.equal(validateConfiguration(schema, { setting: null }).valid, false)
-      assert.equal(validateConfiguration(schema, { setting: 'allowed' }).valid, true)
-      assert.deepEqual(schema, snapshot)
-      const root = { [union]: [{ $ref: '#/definitions/value' }], definitions: { value: { type: 'object', properties: { count: { type: 'integer' } } } } }
-      assert.equal(getSchemaView(root).kind, 'object')
-      assert.equal(getSchemaView(root).properties[0].key, 'count')
-    }
-  })
-  it('resolves root/local refs, escaped pointer keys and recursive object fields lazily', () => {
-    const schema = { $schema: draft4, id: 'urn:root:ref', $ref: '#/definitions/root', definitions: {
-      root: { type: 'object', properties: { next: { $ref: '#/definitions/root' }, name: { $ref: '#/definitions/a~1b~0c' } } },
-      'a/b~c': { type: ['null', 'string'] },
-    } }
-    assert.equal(getSchemaView(schema).kind, 'object')
-    const properties = getSchemaView(schema).properties
-    assert.equal(getSchemaView(schema, properties[0].paths).kind, 'object')
-    assert.equal(getSchemaView(schema, properties[1].paths).kind, 'string')
-    assert.equal(getSchemaView(schema, properties[1].paths).nullable, true)
-    assert.equal(validateConfiguration(schema, { name: null, next: { name: 'nested' } }).valid, true)
-    assert.equal(schemaPointer('#', 'a/b~c'), '#/a~1b~0c')
-  })
-
-  it('supports nullable union ordering, while null must satisfy the complete schema', () => {
-    for (const union of ['anyOf', 'oneOf']) for (const reverse of [false, true]) {
-      const branches = [{ type: 'null' }, { type: 'string', minLength: 1 }]
-      const schema = { [union]: reverse ? branches.reverse() : branches }
-      assert.equal(getSchemaView(schema).kind, 'string')
-      assert.equal(getSchemaView(schema).nullable, true)
-      assert.equal(validateConfiguration(schema, '').valid, false)
-    }
-    for (const schema of [
-      { type: ['null', 'string'], enum: ['a'] },
-      { allOf: [{ type: ['null', 'string'] }, { not: { type: 'null' } }] },
-      { anyOf: [{ type: 'null' }, { type: 'string' }], enum: ['a'] },
-    ]) assert.equal(getSchemaView(schema).nullable, false)
-  })
-
-  it('combines common allOf properties, requirements and constraints without modifying schemas', () => {
-    const schema = { allOf: [
-      { type: 'object', properties: { a: { type: ['string', 'null'] } }, required: ['a'] },
-      { type: 'object', properties: { b: { type: 'integer' }, a: { enum: ['yes'] } } },
-    ] }
-    const snapshot = structuredClone(schema)
-    const view = getSchemaView(schema)
-    assert.equal(view.kind, 'object')
-    assert.deepEqual(view.properties.map(property => [property.key, property.required]), [['a', true], ['b', false]])
-    assert.equal(getSchemaView(schema, view.properties[0].paths).nullable, false)
-    assert.deepEqual(getSchemaView(schema, view.properties[0].paths).enumValues, ['yes'])
-    assert.equal(validateConfiguration(schema, { a: 'yes', b: 1 }).valid, true)
-    assert.equal(validateConfiguration(schema, { a: null }).valid, false)
-    assert.deepEqual(schema, snapshot)
-    for (const types of [['number', 'integer'], ['integer', 'number']]) {
-      assert.equal(getSchemaView({ allOf: types.map(type => ({ type })) }).kind, 'integer')
-    }
-  })
-
-  it('includes additionalProperties constraints from other allOf branches', () => {
-    const schema = { allOf: [
-      { type: 'object', properties: { name: { type: ['null', 'string'] } } },
-      { additionalProperties: { type: 'string' } },
-    ] }
-    const view = getSchemaView(schema)
-    assert.equal(getSchemaView(schema, view.properties[0].paths).nullable, false)
-    assert.equal(getSchemaView(schema, view.additionalPaths).kind, 'string')
-    assert.equal(getSchemaView({ allOf: [schema['allOf'][0], { additionalProperties: false }] }).kind, 'raw')
-  })
-
-  it('projects enums, arrays and dictionaries and creates values only explicitly, never defaults', () => {
-    assert.equal(createSchemaValue(getSchemaView({ type: 'string', default: 'ignored' })), '')
-    assert.deepEqual(createSchemaValue(getSchemaView(registrationSchema)), {})
-    const view = getSchemaView(registrationSchema)
-    const samples = getSchemaView(registrationSchema, view.properties.find(property => property.key === 'samples')!.paths)
-    assert.equal(samples.kind, 'array')
-    assert.equal(getSchemaView(registrationSchema, samples.itemPaths).kind, 'number')
-    const labels = getSchemaView(registrationSchema, view.properties.find(property => property.key === 'labels')!.paths)
-    assert.equal(labels.allowAdditional, true)
-    assert.equal(getSchemaView(registrationSchema, labels.additionalPaths).nullable, true)
-    const enumeration = getSchemaView({ type: ['null', 'integer'], enum: [null, 1, 2] })
-    assert.equal(enumeration.kind, 'enum')
-    assert.deepEqual(enumeration.enumValues, [1, 2])
-    assert.equal(enumeration.nullable, true)
-  })
-
-  it('falls back for complex unions, tuples, pattern dictionaries and nested reference scopes', () => {
-    for (const schema of [
-      { oneOf: [{ type: 'string' }, { type: 'number' }] },
-      { type: ['string', 'number'] },
-      { type: 'array', items: [{ type: 'string' }, { type: 'integer' }] },
-      { type: 'object', patternProperties: { '^x': { type: 'integer' } } },
-      { allOf: [{ id: 'nested', type: 'string' }] },
-    ]) assert.equal(getSchemaView(schema).kind, 'raw')
   })
 })
 
