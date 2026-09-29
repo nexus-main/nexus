@@ -16,16 +16,6 @@ Implemented prototype flows:
 - Configure exports through live writer metadata and create an export job with the generated TypeScript Nexus client.
 - Administrators can list, create, edit, and delete local/Git-tag package references from the Administrator menu. Role detection uses the generated client's users/me call; package operations use its packageReferences API. Tokens also need administrator permission. Changes save references only, without reloading running extensions.
 
-Credentials are not stored in this repo or exposed to browser JavaScript. To run with the local credentials file:
-
-```sh
-./dev-with-local-credentials.sh
-```
-
-The launcher reads `$HOME/.config/nexus-ui/credentials.env` by default. You can override the path with `NEXUS_UI_CREDENTIALS`.
-
-Use `.env.example` as a template for that external credentials file. The Angular dev proxy injects `NEXUS_TOKEN` server-side for `/api` requests.
-
 The first pinned representation initializes Period unless the user has already changed it. Subsequent selections default to Original at the same period, Mean at a slower period, or Resampled at a faster period. The methods popup supports multiple methods. Changing Period preserves existing methods; incompatible methods turn red and block export until removed or made compatible. Periods must divide exactly for aggregation/resampling.
 
 Selections are stored in `nexus.selectedResources` as a versioned document containing Period, automatic-period policy, and ordered native-representation references with methods. Restore resolves references against catalog data, preserves unavailable entries for retry, and drops only references confirmed missing in successfully loaded catalogs. Legacy resource-only entries migrate to their first native representation. Parameterized representations cannot be newly selected or exported yet; their restored references remain removable from the pinned list. Catalog bundles are cached for the browser session and refreshed after saving metadata; reload to see external metadata changes.
