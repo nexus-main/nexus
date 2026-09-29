@@ -1,7 +1,7 @@
 # Agent Notes
 
 ## Repo Shape
-- This is a .NET 9 solution, not a Node workspace; `tailwind.config.js` is only for CSS generation.
+- This is a .NET 9 solution, not a Node workspace; Tailwind CSS v4 uses CSS-first config (`@theme` in `src/Nexus.UI/src/index.css`), no JS config file.
 - `Nexus.sln` contains the server, Angular UI, generated clients, extensibility contracts/analyzers, and their test projects.
 - Root MSBuild policy lives in `Directory.Build.props`: .NET target is `net9.0`, central artifacts go under `artifacts/`, code style is enforced during build, and an extra MyGet source is configured.
 - Central .NET package versions are in `Directory.Packages.props`; project files intentionally omit package versions.
