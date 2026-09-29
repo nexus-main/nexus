@@ -21,3 +21,7 @@ A data source pipeline has an optional `VisibilityPattern` regex that controls w
 - Users with direct API access can interact with non-visible catalogs only if the corresponding read or write permissions allow it.
 
 `ReleasePattern` and released/unreleased catalog status were removed for now. Readiness or publishing gates can be reintroduced later as a separate concept if needed.
+
+## Alias Write Permissions
+
+Alias catalogs do not have write permissions. Write operations must target the backing source catalog directly; aliases are read-only views for permission purposes.
