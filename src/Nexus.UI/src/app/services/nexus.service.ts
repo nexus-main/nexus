@@ -176,21 +176,6 @@ export class NexusService {
     return this.v2.jobs.export(parameters);
   }
 
-  async loadResources(
-    begin: string,
-    end: string,
-    resourcePaths: string[],
-    precision: V2.Precision,
-    onProgress?: ((progress: number) => void) | undefined,
-    signal?: AbortSignal,
-  ) {
-    const result = await this.client.load(begin, end, resourcePaths, precision, onProgress, signal);
-
-    this.apiAvailable.set(true);
-
-    return result;
-  }
-
   async loadResourcesIntoBuffers(
     begin: string,
     end: string,
