@@ -1,21 +1,21 @@
 (function () {
-    const ns = window.__nexusChartWebGpu = {};
-    const uniformBufferSize = 96;
-    const fillVerticesPerSegment = 6;
-    const lineVerticesPerSegment = 18;
-    const decimationWorkgroupSize = 64;
-    const decimationFactor = 4;
-    const decimationBucketsPerPixel = 2;
-    const maxDecimationBuckets = 8192;
-    const rangeWorkgroupSize = 256;
-    const maxRangeWorkgroups = 1024;
-    const defaultCacheBudget = 512 * 1024 * 1024;
-    const overviewBucketSize = 256;
-    const reducedPointsPerBucket = 3;
-    const streamChunkLength = 4 * 1024 * 1024;
-    const rawChunkLength = 1024 * 1024;
+  const ns = (window.__nexusChartWebGpu = {});
+  const uniformBufferSize = 96;
+  const fillVerticesPerSegment = 6;
+  const lineVerticesPerSegment = 18;
+  const decimationWorkgroupSize = 64;
+  const decimationFactor = 4;
+  const decimationBucketsPerPixel = 2;
+  const maxDecimationBuckets = 8192;
+  const rangeWorkgroupSize = 256;
+  const maxRangeWorkgroups = 1024;
+  const defaultCacheBudget = 512 * 1024 * 1024;
+  const overviewBucketSize = 256;
+  const reducedPointsPerBucket = 3;
+  const streamChunkLength = 4 * 1024 * 1024;
+  const rawChunkLength = 1024 * 1024;
 
-    const shader = `
+  const shader = `
 struct Uniforms {
     viewport: vec2f,
     _pad0: vec2f,
@@ -196,7 +196,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
 }
 `;
 
-    const overviewShader = `
+  const overviewShader = `
 struct Params {
     globalOffset: u32,
     sourceLength: u32,
@@ -314,7 +314,7 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
 }
 `;
 
-    const pointDecimationShader = `
+  const pointDecimationShader = `
 struct Params {
     first: u32,
     visibleLength: u32,
@@ -416,7 +416,7 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
 }
 `;
 
-    const decimationShader = `
+  const decimationShader = `
 struct Params {
     first: u32,
     visibleLength: u32,
@@ -590,7 +590,7 @@ fn decimate(
 }
 `;
 
-    const rangeShader = `
+  const rangeShader = `
 struct Params {
     length: u32,
     workgroupCount: u32,
@@ -675,12 +675,25 @@ fn reduceRange(
 }
 `;
 
-    Object.assign(ns, {
-        uniformBufferSize, fillVerticesPerSegment, lineVerticesPerSegment,
-        decimationWorkgroupSize, decimationFactor, decimationBucketsPerPixel,
-        maxDecimationBuckets, rangeWorkgroupSize, maxRangeWorkgroups,
-        defaultCacheBudget, overviewBucketSize, reducedPointsPerBucket,
-        streamChunkLength, rawChunkLength, shader, overviewShader,
-        pointDecimationShader, decimationShader, rangeShader,
-    });
+  Object.assign(ns, {
+    uniformBufferSize,
+    fillVerticesPerSegment,
+    lineVerticesPerSegment,
+    decimationWorkgroupSize,
+    decimationFactor,
+    decimationBucketsPerPixel,
+    maxDecimationBuckets,
+    rangeWorkgroupSize,
+    maxRangeWorkgroups,
+    defaultCacheBudget,
+    overviewBucketSize,
+    reducedPointsPerBucket,
+    streamChunkLength,
+    rawChunkLength,
+    shader,
+    overviewShader,
+    pointDecimationShader,
+    decimationShader,
+    rangeShader,
+  });
 })();

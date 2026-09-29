@@ -1,15 +1,19 @@
-import tseslint from 'typescript-eslint'
+import tseslint from 'typescript-eslint';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
-// The only enforced rule is the auto-fixable core padding-line-between-statements rule,
-// which inserts/removes blank lines between statements. It is the standard tool for
-// "enforce spacing between lines of code". The @typescript-eslint/ variant of this rule
-// was removed from the typescript-eslint plugin, so the core rule is used instead; it
-// recognizes the statement types relevant here (const/let/var, if/for/while/switch/try,
-// return, multiline-expression) on both TS and JS via the @typescript-eslint parser.
-// Other readability rules (max-len, max-statements-per-line, brace-style) are intentionally
-// NOT enabled: they are not auto-fixable and would require manual rewrites.
-// nonblock-statement-body-position ("below") forbids single-line control bodies such as
-// `if (x) y;` by moving the body onto its own line; it is whitespace-fixable (semantically inert).
+// Prettier owns all formatting (indentation, braces, quotes, semicolons, line
+// wrapping, trailing commas). eslint-config-prettier is appended last to turn
+// off every ESLint formatting rule that would otherwise conflict with Prettier.
+// The only ESLint rules kept here are non-formatting readability rules that
+// Prettier does not handle:
+//   - padding-line-between-statements: enforce blank lines between statements
+//     (Prettier preserves blank lines but does not add them). Uses the core
+//     rule because the @typescript-eslint/ variant was removed in v8; it
+//     recognizes the relevant statement types (const/let/var, if/for/while/
+//     switch/try, return, multiline-expression) on both TS and JS.
+//   - curly ("all"): require braces on every if/else/for/while. Prettier then
+//     expands the block across multiple lines with correct indentation, which
+//     is what forbids the single-line `if (x) return;` form.
 const paddingLineBetweenStatements = [
   'error',
   // blank line after a run of variable declarations
@@ -21,7 +25,7 @@ const paddingLineBetweenStatements = [
   // blank line before/after multiline expressions
   { blankLine: 'always', prev: '*', next: 'multiline-expression' },
   { blankLine: 'always', prev: 'multiline-expression', next: '*' },
-]
+];
 
 export default tseslint.config(
   {
@@ -38,8 +42,16 @@ export default tseslint.config(
     },
     rules: {
       'padding-line-between-statements': paddingLineBetweenStatements,
-      // forbid single-line control bodies: `if (x) y;` -> `if (x)\n  y;`
-      'nonblock-statement-body-position': ['error', 'below'],
     },
   },
-)
+  eslintConfigPrettier,
+  // Re-enable curly after eslint-config-prettier, which disables it as a
+  // precaution. Prettier preserves brace style (never adds or removes braces),
+  // so there is no actual conflict — the two tools are complementary.
+  {
+    files: ['src/**/*.{ts,js}'],
+    rules: {
+      curly: ['error', 'all'],
+    },
+  },
+);

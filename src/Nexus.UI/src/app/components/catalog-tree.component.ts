@@ -1,9 +1,9 @@
-import { Component, computed, input, output } from '@angular/core'
-import { TreeNode } from 'primeng/api'
-import { Tree, TreeModule } from 'primeng/tree'
-import { AppTooltipDirective } from '../app-tooltip.directive'
-import { CatalogNode } from '../nexus.service'
-import { abbreviateMiddle, lastSegment } from '../utils'
+import { Component, computed, input, output } from '@angular/core';
+import { TreeNode } from 'primeng/api';
+import { Tree, TreeModule } from 'primeng/tree';
+import { AppTooltipDirective } from '../app-tooltip.directive';
+import { CatalogNode } from '../nexus.service';
+import { abbreviateMiddle, lastSegment } from '../utils';
 
 @Component({
   selector: 'app-catalog-tree',
@@ -29,22 +29,48 @@ import { abbreviateMiddle, lastSegment } from '../utils'
     >
       <ng-template pTemplate="default" let-treeNode>
         @let node = treeNode.data;
-        <div class="flex min-w-0 items-center gap-2" [pTooltip]="node.title" [tooltipDisabled]="!node.title">
-          <span class="shrink-0 truncate font-mono text-[13px] font-semibold leading-5 text-[var(--p-text-color)]">
+        <div
+          class="flex min-w-0 items-center gap-2"
+          [pTooltip]="node.title"
+          [tooltipDisabled]="!node.title"
+        >
+          <span
+            class="shrink-0 truncate font-mono text-[13px] font-semibold leading-5 text-[var(--p-text-color)]"
+          >
             <span class="sm:hidden">{{ abbreviateMiddle(treeNode.label, 28) }}</span>
             <span class="hidden sm:inline">{{ treeNode.label }}</span>
           </span>
           @if (!node.isFake && node.isReadable === false) {
-            <span class="shrink-0 text-[var(--p-text-muted-color)]" aria-label="Catalog is not readable" pTooltip="You can see this catalog, but you do not have read access." tooltipPosition="top">
-              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 0 0-9 0v3" />
+            <span
+              class="shrink-0 text-[var(--p-text-muted-color)]"
+              aria-label="Catalog is not readable"
+              pTooltip="You can see this catalog, but you do not have read access."
+              tooltipPosition="top"
+            >
+              <svg
+                class="h-3.5 w-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M16.5 10.5V7.5a4.5 4.5 0 0 0-9 0v3"
+                />
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 10.5h13.5v9H5.25z" />
               </svg>
             </span>
           }
           @if (!node.isFake && node.title) {
-            <span class="shrink-0 text-[10px] text-[var(--p-text-muted-color)]" aria-hidden="true">·</span>
-            <span class="min-w-0 truncate text-xs text-[var(--p-text-muted-color)] opacity-90">{{ node.title }}</span>
+            <span class="shrink-0 text-[10px] text-[var(--p-text-muted-color)]" aria-hidden="true"
+              >·</span
+            >
+            <span class="min-w-0 truncate text-xs text-[var(--p-text-muted-color)] opacity-90">{{
+              node.title
+            }}</span>
           }
         </div>
       </ng-template>
@@ -52,24 +78,25 @@ import { abbreviateMiddle, lastSegment } from '../utils'
   `,
 })
 export class CatalogTreeComponent {
-  readonly nodes = input.required<CatalogNode[]>()
-  readonly selectedNodeKey = input.required<string>()
-  readonly expandedNodeKeys = input.required<ReadonlySet<string>>()
-  readonly expandableNodeKeys = input.required<ReadonlySet<string>>()
-  readonly activate = output<CatalogNode>()
-  readonly toggle = output<CatalogNode>()
-  readonly abbreviateMiddle = abbreviateMiddle
-  readonly trackNode = (_index: number, node: TreeNode<CatalogNode>) => node.key
+  readonly nodes = input.required<CatalogNode[]>();
+  readonly selectedNodeKey = input.required<string>();
+  readonly expandedNodeKeys = input.required<ReadonlySet<string>>();
+  readonly expandableNodeKeys = input.required<ReadonlySet<string>>();
+  readonly activate = output<CatalogNode>();
+  readonly toggle = output<CatalogNode>();
+  readonly abbreviateMiddle = abbreviateMiddle;
+  readonly trackNode = (_index: number, node: TreeNode<CatalogNode>) => node.key;
 
   readonly treeNodes = computed<TreeNode<CatalogNode>[]>(() => {
-    const roots: TreeNode<CatalogNode>[] = []
-    const stack: TreeNode<CatalogNode>[] = []
-    const expanded = this.expandedNodeKeys()
-    const expandable = this.expandableNodeKeys()
+    const roots: TreeNode<CatalogNode>[] = [];
+    const stack: TreeNode<CatalogNode>[] = [];
+    const expanded = this.expandedNodeKeys();
+    const expandable = this.expandableNodeKeys();
 
     for (const node of this.nodes()) {
-      while (stack.length && stack[stack.length - 1].data!.depth >= node.depth) 
-stack.pop()
+      while (stack.length && stack[stack.length - 1].data!.depth >= node.depth) {
+        stack.pop();
+      }
 
       const treeNode: TreeNode<CatalogNode> = {
         key: node.nodeKey,
@@ -78,39 +105,41 @@ stack.pop()
         expanded: expanded.has(node.nodeKey),
         leaf: !expandable.has(node.nodeKey),
         children: [],
+      };
+      const parent = stack[stack.length - 1];
+
+      if (parent) {
+        parent.children!.push(treeNode);
+      } else {
+        roots.push(treeNode);
       }
-      const parent = stack[stack.length - 1]
 
-      if (parent) 
-parent.children!.push(treeNode)
-      else 
-roots.push(treeNode)
-
-      stack.push(treeNode)
+      stack.push(treeNode);
     }
 
-    return roots
-  })
+    return roots;
+  });
 
   readonly selectedTreeNode = computed(() => {
-    const key = this.selectedNodeKey()
-    const stack = [...this.treeNodes()]
+    const key = this.selectedNodeKey();
+    const stack = [...this.treeNodes()];
 
     while (stack.length) {
-      const node = stack.pop()!
+      const node = stack.pop()!;
 
-      if (node.key === key) 
-return node
+      if (node.key === key) {
+        return node;
+      }
 
-      stack.push(...(node.children ?? []))
+      stack.push(...(node.children ?? []));
     }
 
-    return null
-  })
+    return null;
+  });
 
   activateNode(node: TreeNode<CatalogNode>, tree: Tree) {
-    this.activate.emit(node.data!)
+    this.activate.emit(node.data!);
     // Activation may only toggle a synthetic folder; selection stays parent-owned.
-    tree.selection.set(this.selectedTreeNode())
+    tree.selection.set(this.selectedTreeNode());
   }
 }

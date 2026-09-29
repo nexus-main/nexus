@@ -1,10 +1,10 @@
-import { provideZonelessChangeDetection } from '@angular/core'
-import { bootstrapApplication } from '@angular/platform-browser'
-import { provideRouter } from '@angular/router'
-import { provideMonacoEditor } from 'ngx-monaco-editor-v2'
-import { providePrimeNG } from 'primeng/config'
-import { AppComponent } from './app/app.component'
-import { nexusPreset } from './app/theme'
+import { provideZonelessChangeDetection } from '@angular/core';
+import { bootstrapApplication } from '@angular/platform-browser';
+import { provideRouter } from '@angular/router';
+import { provideMonacoEditor } from 'ngx-monaco-editor-v2';
+import { providePrimeNG } from 'primeng/config';
+import { AppComponent } from './app/app.component';
+import { nexusPreset } from './app/theme';
 
 bootstrapApplication(AppComponent, {
   providers: [
@@ -21,4 +21,4 @@ bootstrapApplication(AppComponent, {
       },
     }),
   ],
-}).catch((error: unknown) => console.error(error))
+}).catch((error: unknown) => console.error(error));

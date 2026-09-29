@@ -1,14 +1,15 @@
-import type * as Monaco from 'monaco-editor'
+import type * as Monaco from 'monaco-editor';
 
-export type ThemeMode = 'dark' | 'light'
+export type ThemeMode = 'dark' | 'light';
 
-let themesDefined = false
+let themesDefined = false;
 
 export function defineNexusMonacoThemes(monaco: typeof Monaco): void {
-  if (themesDefined) 
-return
+  if (themesDefined) {
+    return;
+  }
 
-  themesDefined = true
+  themesDefined = true;
 
   monaco.editor.defineTheme('nexus-dark', {
     base: 'vs-dark',
@@ -42,7 +43,7 @@ return
       'editorSuggestWidget.highlightForeground': '#67e8f9',
       'editorGutter.background': '#0f172a',
     },
-  })
+  });
 
   monaco.editor.defineTheme('nexus-light', {
     base: 'vs',
@@ -76,9 +77,9 @@ return
       'editorSuggestWidget.highlightForeground': '#0891b2',
       'editorGutter.background': '#ffffff',
     },
-  })
+  });
 }
 
 export function getNexusMonacoTheme(themeMode: ThemeMode): string {
-  return themeMode === 'dark' ? 'nexus-dark' : 'nexus-light'
+  return themeMode === 'dark' ? 'nexus-dark' : 'nexus-light';
 }

@@ -1,5 +1,5 @@
-import { definePreset } from '@primeuix/themes'
-import Aura from '@primeuix/themes/aura'
+import { definePreset } from '@primeuix/themes';
+import Aura from '@primeuix/themes/aura';
 
 const slateSurface = {
   0: '#ffffff',
@@ -14,7 +14,7 @@ const slateSurface = {
   800: '{slate.800}',
   900: '{slate.900}',
   950: '{slate.950}',
-}
+};
 
 export const nexusPreset = definePreset(Aura, {
   semantic: {
@@ -38,13 +38,23 @@ export const nexusPreset = definePreset(Aura, {
     colorScheme: {
       light: {
         surface: slateSurface,
-        primary: { color: '{cyan.700}', hoverColor: '{cyan.800}', activeColor: '{cyan.900}', contrastColor: '#ffffff' },
+        primary: {
+          color: '{cyan.700}',
+          hoverColor: '{cyan.800}',
+          activeColor: '{cyan.900}',
+          contrastColor: '#ffffff',
+        },
         text: { mutedColor: '{slate.600}', hoverMutedColor: '{slate.700}' },
         formField: { borderColor: '{slate.400}', hoverBorderColor: '{slate.500}' },
       },
       dark: {
         surface: slateSurface,
-        primary: { color: '{cyan.300}', hoverColor: '{cyan.200}', activeColor: '{cyan.100}', contrastColor: '{slate.950}' },
+        primary: {
+          color: '{cyan.300}',
+          hoverColor: '{cyan.200}',
+          activeColor: '{cyan.100}',
+          contrastColor: '{slate.950}',
+        },
       },
     },
   },
@@ -57,17 +67,32 @@ export const nexusPreset = definePreset(Aura, {
         light: {
           root: {
             secondary: {
-              background: '{slate.100}', hoverBackground: '{slate.200}', activeBackground: '{slate.300}',
-              borderColor: '{slate.300}', hoverBorderColor: '{slate.400}', activeBorderColor: '{slate.500}',
-              color: '{slate.900}', hoverColor: '{slate.950}', activeColor: '{slate.950}',
+              background: '{slate.100}',
+              hoverBackground: '{slate.200}',
+              activeBackground: '{slate.300}',
+              borderColor: '{slate.300}',
+              hoverBorderColor: '{slate.400}',
+              activeBorderColor: '{slate.500}',
+              color: '{slate.900}',
+              hoverColor: '{slate.950}',
+              activeColor: '{slate.950}',
             },
           },
           outlined: {
             primary: { borderColor: '{cyan.600}' },
-            secondary: { borderColor: '{slate.400}', color: '{slate.700}', hoverBackground: '{slate.100}', activeBackground: '{slate.200}' },
+            secondary: {
+              borderColor: '{slate.400}',
+              color: '{slate.700}',
+              hoverBackground: '{slate.100}',
+              activeBackground: '{slate.200}',
+            },
           },
           text: {
-            secondary: { color: '{slate.700}', hoverBackground: '{slate.200}', activeBackground: '{slate.300}' },
+            secondary: {
+              color: '{slate.700}',
+              hoverBackground: '{slate.200}',
+              activeBackground: '{slate.300}',
+            },
           },
         },
       },
@@ -138,4 +163,4 @@ export const nexusPreset = definePreset(Aura, {
       },
     },
   },
-})
+});

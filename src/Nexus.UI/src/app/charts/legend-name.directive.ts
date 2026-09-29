@@ -1,4 +1,12 @@
-import { AfterViewInit, Directive, ElementRef, Input, OnChanges, OnDestroy, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  Directive,
+  ElementRef,
+  Input,
+  OnChanges,
+  OnDestroy,
+  inject,
+} from '@angular/core';
 import { fitLegendName } from './legend-text';
 
 @Directive({
@@ -12,13 +20,19 @@ export class LegendNameDirective implements AfterViewInit, OnChanges, OnDestroy 
   private readonly context = this.element.ownerDocument.createElement('canvas').getContext('2d');
   private observer?: ResizeObserver;
   private readonly fit = (): void => {
-    if (!this.context) 
-return;
+    if (!this.context) {
+      return;
+    }
 
     const style = getComputedStyle(this.element);
 
     this.context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-    this.element.textContent = fitLegendName(this.legendName, this.element.clientWidth, text => this.context!.measureText(text).width);
+
+    this.element.textContent = fitLegendName(
+      this.legendName,
+      this.element.clientWidth,
+      (text) => this.context!.measureText(text).width,
+    );
   };
 
   ngAfterViewInit(): void {
@@ -28,7 +42,9 @@ return;
     this.fit();
   }
 
-  ngOnChanges(): void { this.fit(); }
+  ngOnChanges(): void {
+    this.fit();
+  }
 
   ngOnDestroy(): void {
     this.observer?.disconnect();

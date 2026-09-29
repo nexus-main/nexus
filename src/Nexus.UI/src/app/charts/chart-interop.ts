@@ -9,11 +9,24 @@ export interface ChartCallbacks {
 }
 
 export interface ChartCallbackAdapter {
-  invokeMethodAsync<K extends keyof ChartCallbacks>(method: K, ...args: ChartCallbacks[K]): Promise<void>;
+  invokeMethodAsync<K extends keyof ChartCallbacks>(
+    method: K,
+    ...args: ChartCallbacks[K]
+  ): Promise<void>;
 }
 
-export interface GpuRange { hasValue: boolean; minimum: number; maximum: number }
-export interface AuxiliaryUpdate { id: string; visible: boolean; x: number; y: number; text: string }
+export interface GpuRange {
+  hasValue: boolean;
+  minimum: number;
+  maximum: number;
+}
+export interface AuxiliaryUpdate {
+  id: string;
+  visible: boolean;
+  x: number;
+  y: number;
+  text: string;
+}
 export interface SeriesPayload {
   id: string;
   show: boolean;
@@ -39,21 +52,56 @@ export interface ChartInterop {
   chart: {
     initInteractions(id: string, helper: ChartCallbackAdapter): void;
     dispose(id: string): void;
-    resize(id: string, element: string, left: number, top: number, right: number, bottom: number): void;
+    resize(
+      id: string,
+      element: string,
+      left: number,
+      top: number,
+      right: number,
+      bottom: number,
+    ): void;
     toRelative(id: string, clientX: number, clientY: number): { x: number; y: number };
-    updateAuxiliary(id: string, x: number, y: number, time: string, updates: AuxiliaryUpdate[]): void;
+    updateAuxiliary(
+      id: string,
+      x: number,
+      y: number,
+      time: string,
+      updates: AuxiliaryUpdate[],
+    ): void;
     clearAuxiliary(id: string): void;
   };
   chartWebGpu: {
     initialize(id: string, helper: ChartCallbackAdapter): void;
     setCacheBudget(id: string, bytes: number): boolean;
     synchronizeSeries(id: string, activeIds: string[]): void;
-    beginChunkedSeries(id: string, seriesId: string, version: number, length: number): Promise<number>;
-    appendChunkedSeries(id: string, token: number, offset: number, data: Float32Array, sampleCount: number): void;
-    processChunkedSeriesUpload(id: string, token: number, offset: number, count: number): Promise<void>;
+    beginChunkedSeries(
+      id: string,
+      seriesId: string,
+      version: number,
+      length: number,
+    ): Promise<number>;
+    appendChunkedSeries(
+      id: string,
+      token: number,
+      offset: number,
+      data: Float32Array,
+      sampleCount: number,
+    ): void;
+    processChunkedSeriesUpload(
+      id: string,
+      token: number,
+      offset: number,
+      count: number,
+    ): Promise<void>;
     completeChunkedSeries(id: string, token: number): Promise<GpuRange>;
     abortChunkedSeries(id: string, token: number): void;
-    appendSeriesChunk(id: string, requestId: number, offset: number, data: Float32Array, sampleCount: number): void;
+    appendSeriesChunk(
+      id: string,
+      requestId: number,
+      offset: number,
+      data: Float32Array,
+      sampleCount: number,
+    ): void;
     renderSeries(id: string, payload: RenderPayload): void;
     releaseTarget(id: string, target: string): void;
     retry(id: string): Promise<boolean>;
@@ -64,8 +112,9 @@ export interface ChartInterop {
 export function getChartInterop(): ChartInterop {
   const nexus = (window as Window & { nexus?: ChartInterop }).nexus;
 
-  if (!nexus?.chart || !nexus.chartWebGpu) 
-throw new Error('The Nexus chart scripts have not been loaded.');
+  if (!nexus?.chart || !nexus.chartWebGpu) {
+    throw new Error('The Nexus chart scripts have not been loaded.');
+  }
 
   return nexus;
 }

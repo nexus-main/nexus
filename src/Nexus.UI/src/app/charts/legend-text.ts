@@ -1,12 +1,19 @@
-export function fitLegendName(name: string, width: number, measure: (text: string) => number): string {
-  if (width <= 0) 
-return '';
+export function fitLegendName(
+  name: string,
+  width: number,
+  measure: (text: string) => number,
+): string {
+  if (width <= 0) {
+    return '';
+  }
 
-  if (measure(name) <= width) 
-return name;
+  if (measure(name) <= width) {
+    return name;
+  }
 
-  if (measure('...') > width) 
-return '';
+  if (measure('...') > width) {
+    return '';
+  }
 
   const characters = Array.from(name);
   let low = 0;
@@ -17,13 +24,15 @@ return '';
     const count = Math.floor((low + high) / 2);
     const start = Math.ceil(count / 2);
     const end = Math.floor(count / 2);
-    const candidate = characters.slice(0, start).join('') + '...' + (end ? characters.slice(-end).join('') : '');
+    const candidate =
+      characters.slice(0, start).join('') + '...' + (end ? characters.slice(-end).join('') : '');
 
     if (measure(candidate) <= width) {
       result = candidate;
       low = count + 1;
-    } else 
-high = count - 1;
+    } else {
+      high = count - 1;
+    }
   }
 
   return result;
