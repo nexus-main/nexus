@@ -1,6 +1,17 @@
-import tseslint from "typescript-eslint";
-import eslintConfigPrettier from "eslint-config-prettier";
-import { paddingLineBetweenStatements, noUnusedVars } from "./eslint-rules.cjs";
+import { createRequire } from "module";
+
+// ESLint flat config at the repo root. A single config covers both the Angular
+// app source (src/Nexus.UI/src/**) and the UI integration tests
+// (tests/Nexus.UI.Tests/app/**). ESLint v10 uses CWD as base path, so this
+// config must be invoked from the repo root — the npm scripts in
+// src/Nexus.UI/package.json `cd ../..` before running ESLint.
+//
+// Dependencies (typescript-eslint, eslint-config-prettier) live in
+// src/Nexus.UI/node_modules/, so createRequire resolves them from there.
+const require = createRequire(new URL("./src/Nexus.UI/node_modules/", import.meta.url));
+
+const tseslint = require("typescript-eslint");
+const eslintConfigPrettier = require("eslint-config-prettier");
 
 // Prettier owns all formatting (indentation, braces, quotes, semicolons, line
 // wrapping, trailing commas). eslint-config-prettier is appended last to turn
@@ -17,13 +28,36 @@ import { paddingLineBetweenStatements, noUnusedVars } from "./eslint-rules.cjs";
 //     is what forbids the single-line `if (x) return;` form.
 //   - @typescript-eslint/no-unused-vars: error on unused locals, imports, and
 //     parameters. Variables/args/caught-errors prefixed with `_` are exempt.
+const paddingLineBetweenStatements = [
+  "error",
+  // blank line after a run of variable declarations
+  { blankLine: "always", prev: ["const", "let", "var"], next: "*" },
+  { blankLine: "any", prev: ["const", "let", "var"], next: ["const", "let", "var"] },
+  // blank line before/after control flow
+  { blankLine: "always", prev: "*", next: ["if", "for", "while", "switch", "try", "return"] },
+  { blankLine: "always", prev: ["if", "for", "while", "switch", "try"], next: "*" },
+  // blank line before/after multiline expressions
+  { blankLine: "always", prev: "*", next: "multiline-expression" },
+  { blankLine: "always", prev: "multiline-expression", next: "*" },
+];
+
+const noUnusedVars = [
+  "error",
+  {
+    argsIgnorePattern: "^_",
+    varsIgnorePattern: "^_",
+    caughtErrorsIgnorePattern: "^_",
+  },
+];
+
+const uiFiles = ["src/Nexus.UI/src/**/*.{ts,js}", "tests/Nexus.UI.Tests/app/**/*.{ts,js}"];
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", "out-tsc/**", ".angular/**"],
+    ignores: ["**/dist/**", "**/node_modules/**", "**/out-tsc/**", "**/.angular/**"],
   },
   {
-    files: ["src/**/*.{ts,js}"],
+    files: uiFiles,
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
@@ -42,7 +76,7 @@ export default tseslint.config(
   // precaution. Prettier preserves brace style (never adds or removes braces),
   // so there is no actual conflict — the two tools are complementary.
   {
-    files: ["src/**/*.{ts,js}"],
+    files: uiFiles,
     rules: {
       curly: ["error", "all"],
     },
