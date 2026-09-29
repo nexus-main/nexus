@@ -12,7 +12,8 @@ internal record InternalPersonalAccessToken(
     Guid Id,
     string Description,
     DateTime Expires,
-    IReadOnlyList<TokenClaim> Claims);
+    IReadOnlyList<TokenClaim> Claims,
+    IReadOnlyList<TokenClaim> GrantClaims);
 
 internal record struct Interval(
     DateTime Begin,

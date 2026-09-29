@@ -149,4 +149,15 @@ internal static partial class NexusUtilities
     {
         return ((ushort)dataType & 0x00FF) / 8;
     }
+
+    public static string SafePathCombine(string basePath, string relativePath)
+    {
+        var filePath = Path.GetFullPath(Path.Combine(basePath, relativePath));
+        var normalizedBasePath = Path.GetFullPath(basePath);
+
+        if (!filePath.StartsWith(normalizedBasePath, StringComparison.Ordinal))
+            throw new Exception("Invalid path.");
+
+        return filePath;
+    }
 }

@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.DataModel;
+using Nexus.Utilities;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Nexus.Services;
@@ -16,8 +17,6 @@ internal interface IDatabaseService
     Stream WriteCatalogMetadata(string catalogId);
 
     /* /config/users */
-    IEnumerable<string> EnumerateUsers();
-
     bool TryReadTokenMap(
         string userId,
         [NotNullWhen(true)] out string? tokenMap);
@@ -25,12 +24,11 @@ internal interface IDatabaseService
     Stream WriteTokenMap(
         string userId);
 
+    /* /config/pipelines.json */
     bool TryReadPipelineMap(
-        string userId,
         [NotNullWhen(true)] out string? pipelineMap);
 
-    Stream WritePipelineMap(
-        string userId);
+    Stream WritePipelineMap();
 
     /* /catalogs/catalog_id/... */
     bool AttachmentExists(string catalogId, string attachmentId);
@@ -83,7 +81,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     public bool TryReadCatalogMetadata(string catalogId, [NotNullWhen(true)] out string? catalogMetadata)
     {
         var catalogMetadataFileName = $"{GetPhysicalCatalogId(catalogId)}" + FILE_EXTENSION;
-        var filePath = SafePathCombine(_pathsOptions.Config, Path.Combine(CATALOGS, catalogMetadataFileName));
+        var filePath = NexusUtilities.SafePathCombine(_pathsOptions.Config, Path.Combine(CATALOGS, catalogMetadataFileName));
 
         catalogMetadata = default;
 
@@ -103,33 +101,16 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
         Directory.CreateDirectory(folderPath);
 
-        var filePath = SafePathCombine(folderPath, catalogMetadataFileName);
+        var filePath = NexusUtilities.SafePathCombine(folderPath, catalogMetadataFileName);
 
         return File.Open(filePath, FileMode.Create, FileAccess.Write);
     }
 
     /* /config/users */
-    public IEnumerable<string> EnumerateUsers()
-    {
-        var usersPath = Path.Combine(_pathsOptions.Config, USERS);
-
-        if (Directory.Exists(usersPath))
-        {
-            return Directory
-                .EnumerateDirectories(usersPath)
-                .Select(x => Path.GetFileName(x));
-        }
-
-        else
-        {
-            return Enumerable.Empty<string>();
-        }
-    }
-
     public bool TryReadTokenMap(string userId,
         [NotNullWhen(true)] out string? tokenMap)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var folderPath = NexusUtilities.SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
         var tokenFilePath = Path.Combine(folderPath, TOKENS + FILE_EXTENSION);
 
         tokenMap = default;
@@ -146,7 +127,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     public Stream WriteTokenMap(
         string userId)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
+        var folderPath = NexusUtilities.SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
         var tokensFilePath = Path.Combine(folderPath, TOKENS + FILE_EXTENSION);
 
         Directory.CreateDirectory(folderPath);
@@ -154,12 +135,11 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         return File.Open(tokensFilePath, FileMode.Create, FileAccess.Write);
     }
 
+    /* /config/pipelines.json */
     public bool TryReadPipelineMap(
-       string userId,
        [NotNullWhen(true)] out string? pipelineMap)
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
-        var pipelinesFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
+        var pipelinesFilePath = Path.Combine(_pathsOptions.Config, PIPELINES + FILE_EXTENSION);
 
         pipelineMap = default;
 
@@ -172,13 +152,13 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         return false;
     }
 
-    public Stream WritePipelineMap(
-        string userId)
+    public Stream WritePipelineMap()
     {
-        var folderPath = SafePathCombine(Path.Combine(_pathsOptions.Config, USERS), userId);
-        var pipelinesFilePath = Path.Combine(folderPath, PIPELINES + FILE_EXTENSION);
+        var configPath = _pathsOptions.Config;
 
-        Directory.CreateDirectory(folderPath);
+        Directory.CreateDirectory(configPath);
+
+        var pipelinesFilePath = Path.Combine(configPath, PIPELINES + FILE_EXTENSION);
 
         return File.Open(pipelinesFilePath, FileMode.Create, FileAccess.Write);
     }
@@ -187,14 +167,14 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     public bool AttachmentExists(string catalogId, string attachmentId)
     {
-        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
+        var attachmentFile = NexusUtilities.SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
 
         return File.Exists(attachmentFile);
     }
 
     public IEnumerable<string> EnumerateAttachments(string catalogId)
     {
-        var attachmentFolder = SafePathCombine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId));
+        var attachmentFolder = NexusUtilities.SafePathCombine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId));
 
         if (Directory.Exists(attachmentFolder))
             return Directory
@@ -213,7 +193,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
         if (Directory.Exists(attachmentFolder))
         {
-            var attachmentFile = SafePathCombine(attachmentFolder, attachmentId);
+            var attachmentFile = NexusUtilities.SafePathCombine(attachmentFolder, attachmentId);
 
             if (File.Exists(attachmentFile))
             {
@@ -229,7 +209,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     {
         attachment = default;
 
-        var attachmentFolder = SafePathCombine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId));
+        var attachmentFolder = NexusUtilities.SafePathCombine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId));
 
         if (Directory.Exists(attachmentFolder))
         {
@@ -249,7 +229,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     public Stream WriteAttachment(string catalogId, string attachmentId)
     {
-        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
+        var attachmentFile = NexusUtilities.SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
         var attachmentFolder = Path.GetDirectoryName(attachmentFile)!;
 
         Directory.CreateDirectory(attachmentFolder);
@@ -259,7 +239,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
     public void DeleteAttachment(string catalogId, string attachmentId)
     {
-        var attachmentFile = SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
+        var attachmentFile = NexusUtilities.SafePathCombine(Path.Combine(_pathsOptions.Catalogs, GetPhysicalCatalogId(catalogId)), attachmentId);
 
         File.Delete(attachmentFile);
     }
@@ -269,7 +249,7 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     {
         artifact = default;
 
-        var attachmentFile = SafePathCombine(_pathsOptions.Artifacts, artifactId);
+        var attachmentFile = NexusUtilities.SafePathCombine(_pathsOptions.Artifacts, artifactId);
 
         if (File.Exists(attachmentFile))
         {
@@ -393,16 +373,6 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
 
         if (File.Exists(cacheEntry))
             throw new Exception($"Cannot delete cache entry {cacheEntry}.");
-    }
-
-    private static string SafePathCombine(string basePath, string relativePath)
-    {
-        var filePath = Path.GetFullPath(Path.Combine(basePath, relativePath));
-
-        if (!filePath.StartsWith(basePath))
-            throw new Exception("Invalid path.");
-
-        return filePath;
     }
 
     private string GetPhysicalCatalogId(string catalogId)

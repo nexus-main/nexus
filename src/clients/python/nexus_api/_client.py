@@ -18,10 +18,10 @@ from httpx import AsyncClient, Client, Request, Response
 
 from ._encoder import JsonEncoder
 from ._shared import NexusException, _json_encoder_options
-from .V1 import V1, V1Async
-from .V1 import CatalogItem, TaskStatus
-from .V2 import V2, V2Async
-from .V2 import BatchStreamRequest, ExportParameters, Precision
+from .V1 import V1 as _V1, V1Async as _V1Async
+from . import V1 as _V1Module
+from .V2 import V2 as _V2, V2Async as _V2Async
+from . import V2 as _V2Module
 
 
 T = TypeVar("T")
@@ -48,8 +48,8 @@ class NexusClient:
     ___token: Optional[str]
     ___http_client: Client
 
-    _v1: V1
-    _v2: V2
+    _v1: _V1
+    _v2: _V2
 
 
     @classmethod
@@ -76,8 +76,8 @@ class NexusClient:
         self.___http_client = http_client
         self.___token = None
 
-        self._v1 = V1(self._invoke)
-        self._v2 = V2(self._invoke)
+        self._v1 = _V1(self._invoke)
+        self._v2 = _V2(self._invoke)
 
 
     @property
@@ -86,12 +86,12 @@ class NexusClient:
         return self.___token is not None
 
     @property
-    def v1(self) -> V1:
+    def v1(self) -> _V1:
         """Gets the client for version V1."""
         return self._v1
 
     @property
-    def v2(self) -> V2:
+    def v2(self) -> _V2:
         """Gets the client for version V2."""
         return self._v2
 
@@ -204,7 +204,7 @@ class NexusClient:
         begin: datetime, 
         end: datetime, 
         resource_paths: Iterable[str],
-        precision: Precision,
+        precision: _V2Module.Precision,
         on_progress: Optional[Callable[[float], None]] = None) -> dict[str, DataResponse]:
         """This high-level methods simplifies loading multiple resources at once.
 
@@ -224,7 +224,7 @@ class NexusClient:
         precision_size = precision.value
 
         catalog_item_map = self.v1.catalogs.search_catalog_items(resource_path_list)
-        response = self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list, precision))
+        response = self.v2.data.get_stream(_V2Module.BatchStreamRequest(begin, end, resource_path_list, precision))
         expected_lengths = [
             ((end - begin) // catalog_item_map[path].representation.sample_period) * precision_size
             for path in resource_path_list]
@@ -280,11 +280,11 @@ class NexusClient:
         self,
         response: Response,
         expected_lengths: list[int],
-        precision: Precision,
+        precision: _V2Module.Precision,
         report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview]:
-        array_type = "f" if precision == Precision.FLOAT32 else "d"
+        array_type = "f" if precision == _V2Module.Precision.FLOAT32 else "d"
         precision_size = precision.value
-        precision_type = pa.float32() if precision == Precision.FLOAT32 else pa.float64()
+        precision_type = pa.float32() if precision == _V2Module.Precision.FLOAT32 else pa.float64()
 
         buffers = [bytearray(length) for length in expected_lengths]
         byte_views = [memoryview(buffer).cast("B") for buffer in buffers]
@@ -385,7 +385,7 @@ class NexusClient:
         resource_paths: Iterable[str],
         configuration: dict[str, object],
         target_folder: str,
-        precision: Precision,
+        precision: _V2Module.Precision,
         on_progress: Optional[Callable[[float, str], None]] = None) -> None:
         """This high-level methods simplifies exporting multiple resources at once.
 
@@ -401,7 +401,7 @@ class NexusClient:
             onProgress: A callback which accepts the current progress and the progress message.
         """
 
-        export_parameters = ExportParameters(
+        export_parameters = _V2Module.ExportParameters(
             begin,
             end,
             file_period,
@@ -422,13 +422,13 @@ class NexusClient:
             
             job_status = self.v1.jobs.get_job_status(job.id)
 
-            if (job_status.status == TaskStatus.CANCELED):
+            if (job_status.status == _V1Module.TaskStatus.CANCELED):
                 raise Exception("The job has been cancelled.")
 
-            elif (job_status.status == TaskStatus.FAULTED):
+            elif (job_status.status == _V1Module.TaskStatus.FAULTED):
                 raise Exception(f"The job has failed. Reason: {job_status.exception_message}")
 
-            elif (job_status.status == TaskStatus.RAN_TO_COMPLETION):
+            elif (job_status.status == _V1Module.TaskStatus.RAN_TO_COMPLETION):
 
                 if (job_status.result is not None and \
                     type(job_status.result) == str):
@@ -509,8 +509,8 @@ class NexusAsyncClient:
     ___token: Optional[str]
     ___http_client: AsyncClient
 
-    _v1: V1Async
-    _v2: V2Async
+    _v1: _V1Async
+    _v2: _V2Async
 
 
     @classmethod
@@ -537,8 +537,8 @@ class NexusAsyncClient:
         self.___http_client = http_client
         self.___token = None
 
-        self._v1 = V1Async(self._invoke)
-        self._v2 = V2Async(self._invoke)
+        self._v1 = _V1Async(self._invoke)
+        self._v2 = _V2Async(self._invoke)
 
 
     @property
@@ -547,12 +547,12 @@ class NexusAsyncClient:
         return self.___token is not None
 
     @property
-    def v1(self) -> V1Async:
+    def v1(self) -> _V1Async:
         """Gets the client for version V1."""
         return self._v1
 
     @property
-    def v2(self) -> V2Async:
+    def v2(self) -> _V2Async:
         """Gets the client for version V2."""
         return self._v2
 
@@ -665,7 +665,7 @@ class NexusAsyncClient:
         begin: datetime, 
         end: datetime, 
         resource_paths: Iterable[str],
-        precision: Precision,
+        precision: _V2Module.Precision,
         on_progress: Optional[Callable[[float], None]] = None) -> dict[str, DataResponse]:
         """This high-level methods simplifies loading multiple resources at once.
 
@@ -685,7 +685,7 @@ class NexusAsyncClient:
         precision_size = precision.value
 
         catalog_item_map = await self.v1.catalogs.search_catalog_items(resource_path_list)
-        response = await self.v2.data.get_stream(BatchStreamRequest(begin, end, resource_path_list, precision))
+        response = await self.v2.data.get_stream(_V2Module.BatchStreamRequest(begin, end, resource_path_list, precision))
         expected_lengths = [
             ((end - begin) // catalog_item_map[path].representation.sample_period) * precision_size
             for path in resource_path_list]
@@ -741,11 +741,11 @@ class NexusAsyncClient:
         self,
         response: Response,
         expected_lengths: list[int],
-        precision: Precision,
+        precision: _V2Module.Precision,
         report_progress: Optional[Callable[[int], None]] = None) -> list[memoryview]:
-        array_type = "f" if precision == Precision.FLOAT32 else "d"
+        array_type = "f" if precision == _V2Module.Precision.FLOAT32 else "d"
         precision_size = precision.value
-        precision_type = pa.float32() if precision == Precision.FLOAT32 else pa.float64()
+        precision_type = pa.float32() if precision == _V2Module.Precision.FLOAT32 else pa.float64()
 
         buffers = [bytearray(length) for length in expected_lengths]
         byte_views = [memoryview(buffer).cast("B") for buffer in buffers]
@@ -851,7 +851,7 @@ class NexusAsyncClient:
         resource_paths: Iterable[str],
         configuration: dict[str, object],
         target_folder: str,
-        precision: Precision,
+        precision: _V2Module.Precision,
         on_progress: Optional[Callable[[float, str], None]] = None) -> None:
         """This high-level methods simplifies exporting multiple resources at once.
 
@@ -867,7 +867,7 @@ class NexusAsyncClient:
             onProgress: A callback which accepts the current progress and the progress message.
         """
 
-        export_parameters = ExportParameters(
+        export_parameters = _V2Module.ExportParameters(
             begin,
             end,
             file_period,
@@ -888,13 +888,13 @@ class NexusAsyncClient:
             
             job_status = await self.v1.jobs.get_job_status(job.id)
 
-            if (job_status.status == TaskStatus.CANCELED):
+            if (job_status.status == _V1Module.TaskStatus.CANCELED):
                 raise Exception("The job has been cancelled.")
 
-            elif (job_status.status == TaskStatus.FAULTED):
+            elif (job_status.status == _V1Module.TaskStatus.FAULTED):
                 raise Exception(f"The job has failed. Reason: {job_status.exception_message}")
 
-            elif (job_status.status == TaskStatus.RAN_TO_COMPLETION):
+            elif (job_status.status == _V1Module.TaskStatus.RAN_TO_COMPLETION):
 
                 if (job_status.result is not None and \
                     type(job_status.result) == str):
@@ -1015,7 +1015,7 @@ class ResourceInfo:
         sample_period: The sample period.
     """
 
-    catalog_item: CatalogItem
+    catalog_item: _V1Module.CatalogItem
     """The catalog item."""
 
     name: str

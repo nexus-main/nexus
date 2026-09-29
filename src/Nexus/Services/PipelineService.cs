@@ -9,17 +9,15 @@ namespace Nexus.Services;
 
 internal interface IPipelineService
 {
-    Task<Guid> PutAsync(string userId, DataSourcePipeline pipeline);
+    Task<Guid> PutAsync(DataSourcePipeline pipeline);
 
-    public Task<DataSourcePipeline?> GetAsync(string userId, Guid pipelineId);
+    Task<DataSourcePipeline?> GetAsync(Guid pipelineId);
 
-    Task<bool> TryUpdateAsync(string userId, Guid pipelineId, DataSourcePipeline pipeline);
+    Task<bool> TryUpdateAsync(Guid pipelineId, DataSourcePipeline pipeline);
 
-    Task DeleteAsync(string userId, Guid pipelineId);
+    Task DeleteAsync(Guid pipelineId);
 
-    Task<IReadOnlyDictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>> GetAllAsync();
-
-    Task<IReadOnlyDictionary<Guid, DataSourcePipeline>> GetAllForUserAsync(string userId);
+    Task<IReadOnlyDictionary<Guid, DataSourcePipeline>> GetAllAsync();
 }
 
 internal class PipelineService(IDatabaseService databaseService)
@@ -27,13 +25,13 @@ internal class PipelineService(IDatabaseService databaseService)
 {
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
-    private readonly Dictionary<string, Dictionary<Guid, DataSourcePipeline>> _cache = new();
+    private Dictionary<Guid, DataSourcePipeline>? _cache;
 
     private readonly IDatabaseService _databaseService = databaseService;
 
-    public Task<Guid> PutAsync(string userId, DataSourcePipeline pipeline)
+    public Task<Guid> PutAsync(DataSourcePipeline pipeline)
     {
-        return InteractWithPipelineMapAsync(userId, pipelineMap =>
+        return InteractWithPipelineMapAsync(pipelineMap =>
         {
             var id = Guid.NewGuid();
 
@@ -43,20 +41,20 @@ internal class PipelineService(IDatabaseService databaseService)
         }, saveChanges: true);
     }
 
-    public Task<DataSourcePipeline?> GetAsync(string userId, Guid pipelineId)
+    public Task<DataSourcePipeline?> GetAsync(Guid pipelineId)
     {
-        return InteractWithPipelineMapAsync(userId, pipelineMap =>
+        return InteractWithPipelineMapAsync(pipelineMap =>
         {
             pipelineMap.TryGetValue(pipelineId, out var pipeline);
             return pipeline;
         }, saveChanges: false);
     }
 
-    public Task<bool> TryUpdateAsync(string userId, Guid pipelineId, DataSourcePipeline pipeline)
+    public Task<bool> TryUpdateAsync(Guid pipelineId, DataSourcePipeline pipeline)
     {
-        return InteractWithPipelineMapAsync(userId, pipelineMap =>
+        return InteractWithPipelineMapAsync(pipelineMap =>
         {
-            /* Proceed only if pipeline already exists! 
+            /* Proceed only if pipeline already exists!
              * We do not want pipeline IDs being set from
              * outside.
              */
@@ -73,66 +71,43 @@ internal class PipelineService(IDatabaseService databaseService)
         }, saveChanges: true);
     }
 
-    public Task DeleteAsync(string userId, Guid pipelineId)
+    public Task DeleteAsync(Guid pipelineId)
     {
-        return InteractWithPipelineMapAsync<object?>(userId, pipelineMap =>
+        return InteractWithPipelineMapAsync<object?>(pipelineMap =>
         {
-            var pipelineEntry = pipelineMap
-                .FirstOrDefault(entry => entry.Key == pipelineId);
-
-            pipelineMap.Remove(pipelineEntry.Key);
-
+            pipelineMap.Remove(pipelineId);
             return default;
         }, saveChanges: true);
     }
 
-    public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>> GetAllAsync()
-    {
-        var result = new Dictionary<string, IReadOnlyDictionary<Guid, DataSourcePipeline>>();
-
-        foreach (var userId in _databaseService.EnumerateUsers())
-        {
-            var pipelines = await GetAllForUserAsync(userId);
-            result[userId] = pipelines;
-        }
-
-        return result;
-    }
-
-    public Task<IReadOnlyDictionary<Guid, DataSourcePipeline>> GetAllForUserAsync(
-        string userId)
+    public Task<IReadOnlyDictionary<Guid, DataSourcePipeline>> GetAllAsync()
     {
         return InteractWithPipelineMapAsync(
-            userId,
             pipelineMap => (IReadOnlyDictionary<Guid, DataSourcePipeline>)pipelineMap,
             saveChanges: false
         );
     }
 
-    private Dictionary<Guid, DataSourcePipeline> GetPipelineMap(
-        string userId)
+    private Dictionary<Guid, DataSourcePipeline> GetPipelineMap()
     {
-        if (!_cache.TryGetValue(userId, out var pipelineMap))
+        if (_cache is null)
         {
-            if (_databaseService.TryReadPipelineMap(userId, out var jsonString))
+            if (_databaseService.TryReadPipelineMap(out var jsonString))
             {
-                pipelineMap = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(jsonString, JsonSerializerOptions.Web)
+                _cache = JsonSerializer.Deserialize<Dictionary<Guid, DataSourcePipeline>>(jsonString, JsonSerializerOptions.Web)
                     ?? throw new Exception("pipelineMap is null");
             }
 
             else
             {
-                pipelineMap = new();
+                _cache = new();
             }
         }
 
-        _cache[userId] = pipelineMap;
-
-        return pipelineMap;
+        return _cache;
     }
 
     private async Task<T> InteractWithPipelineMapAsync<T>(
-        string userId,
         Func<Dictionary<Guid, DataSourcePipeline>, T> func,
         bool saveChanges)
     {
@@ -140,12 +115,12 @@ internal class PipelineService(IDatabaseService databaseService)
 
         try
         {
-            var pipelineMap = GetPipelineMap(userId);
+            var pipelineMap = GetPipelineMap();
             var result = func(pipelineMap);
 
             if (saveChanges)
             {
-                using var stream = _databaseService.WritePipelineMap(userId);
+                using var stream = _databaseService.WritePipelineMap();
                 JsonSerializerHelper.SerializeIndented(stream, pipelineMap);
             }
 

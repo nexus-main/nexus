@@ -103,6 +103,12 @@ public static class Program
 
             pythonGenerator.Generate(pythonOutputFolderPath, v1Document, v2Document);
 
+            // generate TypeScript client
+            var typeScriptOutputFolderPath = Path.Combine(solutionRoot, "src", "clients", "typescript");
+            var typeScriptGenerator = new TypeScriptGenerator(settings);
+
+            typeScriptGenerator.Generate(typeScriptOutputFolderPath, v1Document, v2Document);
+
             // save open API documents
             var openApiDocumentOutputPath = Path.Combine(solutionRoot, openApiFileName);
             var openApiV2DocumentOutputPath = Path.Combine(solutionRoot, openApiV2FileName);

@@ -288,6 +288,40 @@
         }
       }
     },
+    "/api/v1/catalogs/{catalogId}/accept-license": {
+      "post": {
+        "tags": [
+          "Catalogs"
+        ],
+        "summary": "Accepts the current license of the specified catalog.",
+        "operationId": "Catalogs_AcceptLicense",
+        "parameters": [
+          {
+            "name": "catalogId",
+            "in": "path",
+            "required": true,
+            "description": "The catalog identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/catalogs/{catalogId}/attachments": {
       "get": {
         "tags": [
@@ -603,6 +637,140 @@
         }
       }
     },
+    "/api/v1/git/config": {
+      "get": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Gets the effective Git configuration without secrets.",
+        "operationId": "Git_GetConfig",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/git/status": {
+      "get": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Gets the current Git status.",
+        "operationId": "Git_GetStatus",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/git/history": {
+      "get": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Gets the configuration history.",
+        "operationId": "Git_GetHistory",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitHistoryEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/git/diff/{commitSha}": {
+      "get": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Gets file-level changes for a commit.",
+        "operationId": "Git_GetDiff",
+        "parameters": [
+          {
+            "name": "commitSha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitDiffFile"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/git/restore": {
+      "post": {
+        "tags": [
+          "Git"
+        ],
+        "summary": "Restores the configuration from a commit by creating a new commit.",
+        "operationId": "Git_Restore",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitRestoreRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitRestoreResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs": {
       "get": {
         "tags": [
@@ -790,6 +958,39 @@
             "x-position": 3
           }
         ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/git/sync": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Creates a new Git synchronization job.",
+        "operationId": "Jobs_SyncGit",
+        "requestBody": {
+          "x-name": "parameters",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitSyncRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
         "responses": {
           "200": {
             "description": "",
@@ -1001,18 +1202,6 @@
         ],
         "summary": "Gets the list of data source pipelines.",
         "operationId": "Sources_GetPipelines",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 1
-          }
-        ],
         "responses": {
           "200": {
             "description": "",
@@ -1035,18 +1224,6 @@
         ],
         "summary": "Creates a data source pipeline.",
         "operationId": "Sources_CreatePipeline",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 2
-          }
-        ],
         "requestBody": {
           "x-name": "pipeline",
           "description": "The pipeline to create.",
@@ -1093,16 +1270,6 @@
               "format": "guid"
             },
             "x-position": 1
-          },
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 3
           }
         ],
         "requestBody": {
@@ -1149,16 +1316,6 @@
               "format": "guid"
             },
             "x-position": 1
-          },
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 2
           }
         ],
         "responses": {
@@ -1176,114 +1333,23 @@
         }
       }
     },
-    "/api/v1/system/file-type": {
+    "/api/v1/system": {
       "get": {
         "tags": [
           "System"
         ],
-        "summary": "Gets the default file type.",
-        "operationId": "System_GetDefaultFileType",
+        "summary": "Gets the system configuration.",
+        "operationId": "System_Get",
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/SystemResponse"
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/v1/system/help-link": {
-      "get": {
-        "tags": [
-          "System"
-        ],
-        "summary": "Gets the configured help link.",
-        "operationId": "System_GetHelpLink",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/authenticate": {
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Authenticates the user.",
-        "operationId": "Users_Authenticate",
-        "parameters": [
-          {
-            "name": "scheme",
-            "in": "query",
-            "required": true,
-            "description": "The authentication scheme to challenge.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          },
-          {
-            "name": "returnUrl",
-            "in": "query",
-            "required": true,
-            "description": "The URL to return after successful authentication.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 2
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/signout": {
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Logs out the user.",
-        "operationId": "Users_SignOut",
-        "parameters": [
-          {
-            "name": "returnUrl",
-            "in": "query",
-            "required": true,
-            "description": "The URL to return after logout.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
           }
         }
       }
@@ -1343,28 +1409,6 @@
         }
       }
     },
-    "/api/v1/users/reauthenticate": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Allows the user to reauthenticate in case of modified claims.",
-        "operationId": "Users_ReAuthenticate",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/users/tokens": {
       "get": {
         "tags": [
@@ -1372,18 +1416,6 @@
         ],
         "summary": "Gets all personal access tokens.",
         "operationId": "Users_GetTokens",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 1
-          }
-        ],
         "responses": {
           "200": {
             "description": "",
@@ -1408,18 +1440,6 @@
         ],
         "summary": "Creates a personal access token.",
         "operationId": "Users_CreateToken",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "description": "The optional user identifier. If not specified, the current user will be used.",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            },
-            "x-position": 2
-          }
-        ],
         "requestBody": {
           "x-name": "token",
           "description": "The personal access token to create.",
@@ -1460,246 +1480,6 @@
             "in": "path",
             "required": true,
             "description": "The identifier of the personal access token.",
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/accept-license": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Accepts the license of the specified catalog.",
-        "operationId": "Users_AcceptLicense",
-        "parameters": [
-          {
-            "name": "catalogId",
-            "in": "query",
-            "required": true,
-            "description": "The catalog identifier.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Gets a list of users.",
-        "operationId": "Users_GetUsers",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/components/schemas/NexusUser"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Creates a user.",
-        "operationId": "Users_CreateUser",
-        "requestBody": {
-          "x-name": "user",
-          "description": "The user to create.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NexusUser"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/{userId}": {
-      "delete": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Deletes a user.",
-        "operationId": "Users_DeleteUser",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the user.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/{userId}/claims": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Gets all claims.",
-        "operationId": "Users_GetClaims",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the user.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/components/schemas/NexusClaim"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Creates a claim.",
-        "operationId": "Users_CreateClaim",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the user.",
-            "schema": {
-              "type": "string"
-            },
-            "x-position": 1
-          }
-        ],
-        "requestBody": {
-          "x-name": "claim",
-          "description": "The claim to create.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NexusClaim"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 2
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "format": "guid"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/claims/{claimId}": {
-      "delete": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Deletes a claim.",
-        "operationId": "Users_DeleteClaim",
-        "parameters": [
-          {
-            "name": "claimId",
-            "in": "path",
-            "required": true,
-            "description": "The identifier of the claim.",
             "schema": {
               "type": "string",
               "format": "guid"
@@ -1929,17 +1709,9 @@
             "type": "boolean",
             "description": "A boolean which indicates if the catalog is editable."
           },
-          "isReleased": {
-            "type": "boolean",
-            "description": "A boolean which indicates if the catalog is released."
-          },
           "isVisible": {
             "type": "boolean",
             "description": "A boolean which indicates if the catalog is visible."
-          },
-          "isOwner": {
-            "type": "boolean",
-            "description": "A boolean which indicates if the catalog is owned by the current user."
           },
           "packageReferenceIds": {
             "type": "array",
@@ -2044,6 +1816,201 @@
                 "$ref": "#/components/schemas/ResourceCatalog"
               }
             ]
+          }
+        }
+      },
+      "GitConfigResponse": {
+        "type": "object",
+        "description": "The effective Git configuration without secret values.",
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "type": "string",
+            "description": "The configured Git branch."
+          },
+          "commitThrottleSeconds": {
+            "type": "integer",
+            "description": "The number of seconds Nexus waits before committing configuration changes.",
+            "format": "int32"
+          },
+          "remoteUrl": {
+            "type": "string",
+            "description": "The configured remote Git repository URL.",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "description": "The configured HTTPS username.",
+            "nullable": true
+          },
+          "hasToken": {
+            "type": "boolean",
+            "description": "A value indicating whether an HTTPS token is configured."
+          },
+          "hasSshPrivateKey": {
+            "type": "boolean",
+            "description": "A value indicating whether an SSH private key is configured."
+          },
+          "authMode": {
+            "type": "string",
+            "description": "The authentication mode inferred from the remote URL."
+          },
+          "commitAuthorName": {
+            "type": "string",
+            "description": "The Git commit author name."
+          },
+          "commitAuthorEmail": {
+            "type": "string",
+            "description": "The Git commit author email."
+          },
+          "isRemoteConfigured": {
+            "type": "boolean",
+            "description": "A value indicating whether remote backup has enough configuration to push."
+          }
+        }
+      },
+      "GitStatusResponse": {
+        "type": "object",
+        "description": "The current Git repository and push status required by the admin UI.",
+        "additionalProperties": false,
+        "properties": {
+          "gitAvailable": {
+            "type": "boolean",
+            "description": "A value indicating whether the Git executable is available."
+          },
+          "sshAvailable": {
+            "type": "boolean",
+            "description": "A value indicating whether the SSH executable is available."
+          },
+          "hasUncommittedChanges": {
+            "type": "boolean",
+            "description": "A value indicating whether the local repository has uncommitted changes."
+          },
+          "currentCommitSha": {
+            "type": "string",
+            "description": "The current commit SHA.",
+            "nullable": true
+          },
+          "lastPushedCommitSha": {
+            "type": "string",
+            "description": "The last commit SHA successfully pushed by this process.",
+            "nullable": true
+          },
+          "lastSuccessfulPushAt": {
+            "type": "string",
+            "description": "The last successful push time.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastPushStatus": {
+            "description": "The last push status.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GitPushStatus"
+              }
+            ]
+          },
+          "lastPushError": {
+            "type": "string",
+            "description": "The last push error.",
+            "nullable": true
+          }
+        }
+      },
+      "GitPushStatus": {
+        "type": "string",
+        "description": "The result of pushing configuration history to a remote Git repository.",
+        "x-enumNames": [
+          "NotConfigured",
+          "Succeeded",
+          "Failed"
+        ],
+        "enum": [
+          "NotConfigured",
+          "Succeeded",
+          "Failed"
+        ]
+      },
+      "GitHistoryEntry": {
+        "type": "object",
+        "description": "A Git commit in the configuration history.",
+        "additionalProperties": false,
+        "properties": {
+          "sha": {
+            "type": "string",
+            "description": "The full commit SHA."
+          },
+          "shortSha": {
+            "type": "string",
+            "description": "The abbreviated commit SHA."
+          },
+          "date": {
+            "type": "string",
+            "description": "The commit date.",
+            "format": "date-time"
+          },
+          "authorName": {
+            "type": "string",
+            "description": "The commit author name."
+          },
+          "authorEmail": {
+            "type": "string",
+            "description": "The commit author email."
+          },
+          "message": {
+            "type": "string",
+            "description": "The commit message."
+          }
+        }
+      },
+      "GitDiffFile": {
+        "type": "object",
+        "description": "A changed file in a Git commit.",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The repository-relative file path."
+          },
+          "status": {
+            "type": "string",
+            "description": "The Git file status."
+          },
+          "originalText": {
+            "type": "string",
+            "description": "The file text before the commit.",
+            "nullable": true
+          },
+          "modifiedText": {
+            "type": "string",
+            "description": "The file text after the commit.",
+            "nullable": true
+          }
+        }
+      },
+      "GitRestoreResponse": {
+        "type": "object",
+        "description": "The result of restoring configuration from a commit.",
+        "additionalProperties": false,
+        "properties": {
+          "commitSha": {
+            "type": "string",
+            "description": "The commit SHA created by the restore operation."
+          },
+          "message": {
+            "type": "string",
+            "description": "A human-readable result message."
+          }
+        }
+      },
+      "GitRestoreRequest": {
+        "type": "object",
+        "description": "A request to restore configuration from a commit.",
+        "additionalProperties": false,
+        "properties": {
+          "commitSha": {
+            "type": "string",
+            "description": "The commit SHA to restore."
           }
         }
       },
@@ -2169,6 +2136,17 @@
           }
         }
       },
+      "GitSyncRequest": {
+        "type": "object",
+        "description": "A request to synchronize local configuration history with the configured remote.",
+        "additionalProperties": false,
+        "properties": {
+          "force": {
+            "type": "boolean",
+            "description": "A value indicating whether to force-push once."
+          }
+        }
+      },
       "PackageReference": {
         "type": "object",
         "description": "A package reference.",
@@ -2234,15 +2212,14 @@
               "$ref": "#/components/schemas/DataSourceRegistration"
             }
           },
-          "releasePattern": {
-            "type": "string",
-            "description": "An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.",
-            "nullable": true
-          },
           "visibilityPattern": {
             "type": "string",
             "description": "An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.",
             "nullable": true
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled."
           }
         }
       },
@@ -2271,6 +2248,32 @@
           }
         }
       },
+      "SystemResponse": {
+        "type": "object",
+        "description": "A system response.",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "The Nexus version."
+          },
+          "applicationName": {
+            "type": "string",
+            "description": "The application name.",
+            "nullable": true
+          },
+          "helpLink": {
+            "type": "string",
+            "description": "The help link.",
+            "nullable": true
+          },
+          "logoutUrl": {
+            "type": "string",
+            "description": "The logout URL.",
+            "nullable": true
+          }
+        }
+      },
       "MeResponse": {
         "type": "object",
         "description": "A me response.",
@@ -2280,37 +2283,22 @@
             "type": "string",
             "description": "The user id."
           },
-          "user": {
-            "description": "The user.",
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/NexusUser"
-              }
-            ]
-          }
-        }
-      },
-      "NexusUser": {
-        "type": "object",
-        "description": "Represents a user.",
-        "additionalProperties": false,
-        "properties": {
           "name": {
             "type": "string",
             "description": "The user name."
           },
           "claims": {
             "type": "array",
-            "description": "The list of claims.",
+            "description": "The user claims.",
             "items": {
-              "$ref": "#/components/schemas/NexusClaim"
+              "$ref": "#/components/schemas/TokenClaim"
             }
           }
         }
       },
-      "NexusClaim": {
+      "TokenClaim": {
         "type": "object",
-        "description": "Represents a claim.",
+        "description": "A revoke token request.",
         "additionalProperties": false,
         "properties": {
           "type": {
@@ -2343,21 +2331,13 @@
             "items": {
               "$ref": "#/components/schemas/TokenClaim"
             }
-          }
-        }
-      },
-      "TokenClaim": {
-        "type": "object",
-        "description": "A revoke token request.",
-        "additionalProperties": false,
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "The claim type."
           },
-          "value": {
-            "type": "string",
-            "description": "The claim value."
+          "grantClaims": {
+            "type": "array",
+            "description": "A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator.",
+            "items": {
+              "$ref": "#/components/schemas/TokenClaim"
+            }
           }
         }
       }

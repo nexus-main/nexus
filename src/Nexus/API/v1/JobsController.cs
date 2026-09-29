@@ -26,6 +26,7 @@ internal class JobsController(
     AppStateManager appStateManager,
     IJobService jobService,
     IServiceProvider serviceProvider,
+    IAcceptedLicenseService acceptedLicenseService,
     Serilog.IDiagnosticContext diagnosticContext,
     ILogger<JobsController> logger) : ControllerBase
 {
@@ -35,12 +36,14 @@ internal class JobsController(
     // POST     /jobs/export
     // POST     /jobs/load-packages
     // POST     /jobs/clear-cache
+    // POST     /jobs/git/sync
 
     private readonly AppStateManager _appStateManager = appStateManager;
     private readonly ILogger _logger = logger;
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly Serilog.IDiagnosticContext _diagnosticContext = diagnosticContext;
     private readonly IJobService _jobService = jobService;
+    private readonly IAcceptedLicenseService _acceptedLicenseService = acceptedLicenseService;
 
     #region Jobs Management
 
@@ -52,7 +55,7 @@ internal class JobsController(
     public ActionResult<List<Job>> GetJobs()
     {
         var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
-        var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
+        var username = GetUserId();
         var result = _jobService
             .GetJobs()
             .Select(jobControl => jobControl.Job)
@@ -73,7 +76,7 @@ internal class JobsController(
         if (_jobService.TryGetJob(jobId, out var jobControl))
         {
             var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
-            var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
+            var username = GetUserId();
             if (jobControl.Job.Owner == username || isAdmin)
             {
                 jobControl.CancellationTokenSource.Cancel();
@@ -103,7 +106,7 @@ internal class JobsController(
         if (_jobService.TryGetJob(jobId, out var jobControl))
         {
             var isAdmin = User.IsInRole(nameof(NexusRoles.Administrator));
-            var username = (User.Identity?.Name) ?? throw new Exception("This should never happen.");
+            var username = GetUserId();
 
             if (jobControl.Job.Owner == username || isAdmin)
             {
@@ -195,7 +198,12 @@ internal class JobsController(
             {
                 var catalogContainer = group.First().Container;
 
-                if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                if (!await AuthUtilities.IsCatalogReadableAsync(
+                    catalogContainer,
+                    User,
+                    _acceptedLicenseService,
+                    cancellationToken
+                ))
                     throw new UnauthorizedAccessException($"The current user is not permitted to access catalog {catalogContainer.Id}.");
             }
         }
@@ -205,7 +213,7 @@ internal class JobsController(
         }
 
         //
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
         var job = new Job(Guid.NewGuid(), "export", username, v2Parameters);
         var dataService = _serviceProvider.GetRequiredService<IDataService>();
 
@@ -239,7 +247,7 @@ internal class JobsController(
     [HttpPost("refresh-database")]
     public ActionResult<Job> RefreshDatabase()
     {
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
 
         var job = new Job(Guid.NewGuid(), "refresh-database", username, default);
         var progress = new Progress<double>();
@@ -276,7 +284,7 @@ internal class JobsController(
         [BindRequired] DateTime end,
         CancellationToken cancellationToken)
     {
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
         var job = new Job(Guid.NewGuid(), "clear-cache", username, default);
 
         var response = await ProtectCatalogNonGenericAsync(catalogId, catalogContainer =>
@@ -304,6 +312,34 @@ internal class JobsController(
         return (ActionResult<Job>)response;
     }
 
+    /// <summary>
+    /// Creates a new Git synchronization job.
+    /// </summary>
+    [Authorize(Policy = NexusPolicies.RequireAdmin)]
+    [HttpPost("git/sync")]
+    public ActionResult<Job> SyncGit(GitSyncRequest parameters)
+    {
+        var username = GetUserId();
+        var job = new Job(Guid.NewGuid(), "git-sync", username, parameters);
+        var progress = new Progress<double>();
+        var gitService = _serviceProvider.GetRequiredService<IGitService>();
+
+        var jobControl = _jobService.AddJob(job, progress, async (jobControl, cts) =>
+        {
+            try
+            {
+                return await gitService.SyncAsync(parameters.Force, progress, cts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unable to synchronize Git.");
+                throw;
+            }
+        });
+
+        return Accepted(GetAcceptUrl(job.Id), job);
+    }
+
     #endregion
 
     #region Methods
@@ -311,6 +347,11 @@ internal class JobsController(
     private string GetAcceptUrl(Guid jobId)
     {
         return $"{Request.Scheme}://{Request.Host}{Request.Path}/{jobId}/status";
+    }
+
+    private string GetUserId()
+    {
+        return User.FindFirst(NexusClaimTypes.Subject)!.Value;
     }
 
     private async Task<ActionResult> ProtectCatalogNonGenericAsync(

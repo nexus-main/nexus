@@ -22,6 +22,7 @@ class V1:
     _artifacts: ArtifactsClient
     _catalogs: CatalogsClient
     _data: DataClient
+    _git: GitClient
     _jobs: JobsClient
     _packageReferences: PackageReferencesClient
     _sources: SourcesClient
@@ -41,6 +42,7 @@ class V1:
         self._artifacts = ArtifactsClient(invoke)
         self._catalogs = CatalogsClient(invoke)
         self._data = DataClient(invoke)
+        self._git = GitClient(invoke)
         self._jobs = JobsClient(invoke)
         self._packageReferences = PackageReferencesClient(invoke)
         self._sources = SourcesClient(invoke)
@@ -63,6 +65,11 @@ class V1:
     def data(self) -> DataClient:
         """Gets the DataClient."""
         return self._data
+
+    @property
+    def git(self) -> GitClient:
+        """Gets the GitClient."""
+        return self._git
 
     @property
     def jobs(self) -> JobsClient:
@@ -216,6 +223,19 @@ class CatalogsClient:
 
         return self.___invoke(str, "GET", __url, "application/json", None, None)
 
+    def accept_license(self, catalog_id: str) -> Response:
+        """
+        Accepts the current license of the specified catalog.
+
+        Args:
+            catalog_id: The catalog identifier.
+        """
+
+        __url = "/api/v1/catalogs/{catalogId}/accept-license"
+        __url = __url.replace("{catalogId}", quote(str(catalog_id), safe=""))
+
+        return self.___invoke(Response, "POST", __url, "application/octet-stream", None, None)
+
     def get_attachments(self, catalog_id: str) -> list[str]:
         """
         Gets all attachments for the specified catalog.
@@ -335,6 +355,72 @@ class DataClient:
         return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
 
+class GitClient:
+    """Provides methods to interact with git."""
+
+    ___invoke: HttpRequestHandler
+    
+    def __init__(self, invoke: HttpRequestHandler):
+        self.___invoke = invoke
+
+    def get_config(self) -> GitConfigResponse:
+        """
+        Gets the effective Git configuration without secrets.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/config"
+
+        return self.___invoke(GitConfigResponse, "GET", __url, "application/json", None, None)
+
+    def get_status(self) -> GitStatusResponse:
+        """
+        Gets the current Git status.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/status"
+
+        return self.___invoke(GitStatusResponse, "GET", __url, "application/json", None, None)
+
+    def get_history(self) -> list[GitHistoryEntry]:
+        """
+        Gets the configuration history.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/history"
+
+        return self.___invoke(list[GitHistoryEntry], "GET", __url, "application/json", None, None)
+
+    def get_diff(self, commit_sha: str) -> list[GitDiffFile]:
+        """
+        Gets file-level changes for a commit.
+
+        Args:
+            commit_sha:
+        """
+
+        __url = "/api/v1/git/diff/{commitSha}"
+        __url = __url.replace("{commitSha}", quote(str(commit_sha), safe=""))
+
+        return self.___invoke(list[GitDiffFile], "GET", __url, "application/json", None, None)
+
+    def restore(self, request: GitRestoreRequest) -> GitRestoreResponse:
+        """
+        Restores the configuration from a commit by creating a new commit.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/restore"
+
+        return self.___invoke(GitRestoreResponse, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
+
 class JobsClient:
     """Provides methods to interact with jobs."""
 
@@ -426,6 +512,17 @@ class JobsClient:
         __url += __query
 
         return self.___invoke(Job, "POST", __url, "application/json", None, None)
+
+    def sync_git(self, parameters: GitSyncRequest) -> Job:
+        """
+        Creates a new Git synchronization job.
+
+        Args:
+        """
+
+        __url = "/api/v1/jobs/git/sync"
+
+        return self.___invoke(Job, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(parameters, _json_encoder_options)))
 
 
 class PackageReferencesClient:
@@ -522,87 +619,51 @@ class SourcesClient:
 
         return self.___invoke(list[ExtensionDescription], "GET", __url, "application/json", None, None)
 
-    def get_pipelines(self, user_id: Optional[str] = None) -> dict[str, DataSourcePipeline]:
+    def get_pipelines(self) -> dict[str, DataSourcePipeline]:
         """
         Gets the list of data source pipelines.
 
         Args:
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/sources/pipelines"
 
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
         return self.___invoke(dict[str, DataSourcePipeline], "GET", __url, "application/json", None, None)
 
-    def create_pipeline(self, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> UUID:
+    def create_pipeline(self, pipeline: DataSourcePipeline) -> UUID:
         """
         Creates a data source pipeline.
 
         Args:
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/sources/pipelines"
 
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
-    def update_pipeline(self, pipeline_id: UUID, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> Response:
+    def update_pipeline(self, pipeline_id: UUID, pipeline: DataSourcePipeline) -> Response:
         """
         Updates a data source pipeline.
 
         Args:
             pipeline_id: The identifier of the pipeline to update.
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/sources/pipelines/{pipelineId}"
         __url = __url.replace("{pipelineId}", quote(str(pipeline_id), safe=""))
 
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
         return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
-    def delete_pipeline(self, pipeline_id: UUID, user_id: Optional[str] = None) -> Response:
+    def delete_pipeline(self, pipeline_id: UUID) -> Response:
         """
         Deletes a data source pipeline.
 
         Args:
             pipeline_id: The identifier of the pipeline to delete.
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/sources/pipelines/{pipelineId}"
         __url = __url.replace("{pipelineId}", quote(str(pipeline_id), safe=""))
-
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
 
         return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
@@ -615,27 +676,16 @@ class SystemClient:
     def __init__(self, invoke: HttpRequestHandler):
         self.___invoke = invoke
 
-    def get_default_file_type(self) -> str:
+    def get(self) -> SystemResponse:
         """
-        Gets the default file type.
+        Gets the system configuration.
 
         Args:
         """
 
-        __url = "/api/v1/system/file-type"
+        __url = "/api/v1/system"
 
-        return self.___invoke(str, "GET", __url, "application/json", None, None)
-
-    def get_help_link(self) -> str:
-        """
-        Gets the configured help link.
-
-        Args:
-        """
-
-        __url = "/api/v1/system/help-link"
-
-        return self.___invoke(str, "GET", __url, "application/json", None, None)
+        return self.___invoke(SystemResponse, "GET", __url, "application/json", None, None)
 
 
 class UsersClient:
@@ -645,47 +695,6 @@ class UsersClient:
     
     def __init__(self, invoke: HttpRequestHandler):
         self.___invoke = invoke
-
-    def authenticate(self, scheme: str, return_url: str) -> Response:
-        """
-        Authenticates the user.
-
-        Args:
-            scheme: The authentication scheme to challenge.
-            return_url: The URL to return after successful authentication.
-        """
-
-        __url = "/api/v1/users/authenticate"
-
-        __query_values: dict[str, str] = {}
-
-        __query_values["scheme"] = quote(_to_string(scheme), safe="")
-
-        __query_values["returnUrl"] = quote(_to_string(return_url), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
-        return self.___invoke(Response, "POST", __url, "application/octet-stream", None, None)
-
-    def sign_out(self, return_url: str) -> None:
-        """
-        Logs out the user.
-
-        Args:
-            return_url: The URL to return after logout.
-        """
-
-        __url = "/api/v1/users/signout"
-
-        __query_values: dict[str, str] = {}
-
-        __query_values["returnUrl"] = quote(_to_string(return_url), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
-        return self.___invoke(type(None), "POST", __url, None, None, None)
 
     def delete_token_by_value(self, value: str) -> Response:
         """
@@ -717,54 +726,25 @@ class UsersClient:
 
         return self.___invoke(MeResponse, "GET", __url, "application/json", None, None)
 
-    def re_authenticate(self) -> Response:
-        """
-        Allows the user to reauthenticate in case of modified claims.
-
-        Args:
-        """
-
-        __url = "/api/v1/users/reauthenticate"
-
-        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def get_tokens(self, user_id: Optional[str] = None) -> dict[str, PersonalAccessToken]:
+    def get_tokens(self) -> dict[str, PersonalAccessToken]:
         """
         Gets all personal access tokens.
 
         Args:
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/users/tokens"
 
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
         return self.___invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
-    def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> str:
+    def create_token(self, token: PersonalAccessToken) -> str:
         """
         Creates a personal access token.
 
         Args:
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/users/tokens/create"
-
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
 
         return self.___invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(token, _json_encoder_options)))
 
@@ -778,99 +758,6 @@ class UsersClient:
 
         __url = "/api/v1/users/tokens/{tokenId}"
         __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
-
-        return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
-
-    def accept_license(self, catalog_id: str) -> Response:
-        """
-        Accepts the license of the specified catalog.
-
-        Args:
-            catalog_id: The catalog identifier.
-        """
-
-        __url = "/api/v1/users/accept-license"
-
-        __query_values: dict[str, str] = {}
-
-        __query_values["catalogId"] = quote(_to_string(catalog_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
-        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def get_users(self) -> dict[str, NexusUser]:
-        """
-        Gets a list of users.
-
-        Args:
-        """
-
-        __url = "/api/v1/users"
-
-        return self.___invoke(dict[str, NexusUser], "GET", __url, "application/json", None, None)
-
-    def create_user(self, user: NexusUser) -> str:
-        """
-        Creates a user.
-
-        Args:
-        """
-
-        __url = "/api/v1/users"
-
-        return self.___invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(user, _json_encoder_options)))
-
-    def delete_user(self, user_id: str) -> Response:
-        """
-        Deletes a user.
-
-        Args:
-            user_id: The identifier of the user.
-        """
-
-        __url = "/api/v1/users/{userId}"
-        __url = __url.replace("{userId}", quote(str(user_id), safe=""))
-
-        return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
-
-    def get_claims(self, user_id: str) -> dict[str, NexusClaim]:
-        """
-        Gets all claims.
-
-        Args:
-            user_id: The identifier of the user.
-        """
-
-        __url = "/api/v1/users/{userId}/claims"
-        __url = __url.replace("{userId}", quote(str(user_id), safe=""))
-
-        return self.___invoke(dict[str, NexusClaim], "GET", __url, "application/json", None, None)
-
-    def create_claim(self, user_id: str, claim: NexusClaim) -> UUID:
-        """
-        Creates a claim.
-
-        Args:
-            user_id: The identifier of the user.
-        """
-
-        __url = "/api/v1/users/{userId}/claims"
-        __url = __url.replace("{userId}", quote(str(user_id), safe=""))
-
-        return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(claim, _json_encoder_options)))
-
-    def delete_claim(self, claim_id: UUID) -> Response:
-        """
-        Deletes a claim.
-
-        Args:
-            claim_id: The identifier of the claim.
-        """
-
-        __url = "/api/v1/users/claims/{claimId}"
-        __url = __url.replace("{claimId}", quote(str(claim_id), safe=""))
 
         return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
@@ -902,6 +789,7 @@ class V1Async:
     _artifacts: ArtifactsAsyncClient
     _catalogs: CatalogsAsyncClient
     _data: DataAsyncClient
+    _git: GitAsyncClient
     _jobs: JobsAsyncClient
     _packageReferences: PackageReferencesAsyncClient
     _sources: SourcesAsyncClient
@@ -921,6 +809,7 @@ class V1Async:
         self._artifacts = ArtifactsAsyncClient(invoke)
         self._catalogs = CatalogsAsyncClient(invoke)
         self._data = DataAsyncClient(invoke)
+        self._git = GitAsyncClient(invoke)
         self._jobs = JobsAsyncClient(invoke)
         self._packageReferences = PackageReferencesAsyncClient(invoke)
         self._sources = SourcesAsyncClient(invoke)
@@ -943,6 +832,11 @@ class V1Async:
     def data(self) -> DataAsyncClient:
         """Gets the DataAsyncClient."""
         return self._data
+
+    @property
+    def git(self) -> GitAsyncClient:
+        """Gets the GitAsyncClient."""
+        return self._git
 
     @property
     def jobs(self) -> JobsAsyncClient:
@@ -1096,6 +990,19 @@ class CatalogsAsyncClient:
 
         return self.___invoke(str, "GET", __url, "application/json", None, None)
 
+    def accept_license(self, catalog_id: str) -> Awaitable[Response]:
+        """
+        Accepts the current license of the specified catalog.
+
+        Args:
+            catalog_id: The catalog identifier.
+        """
+
+        __url = "/api/v1/catalogs/{catalogId}/accept-license"
+        __url = __url.replace("{catalogId}", quote(str(catalog_id), safe=""))
+
+        return self.___invoke(Response, "POST", __url, "application/octet-stream", None, None)
+
     def get_attachments(self, catalog_id: str) -> Awaitable[list[str]]:
         """
         Gets all attachments for the specified catalog.
@@ -1215,6 +1122,72 @@ class DataAsyncClient:
         return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
 
 
+class GitAsyncClient:
+    """Provides methods to interact with git."""
+
+    ___invoke: HttpRequestHandlerAsync
+    
+    def __init__(self, invoke: HttpRequestHandlerAsync):
+        self.___invoke = invoke
+
+    def get_config(self) -> Awaitable[GitConfigResponse]:
+        """
+        Gets the effective Git configuration without secrets.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/config"
+
+        return self.___invoke(GitConfigResponse, "GET", __url, "application/json", None, None)
+
+    def get_status(self) -> Awaitable[GitStatusResponse]:
+        """
+        Gets the current Git status.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/status"
+
+        return self.___invoke(GitStatusResponse, "GET", __url, "application/json", None, None)
+
+    def get_history(self) -> Awaitable[list[GitHistoryEntry]]:
+        """
+        Gets the configuration history.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/history"
+
+        return self.___invoke(list[GitHistoryEntry], "GET", __url, "application/json", None, None)
+
+    def get_diff(self, commit_sha: str) -> Awaitable[list[GitDiffFile]]:
+        """
+        Gets file-level changes for a commit.
+
+        Args:
+            commit_sha:
+        """
+
+        __url = "/api/v1/git/diff/{commitSha}"
+        __url = __url.replace("{commitSha}", quote(str(commit_sha), safe=""))
+
+        return self.___invoke(list[GitDiffFile], "GET", __url, "application/json", None, None)
+
+    def restore(self, request: GitRestoreRequest) -> Awaitable[GitRestoreResponse]:
+        """
+        Restores the configuration from a commit by creating a new commit.
+
+        Args:
+        """
+
+        __url = "/api/v1/git/restore"
+
+        return self.___invoke(GitRestoreResponse, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
+
 class JobsAsyncClient:
     """Provides methods to interact with jobs."""
 
@@ -1306,6 +1279,17 @@ class JobsAsyncClient:
         __url += __query
 
         return self.___invoke(Job, "POST", __url, "application/json", None, None)
+
+    def sync_git(self, parameters: GitSyncRequest) -> Awaitable[Job]:
+        """
+        Creates a new Git synchronization job.
+
+        Args:
+        """
+
+        __url = "/api/v1/jobs/git/sync"
+
+        return self.___invoke(Job, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(parameters, _json_encoder_options)))
 
 
 class PackageReferencesAsyncClient:
@@ -1402,87 +1386,51 @@ class SourcesAsyncClient:
 
         return self.___invoke(list[ExtensionDescription], "GET", __url, "application/json", None, None)
 
-    def get_pipelines(self, user_id: Optional[str] = None) -> Awaitable[dict[str, DataSourcePipeline]]:
+    def get_pipelines(self) -> Awaitable[dict[str, DataSourcePipeline]]:
         """
         Gets the list of data source pipelines.
 
         Args:
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/sources/pipelines"
 
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
         return self.___invoke(dict[str, DataSourcePipeline], "GET", __url, "application/json", None, None)
 
-    def create_pipeline(self, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> Awaitable[UUID]:
+    def create_pipeline(self, pipeline: DataSourcePipeline) -> Awaitable[UUID]:
         """
         Creates a data source pipeline.
 
         Args:
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/sources/pipelines"
 
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
         return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
-    def update_pipeline(self, pipeline_id: UUID, pipeline: DataSourcePipeline, user_id: Optional[str] = None) -> Awaitable[Response]:
+    def update_pipeline(self, pipeline_id: UUID, pipeline: DataSourcePipeline) -> Awaitable[Response]:
         """
         Updates a data source pipeline.
 
         Args:
             pipeline_id: The identifier of the pipeline to update.
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/sources/pipelines/{pipelineId}"
         __url = __url.replace("{pipelineId}", quote(str(pipeline_id), safe=""))
 
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
         return self.___invoke(Response, "PUT", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(pipeline, _json_encoder_options)))
 
-    def delete_pipeline(self, pipeline_id: UUID, user_id: Optional[str] = None) -> Awaitable[Response]:
+    def delete_pipeline(self, pipeline_id: UUID) -> Awaitable[Response]:
         """
         Deletes a data source pipeline.
 
         Args:
             pipeline_id: The identifier of the pipeline to delete.
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/sources/pipelines/{pipelineId}"
         __url = __url.replace("{pipelineId}", quote(str(pipeline_id), safe=""))
-
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
 
         return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
@@ -1495,27 +1443,16 @@ class SystemAsyncClient:
     def __init__(self, invoke: HttpRequestHandlerAsync):
         self.___invoke = invoke
 
-    def get_default_file_type(self) -> Awaitable[str]:
+    def get(self) -> Awaitable[SystemResponse]:
         """
-        Gets the default file type.
+        Gets the system configuration.
 
         Args:
         """
 
-        __url = "/api/v1/system/file-type"
+        __url = "/api/v1/system"
 
-        return self.___invoke(str, "GET", __url, "application/json", None, None)
-
-    def get_help_link(self) -> Awaitable[str]:
-        """
-        Gets the configured help link.
-
-        Args:
-        """
-
-        __url = "/api/v1/system/help-link"
-
-        return self.___invoke(str, "GET", __url, "application/json", None, None)
+        return self.___invoke(SystemResponse, "GET", __url, "application/json", None, None)
 
 
 class UsersAsyncClient:
@@ -1525,47 +1462,6 @@ class UsersAsyncClient:
     
     def __init__(self, invoke: HttpRequestHandlerAsync):
         self.___invoke = invoke
-
-    def authenticate(self, scheme: str, return_url: str) -> Awaitable[Response]:
-        """
-        Authenticates the user.
-
-        Args:
-            scheme: The authentication scheme to challenge.
-            return_url: The URL to return after successful authentication.
-        """
-
-        __url = "/api/v1/users/authenticate"
-
-        __query_values: dict[str, str] = {}
-
-        __query_values["scheme"] = quote(_to_string(scheme), safe="")
-
-        __query_values["returnUrl"] = quote(_to_string(return_url), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
-        return self.___invoke(Response, "POST", __url, "application/octet-stream", None, None)
-
-    def sign_out(self, return_url: str) -> Awaitable[None]:
-        """
-        Logs out the user.
-
-        Args:
-            return_url: The URL to return after logout.
-        """
-
-        __url = "/api/v1/users/signout"
-
-        __query_values: dict[str, str] = {}
-
-        __query_values["returnUrl"] = quote(_to_string(return_url), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
-        return self.___invoke(type(None), "POST", __url, None, None, None)
 
     def delete_token_by_value(self, value: str) -> Awaitable[Response]:
         """
@@ -1597,54 +1493,25 @@ class UsersAsyncClient:
 
         return self.___invoke(MeResponse, "GET", __url, "application/json", None, None)
 
-    def re_authenticate(self) -> Awaitable[Response]:
-        """
-        Allows the user to reauthenticate in case of modified claims.
-
-        Args:
-        """
-
-        __url = "/api/v1/users/reauthenticate"
-
-        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def get_tokens(self, user_id: Optional[str] = None) -> Awaitable[dict[str, PersonalAccessToken]]:
+    def get_tokens(self) -> Awaitable[dict[str, PersonalAccessToken]]:
         """
         Gets all personal access tokens.
 
         Args:
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/users/tokens"
 
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
         return self.___invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
-    def create_token(self, token: PersonalAccessToken, user_id: Optional[str] = None) -> Awaitable[str]:
+    def create_token(self, token: PersonalAccessToken) -> Awaitable[str]:
         """
         Creates a personal access token.
 
         Args:
-            user_id: The optional user identifier. If not specified, the current user will be used.
         """
 
         __url = "/api/v1/users/tokens/create"
-
-        __query_values: dict[str, str] = {}
-
-        if user_id is not None:
-            __query_values["userId"] = quote(_to_string(user_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
 
         return self.___invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(token, _json_encoder_options)))
 
@@ -1658,99 +1525,6 @@ class UsersAsyncClient:
 
         __url = "/api/v1/users/tokens/{tokenId}"
         __url = __url.replace("{tokenId}", quote(str(token_id), safe=""))
-
-        return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
-
-    def accept_license(self, catalog_id: str) -> Awaitable[Response]:
-        """
-        Accepts the license of the specified catalog.
-
-        Args:
-            catalog_id: The catalog identifier.
-        """
-
-        __url = "/api/v1/users/accept-license"
-
-        __query_values: dict[str, str] = {}
-
-        __query_values["catalogId"] = quote(_to_string(catalog_id), safe="")
-
-        __query: str = "?" + "&".join(f"{key}={value}" for (key, value) in __query_values.items())
-        __url += __query
-
-        return self.___invoke(Response, "GET", __url, "application/octet-stream", None, None)
-
-    def get_users(self) -> Awaitable[dict[str, NexusUser]]:
-        """
-        Gets a list of users.
-
-        Args:
-        """
-
-        __url = "/api/v1/users"
-
-        return self.___invoke(dict[str, NexusUser], "GET", __url, "application/json", None, None)
-
-    def create_user(self, user: NexusUser) -> Awaitable[str]:
-        """
-        Creates a user.
-
-        Args:
-        """
-
-        __url = "/api/v1/users"
-
-        return self.___invoke(str, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(user, _json_encoder_options)))
-
-    def delete_user(self, user_id: str) -> Awaitable[Response]:
-        """
-        Deletes a user.
-
-        Args:
-            user_id: The identifier of the user.
-        """
-
-        __url = "/api/v1/users/{userId}"
-        __url = __url.replace("{userId}", quote(str(user_id), safe=""))
-
-        return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
-
-    def get_claims(self, user_id: str) -> Awaitable[dict[str, NexusClaim]]:
-        """
-        Gets all claims.
-
-        Args:
-            user_id: The identifier of the user.
-        """
-
-        __url = "/api/v1/users/{userId}/claims"
-        __url = __url.replace("{userId}", quote(str(user_id), safe=""))
-
-        return self.___invoke(dict[str, NexusClaim], "GET", __url, "application/json", None, None)
-
-    def create_claim(self, user_id: str, claim: NexusClaim) -> Awaitable[UUID]:
-        """
-        Creates a claim.
-
-        Args:
-            user_id: The identifier of the user.
-        """
-
-        __url = "/api/v1/users/{userId}/claims"
-        __url = __url.replace("{userId}", quote(str(user_id), safe=""))
-
-        return self.___invoke(UUID, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(claim, _json_encoder_options)))
-
-    def delete_claim(self, claim_id: UUID) -> Awaitable[Response]:
-        """
-        Deletes a claim.
-
-        Args:
-            claim_id: The identifier of the claim.
-        """
-
-        __url = "/api/v1/users/claims/{claimId}"
-        __url = __url.replace("{claimId}", quote(str(claim_id), safe=""))
 
         return self.___invoke(Response, "DELETE", __url, "application/octet-stream", None, None)
 
@@ -1911,9 +1685,7 @@ class CatalogInfo:
         license: A nullable license.
         is_readable: A boolean which indicates if the catalog is accessible.
         is_writable: A boolean which indicates if the catalog is editable.
-        is_released: A boolean which indicates if the catalog is released.
         is_visible: A boolean which indicates if the catalog is visible.
-        is_owner: A boolean which indicates if the catalog is owned by the current user.
         package_reference_ids: The package reference identifiers.
         pipeline_info: A structure for pipeline info.
     """
@@ -1939,14 +1711,8 @@ class CatalogInfo:
     is_writable: bool
     """A boolean which indicates if the catalog is editable."""
 
-    is_released: bool
-    """A boolean which indicates if the catalog is released."""
-
     is_visible: bool
     """A boolean which indicates if the catalog is visible."""
-
-    is_owner: bool
-    """A boolean which indicates if the catalog is owned by the current user."""
 
     package_reference_ids: list[UUID]
     """The package reference identifiers."""
@@ -2025,6 +1791,197 @@ class CatalogMetadata:
 
     overrides: Optional[ResourceCatalog]
     """Overrides for the catalog."""
+
+
+@dataclass(frozen=True)
+class GitConfigResponse:
+    """
+    The effective Git configuration without secret values.
+
+    Args:
+        branch: The configured Git branch.
+        commit_throttle_seconds: The number of seconds Nexus waits before committing configuration changes.
+        remote_url: The configured remote Git repository URL.
+        username: The configured HTTPS username.
+        has_token: A value indicating whether an HTTPS token is configured.
+        has_ssh_private_key: A value indicating whether an SSH private key is configured.
+        auth_mode: The authentication mode inferred from the remote URL.
+        commit_author_name: The Git commit author name.
+        commit_author_email: The Git commit author email.
+        is_remote_configured: A value indicating whether remote backup has enough configuration to push.
+    """
+
+    branch: str
+    """The configured Git branch."""
+
+    commit_throttle_seconds: int
+    """The number of seconds Nexus waits before committing configuration changes."""
+
+    remote_url: Optional[str]
+    """The configured remote Git repository URL."""
+
+    username: Optional[str]
+    """The configured HTTPS username."""
+
+    has_token: bool
+    """A value indicating whether an HTTPS token is configured."""
+
+    has_ssh_private_key: bool
+    """A value indicating whether an SSH private key is configured."""
+
+    auth_mode: str
+    """The authentication mode inferred from the remote URL."""
+
+    commit_author_name: str
+    """The Git commit author name."""
+
+    commit_author_email: str
+    """The Git commit author email."""
+
+    is_remote_configured: bool
+    """A value indicating whether remote backup has enough configuration to push."""
+
+
+@dataclass(frozen=True)
+class GitStatusResponse:
+    """
+    The current Git repository and push status required by the admin UI.
+
+    Args:
+        git_available: A value indicating whether the Git executable is available.
+        ssh_available: A value indicating whether the SSH executable is available.
+        has_uncommitted_changes: A value indicating whether the local repository has uncommitted changes.
+        current_commit_sha: The current commit SHA.
+        last_pushed_commit_sha: The last commit SHA successfully pushed by this process.
+        last_successful_push_at: The last successful push time.
+        last_push_status: The last push status.
+        last_push_error: The last push error.
+    """
+
+    git_available: bool
+    """A value indicating whether the Git executable is available."""
+
+    ssh_available: bool
+    """A value indicating whether the SSH executable is available."""
+
+    has_uncommitted_changes: bool
+    """A value indicating whether the local repository has uncommitted changes."""
+
+    current_commit_sha: Optional[str]
+    """The current commit SHA."""
+
+    last_pushed_commit_sha: Optional[str]
+    """The last commit SHA successfully pushed by this process."""
+
+    last_successful_push_at: Optional[datetime]
+    """The last successful push time."""
+
+    last_push_status: GitPushStatus
+    """The last push status."""
+
+    last_push_error: Optional[str]
+    """The last push error."""
+
+
+class GitPushStatus(Enum):
+    """The result of pushing configuration history to a remote Git repository."""
+
+    NOT_CONFIGURED = "NOT_CONFIGURED"
+    """NotConfigured"""
+
+    SUCCEEDED = "SUCCEEDED"
+    """Succeeded"""
+
+    FAILED = "FAILED"
+    """Failed"""
+
+
+@dataclass(frozen=True)
+class GitHistoryEntry:
+    """
+    A Git commit in the configuration history.
+
+    Args:
+        sha: The full commit SHA.
+        short_sha: The abbreviated commit SHA.
+        date: The commit date.
+        author_name: The commit author name.
+        author_email: The commit author email.
+        message: The commit message.
+    """
+
+    sha: str
+    """The full commit SHA."""
+
+    short_sha: str
+    """The abbreviated commit SHA."""
+
+    date: datetime
+    """The commit date."""
+
+    author_name: str
+    """The commit author name."""
+
+    author_email: str
+    """The commit author email."""
+
+    message: str
+    """The commit message."""
+
+
+@dataclass(frozen=True)
+class GitDiffFile:
+    """
+    A changed file in a Git commit.
+
+    Args:
+        path: The repository-relative file path.
+        status: The Git file status.
+        original_text: The file text before the commit.
+        modified_text: The file text after the commit.
+    """
+
+    path: str
+    """The repository-relative file path."""
+
+    status: str
+    """The Git file status."""
+
+    original_text: Optional[str]
+    """The file text before the commit."""
+
+    modified_text: Optional[str]
+    """The file text after the commit."""
+
+
+@dataclass(frozen=True)
+class GitRestoreResponse:
+    """
+    The result of restoring configuration from a commit.
+
+    Args:
+        commit_sha: The commit SHA created by the restore operation.
+        message: A human-readable result message.
+    """
+
+    commit_sha: str
+    """The commit SHA created by the restore operation."""
+
+    message: str
+    """A human-readable result message."""
+
+
+@dataclass(frozen=True)
+class GitRestoreRequest:
+    """
+    A request to restore configuration from a commit.
+
+    Args:
+        commit_sha: The commit SHA to restore.
+    """
+
+    commit_sha: str
+    """The commit SHA to restore."""
 
 
 @dataclass(frozen=True)
@@ -2143,6 +2100,19 @@ class ExportParameters:
 
 
 @dataclass(frozen=True)
+class GitSyncRequest:
+    """
+    A request to synchronize local configuration history with the configured remote.
+
+    Args:
+        force: A value indicating whether to force-push once.
+    """
+
+    force: bool
+    """A value indicating whether to force-push once."""
+
+
+@dataclass(frozen=True)
 class PackageReference:
     """
     A package reference.
@@ -2199,18 +2169,18 @@ class DataSourcePipeline:
 
     Args:
         registrations: The list of pipeline elements (data source registrations).
-        release_pattern: An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released.
         visibility_pattern: An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible.
+        disabled: An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled.
     """
 
     registrations: list[DataSourceRegistration]
     """The list of pipeline elements (data source registrations)."""
 
-    release_pattern: Optional[str]
-    """An optional regular expressions pattern to select the catalogs to be released. By default, all catalogs will be released."""
-
     visibility_pattern: Optional[str]
     """An optional regular expressions pattern to select the catalogs to be visible. By default, all catalogs will be visible."""
+
+    disabled: bool
+    """An optional flag which indicates if the pipeline is disabled. By default, pipelines are enabled."""
 
 
 @dataclass(frozen=True)
@@ -2239,43 +2209,55 @@ class DataSourceRegistration:
 
 
 @dataclass(frozen=True)
+class SystemResponse:
+    """
+    A system response.
+
+    Args:
+        version: The Nexus version.
+        application_name: The application name.
+        help_link: The help link.
+        logout_url: The logout URL.
+    """
+
+    version: str
+    """The Nexus version."""
+
+    application_name: Optional[str]
+    """The application name."""
+
+    help_link: Optional[str]
+    """The help link."""
+
+    logout_url: Optional[str]
+    """The logout URL."""
+
+
+@dataclass(frozen=True)
 class MeResponse:
     """
     A me response.
 
     Args:
         user_id: The user id.
-        user: The user.
+        name: The user name.
+        claims: The user claims.
     """
 
     user_id: str
     """The user id."""
 
-    user: NexusUser
-    """The user."""
-
-
-@dataclass(frozen=True)
-class NexusUser:
-    """
-    Represents a user.
-
-    Args:
-        name: The user name.
-        claims: The list of claims.
-    """
-
     name: str
     """The user name."""
 
-    claims: list[NexusClaim]
-    """The list of claims."""
+    claims: list[TokenClaim]
+    """The user claims."""
 
 
 @dataclass(frozen=True)
-class NexusClaim:
+class TokenClaim:
     """
-    Represents a claim.
+    A revoke token request.
 
     Args:
         type: The claim type.
@@ -2298,6 +2280,7 @@ class PersonalAccessToken:
         description: The token description.
         expires: The date/time when the token expires.
         claims: The claims that will be part of the token.
+        grant_claims: A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator.
     """
 
     description: str
@@ -2309,22 +2292,8 @@ class PersonalAccessToken:
     claims: list[TokenClaim]
     """The claims that will be part of the token."""
 
-
-@dataclass(frozen=True)
-class TokenClaim:
-    """
-    A revoke token request.
-
-    Args:
-        type: The claim type.
-        value: The claim value.
-    """
-
-    type: str
-    """The claim type."""
-
-    value: str
-    """The claim value."""
+    grant_claims: list[TokenClaim]
+    """A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator."""
 
 
 

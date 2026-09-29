@@ -7,7 +7,6 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj" />
-    <Project Path="src/Nexus.UI/Nexus.UI.csproj" />
     <Project Path="src/Nexus/Nexus.csproj" />
   </Folder>
   <Folder Name="/src/clients/">
@@ -19,7 +18,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Nexus.Tests/Nexus.Tests.csproj" />
-    <Project Path="tests/Nexus.UI.Tests/Nexus.UI.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/clients/">
     <Project Path="tests/clients/dotnet-tests/client-tests.csproj" />

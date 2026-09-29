@@ -17,7 +17,8 @@ internal interface ITokenService
         string userId,
         string description,
         DateTime expires,
-        IReadOnlyList<TokenClaim> claims);
+        IReadOnlyList<TokenClaim> claims,
+        IReadOnlyList<TokenClaim> grantClaims);
 
     bool TryGet(
         string userId,
@@ -46,7 +47,8 @@ internal class TokenService(IDatabaseService databaseService)
         string userId,
         string description,
         DateTime expires,
-        IReadOnlyList<TokenClaim> claims)
+        IReadOnlyList<TokenClaim> claims,
+        IReadOnlyList<TokenClaim> grantClaims)
     {
         return InteractWithTokenMapAsync(userId, tokenMap =>
         {
@@ -61,7 +63,8 @@ internal class TokenService(IDatabaseService databaseService)
                 id,
                 description,
                 expires,
-                claims
+                claims,
+                grantClaims
             );
 
             tokenMap.AddOrUpdate(

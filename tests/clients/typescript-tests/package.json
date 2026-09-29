@@ -1,0 +1,17 @@
+{
+    "name": "nexus-api-tests",
+    "version": "0.0.0",
+    "description": "TypeScript client tests for the Nexus system.",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "typecheck": "tsc --noEmit --project tsconfig.json",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "devDependencies": {
+        "apache-arrow": "^21.2.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.11"
+    }
+}

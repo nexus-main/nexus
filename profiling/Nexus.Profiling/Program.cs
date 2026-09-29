@@ -57,7 +57,6 @@ Mock.Get(httpContextAccessor)
     .Returns((HttpContext?)null);
 
 var serviceCollection = new ServiceCollection();
-serviceCollection.AddScoped<IDBService>(_ => Mock.Of<IDBService>());
 var serviceProvider = serviceCollection.BuildServiceProvider();
 
 var appState = new AppState();
@@ -99,6 +98,7 @@ var dataService = new DataService(
     user,
     dataControllerService,
     databaseService,
+    default!,
     memoryTracker,
     NullLogger<DataService>.Instance,
     NullLoggerFactory.Instance);

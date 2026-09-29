@@ -23,6 +23,7 @@ internal class JobsController(
     AppStateManager appStateManager,
     IJobService jobService,
     IServiceProvider serviceProvider,
+    IAcceptedLicenseService acceptedLicenseService,
     Serilog.IDiagnosticContext diagnosticContext,
     ILogger<JobsController> logger) : ControllerBase
 {
@@ -31,6 +32,7 @@ internal class JobsController(
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly Serilog.IDiagnosticContext _diagnosticContext = diagnosticContext;
     private readonly IJobService _jobService = jobService;
+    private readonly IAcceptedLicenseService _acceptedLicenseService = acceptedLicenseService;
 
     /// <summary>
     /// Creates a new export job.
@@ -91,7 +93,12 @@ internal class JobsController(
             {
                 var catalogContainer = group.First().Container;
 
-                if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, User))
+                if (!await AuthUtilities.IsCatalogReadableAsync(
+                    catalogContainer,
+                    User,
+                    _acceptedLicenseService,
+                    cancellationToken
+                ))
                     throw new UnauthorizedAccessException($"The current user is not permitted to access catalog {catalogContainer.Id}.");
             }
         }
@@ -101,7 +108,7 @@ internal class JobsController(
         }
 
         //
-        var username = User.Identity?.Name!;
+        var username = GetUserId();
         var job = new Job(Guid.NewGuid(), "export", username, parameters);
         var dataService = _serviceProvider.GetRequiredService<IDataService>();
 
@@ -132,5 +139,10 @@ internal class JobsController(
     private string GetAcceptUrl(Guid jobId)
     {
         return $"{Request.Scheme}://{Request.Host}{Request.Path}/{jobId}/status";
+    }
+
+    private string GetUserId()
+    {
+        return User.FindFirst(NexusClaimTypes.Subject)!.Value;
     }
 }

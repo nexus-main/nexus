@@ -2,7 +2,6 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.Runtime.InteropServices;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Core;
 
@@ -50,11 +49,9 @@ internal record GeneralOptions() : NexusOptionsBase
 {
     public const string Section = "General";
 
-    public string? ApplicationName { get; set; } = "Nexus";
+    public string? ApplicationName { get; set; }
 
     public string? HelpLink { get; set; }
-
-    public string? DefaultFileType { get; set; } = "Nexus.Writers.Csv";
 }
 
 internal record DataOptions() : NexusOptionsBase
@@ -66,6 +63,27 @@ internal record DataOptions() : NexusOptionsBase
     public long TotalBufferMemoryConsumption { get; set; } = 1 * 1024 * 1024 * 1024; // 1 GB
 
     public double AggregationNaNThreshold { get; set; } = 0.99;
+}
+
+internal record GitOptions() : NexusOptionsBase
+{
+    public const string Section = "Git";
+
+    public string Branch { get; set; } = "main";
+
+    public int CommitThrottleSeconds { get; set; } = 300;
+
+    public string? RemoteUrl { get; set; }
+
+    public string? Username { get; set; }
+
+    public string? Token { get; set; }
+
+    public string? SshPrivateKey { get; set; }
+
+    public string CommitAuthorName { get; set; } = "Nexus";
+
+    public string CommitAuthorEmail { get; set; } = "nexus@localhost";
 }
 
 internal record PathsOptions() : NexusOptionsBase, IPackageManagementPathsOptions
@@ -95,24 +113,31 @@ internal record PathsOptions() : NexusOptionsBase, IPackageManagementPathsOption
     #endregion
 }
 
-internal record OpenIdConnectProvider(
-    string Scheme,
-    string DisplayName,
-    string Authority,
-    string ClientId,
-    string ClientSecret,
-    string IdentifierClaim = Claims.Subject,
-    string EnabledCatalogsPattern = OpenIdConnectProvider.DEFAULT_ENABLED_CATALOGS_PATTERN
-)
-{
-    public const string DEFAULT_ENABLED_CATALOGS_PATTERN = "" /* == match all */;
-};
-
 internal partial record SecurityOptions() : NexusOptionsBase
 {
     public const string Section = "Security";
 
-    public TimeSpan CookieLifetime { get; set; } = TimeSpan.FromDays(30);
+    public string UserHeader { get; set; } = "X-Forwarded-User";
 
-    public List<OpenIdConnectProvider> OidcProviders { get; set; } = [];
+    public string NameHeader { get; set; } = "X-Forwarded-Preferred-Username";
+
+    public string GroupsHeader { get; set; } = "X-Forwarded-Groups";
+
+    public string AdministratorGroup { get; set; } = "admins";
+
+    public string EnabledCatalogsPattern { get; set; } = DEFAULT_ENABLED_CATALOGS_PATTERN;
+
+    public string EnabledCatalogsPatternHeader { get; set; } = "X-Forwarded-EnabledCatalogsPattern";
+
+    public string CanReadCatalogHeader { get; set; } = "X-Forwarded-CanReadCatalog";
+
+    public string CanWriteCatalogHeader { get; set; } = "X-Forwarded-CanWriteCatalog";
+
+    public string CanReadCatalogGroupHeader { get; set; } = "X-Forwarded-CanReadCatalogGroup";
+
+    public string CanWriteCatalogGroupHeader { get; set; } = "X-Forwarded-CanWriteCatalogGroup";
+
+    public string? LogoutUrl { get; set; }
+
+    public const string DEFAULT_ENABLED_CATALOGS_PATTERN = "" /* == match all */;
 }
