@@ -79,8 +79,10 @@ export class CatalogTreeComponent {
         children: [],
       }
       const parent = stack[stack.length - 1]
+
       if (parent) parent.children!.push(treeNode)
       else roots.push(treeNode)
+
       stack.push(treeNode)
     }
 
@@ -90,11 +92,15 @@ export class CatalogTreeComponent {
   readonly selectedTreeNode = computed(() => {
     const key = this.selectedNodeKey()
     const stack = [...this.treeNodes()]
+
     while (stack.length) {
       const node = stack.pop()!
+
       if (node.key === key) return node
+
       stack.push(...(node.children ?? []))
     }
+
     return null
   })
 

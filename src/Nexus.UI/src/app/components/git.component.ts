@@ -348,10 +348,12 @@ export class GitComponent {
   readonly restoreDisabled = computed(() => this.busy() || !this.gitAvailable() || !this.selectedCommit())
   readonly originalModel = computed<DiffEditorModel>(() => {
     const file = this.selectedFile()
+
     return { code: file?.originalText ?? '', language: file ? this.detectLanguage(file.path) : 'plaintext' }
   })
   readonly modifiedModel = computed<DiffEditorModel>(() => {
     const file = this.selectedFile()
+
     return { code: file?.modifiedText ?? '', language: file ? this.detectLanguage(file.path) : 'plaintext' }
   })
 
@@ -359,8 +361,10 @@ export class GitComponent {
     effect(() => this.applyTheme())
 
     const mq = window.matchMedia('(min-width: 1280px)')
+
     this.renderSideBySide.set(mq.matches)
     const onChange = (event: MediaQueryListEvent) => this.renderSideBySide.set(event.matches)
+
     mq.addEventListener('change', onChange)
     this.destroyRef.onDestroy(() => mq.removeEventListener('change', onChange))
 
@@ -369,22 +373,27 @@ export class GitComponent {
 
   onEditorInit(_editor: Monaco.editor.IDiffEditor): void {
     this.monaco = (window as unknown as { monaco?: typeof Monaco }).monaco ?? null
+
     if (this.monaco) defineNexusMonacoThemes(this.monaco)
+
     this.applyTheme()
   }
 
   async refresh() {
     this.loading.set(true)
     this.error.set('')
+
     try {
       const [config, status, history] = await Promise.all([
         this.request<GitConfigResponse>('git/config'),
         this.request<GitStatusResponse>('git/status'),
         this.request<GitHistoryEntry[]>('git/history'),
       ])
+
       this.config.set(config)
       this.status.set(status)
       this.history.set(history)
+
       if (!this.selectedCommit() && history.length) await this.selectCommit(history[0])
     } catch (error) {
       this.showError('load Git state', error)
@@ -401,9 +410,12 @@ export class GitComponent {
     this.selectedCommit.set(entry)
     this.confirmRestore.set(false)
     this.error.set('')
+
     if (openDetails) this.mobileTab.set('details')
+
     try {
       const files = await this.request<GitDiffFile[]>(`git/diff/${encodeURIComponent(entry.sha)}`)
+
       this.diffFiles.set(files)
       this.selectedFile.set(files[0] ?? null)
     } catch (error) {
@@ -416,6 +428,7 @@ export class GitComponent {
     this.error.set('')
     this.statusMessage.set('')
     this.confirmForce.set(false)
+
     try {
       await this.request<{ id: string }>('jobs/git/sync', { method: 'POST', body: JSON.stringify({ force }) })
       this.messageService.add({ key: 'app-status', severity: 'success', summary: force ? 'Git force push started' : 'Git sync started', life: 1800 })
@@ -432,8 +445,10 @@ export class GitComponent {
     this.error.set('')
     this.statusMessage.set('')
     this.confirmRestore.set(false)
+
     try {
       const result = await this.request<{ message: string }>('git/restore', { method: 'POST', body: JSON.stringify({ commitSha }) })
+
       this.statusMessage.set(result.message)
       this.selectedCommit.set(null)
       this.selectedFile.set(null)
@@ -447,7 +462,9 @@ export class GitComponent {
 
   formatDate(value?: string | null) {
     if (!value) return 'never'
+
     const date = new Date(value)
+
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
   }
 
@@ -461,19 +478,25 @@ export class GitComponent {
 
   pushStatusLabel(value: GitPushStatus) {
     if (value === 0 || value === 'NotConfigured') return 'not pushed yet'
+
     if (value === 1 || value === 'Succeeded') return 'succeeded'
+
     if (value === 2 || value === 'Failed') return 'failed'
+
     return String(value)
   }
 
   private applyTheme(): void {
     const monaco = this.monaco
+
     if (!monaco) return
+
     monaco.editor.setTheme(getNexusMonacoTheme(this.themeMode()))
   }
 
   private detectLanguage(path: string): string {
     const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase()
+
     switch (ext) {
       case 'json': return 'json'
       case 'yaml':
@@ -493,6 +516,7 @@ export class GitComponent {
     })
 
     if (!response.ok) throw new Error(await response.text() || response.statusText)
+
     return await response.json() as T
   }
 

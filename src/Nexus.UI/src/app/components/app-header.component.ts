@@ -143,18 +143,23 @@ export class AppHeaderComponent {
   readonly changeDevAuthMode = output<DevAuthMode>()
   readonly adminMenuItems = computed<MenuItem[]>(() => {
     const items: MenuItem[] = []
+
     if (this.isAdministrator()) {
       items.push({ label: 'Package references', icon: 'package', command: () => this.openPackageReferences.emit() })
       items.push({ label: 'Data source pipelines', icon: 'waypoints', command: () => this.openDataSourcePipelines.emit() })
       items.push({ label: 'Git', icon: 'git', command: () => this.openGit.emit() })
       items.push({ separator: true })
     }
+
     items.push({ label: 'Import settings...', icon: 'upload', command: () => this.openSetupImport.emit() })
     items.push({ label: 'Export settings...', icon: 'download', command: () => this.openSetupExport.emit() })
     items.push({ separator: true })
     items.push({ label: 'API', icon: 'api', url: '/api', target: '_blank' })
+
     if (this.helpLink()) items.push({ label: 'Help', icon: 'help', url: this.helpLink()!, target: '_blank' })
+
     items.push({ label: 'About', icon: 'info', command: () => this.openAbout.emit() })
+
     return items
   })
   readonly userMenuItems = computed<MenuItem[]>(() => {
@@ -162,6 +167,7 @@ export class AppHeaderComponent {
 
     if (this.isDevelopmentMode()) {
       const mode = this.devAuthMode()
+
       items.push(
         { separator: true },
         { label: mode === 'admin' ? 'Admin mode (current)' : 'Admin mode', icon: 'shield', command: () => this.changeDevAuthMode.emit('admin') },
@@ -170,6 +176,7 @@ export class AppHeaderComponent {
     }
 
     if (this.logoutUrl()) items.push({ separator: true }, { label: 'Logout', icon: 'log-out', url: this.logoutUrl()! })
+
     return items
   })
   readonly openCatalog = output<void>()

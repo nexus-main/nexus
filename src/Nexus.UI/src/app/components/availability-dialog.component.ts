@@ -70,15 +70,18 @@ export class AvailabilityDialogComponent {
   constructor() {
     effect(() => {
       if (!this.visible()) return
+
       const catalogId = this.catalogId()
       const begin = this.begin()
       const end = this.end()
+
       this.load(catalogId, begin, end)
     })
   }
 
   private load(catalogId: string, begin: string, end: string): void {
     this.controller?.abort()
+
     if (!catalogId || !begin || !end) return
 
     const beginDate = begin.slice(0, 10) + 'T00:00:00Z'
@@ -90,6 +93,7 @@ export class AvailabilityDialogComponent {
       this.loading.set(false)
       this.beginDate.set(beginDate)
       this.endDate.set(endDate)
+
       return
     }
 
@@ -100,6 +104,7 @@ export class AvailabilityDialogComponent {
     const rangeDays = Math.ceil((Date.parse(endDate) - Date.parse(beginDate)) / MILLISECONDS_PER_DAY)
     const stepDays = Math.max(1, Math.ceil(rangeDays / MAX_AVAILABILITY_STEPS))
     const step = toTimeSpan(TICKS_PER_DAY * BigInt(stepDays))
+
     this.nexus.v1.catalogs.getAvailability(catalogId, beginDate, endDate, step, this.controller.signal)
       .then(result => {
         this.data.set(result.data ?? [])
@@ -108,6 +113,7 @@ export class AvailabilityDialogComponent {
       })
       .catch(err => {
         if (err instanceof DOMException && err.name === 'AbortError') return
+
         this.error.set(err instanceof Error ? err.message : String(err))
       })
       .finally(() => { this.loading.set(false) })

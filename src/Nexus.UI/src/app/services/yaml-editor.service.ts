@@ -16,14 +16,17 @@ export class YamlEditorService {
 
   configure(monaco: typeof Monaco, model: Monaco.editor.ITextModel, schema: unknown): void {
     const uri = model.uri.toString()
+
     if (isJsonObject(schema)) {
       this.schemas.set(uri, { uri: `${uri}.schema.json`, fileMatch: [uri], schema })
     } else {
       this.schemas.delete(uri)
     }
+
     if (!this.languageService) {
       const yamlMonaco = createYamlMonaco(monaco,
         () => new Worker(new URL('../yaml.worker', import.meta.url), { type: 'module' }))
+
       // Its current types describe the new internal API, but worker-manager calls the old one.
       this.languageService = configureMonacoYaml(yamlMonaco as unknown as Parameters<typeof configureMonacoYaml>[0], {
         schemas: [...this.schemas.values()],

@@ -6,7 +6,9 @@ export function formatNumber(value: number | undefined) {
 
 export function lastSegment(path: string | undefined): string {
   if (!path) return '/'
+
   const segments = path.split('/').filter(Boolean)
+
   return segments[segments.length - 1] ?? '/'
 }
 
@@ -14,6 +16,7 @@ export function compactPath(path: string | undefined, maxSegments = 3) {
   if (!path) return '/'
 
   const segments = path.split('/').filter(Boolean)
+
   if (segments.length <= maxSegments) return path
 
   return `/${segments.slice(0, 1).join('/')}/.../${segments.slice(-maxSegments + 1).join('/')}`
@@ -30,6 +33,7 @@ export function abbreviateMiddle(value: string, maxLength: number) {
 
 export function getStringProperty(record: Record<string, unknown> | null | undefined, key: string) {
   const value = record?.[key]
+
   return typeof value === 'string' ? value : undefined
 }
 

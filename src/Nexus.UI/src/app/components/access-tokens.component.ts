@@ -164,6 +164,7 @@ export class AccessTokensComponent implements OnInit {
 
     try {
       const tokenMap = await this.nexus.getPersonalAccessTokens()
+
       this.tokens.set(Object.entries(tokenMap)
         .map(([id, token]) => ({ id, token }))
         .sort((a, b) => (a.token.expires ?? '').localeCompare(b.token.expires ?? '')))
@@ -176,6 +177,7 @@ export class AccessTokensComponent implements OnInit {
 
   async createToken() {
     if (!this.canCreate()) return
+
     this.creating.set(true)
     this.error.set('')
     this.createdToken.set('')
@@ -187,6 +189,7 @@ export class AccessTokensComponent implements OnInit {
         claims: this.createClaims(),
         grantClaims: [],
       })
+
       this.createdToken.set(tokenValue)
       this.description.set('')
       this.expiresInput.set('')
@@ -202,6 +205,7 @@ export class AccessTokensComponent implements OnInit {
 
   async deleteToken(tokenId: string) {
     if (!tokenId) return
+
     this.deleting.set(true)
     this.error.set('')
 
@@ -222,6 +226,7 @@ export class AccessTokensComponent implements OnInit {
   confirmDelete(entry: TokenEntry) {
     this.confirmingDeleteId.set(entry.id)
     this.messageService.clear('access-token-delete-confirm')
+
     this.messageService.add({
       key: 'access-token-delete-confirm',
       summary: 'Revoke this token?',
@@ -242,6 +247,7 @@ export class AccessTokensComponent implements OnInit {
 
   copyCreatedToken() {
     const value = this.createdToken()
+
     if (!value || !navigator.clipboard) return
 
     void navigator.clipboard.writeText(value).then(() => this.messageService.add({ key: 'access-token-status', severity: 'success', summary: 'Token copied', life: 2500 }))
@@ -249,9 +255,13 @@ export class AccessTokensComponent implements OnInit {
 
   formatDate(value: string | undefined) {
     if (!value) return 'unknown'
+
     if (value.startsWith('9999-12-31')) return 'never'
+
     const date = new Date(value)
+
     if (Number.isNaN(date.getTime())) return value
+
     return date.getUTCFullYear() >= 9999 ? 'never' : date.toLocaleString()
   }
 

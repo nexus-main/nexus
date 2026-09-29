@@ -33,6 +33,7 @@ export function parseNexusUiSetup(value: unknown): ParsedNexusUiSetup {
   }
 
   const legacyUiSettings = readDevUiSettings(value)
+
   if (legacyUiSettings) {
     return {
       source: 'legacy-ui-settings',
@@ -46,8 +47,11 @@ export function parseNexusUiSetup(value: unknown): ParsedNexusUiSetup {
 
 function mapLegacyUiSettingsToExportParameters(settings: DevUiSettings) {
   const exportParameters: NexusUiSetup = {}
+
   if (settings.fileType) exportParameters.type = settings.fileType
+
   if (settings.requestConfiguration) exportParameters.configuration = settings.requestConfiguration
+
   return exportParameters
 }
 
@@ -59,15 +63,21 @@ function readDevUiSettings(value: unknown): DevUiSettings | null {
   if (!isRecord(value)) return null
 
   const hasLegacyField = 'fileType' in value || 'requestConfiguration' in value || 'catalogHidePatterns' in value || 'chartGpuCacheBudgetMiB' in value
+
   if (!hasLegacyField) return null
 
   const result: DevUiSettings = {}
+
   if (typeof value['fileType'] === 'string' || value['fileType'] === null) result.fileType = value['fileType']
+
   if (isRecord(value['requestConfiguration'])) result.requestConfiguration = { ...value['requestConfiguration'] }
   else if (value['requestConfiguration'] === null) result.requestConfiguration = null
+
   if (Array.isArray(value['catalogHidePatterns'])) result.catalogHidePatterns = value['catalogHidePatterns'].filter((item): item is string | null => typeof item === 'string' || item === null)
   else if (value['catalogHidePatterns'] === null) result.catalogHidePatterns = null
+
   if (typeof value['chartGpuCacheBudgetMiB'] === 'number' && Number.isFinite(value['chartGpuCacheBudgetMiB'])) result.chartGpuCacheBudgetMiB = value['chartGpuCacheBudgetMiB']
+
   return result
 }
 

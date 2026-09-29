@@ -137,7 +137,9 @@ export class PackageReferencesComponent {
       // PrimeNG's document handler can lose Escape after a nested select has closed.
       onkeydown: (event: KeyboardEvent) => {
         if (event.key !== 'Escape') return
+
         event.stopPropagation()
+
         if (!this.busy()) this.close.emit()
       },
     },
@@ -166,15 +168,18 @@ export class PackageReferencesComponent {
   constructor() {
     afterRenderEffect(() => {
       this.editing()
+
       // View changes remove the focused action; keep keyboard focus inside the dialog.
       if (!this.loading() && !this.busy()) this.panel()?.nativeElement.focus()
     })
+
     void this.load()
   }
 
   async load() {
     this.loading.set(true)
     this.error.set('')
+
     try {
       this.entries.set(Object.entries(await this.api.get()).map(([id, reference]) => ({ id, reference })))
     } catch (error) {
@@ -191,6 +196,7 @@ export class PackageReferencesComponent {
     this.editedEntry.set(entry)
     this.provider.set(entry?.reference.provider ?? 'git-tag')
     const config = entry?.reference.configuration
+
     this.location.set(config?.[this.provider() === 'local' ? 'path' : 'repository'] ?? '')
     this.version.set(config?.[this.provider() === 'local' ? 'version' : 'tag'] ?? '')
     this.entrypoint.set(config?.['entrypoint'] ?? '')
@@ -204,26 +210,34 @@ export class PackageReferencesComponent {
     this.provider.set(provider)
     this.versionOptions.set([])
     this.versionError.set('')
+
     if (!this.editedEntry()) this.version.set('')
+
     if (this.location().trim()) void this.loadVersions()
   }
 
   async loadVersions() {
     if (this.versionsLoading()) return
+
     const location = this.location().trim()
+
     if (!location) return
+
     this.versionsLoading.set(true)
     this.versionError.set('')
+
     try {
       const reference: V1.PackageReference = {
         provider: this.provider(),
         configuration: { [this.provider() === 'local' ? 'path' : 'repository']: location },
       }
       const versions = await this.api.getVersions(reference)
+
       this.versionOptions.set([...versions].sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' })))
     } catch (error) {
       this.versionOptions.set([])
       const detail = error instanceof Error ? error.message : 'Unknown error'
+
       this.versionError.set(`Could not load available versions. ${detail}`)
     } finally {
       this.versionsLoading.set(false)
@@ -238,17 +252,21 @@ export class PackageReferencesComponent {
 
   async save() {
     if (!this.valid() || this.busy()) return
+
     this.busy.set(true)
     this.error.set('')
     const entry = this.editedEntry()
     const provider = this.provider()
     // Preserve provider-specific options that are not exposed by this form.
     const configuration = provider === entry?.reference.provider ? { ...entry.reference.configuration } : {}
+
     configuration[provider === 'local' ? 'path' : 'repository'] = this.location().trim()
     configuration[provider === 'local' ? 'version' : 'tag'] = this.version().trim()
     configuration['entrypoint'] = this.entrypoint().trim()
+
     try {
       const reference: V1.PackageReference = { provider, configuration }
+
       if (entry) {
         await this.api.update(reference, entry.id)
         this.editing.set(false)
@@ -257,6 +275,7 @@ export class PackageReferencesComponent {
         await this.api.create(reference)
         this.editing.set(false)
       }
+
       await this.load()
     } catch (error) {
       this.showError('save the package reference', error)
@@ -267,9 +286,12 @@ export class PackageReferencesComponent {
 
   async remove() {
     const entry = this.editedEntry()
+
     if (!entry || this.busy()) return
+
     this.busy.set(true)
     this.error.set('')
+
     try {
       await this.api.delete(entry.id)
       this.confirmingDelete.set(false)
@@ -285,28 +307,34 @@ export class PackageReferencesComponent {
 
   async refreshDatabase() {
     if (this.refreshing()) return
+
     this.refreshing.set(true)
     this.error.set('')
     this.status.set('')
     this.refreshStatus.set('Starting database refresh...')
+
     try {
       const job = await this.jobs.refreshDatabase()
       const jobId = job.id ?? ''
+
       if (!jobId) throw new Error('The refresh job did not return an id.')
 
       while (this.refreshing()) {
         await delay(1000)
         const jobStatus = await this.jobs.getJobStatus(jobId)
         const progress = jobStatus.progress === undefined ? '' : ` (${Math.round(jobStatus.progress * 100)}%)`
+
         this.refreshStatus.set(`Refresh database: ${jobStatus.status ?? 'Running'}${progress}`)
 
         if (jobStatus.status === V1.TaskStatus.RanToCompletion) {
           this.refreshStatus.set('Database refresh completed.')
           await this.load()
+
           return
         }
 
         if (jobStatus.status === V1.TaskStatus.Canceled) throw new Error('The refresh job was canceled.')
+
         if (jobStatus.status === V1.TaskStatus.Faulted) throw new Error(`The refresh job failed. Reason: ${jobStatus.exceptionMessage ?? 'unknown'}`)
       }
     } catch (error) {
@@ -319,11 +347,13 @@ export class PackageReferencesComponent {
   packageName(entry: PackageEntry): string {
     const config = entry.reference.configuration
     const url = config?.['repository'] ?? config?.['path'] ?? entry.id
+
     return url.split('/').pop() || url
   }
 
   private showError(action: string, error: unknown) {
     const detail = error instanceof Error ? error.message : 'Unknown error'
+
     this.error.set(`Could not ${action}. ${detail}${/\b(401|403)\b/.test(detail) ? ' The current session or token must have administrator permission.' : ''}`)
   }
 }

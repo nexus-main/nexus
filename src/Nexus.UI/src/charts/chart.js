@@ -15,12 +15,14 @@ nexus.chart.resize = function (chartId, elementId, left, top, right, bottom) {
 nexus.chart.setTextContent = function (chartId, elementId, text) {
 
     let element = document.getElementById(`${elementId}_${chartId}`);
+
     element.textContent = text;
 };
 
 nexus.chart.translate = function (chartId, elementId, left, top) {
 
     let element = document.getElementById(`${elementId}_${chartId}`);
+
     element.style.removeProperty("display")
     element.style.left = `${left * 100}%`;
     element.style.top = `${top * 100}%`;
@@ -29,6 +31,7 @@ nexus.chart.translate = function (chartId, elementId, left, top) {
 nexus.chart.hide = function (chartId, elementId) {
 
     let element = document.getElementById(`${elementId}_${chartId}`);
+
     element.style.display = "none"
 };
 
@@ -41,10 +44,12 @@ nexus.chart.updateAuxiliary = function (chartId, x, y, timeText, updates) {
         const id = update.id ?? update.Id;
         const visible = update.visible ?? update.Visible;
         const text = update.text ?? update.Text;
+
         if (visible)
             nexus.chart.translate(chartId, `pointer_${id}`, update.x ?? update.X, update.y ?? update.Y);
         else
             nexus.chart.hide(chartId, `pointer_${id}`);
+
         nexus.chart.setTextContent(chartId, `value_${id}`, text);
     }
 };
@@ -52,12 +57,16 @@ nexus.chart.updateAuxiliary = function (chartId, x, y, timeText, updates) {
 nexus.chart.clearAuxiliary = function (chartId) {
     for (const id of ["crosshairs-x", "crosshairs-y"]) {
         const element = document.getElementById(`${id}_${chartId}`);
+
         if (element)
             element.style.display = "none";
     }
+
     const chart = document.getElementById(`chart_${chartId}`);
+
     for (const pointer of chart?.querySelectorAll(".pointer") ?? [])
         pointer.style.display = "none";
+
     for (const value of chart?.parentElement?.querySelectorAll('[id^="value_"]') ?? [])
         value.textContent = "--";
 };
@@ -92,16 +101,21 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
     const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(value, maximum));
     const finiteNumber = (value, fallback) => {
         const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+
         return Number.isFinite(parsed) ? parsed : fallback;
     };
     const fitInterval = (left, right) => {
         const width = right - left;
+
         if (width >= 1)
             return [0, 1];
+
         if (left < 0)
             return [0, width];
+
         if (right > 1)
             return [1 - width, 1];
+
         return [left, right];
     };
     const zoomInterval = (left, right, relativeAnchor, factor, minimumWidth) => {
@@ -111,8 +125,10 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         factor = finiteNumber(factor, 1);
         minimumWidth = clamp(finiteNumber(minimumWidth, Number.EPSILON), Number.MIN_VALUE, 1);
         let width = right - left;
+
         if (width < minimumWidth) {
             const center = clamp((left + right) / 2, 0, 1);
+
             left = clamp(center - minimumWidth / 2, 0, 1 - minimumWidth);
             right = left + minimumWidth;
             width = minimumWidth;
@@ -125,6 +141,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             factor > 1 ? Math.max(scaledWidth, width + representableStep) : scaledWidth,
             minimumWidth,
             1);
+
         return fitInterval(
             anchor - relativeAnchor * nextWidth,
             anchor + (1 - relativeAnchor) * nextWidth);
@@ -143,13 +160,16 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             return;
 
         invokePending = true;
+
         requestAnimationFrame(async () => {
             const next = pendingZoom;
+
             pendingZoom = null;
 
             try {
                 if (!disposed && next) {
                     await dotNetHelper.invokeMethodAsync(next.method, ...next.values);
+
                     // Refresh the stationary pointer against the updated viewport.
                     if (!disposed && hoveredPointer)
                         invokePointer(...hoveredPointer);
@@ -172,13 +192,17 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
     function invokePointer(x, y) {
         pendingPointer = [x, y];
+
         if (pointerInvokePending)
             return;
 
         pointerInvokePending = true;
+
         requestAnimationFrame(async () => {
             const next = pendingPointer;
+
             pendingPointer = null;
+
             try {
                 if (!disposed && next)
                     await dotNetHelper.invokeMethodAsync("PointerMoved", ...next);
@@ -186,6 +210,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                 console.error('[chart] pointer update failed', error);
             } finally {
                 pointerInvokePending = false;
+
                 if (!disposed && pendingPointer)
                     invokePointer(...pendingPointer);
             }
@@ -201,6 +226,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             const dy = Math.abs(currentY - startY) * rect.height;
             const horizontal = dx > dy && dy <= axisLockThickness;
             const vertical = dy > dx && dx <= axisLockThickness;
+
             return {
                 left: horizontal || !vertical ? Math.min(startX, currentX) : 0,
                 right: horizontal || !vertical ? Math.max(startX, currentX) : 1,
@@ -211,16 +237,21 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
         listen(overlay, "mousemove", e => {
             const rect = overlay.getBoundingClientRect();
+
             if (rect.width <= 0 || rect.height <= 0)
                 return;
+
             hoveredPointer = [
                 clamp((e.clientX - rect.left) / rect.width, 0, 1),
                 clamp((e.clientY - rect.top) / rect.height, 0, 1)];
+
             invokePointer(...hoveredPointer);
         });
+
         listen(overlay, "mouseleave", () => {
             hoveredPointer = null;
             pendingPointer = null;
+
             if (!disposed)
                 nexus.chart.clearAuxiliary(chartId);
         });
@@ -228,9 +259,11 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         listen(overlay, "wheel", e => {
             if (e.cancelable)
                 e.preventDefault();
+
             const rect = overlay.getBoundingClientRect();
             const relativeX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
             const relativeY = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+
             if (e.shiftKey) {
                 invokeZoom("WheelZoom", [relativeX, relativeY, e.deltaY, true]);
             } else {
@@ -242,11 +275,13 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                     overlay.dataset.minimumHorizontalZoom);
                 let top = clamp(finiteNumber(overlay.dataset.zoomTop, 0), 0, 1);
                 let bottom = clamp(finiteNumber(overlay.dataset.zoomBottom, 1), top, 1);
+
                 if (e.deltaY > 0 && viewport[0] === 0 && viewport[1] === 1) {
                     [top, bottom] = zoomInterval(top, bottom, relativeY, 1 / 0.85, 1e-6);
                     top = Math.fround(top);
                     bottom = Math.fround(bottom);
                 }
+
                 // Keep the complete viewport so coalesced wheel events retain both axes.
                 overlay.dataset.zoomLeft = viewport[0].toString();
                 overlay.dataset.zoomRight = viewport[1].toString();
@@ -262,13 +297,17 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
             if (e.cancelable)
                 e.preventDefault();
+
             const rect = overlay.getBoundingClientRect();
             const startX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
             const startY = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+
             if (e.pointerType === "touch" || e.pointerType === "pen") {
                 const now = finiteNumber(e.timeStamp, Date.now());
                 const previous = lastTap;
+
                 lastTap = { time: now, x: e.clientX, y: e.clientY };
+
                 if (previous && now - previous.time <= 350 && Math.hypot(e.clientX - previous.x, e.clientY - previous.y) <= 24) {
                     lastTap = null;
                     overlay.dataset.zoomLeft = "0";
@@ -278,10 +317,13 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                     selection.style.display = "none";
                     drag = null;
                     invokeZoom("SetViewport", [0, 0, 1, 1]);
+
                     return;
                 }
             }
+
             overlay.setPointerCapture(e.pointerId);
+
             drag = {
                 pointerId: e.pointerId,
                 rect,
@@ -297,6 +339,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                     bottom: parseFloat(overlay.dataset.zoomBottom),
                 },
             };
+
             drag.currentX = drag.startX;
             drag.currentY = drag.startY;
         });
@@ -307,6 +350,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
             const x = clamp((e.clientX - drag.rect.left) / drag.rect.width, 0, 1);
             const y = clamp((e.clientY - drag.rect.top) / drag.rect.height, 0, 1);
+
             drag.currentX = x;
             drag.currentY = y;
 
@@ -315,11 +359,14 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                 const height = drag.zoom.bottom - drag.zoom.top;
                 const left = clamp(drag.zoom.left - (x - drag.startX) * width, 0, 1 - width);
                 const top = clamp(drag.zoom.top - (y - drag.startY) * height, 0, 1 - height);
+
                 invokeZoom("SetViewport", [left, top, left + width, top + height]);
+
                 return;
             }
 
             const { left, top, right, bottom } = dragBounds(drag.startX, drag.startY, x, y, drag.rect);
+
             Object.assign(selection.style, {
                 display: "block",
                 left: `${left * 100}%`, top: `${top * 100}%`,
@@ -333,6 +380,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
             selection.style.display = "none";
             const finished = drag;
+
             drag = null;
 
             if (finished.pan)
@@ -345,6 +393,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                 return;
 
             const { left, top, right, bottom } = dragBounds(finished.startX, finished.startY, finished.currentX, finished.currentY, finished.rect);
+
             invokeZoom("DragZoom", [
                 left,
                 top,
@@ -352,6 +401,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                 bottom,
             ]);
         };
+
         listen(overlay, "pointerup", finishDrag);
         listen(overlay, "pointercancel", finishDrag);
     }
@@ -373,8 +423,10 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
             if (e.cancelable)
                 e.preventDefault();
+
             e.stopPropagation();
             track.setPointerCapture(e.pointerId);
+
             drag = {
                 mode,
                 pointerId: e.pointerId,
@@ -390,6 +442,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         listen(handleL, "pointerdown", e => begin("left", e));
         listen(handleR, "pointerdown", e => begin("right", e));
         listen(win, "pointerdown", e => begin("pan", e));
+
         listen(track, "pointerdown", e => {
             if (e.target !== track && e.target.tagName !== "CANVAS")
                 return;
@@ -400,14 +453,17 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             const center = domainLeft + clamp((e.clientX - rect.left) / rect.width, 0, 1) * (domainRight - domainLeft);
             const width = parseFloat(win.dataset.right) - parseFloat(win.dataset.left);
             const left = clamp(center - width / 2, 0, 1 - width);
+
             invokeZoom("NavigatorZoom", [left, left + width]);
         });
+
         listen(track, "pointermove", e => {
             if (!drag || drag.pointerId !== e.pointerId)
                 return;
 
             if (e.cancelable)
                 e.preventDefault();
+
             const domainWidth = drag.domainRight - drag.domainLeft;
             const delta = (e.clientX - drag.startX) / drag.rect.width * domainWidth;
             const minimum = Math.max(Number.EPSILON, domainWidth / Math.max(1, drag.rect.width * 4));
@@ -422,21 +478,26 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
                 right = clamp(drag.startRight + delta, drag.startLeft + minimum, 1);
             } else {
                 const width = drag.startRight - drag.startLeft;
+
                 left = clamp(drag.startLeft + delta, 0, 1 - width);
                 right = left + width;
             }
 
             invokeZoom("NavigatorZoom", [left, right]);
         });
+
         const end = e => {
             if (drag?.pointerId === e.pointerId)
                 drag = null;
         };
+
         listen(track, "pointerup", end);
         listen(track, "pointercancel", end);
+
         listen(track, "wheel", e => {
             if (e.cancelable)
                 e.preventDefault();
+
             const rect = track.getBoundingClientRect();
             const domainLeft = parseFloat(track.dataset.domainLeft);
             const domainRight = parseFloat(track.dataset.domainRight);
@@ -444,16 +505,19 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
             const left = parseFloat(win.dataset.left);
             const right = parseFloat(win.dataset.right);
             const factor = e.deltaY < 0 ? 0.9 : 1.1111111111111112;
+
             invokeZoom("NavigatorZoom", fitInterval(
                 anchor - (anchor - left) * factor,
                 anchor + (right - anchor) * factor));
         }, { passive: false });
+
         listen(win, "keydown", e => {
             if (e.key !== "ArrowLeft" && e.key !== "ArrowRight")
                 return;
 
             if (e.cancelable)
                 e.preventDefault();
+
             const direction = e.key === "ArrowLeft" ? -1 : 1;
             const left = parseFloat(win.dataset.left);
             const right = parseFloat(win.dataset.right);
@@ -462,9 +526,11 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
             if (e.altKey) {
                 const nextRight = clamp(right + step, left + Number.EPSILON, 1);
+
                 invokeZoom("NavigatorZoom", [left, nextRight]);
             } else {
                 const nextLeft = clamp(left + step, 0, 1 - width);
+
                 invokeZoom("NavigatorZoom", [nextLeft, nextLeft + width]);
             }
         });
@@ -472,6 +538,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
     initNavigator("navigator");
     initNavigator("navigator-detail");
+
     nexus.chart.charts[chartId] = { dispose: () => {
         disposed = true;
         pendingPointer = null;

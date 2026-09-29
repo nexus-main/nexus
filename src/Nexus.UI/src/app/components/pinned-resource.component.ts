@@ -113,33 +113,45 @@ export class PinnedResourceComponent {
       : kind === 'Resampled'
         ? `must be positive, shorter than and divide the native period (${base}) exactly`
         : `must be a larger integer multiple of the native period (${base})`
+
     return `${this.displayKind(kind)} is invalid for the selected output period. The output period ${requirement}. Click to remove this method.`
   }
 
   displayKind(kind: RepresentationKind): string {
     if (kind === 'MeanPolarDeg') return 'Mean polar (deg)'
+
     if (kind === 'Std') return 'STD'
+
     if (kind === 'Rms') return 'RMS'
+
     if (kind === 'MinBitwise') return 'Minimum (bitwise)'
+
     if (kind === 'MaxBitwise') return 'Maximum (bitwise)'
+
     return kind
   }
 
   methodChipClass(kind: RepresentationKind): string {
     if (!this.valid(kind)) return 'method-invalid'
+
     if (kind === 'Original') return 'method-original'
+
     if (kind === 'Resampled') return 'method-resampled'
+
     return 'method-aggregated'
   }
 
   methodOptionClass(kind: RepresentationKind): string {
     const selected = this.methodSelected(kind)
+
     if (kind === 'Original') return selected
       ? 'method-selected method-original'
       : 'method-unselected'
+
     if (kind === 'Resampled') return selected
       ? 'method-selected method-resampled'
       : 'method-unselected'
+
     return selected
       ? 'method-selected method-aggregated'
       : 'method-unselected'

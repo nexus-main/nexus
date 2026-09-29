@@ -57,18 +57,25 @@ export function parsePeriod(value: string): bigint | null {
 
   if (unitMatch) {
     const unit = units.find(([name]) => name === unitMatch[2].toLowerCase())
+
     if (!unit) return null
+
     const nanoseconds = BigInt(unitMatch[1]) * unit[1]
+
     if (nanoseconds % 100n !== 0n) return null
+
     ticks = nanoseconds / 100n
   } else if (timeSpan) {
     const [, days, hours, minutes, seconds, fraction] = timeSpan
+
     if (Number(hours) > 23 || Number(minutes) > 59 || Number(seconds) > 59) return null
+
     ticks = ((BigInt(days ?? '0') * 24n + BigInt(hours)) * 3600n
       + BigInt(minutes) * 60n + BigInt(seconds)) * ticksPerSecond
       + BigInt((fraction ?? '').padEnd(7, '0'))
   } else if (iso && iso.slice(1).some((part) => part !== undefined) && !text.endsWith('T')) {
     const [, days, hours, minutes, seconds, fraction] = iso
+
     ticks = ((BigInt(days ?? '0') * 24n + BigInt(hours ?? '0')) * 3600n
       + BigInt(minutes ?? '0') * 60n + BigInt(seconds ?? '0')) * ticksPerSecond
       + BigInt((fraction ?? '').padEnd(7, '0'))
@@ -81,9 +88,12 @@ export function parsePeriod(value: string): bigint | null {
 
 export function formatPeriod(ticks: bigint, separator = ' '): string {
   if (ticks < 0n || ticks > maxTicks) throw new RangeError('Period is outside the TimeSpan range')
+
   if (ticks === 0n) return `0${separator}s`
+
   const nanoseconds = ticks * 100n
   const [name, scale] = units.find(([, scale]) => nanoseconds % scale === 0n)!
+
   return `${nanoseconds / scale}${separator}${name}`
 }
 
@@ -97,12 +107,14 @@ export function formatFilePeriod(ticks: bigint): string {
 
 export function toTimeSpan(ticks: bigint): string {
   if (ticks < 0n || ticks > maxTicks) throw new RangeError('Period is outside the TimeSpan range')
+
   const seconds = ticks / ticksPerSecond
   const days = seconds / 86400n
   const hours = (seconds / 3600n % 24n).toString().padStart(2, '0')
   const minutes = (seconds / 60n % 60n).toString().padStart(2, '0')
   const remainder = (seconds % 60n).toString().padStart(2, '0')
   const fraction = ticks % ticksPerSecond
+
   return `${days ? `${days}.` : ''}${hours}:${minutes}:${remainder}`
     + (fraction ? `.${fraction.toString().padStart(7, '0')}` : '')
 }
@@ -110,9 +122,13 @@ export function toTimeSpan(ticks: bigint): string {
 export function representationRows(resources: ResourceRow[]): RepresentationRow[] {
   return resources.flatMap((resource) => resource.representations.flatMap((representation) => {
     const basePeriod = parsePeriod(representation.samplePeriod ?? '')
+
     if (basePeriod === null || basePeriod <= 0n) return []
+
     const row = { ...resource, representation, basePeriod, key: '' }
+
     row.key = selectionKey(row, {})
+
     return [row]
   }))
 }
@@ -131,8 +147,11 @@ export function defaultKind(period: bigint, base: bigint): RepresentationKind {
 
 export function kindValid(kind: RepresentationKind, period: bigint, base: bigint): boolean {
   if (period <= 0n || base <= 0n || period > maxTicks || base > maxTicks) return false
+
   if (kind === 'Original') return period === base
+
   if (kind === 'Resampled') return period < base && base % period === 0n
+
   return representationKinds.includes(kind) && period > base && period % base === 0n
 }
 
@@ -140,37 +159,50 @@ export function requestPath(selection: ResourceSelection, kind: RepresentationKi
   const suffix = kind === 'Original' ? '' : `_${kind.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`
   const entries = parameterEntries(selection.parameters)
   const parameters = entries.length ? `(${entries.map(([name, value]) => `${name}=${value}`).join(',')})` : ''
+
   return `${selection.path}/${formatPeriod(period, '_')}${suffix}${parameters}#base=${formatPeriod(selection.basePeriod, '_')}`
 }
 
 export function parseResourcePath(value: string): ParsedResourcePath | null {
   const baseIndex = value.indexOf('#base=')
+
   if (baseIndex <= 0 || value.indexOf('#base=', baseIndex + 1) !== -1) return null
+
   const basePeriod = parsePeriod(value.slice(baseIndex + '#base='.length))
+
   if (basePeriod === null || basePeriod <= 0n) return null
 
   const beforeBase = value.slice(0, baseIndex)
   const slashIndex = beforeBase.lastIndexOf('/')
+
   if (slashIndex <= 0 || slashIndex === beforeBase.length - 1) return null
+
   const path = beforeBase.slice(0, slashIndex)
   let method = beforeBase.slice(slashIndex + 1)
   let parameters: Record<string, string> = {}
 
   if (method.endsWith(')')) {
     const parameterIndex = method.lastIndexOf('(')
+
     if (parameterIndex < 0) return null
+
     const parsedParameters = parseResourcePathParameters(method.slice(parameterIndex + 1, -1))
+
     if (!parsedParameters) return null
+
     parameters = parsedParameters
     method = method.slice(0, parameterIndex)
   }
 
   const originalPeriod = parsePeriod(method)
+
   if (originalPeriod !== null && originalPeriod > 0n) return { path, period: originalPeriod, basePeriod, kind: 'Original', parameters }
 
   for (const [suffix, kind] of resourcePathMethodSuffixes) {
     if (!method.endsWith(suffix)) continue
+
     const period = parsePeriod(method.slice(0, -suffix.length))
+
     if (period !== null && period > 0n) return { path, period, basePeriod, kind, parameters }
   }
 
@@ -184,15 +216,22 @@ const resourcePathMethodSuffixes = representationKinds
 
 function parseResourcePathParameters(value: string): Record<string, string> | null {
   if (!value) return {}
+
   const entries: [string, string][] = []
+
   for (const part of value.split(',')) {
     const separatorIndex = part.indexOf('=')
+
     if (separatorIndex <= 0) return null
+
     const name = part.slice(0, separatorIndex)
     const parameterValue = part.slice(separatorIndex + 1)
+
     if (!name || entries.some(([entryName]) => entryName === name)) return null
+
     entries.push([name, parameterValue])
   }
+
   return Object.fromEntries(entries.sort(([left], [right]) => left.localeCompare(right)))
 }
 
@@ -203,37 +242,53 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function readSelectionState(value: unknown): StoredSelectionState {
   const state: StoredSelectionState = { version: 1, period: '1 s', automaticPeriod: true, selections: [] }
   const legacy = Array.isArray(value)
+
   if (!legacy && (!isRecord(value) || value['version'] !== 1)) return state
+
   const stored = legacy ? undefined : value as Record<string, unknown>
   const period = typeof stored?.['period'] === 'string' ? parsePeriod(stored['period']) : null
+
   if (period !== null && period > 0n) {
     state.period = formatPeriod(period)
     state.automaticPeriod = typeof stored?.['automaticPeriod'] === 'boolean' ? stored['automaticPeriod'] : true
   }
+
   const references = legacy ? value : stored?.['selections']
+
   if (!Array.isArray(references)) return state
+
   const unique = new Map<string, StoredSelectionReference>()
 
   for (const reference of references) {
     if (!isRecord(reference)) continue
+
     const catalogId = reference['catalogId']
     const path = reference['path']
+
     if (typeof catalogId !== 'string' || !catalogId.startsWith('/') || typeof path !== 'string') continue
+
     const prefix = catalogId === '/' ? '/' : `${catalogId}/`
+
     if (!path.startsWith(prefix) || path.length <= prefix.length) continue
+
     let basePeriod: string | null = null
     let parameters: Record<string, string> = {}
     let kinds: RepresentationKind[] = []
 
     if (!legacy) {
       if (!isRecord(reference['parameters']) || !Array.isArray(reference['kinds'])) continue
+
       if (!Object.values(reference['parameters']).every((entry) => typeof entry === 'string')) continue
+
       parameters = Object.fromEntries(parameterEntries(reference['parameters'] as Record<string, string>))
+
       if (reference['basePeriod'] === null) {
         if (reference['kinds'].length) continue
       } else {
         const base = typeof reference['basePeriod'] === 'string' ? parsePeriod(reference['basePeriod']) : null
+
         if (base === null || base <= 0n) continue
+
         basePeriod = formatPeriod(base)
         kinds = [...new Set(reference['kinds'].filter((kind): kind is RepresentationKind => representationKinds.includes(kind)))]
     }
@@ -241,11 +296,13 @@ export function readSelectionState(value: unknown): StoredSelectionState {
 
     const key = JSON.stringify([catalogId, path, basePeriod, parameterEntries(parameters)])
     const previous = unique.get(key)
+
     if (previous) previous.kinds = [...new Set([...previous.kinds, ...kinds])]
     else unique.set(key, { catalogId, path, basePeriod, parameters, kinds })
   }
 
   state.selections = [...unique.values()]
+
   return state
 }
 
@@ -279,37 +336,49 @@ export function hydrateSelections(
 
   for (const input of references) {
     const reference = readSelectionState({ version: 1, selections: [input] }).selections[0]
+
     if (!reference) continue
+
     const rows = catalogs.get(reference.catalogId)
+
     if (!rows) {
       const key = JSON.stringify([reference.catalogId, reference.path, reference.basePeriod, parameterEntries(reference.parameters)])
       const previous = pending.get(key)
+
       if (previous) previous.kinds = [...new Set([...previous.kinds, ...reference.kinds])]
       else {
         pending.set(key, reference)
         retained.push(reference)
         unresolved.push(reference)
       }
+
       continue
     }
+
     const base = reference.basePeriod === null ? null : parsePeriod(reference.basePeriod)
     const row = rows.find((row) => row.catalogId === reference.catalogId && row.path === reference.path
       && (base === null || row.basePeriod === base))
+
     if (!row) continue
+
     if (!initialized) {
       period = row.basePeriod
       initialized = true
     }
+
     const key = selectionKey(row, reference.parameters)
     const kinds = reference.kinds.length ? reference.kinds : reference.basePeriod === null ? [defaultKind(period, row.basePeriod)] : []
     const previous = selections.get(key)
+
     if (previous) {
       previous.kinds = [...new Set([...previous.kinds, ...kinds])]
       resolved.get(key)!.kinds = [...previous.kinds]
     } else {
       const selection = { ...row, key, parameters: { ...reference.parameters }, kinds: [...kinds] }
+
       selections.set(key, selection)
       const stored = storeSelectionReference(selection)
+
       resolved.set(key, stored)
       retained.push(stored)
     }
@@ -320,30 +389,43 @@ export function hydrateSelections(
 
 export function dateTicks(value: string): bigint | null {
   const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?(Z|[+-]\d{2}:\d{2})$/.exec(value)
+
   if (!match || match[1].startsWith('0000-')) return null
+
   const [, date, fraction, zone] = match
   const local = Date.parse(`${date}Z`)
+
   // Date.parse normalizes impossible dates and 24:00; require the original calendar fields.
   if (!Number.isFinite(local) || new Date(local).toISOString().slice(0, 19) !== date) return null
+
   if (zone !== 'Z') {
     const hours = Number(zone.slice(1, 3))
     const minutes = Number(zone.slice(4, 6))
+
     if (hours > 14 || minutes > 59 || (hours === 14 && minutes !== 0)) return null
   }
+
   const milliseconds = Date.parse(`${date}${zone}`)
+
   if (!Number.isFinite(milliseconds)) return null
+
   // Parse whole seconds separately so sub-millisecond ticks are never rounded or truncated.
   const ticks = BigInt(milliseconds) * 10000n + 621355968000000000n
     + BigInt((fraction ?? '').padEnd(7, '0'))
+
   return ticks >= 0n && ticks <= 3155378975999999999n ? ticks : null
 }
 
 export function alignRangeEndpoint(value: string, period: bigint): string {
   if (period <= 0n || period > maxTicks) return value
+
   const ticks = dateTicks(value)
+
   if (ticks === null) return value
+
   const aligned = ticks - ticks % period
   const iso = new Date(Number(aligned / 10000n - 62135596800000n)).toISOString()
+
   return aligned % 10000n === 0n
     ? iso
     : `${iso.slice(0, 19)}.${(aligned % ticksPerSecond).toString().padStart(7, '0')}Z`
@@ -351,12 +433,18 @@ export function alignRangeEndpoint(value: string, period: bigint): string {
 
 export function executionRangeError(begin: string, end: string, period: bigint, seriesCount: number): string {
   if (!Number.isInteger(seriesCount) || seriesCount < 1) return 'Select at least one output series.'
+
   if (seriesCount > 100) return 'Select no more than 100 output series.'
+
   if (period <= 0n || period > maxTicks) return 'Choose a positive Period within the TimeSpan range.'
+
   const beginTicks = dateTicks(begin)
   const endTicks = dateTicks(end)
+
   if (beginTicks === null || endTicks === null || beginTicks >= endTicks) return 'Choose a valid UTC range with From before To.'
+
   if (beginTicks % period !== 0n || endTicks % period !== 0n) return 'From and To must align with Period.'
+
   return ''
 }
 
@@ -367,42 +455,59 @@ export function resourceAvailableForRange(
   selectedEnd: string,
 ): boolean {
   const resources = catalogProperties?.['resources']
+
   if (!isRecord(resources)) return true
+
   const availability = resources['availability']
+
   if (!Array.isArray(availability)) return true
 
   const selectedBeginTicks = dateTicks(selectedBegin)
   const selectedEndTicks = dateTicks(selectedEnd)
+
   if (selectedBeginTicks === null || selectedEndTicks === null || selectedBeginTicks >= selectedEndTicks) return true
 
   let matched = false
+
   for (const rule of availability) {
     if (!isRecord(rule)) continue
+
     const pattern = rule['pattern']
+
     if (typeof pattern !== 'string') continue
+
     let regex: RegExp
+
     try { regex = new RegExp(pattern) } catch { continue }
 
     const begin = rule['begin']
     const end = rule['end']
     let beginTicks: bigint | null = null
     let endTicks: bigint | null = null
+
     if (begin != null) {
       if (typeof begin !== 'string') continue
+
       beginTicks = dateTicks(begin)
+
       if (beginTicks === null) continue
     }
+
     if (end != null) {
       if (typeof end !== 'string') continue
+
       endTicks = dateTicks(end)
+
       if (endTicks === null) continue
     }
 
     if (!regex.test(resourceAvailabilityPath(resource))) continue
+
     matched = true
 
     const beginOk = beginTicks === null || beginTicks < selectedEndTicks
     const endOk = endTicks === null || selectedBeginTicks < endTicks
+
     if (beginOk && endOk) return true
   }
 
@@ -413,5 +518,6 @@ function resourceAvailabilityPath(resource: ResourceRow | RepresentationRow): st
   if (!('basePeriod' in resource)) return resource.path
 
   const period = formatPeriod(resource.basePeriod, '_')
+
   return `${resource.path}/${period}#base=${period}`
 }

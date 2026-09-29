@@ -26,6 +26,7 @@
         for (const [key, state] of renderStates) {
             if (!key.startsWith(`${chartId}:`))
                 continue;
+
             state.generation++;
             state.pending = null;
             renderStates.delete(key);
@@ -37,6 +38,7 @@
             for (const [key, decimation] of source.decimations ?? []) {
                 if (key !== target && !key.startsWith(`${target}:`))
                     continue;
+
                 destroyTrackedBuffer(instance, decimation.outputBuffer);
                 destroyTrackedBuffer(instance, decimation.paramsBuffer);
                 source.decimations.delete(key);
@@ -47,6 +49,7 @@
     function releaseTarget(chartId, target) {
         const key = renderStateKey(chartId, target);
         const state = renderStates.get(key);
+
         if (state) {
             state.generation++;
             state.pending = null;
@@ -54,6 +57,7 @@
         }
 
         const instance = instances.get(chartId);
+
         if (!instance)
             return;
 
@@ -94,6 +98,7 @@
 
         resources = { seriesBuffer, uniformBuffer, bindGroup };
         targetResources[drawIndex] = resources;
+
         return resources;
     }
 
@@ -208,11 +213,13 @@
 
             let outputBuffer = null;
             let paramsBuffer = null;
+
             try {
                 outputBuffer = createTrackedBuffer(instance, {
                     size: outputSize,
                     usage: GPUBufferUsage.STORAGE,
                 }, protectedRawKeys);
+
                 paramsBuffer = createTrackedBuffer(instance, {
                     size: 16,
                     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -222,6 +229,7 @@
                 destroyTrackedBuffer(instance, paramsBuffer);
                 throw error;
             }
+
             const bindGroup = instance.device.createBindGroup({
                 layout: (source.dataMode === 1 ? instance.pointDecimationPipeline : instance.decimationPipeline).getBindGroupLayout(0),
                 entries: [
@@ -243,6 +251,7 @@
                     dataMode: 1,
                 },
             };
+
             source.decimations.set(target, decimation);
         }
 
@@ -252,6 +261,7 @@
             new Uint32Array([zoomInfo.first, visibleLength, bucketCount, source.overviewLength ?? source.length]));
 
         const pass = encoder.beginComputePass();
+
         pass.setPipeline(source.dataMode === 1 ? instance.pointDecimationPipeline : instance.decimationPipeline);
         pass.setBindGroup(0, decimation.bindGroup);
         pass.dispatchWorkgroups(bucketCount);
@@ -309,6 +319,7 @@
         floats[23] = zoomInfo.xOrigin ?? 0;
 
         instance.device.queue.writeBuffer(uniformBuffer, 0, data);
+
         return true;
     }
 
@@ -338,18 +349,22 @@
 
         const { device, format, pipeline } = instance;
         const target = valueOf(payload, 'Target') ?? 'series';
+
         if (renderState && (renderState.generation !== renderGeneration || renderStates.get(renderStateKey(chartId, target)) !== renderState))
             throw ns.cancellationError(`Rendering target ${target} was superseded`);
+
         const canvas = document.getElementById(`${target}_${chartId}`);
 
         if (!canvas) {
             releaseCanvasContext(instance, target);
+
             return;
         }
 
         const context = getCanvasContext(instance, target, canvas);
         const { width, height, dpr } = ensureCanvasSize(canvas);
         const isPreview = valueOf(payload, 'Preview') ?? false;
+
         instance.lastPayloads.set(target, payload);
         let previewRenderKey = null;
 
@@ -379,11 +394,14 @@
                 cached.chartId = chartId;
                 cached.generation = instance.uploadGenerations.get(cached.id);
                 cached.lifecycleEpoch = getLifecycleEpoch(chartId);
+
                 if (cached.chunked) {
                     const rawItems = getRawRenderItems(instance, cached, series, payload, plot, encoder, target, protectedRawKeys);
+
                     if (rawItems) {
                         for (const rawItem of rawItems)
                             renderItems.push({ series, ...rawItem });
+
                         continue;
                     }
                 }
@@ -396,6 +414,7 @@
                     continue;
 
                 const renderItem = getRenderBuffer(instance, cached, zoomInfo, plot, encoder, target, protectedRawKeys);
+
                 renderItems.push({ series, ...renderItem });
             }
         }
@@ -411,6 +430,7 @@
 
         if (plot) {
             pass.setPipeline(pipeline);
+
             pass.setScissorRect(
                 Math.max(0, Math.floor(plot.plotLeft)),
                 Math.max(0, Math.floor(plot.plotTop)),
@@ -448,30 +468,38 @@
         const target = valueOf(payload, 'Target') ?? 'series';
         const key = renderStateKey(chartId, target);
         let state = renderStates.get(key);
+
         if (!state) {
             state = { generation: 0, pending: null, running: false };
             renderStates.set(key, state);
         }
+
         state.pending = payload;
+
         if (state.running)
             return state.promise;
 
         state.running = true;
         const generation = state.generation;
+
         state.promise = (async () => {
             try {
                 while (state.pending && state.generation === generation) {
                     const next = state.pending;
+
                     state.pending = null;
+
                     await runRuntimeOperation(chartId, 'WebGPU rendering failed', () =>
                         renderSeriesAsync(chartId, next, state, generation));
                 }
             } finally {
                 state.running = false;
+
                 if (renderStates.get(key) === state && !state.pending)
                     renderStates.delete(key);
             }
         })();
+
         return state.promise;
     }
 
@@ -481,14 +509,17 @@
     });
 
     window.nexus ??= {};
+
     window.nexus.chartWebGpu = {
         initialize(chartId, dotNetHelper) {
             dotNetHelpers.set(chartId, dotNetHelper);
 
             const failure = failureStates.get(chartId);
+
             if (failure) {
                 dotNetHelper.invokeMethodAsync('WebGpuFailed', failure.title, failure.message)
                     .catch(error => console.error('[chart-webgpu] failure callback failed', error));
+
                 return;
             }
 
@@ -500,6 +531,7 @@
 
             configuredCacheBudgets.set(chartId, bytes);
             const instance = instances.get(chartId);
+
             if (instance) {
                 instance.cacheBudget = bytes;
                 evictRawChunks(instance, 0, new Set(), bytes);
@@ -509,6 +541,7 @@
         },
         synchronizeSeries(chartId, activeIds) {
             const instance = instances.get(chartId);
+
             if (instance)
                 synchronizeSeries(instance, activeIds);
         },
@@ -518,6 +551,7 @@
         },
         appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
             const epoch = getLifecycleEpoch(chartId);
+
             try {
                 appendChunkedSeriesImpl(chartId, token, offset, dataReference, dataLength);
             } catch (error) {
@@ -559,20 +593,24 @@
             pendingInstances.delete(chartId);
 
             const instance = instances.get(chartId);
+
             if (instance) {
                 instances.delete(chartId);
                 destroyInstance(instance, `Chart ${chartId} WebGPU retry`);
             }
 
             failureStates.delete(chartId);
+
             return (await getInstance(chartId)) !== null;
         },
         dispose(chartId) {
             const pending = pendingInstances.get(chartId);
+
             advanceLifecycleEpoch(chartId);
             pendingInstances.delete(chartId);
 
             const instance = instances.get(chartId);
+
             instances.delete(chartId);
 
             if (instance)
@@ -581,8 +619,10 @@
             configuredCacheBudgets.delete(chartId);
             failureStates.delete(chartId);
             dotNetHelpers.delete(chartId);
+
             if (!pending)
                 lifecycleEpochs.delete(chartId);
+
             releaseSharedGpuIfUnused();
         },
     };

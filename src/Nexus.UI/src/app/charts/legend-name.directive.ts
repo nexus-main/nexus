@@ -13,7 +13,9 @@ export class LegendNameDirective implements AfterViewInit, OnChanges, OnDestroy 
   private observer?: ResizeObserver;
   private readonly fit = (): void => {
     if (!this.context) return;
+
     const style = getComputedStyle(this.element);
+
     this.context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     this.element.textContent = fitLegendName(this.legendName, this.element.clientWidth, text => this.context!.measureText(text).width);
   };

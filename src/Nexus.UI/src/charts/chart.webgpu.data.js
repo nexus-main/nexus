@@ -67,11 +67,13 @@
 
         while (instance.ownedGpuBytes + instance.rawReservedBytes + requiredBytes > budget && candidates.length) {
             const [key, chunk] = candidates.shift();
+
             destroyRawChunk(instance, key, chunk);
         }
 
         if (requiredBytes > 0 && instance.ownedGpuBytes + instance.rawReservedBytes + requiredBytes > budget) {
             const error = new Error(`Chart GPU memory budget (${budget} bytes) cannot fit a ${requiredBytes}-byte allocation`);
+
             error.webGpuCacheCapacity = true;
             throw error;
         }
@@ -135,6 +137,7 @@
 
         const encoder = instance.device.createCommandEncoder();
         const pass = encoder.beginComputePass();
+
         pass.setPipeline(instance.overviewPipeline);
         pass.setBindGroup(0, bindGroup);
         pass.dispatchWorkgroups(Math.ceil(count / overviewBucketSize));
@@ -148,8 +151,10 @@
 
     async function beginChunkedSeriesAsync(chartId, id, version, length) {
         const instance = await getInstance(chartId);
+
         if (!instance)
             throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
+
         if (!Number.isSafeInteger(length) || length < 2)
             throw new Error(`Chunked series length must be a safe integer of at least 2 (received ${length})`);
 
@@ -158,37 +163,46 @@
         const overviewBytes = overviewLength * 2 * Float32Array.BYTES_PER_ELEMENT;
         const transientBytes = Math.min(streamChunkLength, length) * Float32Array.BYTES_PER_ELEMENT;
         const deviceLimit = Math.min(instance.device.limits.maxBufferSize, instance.device.limits.maxStorageBufferBindingSize);
+
         if (overviewBytes > deviceLimit)
             throw new Error(`Persistent overview requires ${overviewBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
+
         if (transientBytes > deviceLimit)
             throw new Error(`Series stream chunk requires ${transientBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`);
 
         const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
+
         instance.uploadGenerations.set(id, generation);
         removeRawSeries(instance, id);
+
         for (const [token, upload] of instance.chunkedUploadSessions) {
             if (upload.id === id) {
                 destroyChunkedUpload(instance, upload);
                 instance.chunkedUploadSessions.delete(token);
             }
         }
+
         const token = ++instance.uploadToken;
         let transientBuffer = null;
         let overviewBuffer = null;
         let paramsBuffer = null;
+
         try {
             transientBuffer = ns.createTrackedBuffer(instance, {
                 size: transientBytes,
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             });
+
             overviewBuffer = ns.createTrackedBuffer(instance, {
                 size: overviewBytes,
                 usage: GPUBufferUsage.STORAGE,
             });
+
             paramsBuffer = ns.createTrackedBuffer(instance, {
                 size: 16,
                 usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
             });
+
             const bindGroup = instance.device.createBindGroup({
                 layout: instance.overviewPipeline.getBindGroupLayout(0),
                 entries: [
@@ -197,11 +211,13 @@
                     { binding: 2, resource: { buffer: paramsBuffer } },
                 ],
             });
+
             instance.chunkedUploadSessions.set(token, {
                 id, version, length, generation, overviewLength, overviewBucketCount,
                 transientBuffer, overviewBuffer, paramsBuffer, bindGroup,
                 writtenLength: 0, rangeHasValue: false, rangeMinimum: 0, rangeMaximum: 0,
             });
+
             return token;
         } catch (error) {
             ns.destroyTrackedBuffer(instance, transientBuffer);
@@ -213,6 +229,7 @@
 
     function getDataLength(dataLength, availableLength, unit) {
         const actualLength = dataLength ?? availableLength;
+
         if (!Number.isSafeInteger(actualLength) || actualLength < 0 || actualLength > availableLength)
             throw new Error(`Chunk ${unit} length ${actualLength} exceeds payload ${unit} length ${availableLength}`);
 
@@ -223,6 +240,7 @@
         if (dataReference?._unsafe_create_view) {
             const view = dataReference._unsafe_create_view();
             const actualByteLength = getDataLength(dataLength, view.byteLength, 'byte');
+
             if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
                 throw new Error(`Chunk byte length ${actualByteLength} is not aligned to float size`);
 
@@ -237,6 +255,7 @@
         if (dataReference?.getUint8Array) {
             const bytes = dataReference.getUint8Array();
             const actualByteLength = getDataLength(dataLength, bytes.byteLength, 'byte');
+
             if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
                 throw new Error(`Chunk byte length ${actualByteLength} is not aligned to float size`);
 
@@ -246,17 +265,20 @@
         if (dataReference?.getFloat32Array) {
             const values = dataReference.getFloat32Array();
             const actualLength = getDataLength(dataLength, values.length, 'sample');
+
             return actualLength === values.length ? values : values.subarray(0, actualLength);
         }
 
         if (dataReference instanceof Float32Array) {
             const actualLength = getDataLength(dataLength, dataReference.length, 'sample');
+
             return actualLength === dataReference.length ? dataReference : dataReference.subarray(0, actualLength);
         }
 
         if (ArrayBuffer.isView(dataReference)) {
             if (dataReference instanceof Uint8Array || dataReference instanceof Int8Array || dataReference instanceof Uint8ClampedArray) {
                 const actualByteLength = getDataLength(dataLength, dataReference.byteLength, 'byte');
+
                 if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
                     throw new Error(`Chunk byte length ${actualByteLength} is not aligned to float size`);
 
@@ -265,11 +287,13 @@
 
             const values = Float32Array.from(dataReference);
             const actualLength = getDataLength(dataLength, values.length, 'sample');
+
             return actualLength === values.length ? values : values.subarray(0, actualLength);
         }
 
         if (dataReference instanceof ArrayBuffer) {
             const actualByteLength = getDataLength(dataLength, dataReference.byteLength, 'byte');
+
             if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
                 throw new Error(`Chunk byte length ${actualByteLength} is not aligned to float size`);
 
@@ -279,6 +303,7 @@
         if (Array.isArray(dataReference)) {
             const values = Float32Array.from(dataReference);
             const actualLength = getDataLength(dataLength, values.length, 'sample');
+
             return actualLength === values.length ? values : values.subarray(0, actualLength);
         }
 
@@ -288,6 +313,7 @@
     async function readFloatDataReferenceAsync(dataReference, dataLength) {
         if (dataReference instanceof Float32Array) {
             const actualLength = getDataLength(dataLength, dataReference.length, 'sample');
+
             return actualLength === dataReference.length ? dataReference : dataReference.subarray(0, actualLength);
         }
 
@@ -295,6 +321,7 @@
             if (dataReference instanceof Uint8Array || dataReference instanceof Int8Array || dataReference instanceof Uint8ClampedArray) {
                 const bytes = new Uint8Array(dataReference.buffer, dataReference.byteOffset, dataReference.byteLength);
                 const actualByteLength = getDataLength(dataLength, bytes.byteLength, 'byte');
+
                 if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
                     throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
 
@@ -303,11 +330,13 @@
 
             const values = Float32Array.from(dataReference);
             const actualLength = getDataLength(dataLength, values.length, 'sample');
+
             return actualLength === values.length ? values : values.subarray(0, actualLength);
         }
 
         if (dataReference instanceof ArrayBuffer) {
             const actualByteLength = getDataLength(dataLength, dataReference.byteLength, 'byte');
+
             if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
                 throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
 
@@ -317,11 +346,13 @@
         if (Array.isArray(dataReference)) {
             const values = Float32Array.from(dataReference);
             const actualLength = getDataLength(dataLength, values.length, 'sample');
+
             return actualLength === values.length ? values : values.subarray(0, actualLength);
         }
 
         const bytes = new Uint8Array(await dataReference.arrayBuffer());
         const actualByteLength = getDataLength(dataLength, bytes.byteLength, 'byte');
+
         if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0)
             throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
 
@@ -331,6 +362,7 @@
     function appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
         const instance = instances.get(chartId);
         const upload = instance?.chunkedUploadSessions.get(token);
+
         if (!upload)
             throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
 
@@ -346,6 +378,7 @@
     async function processChunkedSeriesUploadAsync(chartId, token, offset, count) {
         const instance = await getInstance(chartId);
         const upload = instance?.chunkedUploadSessions.get(token);
+
         if (!upload)
             throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
 
@@ -371,8 +404,10 @@
     async function completeChunkedSeriesAsync(chartId, token) {
         const instance = await getInstance(chartId);
         const upload = instance?.chunkedUploadSessions.get(token);
+
         if (!upload)
             throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
+
         if (upload.writtenLength !== upload.length)
             throw new Error(`Chunked series upload ${token} is incomplete`);
 
@@ -382,23 +417,28 @@
                 instance.seriesBuffers.delete(existingKey);
             }
         }
+
         instance.seriesBuffers.set(getSeriesKey(upload.id, upload.version, upload.length), {
             id: upload.id, version: upload.version, length: upload.length,
             buffer: upload.overviewBuffer, pointBuffer: upload.overviewBuffer,
             overviewLength: upload.overviewLength, overviewBucketCount: upload.overviewBucketCount,
             dataMode: 1, chunked: true, decimations: new Map(),
         });
+
         ns.destroyTrackedBuffer(instance, upload.transientBuffer);
         ns.destroyTrackedBuffer(instance, upload.paramsBuffer);
         instance.chunkedUploadSessions.delete(token);
+
         return { hasValue: upload.rangeHasValue, minimum: upload.rangeMinimum, maximum: upload.rangeMaximum };
     }
 
     function abortChunkedSeries(chartId, token) {
         const instance = instances.get(chartId);
         const upload = instance?.chunkedUploadSessions.get(token);
+
         if (!upload)
             return;
+
         destroyChunkedUpload(instance, upload);
         instance.chunkedUploadSessions.delete(token);
     }
@@ -472,6 +512,7 @@
 
             const encoder = instance.device.createCommandEncoder();
             const pass = encoder.beginComputePass();
+
             pass.setPipeline(instance.rangePipeline);
             pass.setBindGroup(0, bindGroup);
             pass.dispatchWorkgroups(workgroupCount);
@@ -523,19 +564,23 @@
 
         if (cached) {
             cached.lastUsed = performance.now();
+
             return Promise.resolve(cached);
         }
 
         const pending = instance.rawRequests.get(key);
+
         if (pending)
             return pending.promise;
 
         const offset = chunkIndex * rawChunkLength;
+
         if (offset >= source.length)
             return Promise.resolve(null);
 
         const count = Math.min(rawChunkLength + (offset + rawChunkLength < source.length ? 1 : 0), source.length - offset);
         const byteLength = count * Float32Array.BYTES_PER_ELEMENT;
+
         evictRawChunks(instance, byteLength, protectedKeys);
         instance.rawReservedBytes += byteLength;
 
@@ -554,6 +599,7 @@
             id: source.id, requestId, promise, resolve: resolveRequest, reject: rejectRequest, byteLength,
             buffer, offset, count, writtenLength: 0, reservationActive: true,
         };
+
         instance.rawRequests.set(key, request);
         const callbacks = {
             onerror: event => {
@@ -562,11 +608,13 @@
             },
         };
         const helper = dotNetHelpers.get(source.chartId);
+
         if (!helper)
             callbacks.onerror({ message: `Chart ${source.chartId} is no longer active` });
         else
             helper.invokeMethodAsync('ProvideSeriesChunk', source.id, offset, count, requestId)
                 .catch(error => callbacks.onerror({ message: error?.message ?? error }));
+
         return promise;
     }
 
@@ -574,6 +622,7 @@
         const instance = instances.get(chartId);
         const request = [...instance?.rawRequests.values() ?? []]
             .find(item => item.requestId === requestId);
+
         if (!request)
             throw ns.cancellationError(`Raw chunk request ${requestId} is no longer active`);
 
@@ -593,6 +642,7 @@
         if (request.writtenLength === request.count) {
             const key = [...instance.rawRequests.entries()]
                 .find(([, item]) => item === request)?.[0];
+
             if (!key)
                 throw ns.cancellationError(`Raw chunk request ${requestId} was removed before completion`);
 
@@ -603,6 +653,7 @@
     function rerenderLastPayloads(instance) {
         for (const [target, payload] of instance.lastPayloads) {
             instance.previewRenderKeys.delete(target);
+
             ns.scheduleRender(instance.chartId, payload).catch(error => {
                     if (!ns.isCancellationError(error))
                         console.error('[chart-webgpu] raw rerender failed', error);
@@ -624,6 +675,7 @@
 
         const firstChunk = Math.floor(left / rawChunkLength);
         const lastChunk = Math.floor((right - 1) / rawChunkLength);
+
         for (let index = firstChunk; index <= lastChunk; index++)
             protectedKeys.add(rawChunkKey(source, index));
 
@@ -636,6 +688,7 @@
                             source.lifecycleEpoch,
                             'WebGPU data generation failed',
                             `${error?.message ?? error} Retry the chart to recreate its GPU resources.`);
+
                         console.error('[chart-webgpu] raw request failed', error);
                     }
                 });
@@ -661,14 +714,17 @@
         }
 
         const items = [];
+
         for (let index = firstChunk; index <= lastChunk; index++) {
             const chunk = instance.rawChunks.get(rawChunkKey(source, index));
+
             if (!chunk)
                 return null;
 
             chunk.lastUsed = performance.now();
             const localFirst = Math.max(0, Math.floor(left - chunk.offset));
             const localLast = Math.min(chunk.length - 1, Math.ceil(right - chunk.offset));
+
             if (localLast <= localFirst)
                 continue;
 
@@ -678,6 +734,7 @@
                 zoomedLeft: plot.plotLeft + ((chunk.offset + localFirst - indexLeft) / indexRange) * plot.plotWidth,
                 dx: plot.plotWidth / indexRange,
             };
+
             items.push(ns.getRenderBuffer(instance, chunk, zoomInfo, plot, encoder, `${target}:${source.id}:${index}`, protectedKeys));
         }
 

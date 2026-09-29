@@ -92,18 +92,24 @@ export class CatalogAboutDialogComponent {
   constructor() {
     effect(() => {
       if (!this.visible()) return
+
       const pipelineInfo = this.pipelineInfo()
+
       if (!pipelineInfo?.types?.length) {
         this.entries.set([])
+
         return
       }
+
       this.loading.set(true)
+
       this.nexus.v1.sources.getDescriptions()
         .then(descriptions => {
           const types = pipelineInfo.types ?? []
           const infoUrls = pipelineInfo.infoUrls ?? []
           const entries: AboutEntry[] = types.map((type, i) => {
             const desc = descriptions.find(d => d.type === type)
+
             return {
               type,
               version: desc?.version,
@@ -113,6 +119,7 @@ export class CatalogAboutDialogComponent {
               repositoryUrl: desc?.repositoryUrl ?? null,
             }
           })
+
           this.entries.set(entries)
         })
         .catch(() => this.entries.set([]))

@@ -64,7 +64,9 @@ export class PropertiesDialogComponent {
 
   readonly text = computed(() => {
     const data = this.data()
+
     if (!data) return '{}'
+
     try {
       return JSON.stringify(data, null, 2)
     } catch {
@@ -75,6 +77,7 @@ export class PropertiesDialogComponent {
   constructor() {
     effect(() => {
       const themeMode = this.themeMode()
+
       if (this.monaco) {
         this.monaco.editor.setTheme(getNexusMonacoTheme(themeMode))
       }
@@ -82,6 +85,7 @@ export class PropertiesDialogComponent {
 
     effect(() => {
       const text = this.text()
+
       if (this.editor) {
         this.editor.setValue(text)
         this.updateHeight()
@@ -97,20 +101,27 @@ export class PropertiesDialogComponent {
   onEditorInit(editor: Monaco.editor.IStandaloneCodeEditor): void {
     this.editor = editor
     this.monaco = (window as unknown as { monaco?: typeof Monaco }).monaco ?? null
+
     if (this.monaco) defineNexusMonacoThemes(this.monaco)
+
     editor.setValue(this.text())
+
     if (this.monaco) {
       this.monaco.editor.setTheme(getNexusMonacoTheme(this.themeMode()))
     }
+
     editor.onDidContentSizeChange(() => this.updateHeight())
     this.updateHeight()
   }
 
   private updateHeight(): void {
     const editor = this.editor
+
     if (!editor) return
+
     const contentHeight = Math.ceil(editor.getContentHeight()) + 16
     const maxHeight = Math.max(84, window.innerHeight * 0.72)
+
     this.editorHeight.set(Math.min(contentHeight, maxHeight))
     requestAnimationFrame(() => editor.layout())
   }

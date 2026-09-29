@@ -6,6 +6,7 @@ let themesDefined = false
 
 export function defineNexusMonacoThemes(monaco: typeof Monaco): void {
   if (themesDefined) return
+
   themesDefined = true
 
   monaco.editor.defineTheme('nexus-dark', {

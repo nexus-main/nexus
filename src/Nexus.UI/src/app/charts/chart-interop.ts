@@ -63,6 +63,8 @@ export interface ChartInterop {
 
 export function getChartInterop(): ChartInterop {
   const nexus = (window as Window & { nexus?: ChartInterop }).nexus;
+
   if (!nexus?.chart || !nexus.chartWebGpu) throw new Error('The Nexus chart scripts have not been loaded.');
+
   return nexus;
 }

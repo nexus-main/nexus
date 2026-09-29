@@ -19,11 +19,13 @@
             return undefined;
 
         const camelName = name.charAt(0).toLowerCase() + name.slice(1);
+
         return source[name] ?? source[camelName];
     }
 
     function colorOf(source) {
         const color = valueOf(source, 'Color') ?? {};
+
         return [
             (valueOf(color, 'Red') ?? 0) / 255,
             (valueOf(color, 'Green') ?? 0) / 255,
@@ -54,6 +56,7 @@
         configured?.context.unconfigure?.();
         instance.previewRenderKeys.delete(target);
         const context = canvas.getContext('webgpu');
+
         if (!context)
             throw new Error('The browser could not create a WebGPU canvas context.');
 
@@ -62,12 +65,15 @@
             format: instance.format,
             alphaMode: 'premultiplied',
         });
+
         instance.canvasContexts.set(target, { canvas, context });
+
         return context;
     }
 
     function releaseCanvasContext(instance, target) {
         const configured = instance.canvasContexts.get(target);
+
         configured?.context.unconfigure?.();
         instance.canvasContexts.delete(target);
         instance.previewRenderKeys.delete(target);
@@ -88,6 +94,7 @@
 
     function ensureGpuCapacity(instance, requiredBytes, protectedRawKeys = new Set(), budget = instance.cacheBudget) {
         ns.evictRawChunks?.(instance, requiredBytes, protectedRawKeys, budget);
+
         if (instance.ownedGpuBytes + instance.rawReservedBytes + requiredBytes > budget)
             throw new Error(`Chart GPU memory budget (${budget} bytes) cannot fit a ${requiredBytes}-byte allocation`);
     }
@@ -95,9 +102,11 @@
     function createTrackedBuffer(instance, descriptor, protectedRawKeys) {
         ensureGpuCapacity(instance, descriptor.size, protectedRawKeys);
         const buffer = instance.device.createBuffer(descriptor);
+
         buffer.__nexusByteLength = descriptor.size;
         buffer.__nexusDestroyed = false;
         instance.ownedGpuBytes += descriptor.size;
+
         return buffer;
     }
 
@@ -107,13 +116,17 @@
 
     function advanceLifecycleEpoch(chartId) {
         const epoch = getLifecycleEpoch(chartId) + 1;
+
         lifecycleEpochs.set(chartId, epoch);
+
         return epoch;
     }
 
     function cancellationError(message) {
         const error = new Error(message);
+
         error.webGpuCancelled = true;
+
         return error;
     }
 
@@ -123,11 +136,13 @@
 
     function reportFailure(chartId, title, message) {
         const current = failureStates.get(chartId);
+
         if (current?.title === title && current?.message === message)
             return;
 
         failureStates.set(chartId, { title, message });
         const helper = dotNetHelpers.get(chartId);
+
         helper?.invokeMethodAsync('WebGpuFailed', title, message)
             .catch(error => console.error('[chart-webgpu] failure callback failed', error));
     }
@@ -139,6 +154,7 @@
         advanceLifecycleEpoch(chartId);
         pendingInstances.delete(chartId);
         const instance = instances.get(chartId);
+
         instances.delete(chartId);
 
         if (instance)
@@ -159,6 +175,7 @@
             instance.rawReservedBytes -= request.byteLength;
             request.reject(cancellationError(reason));
         }
+
         instance.rawRequests.clear();
 
         for (const [key, chunk] of instance.rawChunks)
@@ -166,20 +183,24 @@
 
         for (const cached of instance.seriesBuffers.values())
             ns.destroySeriesBuffer(instance, cached);
+
         instance.seriesBuffers.clear();
 
         for (const upload of instance.chunkedUploadSessions.values())
             ns.destroyChunkedUpload(instance, upload);
+
         instance.chunkedUploadSessions.clear();
 
         for (const targetResources of instance.targetResources.values()) {
             for (const resources of targetResources)
                 destroyTrackedBuffer(instance, resources.uniformBuffer);
         }
+
         instance.targetResources.clear();
 
         for (const { context } of instance.canvasContexts.values())
             context.unconfigure?.();
+
         instance.canvasContexts.clear();
         instance.lastPayloads.clear();
         instance.previewRenderKeys.clear();
@@ -191,10 +212,12 @@
             return;
 
         sharedGpuGeneration++;
+
         if (!sharedGpu)
             return;
 
         const gpu = sharedGpu;
+
         sharedGpu = null;
         gpu.alive = false;
         gpu.device.destroy();
@@ -208,11 +231,13 @@
             return pendingSharedGpu;
 
         const generation = ++sharedGpuGeneration;
+
         pendingSharedGpu = Promise.resolve().then(async () => {
             if (!navigator.gpu)
                 throw new Error('WebGPU is not available. Use a current WebGPU-capable browser and ensure hardware acceleration is enabled.');
 
             const adapter = await navigator.gpu.requestAdapter();
+
             if (!adapter)
                 throw new Error('No compatible GPU adapter was found. Ensure hardware acceleration is enabled, then retry.');
 
@@ -223,6 +248,7 @@
                 },
             });
             let bundle;
+
             try {
                 if (generation !== sharedGpuGeneration)
                     throw new Error('WebGPU initialization was superseded.');
@@ -233,6 +259,7 @@
                 const rangeModule = device.createShaderModule({ code: rangeShader });
                 const overviewModule = device.createShaderModule({ code: overviewShader });
                 const pointDecimationModule = device.createShaderModule({ code: pointDecimationShader });
+
                 bundle = {
                     generation,
                     alive: true,
@@ -281,6 +308,7 @@
                 }
 
                 const detail = info.message ? ` ${info.message}` : '';
+
                 for (const [chartId, instance] of [...instances]) {
                     if (instance.gpuGeneration !== bundle.generation)
                         continue;
@@ -293,6 +321,7 @@
             }).catch(error => console.error('[chart-webgpu] device loss handler failed', error));
 
             sharedGpu = bundle;
+
             return bundle;
         }).finally(() => {
             pendingSharedGpu = null;
@@ -311,6 +340,7 @@
             return instance;
 
         const failure = failureStates.get(chartId);
+
         if (failure)
             throw new Error(failure.message);
 
@@ -321,6 +351,7 @@
 
         const epoch = getLifecycleEpoch(chartId);
         const entry = { epoch, promise: null };
+
         entry.promise = Promise.resolve().then(async () => {
             try {
                 if (getLifecycleEpoch(chartId) !== epoch)
@@ -332,8 +363,10 @@
                     throw new Error('The chart canvas is unavailable.');
 
                 const gpu = await getSharedGpu();
+
                 if (getLifecycleEpoch(chartId) !== epoch)
                     return null;
+
                 if (!gpu.alive || sharedGpu !== gpu || gpu.generation !== sharedGpuGeneration)
                     throw new Error('The WebGPU device was lost during chart initialization.');
 
@@ -360,14 +393,17 @@
 
                 if (getLifecycleEpoch(chartId) !== epoch) {
                     destroyInstance(instance, `Chart ${chartId} initialization was superseded`);
+
                     return null;
                 }
 
                 instances.set(chartId, instance);
+
                 return instance;
             } catch (error) {
                 if (!failureStates.has(chartId) && getLifecycleEpoch(chartId) === epoch) {
                     const unavailable = !navigator.gpu || error?.message?.startsWith('No compatible GPU adapter');
+
                     reportFailure(
                         chartId,
                         unavailable ? 'WebGPU unavailable' : 'WebGPU initialization failed',
@@ -385,6 +421,7 @@
         });
 
         pendingInstances.set(chartId, entry);
+
         return entry.promise;
     }
 

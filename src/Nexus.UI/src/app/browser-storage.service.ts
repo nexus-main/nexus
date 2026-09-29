@@ -5,6 +5,7 @@ export class BrowserStorageService {
   getJson<T>(key: string, fallback: T): T {
     try {
       const value = window.localStorage.getItem(key)
+
       return value === null ? fallback : JSON.parse(value) as T
     } catch {
       return fallback

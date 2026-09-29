@@ -10,5 +10,17 @@
     },
     "[aspnetcorerazor]": {
         "editor.formatOnSave": false
+    },
+    "eslint.workingDirectories": [
+        {
+            "mode": "auto"
+        }
+    ],
+    "eslint.validate": [
+        "javascript",
+        "typescript"
+    ],
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
     }
 }

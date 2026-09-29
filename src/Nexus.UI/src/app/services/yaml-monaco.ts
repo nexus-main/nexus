@@ -3,11 +3,14 @@ import type * as Monaco from 'monaco-editor'
 export function createYamlMonaco(monaco: typeof Monaco, createYamlWorker: () => Worker) {
   // Call after AMD loading, which replaces MonacoEnvironment during startup.
   const environment = globalThis.MonacoEnvironment
+
   globalThis.MonacoEnvironment = {
     ...environment,
     getWorker(moduleId, label) {
       if (label === 'yaml') return createYamlWorker()
+
       if (environment?.getWorker) return environment.getWorker(moduleId, label)
+
       throw new Error(`No Monaco worker configured for ${label}`)
     },
   }

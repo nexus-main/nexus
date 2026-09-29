@@ -16,6 +16,7 @@
 - `src/Nexus.UI/`: Angular 21 + PrimeNG + Tailwind client. `Pages/`, `Components/`, `Controls/`, `Charts/`, `ViewModels/` hold UI code. `src/charts/` contains local copies of the chart renderer JS scripts; `public/js/` contains the synthetic worker.
 - `src/Nexus.UI/angular.json`: Angular CLI config; script refs point to `src/charts/chart*.js`.
 - `src/Nexus.UI/proxy.conf.cjs`: dev-server proxy, defaults `/api` to `http://localhost:5000`.
+- `src/Nexus.UI/eslint.config.js`: ESLint flat config for `src/**/*.{ts,js}` (Angular app TS + hand-written chart renderer JS). Enables only the core `padding-line-between-statements` rule (the `@typescript-eslint/*` variant was removed in typescript-eslint v8). Repo-root `.vscode/settings.json` wires fix-on-save; `.vscode/extensions.json` recommends `dbaeumer.vscode-eslint`.
 - `src/clients/dotnet/`: generated C# REST client package; `NexusClient.g.cs` is generated.
 - `src/clients/python/`: generated Python REST client package; generated module lives in `nexus_api/`, packaging metadata in `setup.py`.
 - `src/clients/matlab/`: Matlab client assets/samples are separate from generated .NET/Python clients.
@@ -38,6 +39,7 @@
 
 ## Verification
 - Full CI-equivalent core checks: `dotnet test -c Release /p:BuildProjectReferences=false`, then `pyright`, then `pytest`.
+- UI lint: `(cd src/Nexus.UI && npm run eslint)` runs `eslint .`; `npm run eslint:fix` auto-fixes. `npm run lint` runs the Angular dev build then `eslint .`. The sole enforced rule is `padding-line-between-statements` (blank-line padding between const/let runs, if/for/while/switch/try, return, and multiline expressions); it only inserts blank lines, so fixes are semantically inert. Run `npm run eslint:fix` after edits that touch `src/**/*.{ts,js}` before committing.
 - Focus a single .NET test project with `dotnet test tests/Nexus.Tests/Nexus.Tests.csproj` or the specific project under `tests/`.
 - Python tests are discovered by `pytest.ini`: files must be `*-tests.py`, classes `*Tests`, functions `*_test`; `pythonpath` is set to both Python source packages.
 - `pytest` covers only `tests/clients/python-tests` and `tests/extensibility/python-extensibility-tests`; `src/` is intentionally excluded from recursion.
