@@ -15,7 +15,7 @@
 - `src/Nexus/Extensions/Sources/` and `src/Nexus/Extensions/Writers/`: built-in extension implementations shipped with the server.
 - `src/Nexus.UI/`: Angular 21 + PrimeNG + Tailwind client. `Pages/`, `Components/`, `Controls/`, `Charts/`, `ViewModels/` hold UI code. `src/charts/` contains local copies of the chart renderer JS scripts; `public/js/` contains the synthetic worker.
 - `src/Nexus.UI/angular.json`: Angular CLI config; script refs point to `src/charts/chart*.js`.
-- `src/Nexus.UI/proxy.conf.cjs`: dev-server proxy, defaults `/api` to `http://localhost:5000`.
+- `src/Nexus.UI/proxy.conf.cjs`: dev-server proxy, forwards `/api` to `http://localhost:5000`.
 - `src/Nexus.UI/eslint.config.js`: ESLint flat config for `src/**/*.{ts,js}` (Angular app TS + hand-written chart renderer JS). Enables only the core `padding-line-between-statements` rule and `curly: "all"` (require braces on every `if`/`else`/`for`/`while`). `eslint-config-prettier` is appended last to disable all conflicting formatting rules. Prettier config lives in `src/Nexus.UI/.prettierrc` (print width 100, trailing comma "all"; defaults otherwise, so double quotes). Repo-root `.vscode/settings.json` wires fix-on-save; `.vscode/extensions.json` recommends `dbaeumer.vscode-eslint` and `esbenp.prettier-vscode`.
 - `src/clients/dotnet/`: generated C# REST client package; `NexusClient.g.cs` is generated.
 - `src/clients/python/`: generated Python REST client package; generated module lives in `nexus_api/`, packaging metadata in `setup.py`.

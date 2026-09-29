@@ -1,8 +1,6 @@
-const nexusEndpoint = process.env.NEXUS_ENDPOINT || "http://localhost:5000";
-
 module.exports = {
   "/api": {
-    target: nexusEndpoint,
+    target: "http://localhost:5000",
     changeOrigin: true,
     secure: true,
   },
