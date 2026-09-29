@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { NexusClient, NexusException, V2 } from "nexus-api";
+import { NexusClient, NexusException, V2 } from "@apollo3zehn/nexus-api";
 import {
     makeData,
     Table,

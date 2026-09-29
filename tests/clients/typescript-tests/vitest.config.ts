@@ -10,7 +10,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            "nexus-api": nexusApiPath,
+            "@apollo3zehn/nexus-api": nexusApiPath,
         },
     },
 });

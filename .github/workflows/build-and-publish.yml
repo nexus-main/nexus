@@ -109,7 +109,7 @@ jobs:
       - name: Test TypeScript client
         working-directory: tests/clients/typescript-tests
         run: |
-          npm install --no-package-lock
+          npm install --no-package-lock --legacy-peer-deps
           npm run typecheck
           npm test
 
@@ -229,7 +229,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: npm package (npm)
-        run: npm publish artifacts/package/nexus-api-*.tgz --tag dev
+        run: npm stage publish artifacts/package/apollo3zehn-nexus-api-*.tgz --tag dev
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -295,6 +295,6 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: npm package (npm)
-        run: npm publish artifacts/package/nexus-api-*.tgz
+        run: npm stage publish artifacts/package/apollo3zehn-nexus-api-*.tgz
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

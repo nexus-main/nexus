@@ -9,7 +9,7 @@
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "paths": {
-            "nexus-api": ["../../../src/clients/typescript/index.ts"]
+            "@apollo3zehn/nexus-api": ["../../../src/clients/typescript/index.ts"]
         }
     },
     "include": ["*.ts"],
