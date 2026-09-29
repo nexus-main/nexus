@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { CatalogMetadata } from '@nexus-api/V1'
-import type { ResourceRow } from './nexus.service'
-import { groupResourceRows, mergeResourceMetadata } from './resource-matrix.ts'
-import type { MetadataDrafts, MetadataField } from './resource-matrix.ts'
-import { representationRows } from './resource-selection.ts'
+import type { ResourceRow } from '../../../src/Nexus.UI/src/app/nexus.service'
+import { groupResourceRows, mergeResourceMetadata } from '../../../src/Nexus.UI/src/app/resource-matrix.ts'
+import type { MetadataDrafts, MetadataField } from '../../../src/Nexus.UI/src/app/resource-matrix.ts'
+import { representationRows } from '../../../src/Nexus.UI/src/app/resource-selection.ts'
 
 function resource(id: string, options: Partial<ResourceRow> & { warning?: string } = {}): ResourceRow {
   return {

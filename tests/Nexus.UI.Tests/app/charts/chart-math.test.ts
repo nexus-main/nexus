@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { FULL_VIEWPORT, SERIES_COLORS, TICKS_PER_DAY, TICKS_PER_SECOND, TIME_AXIS_CONFIGS, UNIX_EPOCH_TICKS, applyZoom, createAxis, detailWindow, formatDuration, formatRange, formatTime, getTimeTicks, getYLimits, getYTicks, isSlowTickRequired, roundAway, roundTimeUp, scaleTicks, setViewport, toEngineering, toTime } from './chart-math.ts';
+import { FULL_VIEWPORT, SERIES_COLORS, TICKS_PER_DAY, TICKS_PER_SECOND, TIME_AXIS_CONFIGS, UNIX_EPOCH_TICKS, applyZoom, createAxis, detailWindow, formatDuration, formatRange, formatTime, getTimeTicks, getYLimits, getYTicks, isSlowTickRequired, roundAway, roundTimeUp, scaleTicks, setViewport, toEngineering, toTime } from '../../../../src/Nexus.UI/src/app/charts/chart-math.ts';
 
 describe('bigint .NET time', () => {
   it('formats the full DateTime range with all seven fraction digits in UTC', () => {

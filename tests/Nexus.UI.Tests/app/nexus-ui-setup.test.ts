@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { parseNexusUiSetup } from './nexus-ui-setup.ts'
+import { parseNexusUiSetup } from '../../../src/Nexus.UI/src/app/nexus-ui-setup.ts'
 
 test('parses legacy dev ui settings', () => {
   const parsed = parseNexusUiSetup({

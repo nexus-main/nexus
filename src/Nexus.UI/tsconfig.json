@@ -24,7 +24,8 @@
     "paths": {
       "@nexus-api": ["../clients/typescript/index.ts"],
       "@nexus-api/*": ["../clients/typescript/*"],
-      "apache-arrow": ["./node_modules/apache-arrow"]
+      "apache-arrow": ["./node_modules/apache-arrow"],
+      "monaco-editor": ["./node_modules/monaco-editor"]
     }
   },
   "angularCompilerOptions": {

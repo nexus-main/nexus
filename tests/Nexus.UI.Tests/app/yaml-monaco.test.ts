@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type * as Monaco from 'monaco-editor'
-import { createYamlMonaco } from './services/yaml-monaco.ts'
+import { createYamlMonaco } from '../../../src/Nexus.UI/src/app/services/yaml-monaco.ts'
 
 test('YAML adapter installs post-load routing and preserves the AMD editor worker', () => {
   const original = globalThis.MonacoEnvironment

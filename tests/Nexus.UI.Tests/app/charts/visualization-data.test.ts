@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { CHUNK_LENGTH } from './chart-math.ts';
-import { VisualizationBuffers, createVisualizationData, releaseVisualizationData, setVisualizationSeriesValues } from './visualization-data.ts';
+import { CHUNK_LENGTH } from '../../../../src/Nexus.UI/src/app/charts/chart-math.ts';
+import { VisualizationBuffers, createVisualizationData, releaseVisualizationData, setVisualizationSeriesValues } from '../../../../src/Nexus.UI/src/app/charts/visualization-data.ts';
 
 const descriptors = [
     { id: '/a', name: 'A', unit: 'm/s' },

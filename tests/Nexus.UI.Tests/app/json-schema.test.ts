@@ -3,10 +3,10 @@ import { describe, it } from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
   configurationText, configurationYamlText, createSchemaScaffold, createSchemaValue, getSchemaView, parseConfigurationText, parseJsonSafely, schemaPointer, validateConfiguration,
-} from './json-schema.ts'
+} from '../../../src/Nexus.UI/src/app/json-schema.ts'
 
 const draft4 = 'http://json-schema.org/draft-04/schema#'
-const serverSchemas = JSON.parse(readFileSync(new URL('../../../../tests/Nexus.Tests/API/v1/fixtures/source-configuration-schemas.json', import.meta.url), 'utf8')) as Record<string, unknown>
+const serverSchemas = JSON.parse(readFileSync(new URL('../../Nexus.Tests/API/v1/fixtures/source-configuration-schemas.json', import.meta.url), 'utf8')) as Record<string, unknown>
 
 describe('server-generated configuration contracts', () => {
   it('accepts generated CLR formats without changing local times or decimal values', () => {

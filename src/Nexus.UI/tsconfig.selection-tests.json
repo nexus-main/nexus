@@ -2,9 +2,10 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
+    "rootDir": "../..",
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "files": ["src/app/resource-selection.test.ts", "src/app/resource-matrix.test.ts", "src/app/json-schema.test.ts", "src/app/data-source-pipelines.test.ts", "src/app/yaml-monaco.test.ts", "src/app/nexus-ui-setup.test.ts"],
-  "include": ["src/app/charts/*.test.ts"]
+  "files": ["../../tests/Nexus.UI.Tests/app/resource-selection.test.ts", "../../tests/Nexus.UI.Tests/app/resource-matrix.test.ts", "../../tests/Nexus.UI.Tests/app/json-schema.test.ts", "../../tests/Nexus.UI.Tests/app/data-source-pipelines.test.ts", "../../tests/Nexus.UI.Tests/app/yaml-monaco.test.ts", "../../tests/Nexus.UI.Tests/app/nexus-ui-setup.test.ts"],
+  "include": ["../../tests/Nexus.UI.Tests/app/charts/*.test.ts"]
 }

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { acceptPipelineSave, addRegistration, createPipelineDraft, editRegistrationText, moveRegistration,
-  pipelineIsDirty, preparePipeline, reconcilePipelineDraft, removeRegistration, resolveUnsavedChoice, sourceSchema, updateRegistration } from './data-source-pipelines.ts'
-import type { DataSourcePipeline, ExtensionDescription } from '../../../clients/typescript/V1.ts'
+  pipelineIsDirty, preparePipeline, reconcilePipelineDraft, removeRegistration, resolveUnsavedChoice, sourceSchema, updateRegistration } from '../../../src/Nexus.UI/src/app/data-source-pipelines.ts'
+import type { DataSourcePipeline, ExtensionDescription } from '@nexus-api/V1'
 
 const schema = { type: 'object', properties: { name: { type: 'string', minLength: 1 }, count: { type: 'integer', default: 5 } }, required: ['name'] }
 const descriptions: ExtensionDescription[] = [{ type: 'Source', version: '1.0', additionalInformation: { 'source-configuration-schema': schema } }]

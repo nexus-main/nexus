@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { VisualizationSeries } from './visualization-data.ts';
-import type { ChartInterop } from './chart-interop.ts';
-import { CHUNK_LENGTH } from './chart-math.ts';
-import { provideSeriesChunk, uploadSeries, waitForRange } from './chart-upload.ts';
+import type { VisualizationSeries } from '../../../../src/Nexus.UI/src/app/charts/visualization-data.ts';
+import type { ChartInterop } from '../../../../src/Nexus.UI/src/app/charts/chart-interop.ts';
+import { CHUNK_LENGTH } from '../../../../src/Nexus.UI/src/app/charts/chart-math.ts';
+import { provideSeriesChunk, uploadSeries, waitForRange } from '../../../../src/Nexus.UI/src/app/charts/chart-upload.ts';
 
 function source(length: number): VisualizationSeries {
   return { id: 'series', name: 'Series', unit: 'K', samplePeriod: 1n, length, chunks: [], availableLength: 0, version: 0, complete: false };
