@@ -10,9 +10,6 @@ BenchmarkDotNet.Artifacts/
 .venv/
 node_modules/
 
-# Vendored frontend libs (local-only, predates Angular migration)
-**/wwwroot/lib/
-
 # Docs build output
 doc/_site/
 doc/api/
