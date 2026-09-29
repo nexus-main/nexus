@@ -93,7 +93,7 @@ internal class AcceptedLicenseService(
 
         var fileName = Hash(license) + FILE_EXTENSION;
 
-        return SafePathCombine(folderPath, fileName);
+        return NexusUtilities.SafePathCombine(folderPath, fileName);
     }
 
     private static string Hash(string value)
@@ -101,16 +101,5 @@ internal class AcceptedLicenseService(
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
 
         return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
-    private static string SafePathCombine(string basePath, string relativePath)
-    {
-        var filePath = Path.GetFullPath(Path.Combine(basePath, relativePath));
-        var normalizedBasePath = Path.GetFullPath(basePath);
-
-        if (!filePath.StartsWith(normalizedBasePath, StringComparison.Ordinal))
-            throw new Exception("Invalid path.");
-
-        return filePath;
     }
 }
