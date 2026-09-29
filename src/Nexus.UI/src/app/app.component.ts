@@ -36,7 +36,7 @@ import { TabsModule } from "primeng/tabs";
 import { ToastModule } from "primeng/toast";
 import { AppTooltipDirective } from "./app-tooltip.directive";
 import { DrawerPassThrough } from "primeng/types/drawer";
-import { BrowserStorageService } from "./browser-storage.service";
+import { BrowserStorageService } from "./services/browser-storage.service";
 import { VisualizationChartComponent } from "./charts/visualization-chart.component";
 import {
   VisualizationBuffers,
@@ -98,7 +98,7 @@ import {
   buildExportParameters,
   mapResources,
   prepareChildCatalogs,
-} from "./nexus.service";
+} from "./services/nexus.service";
 import {
   abbreviateMiddle,
   compactPath,

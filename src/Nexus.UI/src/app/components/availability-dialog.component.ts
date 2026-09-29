@@ -2,7 +2,7 @@ import { Component, effect, inject, input, output, signal } from "@angular/core"
 import { LucideX } from "@lucide/angular";
 import { DialogModule } from "primeng/dialog";
 import { RestoreFocusDirective } from "../restore-focus.directive";
-import { NexusService } from "../nexus.service";
+import { NexusService } from "../services/nexus.service";
 import { AvailabilityChartComponent } from "../charts/availability-chart.component";
 import { TICKS_PER_DAY } from "../charts/chart-math";
 import { toTimeSpan } from "../resource-selection";

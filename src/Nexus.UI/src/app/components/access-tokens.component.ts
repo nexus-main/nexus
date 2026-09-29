@@ -9,7 +9,7 @@ import { DialogModule } from "primeng/dialog";
 import { InputTextModule } from "primeng/inputtext";
 import { MessageModule } from "primeng/message";
 import { ToastModule } from "primeng/toast";
-import { NexusService, V1 } from "../nexus.service";
+import { NexusService, V1 } from "../services/nexus.service";
 import { RestoreFocusDirective } from "../restore-focus.directive";
 
 type TokenEntry = {

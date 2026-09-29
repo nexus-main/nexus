@@ -26,7 +26,7 @@ import { AppTooltipDirective } from "../app-tooltip.directive";
 import { ConfirmationService, ConfirmEventType, MessageService } from "primeng/api";
 import type { DialogPassThrough } from "primeng/types/dialog";
 import { LucideCircleQuestionMark, LucidePlus } from "@lucide/angular";
-import { NexusService, V1 } from "../nexus.service";
+import { NexusService, V1 } from "../services/nexus.service";
 import { RestoreFocusDirective } from "../restore-focus.directive";
 import { JsonSchemaEditorComponent } from "./json-schema-editor.component";
 import {

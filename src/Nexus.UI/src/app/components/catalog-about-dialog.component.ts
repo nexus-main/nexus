@@ -2,7 +2,7 @@ import { Component, effect, inject, input, output, signal } from "@angular/core"
 import { LucideExternalLink, LucideInfo, LucideX } from "@lucide/angular";
 import { DialogModule } from "primeng/dialog";
 import { RestoreFocusDirective } from "../restore-focus.directive";
-import { NexusService, V1 } from "../nexus.service";
+import { NexusService, V1 } from "../services/nexus.service";
 
 interface AboutEntry {
   type: string;

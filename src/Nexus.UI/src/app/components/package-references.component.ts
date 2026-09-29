@@ -17,7 +17,7 @@ import { InputTextModule } from "primeng/inputtext";
 import { MessageModule } from "primeng/message";
 import { SelectModule } from "primeng/select";
 import { DialogPassThrough } from "primeng/types/dialog";
-import { NexusService, V1 } from "../nexus.service";
+import { NexusService, V1 } from "../services/nexus.service";
 import { RestoreFocusDirective } from "../restore-focus.directive";
 
 type PackageEntry = { id: string; reference: V1.PackageReference };

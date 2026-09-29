@@ -8,7 +8,7 @@ import { MessageModule } from "primeng/message";
 import { ProgressBarModule } from "primeng/progressbar";
 import { SelectModule } from "primeng/select";
 import { AppTooltipDirective } from "../app-tooltip.directive";
-import { V2, WriterDescription, WriterOption } from "../nexus.service";
+import { V2, WriterDescription, WriterOption } from "../services/nexus.service";
 import { RestoreFocusDirective } from "../restore-focus.directive";
 
 @Component({

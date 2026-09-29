@@ -2,7 +2,7 @@ import { Component, computed, input, output } from "@angular/core";
 import { TreeNode } from "primeng/api";
 import { Tree, TreeModule } from "primeng/tree";
 import { AppTooltipDirective } from "../app-tooltip.directive";
-import { CatalogNode } from "../nexus.service";
+import { CatalogNode } from "../services/nexus.service";
 import { abbreviateMiddle, lastSegment } from "../utils";
 
 @Component({

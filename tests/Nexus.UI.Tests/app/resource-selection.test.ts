@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { ResourceRow } from '../../../src/Nexus.UI/src/app/nexus.service'
+import type { ResourceRow } from '../../../src/Nexus.UI/src/app/services/nexus.service'
 import {
   alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, parseResourcePath, readSelectionState,
   representationKinds, representationRows, requestPath, resourceAvailableForRange, selectionKey,

@@ -19,7 +19,7 @@ import { MessageModule } from "primeng/message";
 import { SelectModule } from "primeng/select";
 import { TabsModule } from "primeng/tabs";
 import { AppTooltipDirective } from "../app-tooltip.directive";
-import { NexusService } from "../nexus.service";
+import { NexusService } from "../services/nexus.service";
 import { RestoreFocusDirective } from "../restore-focus.directive";
 import {
   defineNexusMonacoThemes,

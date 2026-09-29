@@ -255,7 +255,7 @@ export class NexusService {
 
     // Reject unrepresentable configuration numbers before JSON.parse can round a saved value.
     if (method === "GET" && url.split("?")[0] === "/api/v1/sources/pipelines") {
-      const { parseJsonSafely } = await import("./json-schema");
+      const { parseJsonSafely } = await import("../json-schema");
       const parsed = parseJsonSafely(text);
 
       if (!parsed.valid) {

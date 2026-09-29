@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { CatalogMetadata } from '@nexus-api/V1'
-import type { ResourceRow } from '../../../src/Nexus.UI/src/app/nexus.service'
+import type { ResourceRow } from '../../../src/Nexus.UI/src/app/services/nexus.service'
 import { groupResourceRows, mergeResourceMetadata } from '../../../src/Nexus.UI/src/app/resource-matrix.ts'
 import type { MetadataDrafts, MetadataField } from '../../../src/Nexus.UI/src/app/resource-matrix.ts'
 import { representationRows } from '../../../src/Nexus.UI/src/app/resource-selection.ts'

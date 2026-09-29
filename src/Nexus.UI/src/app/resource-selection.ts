@@ -1,4 +1,4 @@
-import type { ResourceRow } from "./nexus.service";
+import type { ResourceRow } from "./services/nexus.service";
 
 export type RepresentationRow = ResourceRow & {
   key: string;
