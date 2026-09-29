@@ -1,4 +1,4 @@
-export type DevUiSettings = {
+type DevUiSettings = {
   fileType?: string | null;
   requestConfiguration?: Record<string, unknown> | null;
   catalogHidePatterns?: Array<string | null> | null;

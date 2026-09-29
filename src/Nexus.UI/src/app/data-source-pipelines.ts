@@ -28,7 +28,7 @@ export interface PipelineDraft {
   serverDiverged: boolean;
 }
 
-export type DraftIssue = { key?: number; message: string };
+type DraftIssue = { key?: number; message: string };
 export type PreparedPipeline =
   { valid: true; payload: DataSourcePipeline; issues: [] } | { valid: false; issues: DraftIssue[] };
 

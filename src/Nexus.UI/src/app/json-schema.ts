@@ -364,14 +364,6 @@ export function parseJsonSafely(text: string): JsonParseResult {
   }
 }
 
-export function configurationText(value: unknown): string {
-  try {
-    return jsonValueError(value) ? "" : JSON.stringify(value, null, 2);
-  } catch {
-    return "";
-  }
-}
-
 export function parseConfigurationText(text: string): JsonParseResult {
   if (text.trim() === "") {
     return { valid: false, errors: ["Configuration YAML is empty."] };
@@ -432,7 +424,7 @@ export function configurationYamlText(value: unknown): string {
   }
 }
 
-export function schemaPointer(path: string, key: string): string {
+function schemaPointer(path: string, key: string): string {
   return `${path}/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`;
 }
 

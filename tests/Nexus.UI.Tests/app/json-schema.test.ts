@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
-  configurationText, configurationYamlText, createSchemaScaffold, parseConfigurationText, parseJsonSafely, validateConfiguration,
+  configurationYamlText, createSchemaScaffold, parseConfigurationText, parseJsonSafely, validateConfiguration,
 } from '../../../src/Nexus.UI/src/app/json-schema.ts'
 
 const draft4 = 'http://json-schema.org/draft-04/schema#'
@@ -85,7 +85,6 @@ describe('Draft 4 configuration validation', () => {
       assert.equal(validateConfiguration({ type: 'string', format: 'time' }, time).valid, true, time)
       const dateTime = `2024-02-29T${time}`
       assert.equal(validateConfiguration({ type: 'string', format: 'date-time' }, dateTime).valid, true, dateTime)
-      assert.equal(configurationText(dateTime), JSON.stringify(dateTime))
     }
     for (const time of ['', '12:34', '24:00:00', '12:60:00', '12:00:60', '12:34:56.12345678',
       '12:34:56+14:01', '12:34:56-15:00', '12:34:56+02:60', '12:34:56+0230', '12:34:56\n', '12:34:56junk']) {
@@ -591,11 +590,9 @@ describe('configuration YAML drafts', () => {
     }
   })
 
-  it('keeps JSON serialization strict for transport-safe values only', () => {
-    assert.equal(configurationText(undefined), '')
+  it('keeps YAML serialization strict for transport-safe values only', () => {
     assert.equal(configurationYamlText(undefined), '')
     for (const value of [NaN, Infinity, -0, new Date(), { omitted: undefined }, 1n]) {
-      assert.equal(configurationText(value), '')
       assert.equal(configurationYamlText(value), '')
     }
   })

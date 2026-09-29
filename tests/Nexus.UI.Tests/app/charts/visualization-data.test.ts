@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CHUNK_LENGTH } from '../../../../src/Nexus.UI/src/app/charts/chart-math.ts';
-import { VisualizationBuffers, createVisualizationData, releaseVisualizationData, setVisualizationSeriesValues } from '../../../../src/Nexus.UI/src/app/charts/visualization-data.ts';
+import { VisualizationBuffers, createVisualizationData, releaseVisualizationData } from '../../../../src/Nexus.UI/src/app/charts/visualization-data.ts';
 
 const descriptors = [
     { id: '/a', name: 'A', unit: 'm/s' },
@@ -36,31 +36,12 @@ describe('createVisualizationData', () => {
 
 });
 
-describe('setVisualizationSeriesValues', () => {
-    it('uses generated client values as chart chunks', () => {
-        const data = createVisualizationData(0n, 3n, 1n, descriptors.slice(0, 1));
-        const values = new Float32Array([1, 2, 3]);
-
-        setVisualizationSeriesValues(data.series[0], values);
-
-        assert.deepEqual(data.series[0].chunks, [values]);
-        assert.equal(data.series[0].availableLength, 3);
-        assert.equal(data.series[0].version, 1);
-        assert.equal(data.series[0].complete, true);
-    });
-
-    it('rejects mismatched generated client value lengths', () => {
-        const data = createVisualizationData(0n, 3n, 1n, descriptors.slice(0, 1));
-
-        assert.throws(() => setVisualizationSeriesValues(data.series[0], new Float32Array([1, 2])), /unexpected sample count/);
-    });
-});
-
 describe('releaseVisualizationData', () => {
     it('clears unpreserved completed chunks', () => {
         const data = createVisualizationData(0n, 2n, 1n, [{ id: 'a', name: 'A', unit: 'V' }]);
-        const values = new Float32Array([1, 2]);
-        setVisualizationSeriesValues(data.series[0], values);
+        const buffers = new VisualizationBuffers(data.series);
+        buffers.provider('a', 2, 2);
+        buffers.complete();
 
         releaseVisualizationData(data);
 
@@ -71,8 +52,9 @@ describe('releaseVisualizationData', () => {
 
     it('keeps chunks selected for reuse', () => {
         const data = createVisualizationData(0n, 2n, 1n, [{ id: 'a', name: 'A', unit: 'V' }]);
-        const values = new Float32Array([1, 2]);
-        setVisualizationSeriesValues(data.series[0], values);
+        const buffers = new VisualizationBuffers(data.series);
+        buffers.provider('a', 2, 2);
+        buffers.complete();
         const chunks = data.series[0].chunks;
 
         releaseVisualizationData(data, new Set([chunks]));

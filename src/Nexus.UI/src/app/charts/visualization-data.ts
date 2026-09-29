@@ -67,20 +67,6 @@ export function createVisualizationData(
   };
 }
 
-export function setVisualizationSeriesValues(
-  series: VisualizationSeries,
-  values: Float32Array,
-): void {
-  if (values.length !== series.length) {
-    throw new Error("The generated client returned an unexpected sample count");
-  }
-
-  series.chunks = values.length ? [values] : [];
-  series.availableLength = values.length;
-  series.version++;
-  series.complete = true;
-}
-
 export function releaseVisualizationData(
   data: VisualizationData | null,
   preservedChunks: ReadonlySet<readonly Float32Array[]> = new Set(),

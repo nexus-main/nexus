@@ -20,7 +20,7 @@ export interface GpuRange {
   minimum: number;
   maximum: number;
 }
-export interface AuxiliaryUpdate {
+interface AuxiliaryUpdate {
   id: string;
   visible: boolean;
   x: number;
@@ -39,7 +39,7 @@ export interface SeriesPayload {
   length: number;
   sampleStep: number;
 }
-export interface RenderPayload {
+interface RenderPayload {
   target?: string;
   preview?: boolean;
   plot: { left: number; top: number; right: number; bottom: number };

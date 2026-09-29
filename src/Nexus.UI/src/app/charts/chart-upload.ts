@@ -46,11 +46,7 @@ export async function waitForRange(
   }
 }
 
-export function seriesSegment(
-  series: VisualizationSeries,
-  offset: number,
-  count: number,
-): Float32Array {
+function seriesSegment(series: VisualizationSeries, offset: number, count: number): Float32Array {
   const chunk = series.chunks[Math.floor(offset / CHUNK_LENGTH)];
   const local = offset % CHUNK_LENGTH;
 
