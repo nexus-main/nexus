@@ -10,7 +10,7 @@
         "test:watch": "vitest"
     },
     "devDependencies": {
-        "apache-arrow": "^16.0.0",
+        "apache-arrow": "^21.2.0",
         "typescript": "^7.0.2",
         "vitest": "^4.1.11"
     }
