@@ -1,20 +1,30 @@
+# Build outputs
+artifacts/
+dist/
+obj/
+BenchmarkDotNet.Artifacts/
+
+# Tool caches
 .angular/
 .vs/
 .venv/
-
-artifacts/
-dist/
-BenchmarkDotNet.Artifacts/
 node_modules/
 
-doc/_site
-/**/obj
+# Vendored frontend libs (local-only, predates Angular migration)
 **/wwwroot/lib/
-**/node_modules/
-**/package-lock.json
 
-doc/api/*
+# Docs build output
+doc/_site/
+doc/api/
 
+# IDE
 *.suo
 *.user
+
+# Python
 *.pyc
+
+# Lock files
+# src/Nexus.UI/package-lock.json is tracked (used by `npm ci` in MSBuild publish).
+# The TS test client uses --no-package-lock in CI; keep its lock file untracked.
+/tests/clients/typescript-tests/package-lock.json
