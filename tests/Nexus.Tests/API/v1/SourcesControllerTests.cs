@@ -1,12 +1,9 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Security.Claims;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Apollo3zehn.PackageManagement.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;

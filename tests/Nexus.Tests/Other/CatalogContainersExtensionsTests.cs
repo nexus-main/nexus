@@ -133,7 +133,7 @@ public class CatalogContainersExtensionsTests
                 {
                     "/" => new CatalogContainer[]
                     {
-                        new (new CatalogRegistration("/A/B/C", default), default, default, default!, default!, default!, default!, dataControllerService),
+                        new (new CatalogRegistration("/A/B/C", default), default, default!, default!, default!, default!, default!, dataControllerService),
                     },
                     _ => throw new Exception("Unsupported combination.")
                 });

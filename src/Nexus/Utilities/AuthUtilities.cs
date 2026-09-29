@@ -124,7 +124,7 @@ internal static class AuthUtilities
             if (identity.AuthenticationType == PersonalAccessTokenAuthenticationDefaults.AuthenticationScheme)
             {
                 /* The token alone can access the catalog ... */
-                    var claimsToBeAdmin = identity.Claims
+                var claimsToBeAdmin = identity.Claims
                     .Any(claim => claim.Type == NexusClaimsHelper.ToPatClaimType(NexusClaimTypes.Role) && claim.Value == nameof(NexusRoles.Administrator));
 
                 var canAccessCatalog = claimsToBeAdmin || identity.HasClaim(
