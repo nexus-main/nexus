@@ -117,7 +117,7 @@ export function representationRows(resources: ResourceRow[]): RepresentationRow[
   }))
 }
 
-function parameterEntries(parameters: Record<string, string>): [string, string][] {
+export function parameterEntries(parameters: Record<string, string>): [string, string][] {
   return Object.keys(parameters).sort().map((name) => [name, parameters[name]])
 }
 

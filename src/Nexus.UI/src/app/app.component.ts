@@ -31,7 +31,7 @@ import { GitComponent } from './components/git.component'
 import { PropertiesDialogComponent } from './components/properties-dialog.component'
 import { ResourceMatrixComponent } from './components/resource-matrix.component'
 import { MetadataDrafts, mergeResourceMetadata } from './resource-matrix'
-import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parseFilePeriod, parsePeriod, parseResourcePath, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
+import { RepresentationRow, ResourceSelection, RepresentationKind, StoredSelectionReference, alignRangeEndpoint, defaultKind, executionRangeError, formatFilePeriod, formatPeriod, hydrateSelections, kindValid, parameterEntries, parseFilePeriod, parsePeriod, parseResourcePath, readSelectionState, representationRows, requestPath, selectionKey, storeSelectionReference, toTimeSpan } from './resource-selection'
 import type { ParsedResourcePath } from './resource-selection'
 import { parseNexusUiSetupJson } from './nexus-ui-setup'
 import type { NexusUiSetup, ParsedNexusUiSetup } from './nexus-ui-setup'
@@ -403,8 +403,8 @@ export class AppComponent implements OnDestroy {
   readonly formattedSamplePeriod = computed(() => formatPeriod(this.samplePeriod()))
   readonly requestPaths = computed(() => this.visualizationResources().map(resource => resource.path))
   readonly selectionError = computed(() => {
-    if (this.selectionLoading()) return 'Restoring pinned representations...'
-    if (this.unresolvedSelections().length) return 'Some pinned representations could not be loaded. Retry or clear them before loading data.'
+    if (this.selectionLoading()) return 'Restoring selected representations...'
+    if (this.unresolvedSelections().length) return 'Some selected representations could not be loaded. Retry or clear them before loading data.'
     if (this.periodError()) return this.periodError()
     if (!this.selectedResources().length) return 'Select at least one representation.'
     if (this.visualizationResources().some(resource => !resource.valid)) return 'Remove the invalid methods or choose a compatible Period.'
@@ -978,7 +978,7 @@ export class AppComponent implements OnDestroy {
     const signal = this.refreshController.signal
     const job = await this.nexus.v1.jobs.refreshDatabase(signal)
     if (!job.id) throw new Error('The refresh job did not return an ID.')
-    for (;;) {
+    for (; ;) {
       await new Promise<void>((resolve, reject) => {
         const abort = () => { clearTimeout(timer); reject(signal.reason) }
         const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve() }, 1000)
@@ -1401,6 +1401,16 @@ export class AppComponent implements OnDestroy {
       return next
     })
     this.selectionReferences.update(current => current.filter(reference => !this.referenceMatches(reference, selection)))
+  }
+
+  removeUnresolvedSelection(reference: StoredSelectionReference) {
+    if (this.selectionLoading()) return
+    const matches = (other: StoredSelectionReference) =>
+      other.catalogId === reference.catalogId && other.path === reference.path
+      && other.basePeriod === reference.basePeriod
+      && JSON.stringify(parameterEntries(other.parameters)) === JSON.stringify(parameterEntries(reference.parameters))
+    this.unresolvedSelections.update(current => current.filter(value => !matches(value)))
+    this.selectionReferences.update(current => current.filter(value => !matches(value)))
   }
 
   toggleKind(selection: ResourceSelection, kind: RepresentationKind) {
@@ -1829,7 +1839,7 @@ export class AppComponent implements OnDestroy {
   }
 
   private async pollCurrentExportJob(jobId: string, parameters: V2.ExportParameters, controller: AbortController) {
-    for (;;) {
+    for (; ;) {
       await this.delay(1000, controller.signal)
       const status = await this.nexus.v1.jobs.getJobStatus(jobId, controller.signal)
       if (this.exportController !== controller) return
