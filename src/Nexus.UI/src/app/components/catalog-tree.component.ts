@@ -1,15 +1,15 @@
-import { Component, computed, input, output } from '@angular/core';
-import { TreeNode } from 'primeng/api';
-import { Tree, TreeModule } from 'primeng/tree';
-import { AppTooltipDirective } from '../app-tooltip.directive';
-import { CatalogNode } from '../nexus.service';
-import { abbreviateMiddle, lastSegment } from '../utils';
+import { Component, computed, input, output } from "@angular/core";
+import { TreeNode } from "primeng/api";
+import { Tree, TreeModule } from "primeng/tree";
+import { AppTooltipDirective } from "../app-tooltip.directive";
+import { CatalogNode } from "../nexus.service";
+import { abbreviateMiddle, lastSegment } from "../utils";
 
 @Component({
-  selector: 'app-catalog-tree',
+  selector: "app-catalog-tree",
   standalone: true,
   imports: [TreeModule, AppTooltipDirective],
-  host: { class: 'block min-w-0' },
+  host: { class: "block min-w-0" },
   template: `
     <p-tree
       #tree

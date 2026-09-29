@@ -1,8 +1,8 @@
-import { Directive, NgZone, ViewContainerRef, inject } from '@angular/core';
-import { Tooltip, TooltipStyle } from 'primeng/tooltip';
+import { Directive, NgZone, ViewContainerRef, inject } from "@angular/core";
+import { Tooltip, TooltipStyle } from "primeng/tooltip";
 
 @Directive({
-  selector: '[pTooltip]',
+  selector: "[pTooltip]",
   standalone: true,
   providers: [TooltipStyle],
 })

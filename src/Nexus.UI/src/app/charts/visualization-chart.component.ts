@@ -10,16 +10,16 @@ import {
   ViewChild,
   inject,
   output,
-} from '@angular/core';
-import type { VisualizationData, VisualizationSeries } from './visualization-data.ts';
-import { getChartInterop } from './chart-interop';
+} from "@angular/core";
+import type { VisualizationData, VisualizationSeries } from "./visualization-data.ts";
+import { getChartInterop } from "./chart-interop";
 import type {
   ChartCallbacks,
   ChartCallbackAdapter,
   ChartInterop,
   GpuRange,
   SeriesPayload,
-} from './chart-interop';
+} from "./chart-interop";
 import {
   CHUNK_LENGTH,
   FULL_VIEWPORT,
@@ -39,16 +39,16 @@ import {
   setViewport,
   toEngineering,
   toTime,
-} from './chart-math';
-import type { Axis, Viewport } from './chart-math';
-import { provideSeriesChunk, uploadSeries } from './chart-upload';
-import { LegendNameDirective } from './legend-name.directive';
-import { formatLegendValue } from './legend-text';
-import { AppTooltipDirective } from '../app-tooltip.directive';
+} from "./chart-math";
+import type { Axis, Viewport } from "./chart-math";
+import { provideSeriesChunk, uploadSeries } from "./chart-upload";
+import { LegendNameDirective } from "./legend-name.directive";
+import { formatLegendValue } from "./legend-text";
+import { AppTooltipDirective } from "../app-tooltip.directive";
 
 let nextChartId = 0;
 
-type ThemeMode = 'dark' | 'light';
+type ThemeMode = "dark" | "light";
 
 interface SeriesState {
   source: VisualizationSeries;
@@ -58,26 +58,26 @@ interface SeriesState {
 }
 
 @Component({
-  selector: 'nexus-visualization-chart',
+  selector: "nexus-visualization-chart",
   standalone: true,
   imports: [LegendNameDirective, AppTooltipDirective],
-  templateUrl: './visualization-chart.component.html',
-  styleUrl: './visualization-chart.component.css',
+  templateUrl: "./visualization-chart.component.html",
+  styleUrl: "./visualization-chart.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VisualizationChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() data: VisualizationData | null = null;
   @Input() beginAtZero = false;
   @Input() cacheBudgetBytes = 2048 * 1024 * 1024;
-  @Input() themeMode: ThemeMode = 'dark';
+  @Input() themeMode: ThemeMode = "dark";
   readonly gpuFailed = output<string>();
-  @ViewChild('axisCanvas') private axisCanvas!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('chartElement') private chartElement!: ElementRef<HTMLElement>;
+  @ViewChild("axisCanvas") private axisCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild("chartElement") private chartElement!: ElementRef<HTMLElement>;
 
   chartId = `angular-${++nextChartId}`;
   viewport: Viewport = { ...FULL_VIEWPORT };
   errorTitle: string | null = null;
-  errorMessage = '';
+  errorMessage = "";
   readonly hidden = new Set<string>();
   private readonly changeDetector = inject(ChangeDetectorRef);
   private api?: ChartInterop;
@@ -127,23 +127,23 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
           toTime(this.data.begin, this.data.end, this.detail.left),
           toTime(this.data.begin, this.data.end, this.detail.right),
         )
-      : '';
+      : "";
   }
   get beginIso(): string {
-    return this.data ? formatTime(this.data.begin, 'yyyy-MM-ddTHH:mm:ss.fffffff') : '';
+    return this.data ? formatTime(this.data.begin, "yyyy-MM-ddTHH:mm:ss.fffffff") : "";
   }
   get endIso(): string {
-    return this.data ? formatTime(this.data.end, 'yyyy-MM-ddTHH:mm:ss.fffffff') : '';
+    return this.data ? formatTime(this.data.end, "yyyy-MM-ddTHH:mm:ss.fffffff") : "";
   }
   color(index: number): string {
-    return `rgb(${SERIES_COLORS[index % SERIES_COLORS.length].join(', ')})`;
+    return `rgb(${SERIES_COLORS[index % SERIES_COLORS.length].join(", ")})`;
   }
 
   ngAfterViewInit(): void {
     this.ready = true;
     this.resizeObserver = new ResizeObserver(this.onResize);
     this.resizeObserver.observe(this.chartElement.nativeElement);
-    window.addEventListener('resize', this.onResize);
+    window.addEventListener("resize", this.onResize);
     this.watchDpr();
     // Defer initialization until Angular has committed all callback target elements.
     this.scheduleDraw();
@@ -184,15 +184,15 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       }
     } catch (error) {
       if (!this.disposed) {
-        console.warn('[chart] Chart font unavailable; using Courier New Bold.', error);
+        console.warn("[chart] Chart font unavailable; using Courier New Bold.", error);
       }
     }
   }
 
   private watchDpr(): void {
-    this.dprQuery?.removeEventListener('change', this.onDprChange);
+    this.dprQuery?.removeEventListener("change", this.onDprChange);
     this.dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
-    this.dprQuery.addEventListener('change', this.onDprChange);
+    this.dprQuery.addEventListener("change", this.onDprChange);
   }
 
   private initialize(): void {
@@ -212,20 +212,20 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         }
 
         switch (method) {
-          case 'PointerMoved': {
-            const [x, y] = args as ChartCallbacks['PointerMoved'];
+          case "PointerMoved": {
+            const [x, y] = args as ChartCallbacks["PointerMoved"];
 
             this.drawAuxiliary(x, y);
             break;
           }
-          case 'WheelZoom': {
-            const [x, y, delta, shift] = args as ChartCallbacks['WheelZoom'];
+          case "WheelZoom": {
+            const [x, y, delta, shift] = args as ChartCallbacks["WheelZoom"];
 
             this.wheelZoom(x, y, delta, shift);
             break;
           }
-          case 'DragZoom': {
-            const [left, top, right, bottom] = args as ChartCallbacks['DragZoom'];
+          case "DragZoom": {
+            const [left, top, right, bottom] = args as ChartCallbacks["DragZoom"];
 
             this.commitViewport(
               applyZoom(this.viewport, { left, top, right, bottom }, this.duration),
@@ -233,31 +233,31 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
             break;
           }
-          case 'NavigatorZoom': {
-            const [left, right] = args as ChartCallbacks['NavigatorZoom'];
+          case "NavigatorZoom": {
+            const [left, right] = args as ChartCallbacks["NavigatorZoom"];
 
             this.commitViewport(setViewport({ ...this.viewport, left, right }, this.duration));
             break;
           }
-          case 'SetViewport': {
-            const [left, top, right, bottom] = args as ChartCallbacks['SetViewport'];
+          case "SetViewport": {
+            const [left, top, right, bottom] = args as ChartCallbacks["SetViewport"];
 
             this.commitViewport(setViewport({ left, top, right, bottom }, this.duration));
             break;
           }
-          case 'WebGpuFailed': {
-            const [title, message] = args as ChartCallbacks['WebGpuFailed'];
+          case "WebGpuFailed": {
+            const [title, message] = args as ChartCallbacks["WebGpuFailed"];
 
             this.fail(title, message);
             break;
           }
-          case 'ProvideSeriesChunk': {
+          case "ProvideSeriesChunk": {
             const [seriesId, offset, count, requestId] =
-              args as ChartCallbacks['ProvideSeriesChunk'];
+              args as ChartCallbacks["ProvideSeriesChunk"];
             const source = this.states.get(seriesId)?.source;
 
             if (!source) {
-              throw Object.assign(new Error('Raw series request is no longer active.'), {
+              throw Object.assign(new Error("Raw series request is no longer active."), {
                 webGpuCancelled: true,
               });
             }
@@ -286,7 +286,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
   private cancelSession(): void {
     this.controller.abort(
-      Object.assign(new Error('Chart data or GPU session was superseded.'), {
+      Object.assign(new Error("Chart data or GPU session was superseded."), {
         webGpuCancelled: true,
       }),
     );
@@ -350,7 +350,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         })
         .catch((error: unknown) => {
           if (!signal.aborted && !this.disposed && id === this.chartId) {
-            this.fail('WebGPU upload failed', String(error));
+            this.fail("WebGPU upload failed", String(error));
           }
         });
     }
@@ -473,7 +473,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         pointY >= 0 &&
         pointY <= 1;
       const digits = clamp(-roundAway(Math.log10(axis.max - axis.min)) + 2, 0, 100);
-      const text = visible ? formatLegendValue(value!, digits) : '--';
+      const text = visible ? formatLegendValue(value!, digits) : "--";
 
       return { id: series.id, visible, x: pointX, y: 1 - pointY, text };
     });
@@ -500,7 +500,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         this.ensureUploads();
         this.draw();
       } catch (error) {
-        this.fail('Chart rendering failed', String(error));
+        this.fail("Chart rendering failed", String(error));
       }
     });
   }
@@ -518,22 +518,22 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext("2d");
 
     if (!context) {
-      throw new Error('The browser could not create the chart axis canvas.');
+      throw new Error("The browser could not create the chart axis canvas.");
     }
 
     context.scale(dpr, dpr);
     context.font = 'bold 12px "Nexus Chart", "Courier New", monospace';
-    const lightTheme = this.themeMode === 'light';
+    const lightTheme = this.themeMode === "light";
 
-    context.fillStyle = lightTheme ? '#334155' : '#94a3b8';
+    context.fillStyle = lightTheme ? "#334155" : "#94a3b8";
     const yMin = 20;
     const yMax = Math.max(51, height - 55);
     const plotTop = 50;
     const maxYTicks = Math.max(1, roundAway((yMax - yMin) / 50));
-    const characterWidth = context.measureText(' ').width;
+    const characterWidth = context.measureText(" ").width;
     let xMin = 10;
     const line = (x1: number, y1: number, x2: number, y2: number): void => {
       context.beginPath();
@@ -550,7 +550,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
       if (this.series.some((series) => series.unit === axis.unit && !this.hidden.has(series.id))) {
         context.fillText(axis.unit, xMin + (maxChars - axis.unit.length) * characterWidth, yMin);
-        context.strokeStyle = lightTheme ? '#dddddd' : 'rgba(148, 163, 184, 0.25)';
+        context.strokeStyle = lightTheme ? "#dddddd" : "rgba(148, 163, 184, 0.25)";
 
         ticks.forEach((tick, index) => {
           if (tick < axis.min || tick > axis.max) {
@@ -586,8 +586,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       );
       let previous = 0n;
 
-      context.textAlign = 'center';
-      context.strokeStyle = lightTheme ? '#d3d3d3' : 'rgba(148, 163, 184, 0.25)';
+      context.textAlign = "center";
+      context.strokeStyle = lightTheme ? "#d3d3d3" : "rgba(148, 163, 184, 0.25)";
 
       for (const tick of ticks) {
         const x = xMin + (Number(tick - begin) / Number(end - begin)) * (xMax - xMin);
@@ -616,7 +616,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       bottom: Math.min(1, yMax / height),
     };
 
-    this.api!.chart.resize(this.chartId, 'overlay', plot.left, plot.top, plot.right, plot.bottom);
+    this.api!.chart.resize(this.chartId, "overlay", plot.left, plot.top, plot.right, plot.bottom);
 
     if (this.errorTitle) {
       return;
@@ -657,7 +657,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     });
 
     gpu.renderSeries(this.chartId, {
-      target: 'navigator-overview-series',
+      target: "navigator-overview-series",
       preview: true,
       plot: FULL_VIEWPORT,
       zoom: { left: 0, right: 1 },
@@ -668,7 +668,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
     if (this.detail.visible) {
       gpu.renderSeries(this.chartId, {
-        target: 'navigator-detail-series',
+        target: "navigator-detail-series",
         preview: true,
         plot: FULL_VIEWPORT,
         zoom: this.detail,
@@ -677,7 +677,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         series,
       });
     } else {
-      gpu.releaseTarget(this.chartId, 'navigator-detail-series');
+      gpu.releaseTarget(this.chartId, "navigator-detail-series");
     }
   }
 
@@ -686,8 +686,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     this.cancelSession();
     cancelAnimationFrame(this.frame);
     this.resizeObserver?.disconnect();
-    window.removeEventListener('resize', this.onResize);
-    this.dprQuery?.removeEventListener('change', this.onDprChange);
+    window.removeEventListener("resize", this.onResize);
+    this.dprQuery?.removeEventListener("change", this.onDprChange);
     this.api?.chart.dispose(this.chartId);
     this.api?.chartWebGpu.dispose(this.chartId);
     this.states.clear();

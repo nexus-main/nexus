@@ -1,11 +1,11 @@
-import { DestroyRef, Injectable, inject } from '@angular/core';
-import type * as Monaco from 'monaco-editor';
-import { configureMonacoYaml } from 'monaco-yaml';
-import type { MonacoYaml, SchemasSettings } from 'monaco-yaml';
-import { isJsonObject } from '../json-schema';
-import { createYamlMonaco } from './yaml-monaco';
+import { DestroyRef, Injectable, inject } from "@angular/core";
+import type * as Monaco from "monaco-editor";
+import { configureMonacoYaml } from "monaco-yaml";
+import type { MonacoYaml, SchemasSettings } from "monaco-yaml";
+import { isJsonObject } from "../json-schema";
+import { createYamlMonaco } from "./yaml-monaco";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class YamlEditorService {
   private languageService?: MonacoYaml;
   private readonly schemas = new Map<string, SchemasSettings>();
@@ -26,7 +26,7 @@ export class YamlEditorService {
     if (!this.languageService) {
       const yamlMonaco = createYamlMonaco(
         monaco,
-        () => new Worker(new URL('../yaml.worker', import.meta.url), { type: 'module' }),
+        () => new Worker(new URL("../yaml.worker", import.meta.url), { type: "module" }),
       );
 
       // Its current types describe the new internal API, but worker-manager calls the old one.
@@ -37,7 +37,7 @@ export class YamlEditorService {
           enableSchemaRequest: false,
           validate: true,
           hoverSchemaSource: false,
-          yamlVersion: '1.2',
+          yamlVersion: "1.2",
           format: { printWidth: 100 },
         },
       );

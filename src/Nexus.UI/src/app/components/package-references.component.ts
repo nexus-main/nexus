@@ -7,23 +7,23 @@ import {
   output,
   signal,
   viewChild,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { NgClass } from '@angular/common';
-import { LucidePlus, LucideRefreshCw, LucideTrash2 } from '@lucide/angular';
-import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
-import { InputTextModule } from 'primeng/inputtext';
-import { MessageModule } from 'primeng/message';
-import { SelectModule } from 'primeng/select';
-import { DialogPassThrough } from 'primeng/types/dialog';
-import { NexusService, V1 } from '../nexus.service';
-import { RestoreFocusDirective } from '../restore-focus.directive';
+} from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { NgClass } from "@angular/common";
+import { LucidePlus, LucideRefreshCw, LucideTrash2 } from "@lucide/angular";
+import { ButtonModule } from "primeng/button";
+import { DialogModule } from "primeng/dialog";
+import { InputTextModule } from "primeng/inputtext";
+import { MessageModule } from "primeng/message";
+import { SelectModule } from "primeng/select";
+import { DialogPassThrough } from "primeng/types/dialog";
+import { NexusService, V1 } from "../nexus.service";
+import { RestoreFocusDirective } from "../restore-focus.directive";
 
 type PackageEntry = { id: string; reference: V1.PackageReference };
 
 @Component({
-  selector: 'app-package-references',
+  selector: "app-package-references",
   standalone: true,
   imports: [
     NgClass,
@@ -72,7 +72,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
 
         @if (editing()) {
           <h2 class="text-lg font-semibold">
-            {{ editedEntry() ? 'Edit package reference' : 'Add package reference' }}
+            {{ editedEntry() ? "Edit package reference" : "Add package reference" }}
           </h2>
           <form class="space-y-3" (ngSubmit)="save()">
             <div>
@@ -94,7 +94,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
             </div>
             <div>
               <label for="package-location" class="mb-1 block text-sm">{{
-                provider() === 'local' ? 'Path on the Nexus server' : 'Repository URL'
+                provider() === "local" ? "Path on the Nexus server" : "Repository URL"
               }}</label>
               <input
                 pInputText
@@ -110,7 +110,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
             </div>
             <div>
               <label for="package-version" class="mb-1 block text-sm">{{
-                provider() === 'local' ? 'Version folder' : 'Git tag'
+                provider() === "local" ? "Version folder" : "Git tag"
               }}</label>
               <p-select
                 inputId="package-version"
@@ -194,7 +194,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
                       [disabled]="busy()"
                       (click)="remove()"
                     >
-                      {{ busy() ? 'Deleting...' : 'Yes, delete' }}
+                      {{ busy() ? "Deleting..." : "Yes, delete" }}
                     </button>
                   </div>
                 } @else {
@@ -223,7 +223,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
                       Cancel
                     </button>
                     <button pButton type="submit" size="small" [disabled]="!valid() || busy()">
-                      {{ busy() ? 'Saving...' : 'Save' }}
+                      {{ busy() ? "Saving..." : "Save" }}
                     </button>
                   </div>
                 }
@@ -241,7 +241,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
                     Cancel
                   </button>
                   <button pButton type="submit" size="small" [disabled]="!valid() || busy()">
-                    {{ busy() ? 'Saving...' : 'Save' }}
+                    {{ busy() ? "Saving..." : "Save" }}
                   </button>
                 </div>
               }
@@ -326,8 +326,8 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
                       <span
                         class="rounded-sm border border-[var(--p-content-border-color)] px-2 py-0.5 font-mono text-xs text-[var(--p-text-muted-color)]"
                         >{{
-                          entry.reference.configuration?.['tag'] ??
-                            entry.reference.configuration?.['version']
+                          entry.reference.configuration?.["tag"] ??
+                            entry.reference.configuration?.["version"]
                         }}</span
                       >
                     </div>
@@ -358,13 +358,13 @@ export class PackageReferencesComponent {
   private readonly nexus = inject(NexusService);
   private readonly api = this.nexus.v1.packageReferences;
   private readonly jobs = this.nexus.v1.jobs;
-  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly panel = viewChild<ElementRef<HTMLElement>>("panel");
   readonly close = output<void>();
   readonly dialogPt: DialogPassThrough = {
     root: {
       // PrimeNG's document handler can lose Escape after a nested select has closed.
       onkeydown: (event: KeyboardEvent) => {
-        if (event.key !== 'Escape') {
+        if (event.key !== "Escape") {
           return;
         }
 
@@ -376,24 +376,24 @@ export class PackageReferencesComponent {
       },
     },
   };
-  readonly providers = ['git-tag', 'local'];
+  readonly providers = ["git-tag", "local"];
   readonly entries = signal<PackageEntry[]>([]);
   readonly loading = signal(true);
   readonly busy = signal(false);
-  readonly error = signal('');
-  readonly status = signal('');
+  readonly error = signal("");
+  readonly status = signal("");
   readonly editing = signal(false);
   readonly editedEntry = signal<PackageEntry | null>(null);
   readonly confirmingDelete = signal(false);
-  readonly provider = signal('git-tag');
-  readonly location = signal('');
-  readonly version = signal('');
+  readonly provider = signal("git-tag");
+  readonly location = signal("");
+  readonly version = signal("");
   readonly versionOptions = signal<string[]>([]);
   readonly versionsLoading = signal(false);
-  readonly versionError = signal('');
+  readonly versionError = signal("");
   readonly refreshing = signal(false);
-  readonly refreshStatus = signal('');
-  readonly entrypoint = signal('');
+  readonly refreshStatus = signal("");
+  readonly entrypoint = signal("");
   readonly valid = computed(
     () =>
       this.providers.includes(this.provider()) &&
@@ -402,7 +402,7 @@ export class PackageReferencesComponent {
       !!this.entrypoint().trim(),
   );
   readonly refreshButtonLabel = computed(() =>
-    this.refreshing() ? 'Refreshing database...' : 'Refresh database',
+    this.refreshing() ? "Refreshing database..." : "Refresh database",
   );
 
   constructor() {
@@ -420,32 +420,32 @@ export class PackageReferencesComponent {
 
   async load() {
     this.loading.set(true);
-    this.error.set('');
+    this.error.set("");
 
     try {
       this.entries.set(
         Object.entries(await this.api.get()).map(([id, reference]) => ({ id, reference })),
       );
     } catch (error) {
-      this.showError('load package references', error);
+      this.showError("load package references", error);
     } finally {
       this.loading.set(false);
     }
   }
 
   edit(entry: PackageEntry | null = null) {
-    this.error.set('');
-    this.status.set('');
+    this.error.set("");
+    this.status.set("");
     this.confirmingDelete.set(false);
     this.editedEntry.set(entry);
-    this.provider.set(entry?.reference.provider ?? 'git-tag');
+    this.provider.set(entry?.reference.provider ?? "git-tag");
     const config = entry?.reference.configuration;
 
-    this.location.set(config?.[this.provider() === 'local' ? 'path' : 'repository'] ?? '');
-    this.version.set(config?.[this.provider() === 'local' ? 'version' : 'tag'] ?? '');
-    this.entrypoint.set(config?.['entrypoint'] ?? '');
+    this.location.set(config?.[this.provider() === "local" ? "path" : "repository"] ?? "");
+    this.version.set(config?.[this.provider() === "local" ? "version" : "tag"] ?? "");
+    this.entrypoint.set(config?.["entrypoint"] ?? "");
     this.versionOptions.set([]);
-    this.versionError.set('');
+    this.versionError.set("");
     this.editing.set(true);
     void this.loadVersions();
   }
@@ -453,10 +453,10 @@ export class PackageReferencesComponent {
   setProvider(provider: string) {
     this.provider.set(provider);
     this.versionOptions.set([]);
-    this.versionError.set('');
+    this.versionError.set("");
 
     if (!this.editedEntry()) {
-      this.version.set('');
+      this.version.set("");
     }
 
     if (this.location().trim()) {
@@ -476,23 +476,23 @@ export class PackageReferencesComponent {
     }
 
     this.versionsLoading.set(true);
-    this.versionError.set('');
+    this.versionError.set("");
 
     try {
       const reference: V1.PackageReference = {
         provider: this.provider(),
-        configuration: { [this.provider() === 'local' ? 'path' : 'repository']: location },
+        configuration: { [this.provider() === "local" ? "path" : "repository"]: location },
       };
       const versions = await this.api.getVersions(reference);
 
       this.versionOptions.set(
         [...versions].sort((a, b) =>
-          b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' }),
+          b.localeCompare(a, undefined, { numeric: true, sensitivity: "base" }),
         ),
       );
     } catch (error) {
       this.versionOptions.set([]);
-      const detail = error instanceof Error ? error.message : 'Unknown error';
+      const detail = error instanceof Error ? error.message : "Unknown error";
 
       this.versionError.set(`Could not load available versions. ${detail}`);
     } finally {
@@ -501,7 +501,7 @@ export class PackageReferencesComponent {
   }
 
   cancel() {
-    this.error.set('');
+    this.error.set("");
     this.confirmingDelete.set(false);
     this.editing.set(false);
   }
@@ -512,16 +512,16 @@ export class PackageReferencesComponent {
     }
 
     this.busy.set(true);
-    this.error.set('');
+    this.error.set("");
     const entry = this.editedEntry();
     const provider = this.provider();
     // Preserve provider-specific options that are not exposed by this form.
     const configuration =
       provider === entry?.reference.provider ? { ...entry.reference.configuration } : {};
 
-    configuration[provider === 'local' ? 'path' : 'repository'] = this.location().trim();
-    configuration[provider === 'local' ? 'version' : 'tag'] = this.version().trim();
-    configuration['entrypoint'] = this.entrypoint().trim();
+    configuration[provider === "local" ? "path" : "repository"] = this.location().trim();
+    configuration[provider === "local" ? "version" : "tag"] = this.version().trim();
+    configuration["entrypoint"] = this.entrypoint().trim();
 
     try {
       const reference: V1.PackageReference = { provider, configuration };
@@ -529,7 +529,7 @@ export class PackageReferencesComponent {
       if (entry) {
         await this.api.update(reference, entry.id);
         this.editing.set(false);
-        this.status.set('Package reference updated.');
+        this.status.set("Package reference updated.");
       } else {
         await this.api.create(reference);
         this.editing.set(false);
@@ -537,7 +537,7 @@ export class PackageReferencesComponent {
 
       await this.load();
     } catch (error) {
-      this.showError('save the package reference', error);
+      this.showError("save the package reference", error);
     } finally {
       this.busy.set(false);
     }
@@ -551,16 +551,16 @@ export class PackageReferencesComponent {
     }
 
     this.busy.set(true);
-    this.error.set('');
+    this.error.set("");
 
     try {
       await this.api.delete(entry.id);
       this.confirmingDelete.set(false);
       this.editing.set(false);
-      this.status.set('Package reference deleted.');
+      this.status.set("Package reference deleted.");
       await this.load();
     } catch (error) {
-      this.showError('delete the package reference', error);
+      this.showError("delete the package reference", error);
     } finally {
       this.busy.set(false);
     }
@@ -572,45 +572,45 @@ export class PackageReferencesComponent {
     }
 
     this.refreshing.set(true);
-    this.error.set('');
-    this.status.set('');
-    this.refreshStatus.set('Starting database refresh...');
+    this.error.set("");
+    this.status.set("");
+    this.refreshStatus.set("Starting database refresh...");
 
     try {
       const job = await this.jobs.refreshDatabase();
-      const jobId = job.id ?? '';
+      const jobId = job.id ?? "";
 
       if (!jobId) {
-        throw new Error('The refresh job did not return an id.');
+        throw new Error("The refresh job did not return an id.");
       }
 
       while (this.refreshing()) {
         await delay(1000);
         const jobStatus = await this.jobs.getJobStatus(jobId);
         const progress =
-          jobStatus.progress === undefined ? '' : ` (${Math.round(jobStatus.progress * 100)}%)`;
+          jobStatus.progress === undefined ? "" : ` (${Math.round(jobStatus.progress * 100)}%)`;
 
-        this.refreshStatus.set(`Refresh database: ${jobStatus.status ?? 'Running'}${progress}`);
+        this.refreshStatus.set(`Refresh database: ${jobStatus.status ?? "Running"}${progress}`);
 
         if (jobStatus.status === V1.TaskStatus.RanToCompletion) {
-          this.refreshStatus.set('Database refresh completed.');
+          this.refreshStatus.set("Database refresh completed.");
           await this.load();
 
           return;
         }
 
         if (jobStatus.status === V1.TaskStatus.Canceled) {
-          throw new Error('The refresh job was canceled.');
+          throw new Error("The refresh job was canceled.");
         }
 
         if (jobStatus.status === V1.TaskStatus.Faulted) {
           throw new Error(
-            `The refresh job failed. Reason: ${jobStatus.exceptionMessage ?? 'unknown'}`,
+            `The refresh job failed. Reason: ${jobStatus.exceptionMessage ?? "unknown"}`,
           );
         }
       }
     } catch (error) {
-      this.showError('refresh the database', error);
+      this.showError("refresh the database", error);
     } finally {
       this.refreshing.set(false);
     }
@@ -618,16 +618,16 @@ export class PackageReferencesComponent {
 
   packageName(entry: PackageEntry): string {
     const config = entry.reference.configuration;
-    const url = config?.['repository'] ?? config?.['path'] ?? entry.id;
+    const url = config?.["repository"] ?? config?.["path"] ?? entry.id;
 
-    return url.split('/').pop() || url;
+    return url.split("/").pop() || url;
   }
 
   private showError(action: string, error: unknown) {
-    const detail = error instanceof Error ? error.message : 'Unknown error';
+    const detail = error instanceof Error ? error.message : "Unknown error";
 
     this.error.set(
-      `Could not ${action}. ${detail}${/\b(401|403)\b/.test(detail) ? ' The current session or token must have administrator permission.' : ''}`,
+      `Could not ${action}. ${detail}${/\b(401|403)\b/.test(detail) ? " The current session or token must have administrator permission." : ""}`,
     );
   }
 }

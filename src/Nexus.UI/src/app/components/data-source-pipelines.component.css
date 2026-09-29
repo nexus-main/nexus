@@ -273,13 +273,13 @@ legend {
 }
 :host
   ::ng-deep
-  .outlined-switch.p-toggleswitch:not(.p-toggleswitch-checked):not([data-p-checked='true'])
+  .outlined-switch.p-toggleswitch:not(.p-toggleswitch-checked):not([data-p-checked="true"])
   .p-toggleswitch-slider {
   border-color: var(--p-content-border-color);
 }
 :host
   ::ng-deep
-  .outlined-switch.p-toggleswitch:not(.p-toggleswitch-checked):not([data-p-checked='true'])
+  .outlined-switch.p-toggleswitch:not(.p-toggleswitch-checked):not([data-p-checked="true"])
   .p-toggleswitch-handle {
   background: var(--p-text-muted-color);
 }
@@ -287,12 +287,12 @@ legend {
   background: var(--p-text-muted-color);
 }
 :host ::ng-deep .outlined-switch.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-slider,
-:host ::ng-deep .outlined-switch.p-toggleswitch[data-p-checked='true'] .p-toggleswitch-slider {
+:host ::ng-deep .outlined-switch.p-toggleswitch[data-p-checked="true"] .p-toggleswitch-slider {
   border-color: var(--p-primary-color);
   background: transparent !important;
 }
 :host ::ng-deep .outlined-switch.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-handle,
-:host ::ng-deep .outlined-switch.p-toggleswitch[data-p-checked='true'] .p-toggleswitch-handle {
+:host ::ng-deep .outlined-switch.p-toggleswitch[data-p-checked="true"] .p-toggleswitch-handle {
   background: var(--p-primary-color);
 }
 .input-with-help {

@@ -6,18 +6,18 @@ import {
   OnChanges,
   OnDestroy,
   inject,
-} from '@angular/core';
-import { fitLegendName } from './legend-text';
+} from "@angular/core";
+import { fitLegendName } from "./legend-text";
 
 @Directive({
-  selector: '[legendName]',
+  selector: "[legendName]",
   standalone: true,
-  host: { '[attr.aria-label]': 'legendName' },
+  host: { "[attr.aria-label]": "legendName" },
 })
 export class LegendNameDirective implements AfterViewInit, OnChanges, OnDestroy {
-  @Input() legendName = '';
+  @Input() legendName = "";
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
-  private readonly context = this.element.ownerDocument.createElement('canvas').getContext('2d');
+  private readonly context = this.element.ownerDocument.createElement("canvas").getContext("2d");
   private observer?: ResizeObserver;
   private readonly fit = (): void => {
     if (!this.context) {
@@ -38,7 +38,7 @@ export class LegendNameDirective implements AfterViewInit, OnChanges, OnDestroy 
   ngAfterViewInit(): void {
     this.observer = new ResizeObserver(this.fit);
     this.observer.observe(this.element);
-    this.element.ownerDocument.fonts.addEventListener('loadingdone', this.fit);
+    this.element.ownerDocument.fonts.addEventListener("loadingdone", this.fit);
     this.fit();
   }
 
@@ -48,6 +48,6 @@ export class LegendNameDirective implements AfterViewInit, OnChanges, OnDestroy 
 
   ngOnDestroy(): void {
     this.observer?.disconnect();
-    this.element.ownerDocument.fonts.removeEventListener('loadingdone', this.fit);
+    this.element.ownerDocument.fonts.removeEventListener("loadingdone", this.fit);
   }
 }

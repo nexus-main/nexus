@@ -1,5 +1,5 @@
-import tseslint from 'typescript-eslint';
-import eslintConfigPrettier from 'eslint-config-prettier';
+import tseslint from "typescript-eslint";
+import eslintConfigPrettier from "eslint-config-prettier";
 
 // Prettier owns all formatting (indentation, braces, quotes, semicolons, line
 // wrapping, trailing commas). eslint-config-prettier is appended last to turn
@@ -15,33 +15,33 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 //     expands the block across multiple lines with correct indentation, which
 //     is what forbids the single-line `if (x) return;` form.
 const paddingLineBetweenStatements = [
-  'error',
+  "error",
   // blank line after a run of variable declarations
-  { blankLine: 'always', prev: ['const', 'let', 'var'], next: '*' },
-  { blankLine: 'any', prev: ['const', 'let', 'var'], next: ['const', 'let', 'var'] },
+  { blankLine: "always", prev: ["const", "let", "var"], next: "*" },
+  { blankLine: "any", prev: ["const", "let", "var"], next: ["const", "let", "var"] },
   // blank line before/after control flow
-  { blankLine: 'always', prev: '*', next: ['if', 'for', 'while', 'switch', 'try', 'return'] },
-  { blankLine: 'always', prev: ['if', 'for', 'while', 'switch', 'try'], next: '*' },
+  { blankLine: "always", prev: "*", next: ["if", "for", "while", "switch", "try", "return"] },
+  { blankLine: "always", prev: ["if", "for", "while", "switch", "try"], next: "*" },
   // blank line before/after multiline expressions
-  { blankLine: 'always', prev: '*', next: 'multiline-expression' },
-  { blankLine: 'always', prev: 'multiline-expression', next: '*' },
+  { blankLine: "always", prev: "*", next: "multiline-expression" },
+  { blankLine: "always", prev: "multiline-expression", next: "*" },
 ];
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'out-tsc/**', '.angular/**'],
+    ignores: ["dist/**", "node_modules/**", "out-tsc/**", ".angular/**"],
   },
   {
-    files: ['src/**/*.{ts,js}'],
+    files: ["src/**/*.{ts,js}"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
         ecmaVersion: 2022,
-        sourceType: 'module',
+        sourceType: "module",
       },
     },
     rules: {
-      'padding-line-between-statements': paddingLineBetweenStatements,
+      "padding-line-between-statements": paddingLineBetweenStatements,
     },
   },
   eslintConfigPrettier,
@@ -49,9 +49,9 @@ export default tseslint.config(
   // precaution. Prettier preserves brace style (never adds or removes braces),
   // so there is no actual conflict — the two tools are complementary.
   {
-    files: ['src/**/*.{ts,js}'],
+    files: ["src/**/*.{ts,js}"],
     rules: {
-      curly: ['error', 'all'],
+      curly: ["error", "all"],
     },
   },
 );

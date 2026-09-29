@@ -1,4 +1,4 @@
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT } from "@angular/common";
 import {
   DestroyRef,
   Directive,
@@ -6,11 +6,11 @@ import {
   booleanAttribute,
   inject,
   input,
-} from '@angular/core';
-import { Dialog } from 'primeng/dialog';
-import { Drawer } from 'primeng/drawer';
+} from "@angular/core";
+import { Dialog } from "primeng/dialog";
+import { Drawer } from "primeng/drawer";
 
-@Directive({ selector: '[appRestoreFocus]', standalone: true })
+@Directive({ selector: "[appRestoreFocus]", standalone: true })
 export class RestoreFocusDirective {
   readonly appRestoreFocus = input(true, { transform: booleanAttribute });
 

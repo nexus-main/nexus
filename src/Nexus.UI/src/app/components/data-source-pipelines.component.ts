@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule } from "@angular/common";
 import {
   Component,
   DestroyRef,
@@ -11,24 +11,24 @@ import {
   output,
   signal,
   viewChild,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { DialogModule } from 'primeng/dialog';
-import { InputTextModule } from 'primeng/inputtext';
-import { MessageModule } from 'primeng/message';
-import { SelectModule } from 'primeng/select';
-import { TabsModule } from 'primeng/tabs';
-import { ToastModule } from 'primeng/toast';
-import { ToggleSwitchModule } from 'primeng/toggleswitch';
-import { AppTooltipDirective } from '../app-tooltip.directive';
-import { ConfirmationService, ConfirmEventType, MessageService } from 'primeng/api';
-import type { DialogPassThrough } from 'primeng/types/dialog';
-import { LucideCircleHelp, LucidePlus } from '@lucide/angular';
-import { NexusService, V1 } from '../nexus.service';
-import { RestoreFocusDirective } from '../restore-focus.directive';
-import { JsonSchemaEditorComponent } from './json-schema-editor.component';
+} from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { ButtonModule } from "primeng/button";
+import { ConfirmDialogModule } from "primeng/confirmdialog";
+import { DialogModule } from "primeng/dialog";
+import { InputTextModule } from "primeng/inputtext";
+import { MessageModule } from "primeng/message";
+import { SelectModule } from "primeng/select";
+import { TabsModule } from "primeng/tabs";
+import { ToastModule } from "primeng/toast";
+import { ToggleSwitchModule } from "primeng/toggleswitch";
+import { AppTooltipDirective } from "../app-tooltip.directive";
+import { ConfirmationService, ConfirmEventType, MessageService } from "primeng/api";
+import type { DialogPassThrough } from "primeng/types/dialog";
+import { LucideCircleHelp, LucidePlus } from "@lucide/angular";
+import { NexusService, V1 } from "../nexus.service";
+import { RestoreFocusDirective } from "../restore-focus.directive";
+import { JsonSchemaEditorComponent } from "./json-schema-editor.component";
 import {
   acceptPipelineSave,
   addRegistration,
@@ -43,24 +43,24 @@ import {
   sourceSchema,
   updatePipeline,
   updateRegistration,
-} from '../data-source-pipelines';
-import type { PipelineDraft, UnsavedChoice } from '../data-source-pipelines';
+} from "../data-source-pipelines";
+import type { PipelineDraft, UnsavedChoice } from "../data-source-pipelines";
 
 type Destination =
-  | { kind: 'pipeline'; id: string | null }
-  | { kind: 'close' }
-  | { kind: 'refresh' }
-  | { kind: 'descriptions' }
-  | { kind: 'reload' };
+  | { kind: "pipeline"; id: string | null }
+  | { kind: "close" }
+  | { kind: "refresh" }
+  | { kind: "descriptions" }
+  | { kind: "reload" };
 type PipelineEntry = { id: string; pipeline: V1.DataSourcePipeline };
-type ThemeMode = 'dark' | 'light';
-type PipelineTab = 'pipelines' | 'pipeline' | 'registration';
-type MobileView = 'list' | 'pipeline' | 'registration';
+type ThemeMode = "dark" | "light";
+type PipelineTab = "pipelines" | "pipeline" | "registration";
+type MobileView = "list" | "pipeline" | "registration";
 
-const mobilePipelineLayoutQuery = '(max-width: 760px)';
+const mobilePipelineLayoutQuery = "(max-width: 760px)";
 
 @Component({
-  selector: 'app-data-source-pipelines',
+  selector: "app-data-source-pipelines",
   standalone: true,
   imports: [
     CommonModule,
@@ -81,8 +81,8 @@ const mobilePipelineLayoutQuery = '(max-width: 760px)';
     LucidePlus,
   ],
   providers: [ConfirmationService, MessageService],
-  templateUrl: './data-source-pipelines.component.html',
-  styleUrl: './data-source-pipelines.component.css',
+  templateUrl: "./data-source-pipelines.component.html",
+  styleUrl: "./data-source-pipelines.component.css",
 })
 export class DataSourcePipelinesComponent {
   private readonly nexus = inject(NexusService);
@@ -90,7 +90,7 @@ export class DataSourcePipelinesComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly messageService = inject(MessageService);
-  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly panel = viewChild<ElementRef<HTMLElement>>("panel");
   private readonly lifetime = new AbortController();
   private readController?: AbortController;
   private readGeneration = 0;
@@ -102,25 +102,25 @@ export class DataSourcePipelinesComponent {
     () =>
       this.nexus
         .currentUser()
-        ?.claims?.some((claim) => claim.type === 'role' && claim.value === 'Administrator') ??
+        ?.claims?.some((claim) => claim.type === "role" && claim.value === "Administrator") ??
       false,
   );
   readonly owner = computed(
-    () => this.nexus.currentUser()?.name ?? this.nexus.currentUser()?.userId ?? 'Current user',
+    () => this.nexus.currentUser()?.name ?? this.nexus.currentUser()?.userId ?? "Current user",
   );
   readonly entries = signal<PipelineEntry[]>([]);
   readonly descriptions = signal<V1.ExtensionDescription[]>([]);
   readonly draft = signal<PipelineDraft | null>(null);
   readonly selectedKey = signal<number | null>(null);
-  readonly pipelineTab = signal<PipelineTab>('pipelines');
-  readonly mobileView = signal<MobileView>('list');
+  readonly pipelineTab = signal<PipelineTab>("pipelines");
+  readonly mobileView = signal<MobileView>("list");
   readonly mobilePipelineLayout = signal(this.isMobilePipelineLayout());
   readonly loading = signal(false);
   readonly busy = signal(false);
   readonly refreshing = signal(false);
   readonly loaded = signal(false);
-  readonly error = signal('');
-  readonly descriptionError = signal('');
+  readonly error = signal("");
+  readonly descriptionError = signal("");
   readonly pending = signal<Destination | null>(null);
   readonly confirmingDelete = signal(false);
   readonly removingKey = signal<number | null>(null);
@@ -148,7 +148,7 @@ export class DataSourcePipelinesComponent {
     this.draft()?.registrations.find((registration) => registration.key === this.selectedKey()),
   );
   readonly selectedSchema = computed(() =>
-    sourceSchema(this.descriptions(), this.selected()?.type ?? ''),
+    sourceSchema(this.descriptions(), this.selected()?.type ?? ""),
   );
   readonly typeOptions = computed(() => {
     const types = this.descriptions().flatMap((description) =>
@@ -165,7 +165,7 @@ export class DataSourcePipelinesComponent {
   readonly dialogPt: DialogPassThrough = {
     root: {
       onkeydown: (event: KeyboardEvent) => {
-        if (event.key !== 'Escape' || event.defaultPrevented) {
+        if (event.key !== "Escape" || event.defaultPrevented) {
           return;
         }
 
@@ -183,7 +183,7 @@ export class DataSourcePipelinesComponent {
         } else if (this.removingKey() !== null) {
           this.removingKey.set(null);
         } else {
-          this.request({ kind: 'close' });
+          this.request({ kind: "close" });
         }
       },
     },
@@ -193,18 +193,18 @@ export class DataSourcePipelinesComponent {
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (this.dirty() || this.busy() || this.refreshing()) {
         event.preventDefault();
-        event.returnValue = '';
+        event.returnValue = "";
       }
     };
 
-    globalThis.addEventListener?.('beforeunload', beforeUnload);
+    globalThis.addEventListener?.("beforeunload", beforeUnload);
 
     this.destroyRef.onDestroy(() => {
       this.destroyed = true;
       this.readGeneration++;
       this.readController?.abort();
       this.lifetime.abort();
-      globalThis.removeEventListener?.('beforeunload', beforeUnload);
+      globalThis.removeEventListener?.("beforeunload", beforeUnload);
     });
 
     afterRenderEffect(() => {
@@ -222,14 +222,14 @@ export class DataSourcePipelinesComponent {
     void this.load();
   }
 
-  @HostListener('window:resize')
+  @HostListener("window:resize")
   syncPipelineLayout(): void {
     const mobile = this.isMobilePipelineLayout();
 
     this.mobilePipelineLayout.set(mobile);
 
-    if (!mobile && this.pipelineTab() === 'registration') {
-      this.pipelineTab.set('pipeline');
+    if (!mobile && this.pipelineTab() === "registration") {
+      this.pipelineTab.set("pipeline");
     }
   }
 
@@ -238,7 +238,7 @@ export class DataSourcePipelinesComponent {
   }
 
   displayLocator(url: string | null | undefined): string {
-    return url ? url.replace(/^file:\/\//i, '') : '';
+    return url ? url.replace(/^file:\/\//i, "") : "";
   }
 
   private async load(descriptionsOnly = false): Promise<boolean> {
@@ -256,7 +256,7 @@ export class DataSourcePipelinesComponent {
       this.loaded.set(false);
     }
 
-    this.error.set('');
+    this.error.set("");
 
     try {
       const [descriptions, pipelines] = await Promise.allSettled([
@@ -268,16 +268,16 @@ export class DataSourcePipelinesComponent {
         return false;
       }
 
-      this.descriptions.set(descriptions.status === 'fulfilled' ? descriptions.value : []);
+      this.descriptions.set(descriptions.status === "fulfilled" ? descriptions.value : []);
 
       this.descriptionError.set(
-        descriptions.status === 'fulfilled'
-          ? ''
+        descriptions.status === "fulfilled"
+          ? ""
           : `Source descriptions could not be loaded. Raw configuration remains editable; saving is blocked. ${String(descriptions.reason)}`,
       );
 
-      if (pipelines.status === 'rejected') {
-        this.showError('load pipelines; your draft has been retained', pipelines.reason);
+      if (pipelines.status === "rejected") {
+        this.showError("load pipelines; your draft has been retained", pipelines.reason);
 
         return false;
       }
@@ -293,24 +293,24 @@ export class DataSourcePipelinesComponent {
         const next = reconcilePipelineDraft(
           previous,
           pipelines.value,
-          descriptions.status === 'fulfilled',
+          descriptions.status === "fulfilled",
         );
 
         this.draft.set(next);
 
         if (next === null) {
           this.selectedKey.set(null);
-          this.pipelineTab.set('pipelines');
-          this.mobileView.set('list');
+          this.pipelineTab.set("pipelines");
+          this.mobileView.set("list");
         } else if (next.registrations !== previous?.registrations) {
           this.selectedKey.set(next.registrations[0]?.key ?? null);
         }
       }
 
-      return descriptions.status === 'fulfilled';
+      return descriptions.status === "fulfilled";
     } catch (error) {
       if (!this.destroyed && generation === this.readGeneration) {
-        this.showError('load pipelines and source descriptions', error);
+        this.showError("load pipelines and source descriptions", error);
       }
 
       return false;
@@ -327,23 +327,23 @@ export class DataSourcePipelinesComponent {
     }
 
     if (
-      destination.kind !== 'close' &&
+      destination.kind !== "close" &&
       (!this.administrator() ||
-        (!this.loaded() && destination.kind !== 'reload' && destination.kind !== 'descriptions'))
+        (!this.loaded() && destination.kind !== "reload" && destination.kind !== "descriptions"))
     ) {
       return;
     }
 
     if (
-      destination.kind === 'pipeline' &&
+      destination.kind === "pipeline" &&
       destination.id !== null &&
       destination.id === this.draft()?.id
     ) {
       if (this.draft()?.serverDiverged) {
-        destination = { kind: 'reload' };
+        destination = { kind: "reload" };
       } else {
-        this.pipelineTab.set('pipeline');
-        this.mobileView.set('pipeline');
+        this.pipelineTab.set("pipeline");
+        this.mobileView.set("pipeline");
 
         return;
       }
@@ -358,35 +358,35 @@ export class DataSourcePipelinesComponent {
   }
 
   private showUnsavedConfirm(destination: Destination): void {
-    const isDescriptions = destination.kind === 'descriptions';
-    const isRefreshOrReload = destination.kind === 'refresh' || destination.kind === 'reload';
+    const isDescriptions = destination.kind === "descriptions";
+    const isRefreshOrReload = destination.kind === "refresh" || destination.kind === "reload";
 
     this.confirmationService.confirm({
-      key: 'unsavedChanges',
-      header: isDescriptions ? 'Retry source descriptions?' : 'Unsaved pipeline changes',
+      key: "unsavedChanges",
+      header: isDescriptions ? "Retry source descriptions?" : "Unsaved pipeline changes",
       message: isDescriptions
-        ? 'Retry source descriptions and revalidate your draft? All edits and raw JSON buffers will be retained, even if the retry fails.'
+        ? "Retry source descriptions and revalidate your draft? All edits and raw JSON buffers will be retained, even if the retry fails."
         : isRefreshOrReload
-          ? 'Save first or reload without saving. Unsaved edits are replaced only after pipelines and descriptions reload successfully; cancellation or failure retains your draft.'
-          : 'Save before continuing, discard these edits, or stay here. Saving validates every registration.',
-      acceptLabel: isDescriptions ? 'Retry' : 'Save',
-      rejectLabel: 'Discard',
+          ? "Save first or reload without saving. Unsaved edits are replaced only after pipelines and descriptions reload successfully; cancellation or failure retains your draft."
+          : "Save before continuing, discard these edits, or stay here. Saving validates every registration.",
+      acceptLabel: isDescriptions ? "Retry" : "Save",
+      rejectLabel: "Discard",
       acceptVisible: true,
       rejectVisible: !isDescriptions,
       closeOnEscape: true,
       dismissableMask: true,
-      acceptButtonProps: { severity: 'primary', outlined: true, size: 'small' },
-      rejectButtonProps: { severity: 'secondary', text: true, size: 'small' },
+      acceptButtonProps: { severity: "primary", outlined: true, size: "small" },
+      rejectButtonProps: { severity: "secondary", text: true, size: "small" },
       accept: () => {
         if (isDescriptions) {
           void this.retryDescriptions();
         } else {
-          void this.choose('save');
+          void this.choose("save");
         }
       },
       reject: (type: ConfirmEventType) => {
         if (type === ConfirmEventType.REJECT && !isDescriptions) {
-          void this.choose('discard');
+          void this.choose("discard");
         } else {
           this.pending.set(null);
         }
@@ -401,7 +401,7 @@ export class DataSourcePipelinesComponent {
       return;
     }
 
-    if (choice === 'stay') {
+    if (choice === "stay") {
       this.pending.set(null);
 
       return;
@@ -416,13 +416,13 @@ export class DataSourcePipelinesComponent {
   }
 
   private async proceed(destination: Destination): Promise<void> {
-    if (destination.kind === 'close') {
+    if (destination.kind === "close") {
       this.close.emit();
-    } else if (destination.kind === 'pipeline') {
+    } else if (destination.kind === "pipeline") {
       this.openPipeline(destination.id);
-    } else if (destination.kind === 'descriptions') {
+    } else if (destination.kind === "descriptions") {
       await this.load(true);
-    } else if (destination.kind === 'reload') {
+    } else if (destination.kind === "reload") {
       await this.load();
     } else {
       await this.refresh();
@@ -430,7 +430,7 @@ export class DataSourcePipelinesComponent {
   }
 
   async retryDescriptions(): Promise<void> {
-    if (this.pending()?.kind !== 'descriptions' || this.locked()) {
+    if (this.pending()?.kind !== "descriptions" || this.locked()) {
       return;
     }
 
@@ -449,19 +449,19 @@ export class DataSourcePipelinesComponent {
 
     this.draft.set(draft);
     this.selectedKey.set(draft.registrations[0]?.key ?? null);
-    this.pipelineTab.set('pipeline');
-    this.mobileView.set('pipeline');
+    this.pipelineTab.set("pipeline");
+    this.mobileView.set("pipeline");
     this.confirmingDelete.set(false);
-    this.error.set('');
+    this.error.set("");
   }
 
   setPipelineTab(value: string | number | undefined): void {
-    if (value === 'pipelines' || value === 'pipeline' || value === 'registration') {
+    if (value === "pipelines" || value === "pipeline" || value === "registration") {
       this.pipelineTab.set(
-        value === 'registration' && !this.mobilePipelineLayout() ? 'pipeline' : value,
+        value === "registration" && !this.mobilePipelineLayout() ? "pipeline" : value,
       );
 
-      this.mobileView.set(value === 'pipelines' ? 'list' : value);
+      this.mobileView.set(value === "pipelines" ? "list" : value);
     }
   }
 
@@ -473,12 +473,12 @@ export class DataSourcePipelinesComponent {
     this.selectedKey.set(key);
     this.mobileView.set(view);
 
-    if (view === 'list') {
-      this.pipelineTab.set('pipelines');
-    } else if (view === 'pipeline') {
-      this.pipelineTab.set('pipeline');
+    if (view === "list") {
+      this.pipelineTab.set("pipelines");
+    } else if (view === "pipeline") {
+      this.pipelineTab.set("pipeline");
     } else {
-      this.pipelineTab.set(this.mobilePipelineLayout() ? 'registration' : 'pipeline');
+      this.pipelineTab.set(this.mobilePipelineLayout() ? "registration" : "pipeline");
     }
   }
 
@@ -486,7 +486,7 @@ export class DataSourcePipelinesComponent {
     return globalThis.matchMedia?.(mobilePipelineLayoutQuery).matches ?? false;
   }
 
-  setPattern(field: 'visibilityPattern', value: string | null): void {
+  setPattern(field: "visibilityPattern", value: string | null): void {
     if (!this.editingLocked()) {
       this.draft.update((draft) => (draft ? updatePipeline(draft, { [field]: value }) : draft));
     }
@@ -500,7 +500,7 @@ export class DataSourcePipelinesComponent {
 
   editRegistration(
     key: number,
-    field: 'type' | 'resourceLocator' | 'infoUrl',
+    field: "type" | "resourceLocator" | "infoUrl",
     value: string | null,
   ): void {
     if (this.editingLocked()) {
@@ -526,7 +526,7 @@ export class DataSourcePipelinesComponent {
     }
 
     this.draft.set(addRegistration(draft));
-    this.navigate('registration', draft.nextKey);
+    this.navigate("registration", draft.nextKey);
   }
 
   removeStage(key: number): void {
@@ -555,7 +555,7 @@ export class DataSourcePipelinesComponent {
     this.removingKey.set(null);
 
     if (this.selectedKey() === key) {
-      this.navigate('pipeline', next.registrations[0]?.key ?? null);
+      this.navigate("pipeline", next.registrations[0]?.key ?? null);
     }
   }
 
@@ -582,13 +582,13 @@ export class DataSourcePipelinesComponent {
     const prepared = preparePipeline(draft, this.descriptions());
 
     if (!prepared.valid) {
-      this.error.set('Saving is blocked. Resolve every registration error below.');
+      this.error.set("Saving is blocked. Resolve every registration error below.");
 
       return false;
     }
 
     this.busy.set(true);
-    this.error.set('');
+    this.error.set("");
 
     try {
       const payload = prepared.payload;
@@ -606,7 +606,7 @@ export class DataSourcePipelinesComponent {
 
       if (!id) {
         throw new Error(
-          'The server did not return a pipeline ID. Reload before retrying creation.',
+          "The server did not return a pipeline ID. Reload before retrying creation.",
         );
       }
 
@@ -619,17 +619,17 @@ export class DataSourcePipelinesComponent {
       this.draft.set(acceptPipelineSave(draft, id, payload));
 
       this.messageService.add({
-        key: 'status',
-        severity: 'success',
-        summary: 'Pipeline saved',
-        detail: 'Refresh the database to apply pipeline changes to catalogs.',
+        key: "status",
+        severity: "success",
+        summary: "Pipeline saved",
+        detail: "Refresh the database to apply pipeline changes to catalogs.",
         life: 5000,
       });
 
       return true;
     } catch (error) {
       if (!this.destroyed) {
-        this.showError('save the pipeline; your draft has been retained', error);
+        this.showError("save the pipeline; your draft has been retained", error);
       }
 
       return false;
@@ -660,7 +660,7 @@ export class DataSourcePipelinesComponent {
     }
 
     this.busy.set(true);
-    this.error.set('');
+    this.error.set("");
 
     try {
       await this.api.deletePipeline(id, this.lifetime.signal);
@@ -672,20 +672,20 @@ export class DataSourcePipelinesComponent {
       this.entries.update((entries) => entries.filter((entry) => entry.id !== id));
       this.draft.set(null);
       this.selectedKey.set(null);
-      this.pipelineTab.set('pipelines');
-      this.mobileView.set('list');
+      this.pipelineTab.set("pipelines");
+      this.mobileView.set("list");
       this.confirmingDelete.set(false);
 
       this.messageService.add({
-        key: 'status',
-        severity: 'success',
-        summary: 'Pipeline deleted',
-        detail: 'Refresh the database to apply pipeline changes to catalogs.',
+        key: "status",
+        severity: "success",
+        summary: "Pipeline deleted",
+        detail: "Refresh the database to apply pipeline changes to catalogs.",
         life: 5000,
       });
     } catch (error) {
       if (!this.destroyed) {
-        this.showError('delete the pipeline; your draft has been retained', error);
+        this.showError("delete the pipeline; your draft has been retained", error);
       }
     } finally {
       if (!this.destroyed) {
@@ -700,7 +700,7 @@ export class DataSourcePipelinesComponent {
     }
 
     this.refreshing.set(true);
-    this.error.set('');
+    this.error.set("");
 
     try {
       // The parent owns its metadata guard, refresh job, and shared cache invalidation.
@@ -712,10 +712,10 @@ export class DataSourcePipelinesComponent {
 
       if (!refreshed) {
         this.messageService.add({
-          key: 'status',
-          severity: 'info',
-          summary: 'Refresh canceled',
-          detail: 'Your pipeline draft has been retained.',
+          key: "status",
+          severity: "info",
+          summary: "Refresh canceled",
+          detail: "Your pipeline draft has been retained.",
           life: 5000,
         });
 
@@ -724,25 +724,25 @@ export class DataSourcePipelinesComponent {
 
       if (await this.load()) {
         this.messageService.add({
-          key: 'status',
-          severity: 'success',
-          summary: 'Database refreshed',
-          detail: 'Pipelines and source schemas reloaded, including configuration upgrades.',
+          key: "status",
+          severity: "success",
+          summary: "Database refreshed",
+          detail: "Pipelines and source schemas reloaded, including configuration upgrades.",
           life: 5000,
         });
       } else if (!this.destroyed) {
         this.messageService.add({
-          key: 'status',
-          severity: 'warn',
-          summary: 'Database refreshed',
+          key: "status",
+          severity: "warn",
+          summary: "Database refreshed",
           detail:
-            'Reloading was incomplete. Clean drafts follow loaded server data; unsaved edits are retained. Review the warnings before saving.',
+            "Reloading was incomplete. Clean drafts follow loaded server data; unsaved edits are retained. Review the warnings before saving.",
           life: 8000,
         });
       }
     } catch (error) {
       if (!this.destroyed) {
-        this.showError('refresh the database; your pipeline draft has been retained', error);
+        this.showError("refresh the database; your pipeline draft has been retained", error);
       }
     } finally {
       if (!this.destroyed) {

@@ -1,8 +1,8 @@
-import type { ResourceRow } from './nexus.service';
+import type { ResourceRow } from "./nexus.service";
 
 export type RepresentationRow = ResourceRow & {
   key: string;
-  representation: ResourceRow['representations'][number];
+  representation: ResourceRow["representations"][number];
   basePeriod: bigint;
 };
 
@@ -12,17 +12,17 @@ export type ResourceSelection = RepresentationRow & {
 };
 
 export const representationKinds = [
-  'Original',
-  'Resampled',
-  'Mean',
-  'MeanPolarDeg',
-  'Min',
-  'Max',
-  'Std',
-  'Rms',
-  'MinBitwise',
-  'MaxBitwise',
-  'Sum',
+  "Original",
+  "Resampled",
+  "Mean",
+  "MeanPolarDeg",
+  "Min",
+  "Max",
+  "Std",
+  "Rms",
+  "MinBitwise",
+  "MaxBitwise",
+  "Sum",
 ] as const;
 
 export type RepresentationKind = (typeof representationKinds)[number];
@@ -53,13 +53,13 @@ export type ParsedResourcePath = {
 const maxTicks = 9223372036854775807n;
 const ticksPerSecond = 10000000n;
 const units = [
-  ['d', 86400000000000n],
-  ['h', 3600000000000n],
-  ['min', 60000000000n],
-  ['s', 1000000000n],
-  ['ms', 1000000n],
-  ['us', 1000n],
-  ['ns', 1n],
+  ["d", 86400000000000n],
+  ["h", 3600000000000n],
+  ["min", 60000000000n],
+  ["s", 1000000000n],
+  ["ms", 1000000n],
+  ["us", 1000n],
+  ["ns", 1n],
 ] as const;
 
 export function parsePeriod(value: string): bigint | null {
@@ -91,20 +91,20 @@ export function parsePeriod(value: string): bigint | null {
     }
 
     ticks =
-      ((BigInt(days ?? '0') * 24n + BigInt(hours)) * 3600n +
+      ((BigInt(days ?? "0") * 24n + BigInt(hours)) * 3600n +
         BigInt(minutes) * 60n +
         BigInt(seconds)) *
         ticksPerSecond +
-      BigInt((fraction ?? '').padEnd(7, '0'));
-  } else if (iso && iso.slice(1).some((part) => part !== undefined) && !text.endsWith('T')) {
+      BigInt((fraction ?? "").padEnd(7, "0"));
+  } else if (iso && iso.slice(1).some((part) => part !== undefined) && !text.endsWith("T")) {
     const [, days, hours, minutes, seconds, fraction] = iso;
 
     ticks =
-      ((BigInt(days ?? '0') * 24n + BigInt(hours ?? '0')) * 3600n +
-        BigInt(minutes ?? '0') * 60n +
-        BigInt(seconds ?? '0')) *
+      ((BigInt(days ?? "0") * 24n + BigInt(hours ?? "0")) * 3600n +
+        BigInt(minutes ?? "0") * 60n +
+        BigInt(seconds ?? "0")) *
         ticksPerSecond +
-      BigInt((fraction ?? '').padEnd(7, '0'));
+      BigInt((fraction ?? "").padEnd(7, "0"));
   } else {
     return null;
   }
@@ -112,9 +112,9 @@ export function parsePeriod(value: string): bigint | null {
   return ticks <= maxTicks ? ticks : null;
 }
 
-export function formatPeriod(ticks: bigint, separator = ' '): string {
+export function formatPeriod(ticks: bigint, separator = " "): string {
   if (ticks < 0n || ticks > maxTicks) {
-    throw new RangeError('Period is outside the TimeSpan range');
+    throw new RangeError("Period is outside the TimeSpan range");
   }
 
   if (ticks === 0n) {
@@ -128,41 +128,41 @@ export function formatPeriod(ticks: bigint, separator = ' '): string {
 }
 
 export function parseFilePeriod(value: string): bigint | null {
-  return value.trim().toLowerCase() === 'single file' ? 0n : parsePeriod(value);
+  return value.trim().toLowerCase() === "single file" ? 0n : parsePeriod(value);
 }
 
 export function formatFilePeriod(ticks: bigint): string {
-  return ticks === 0n ? 'Single file' : formatPeriod(ticks);
+  return ticks === 0n ? "Single file" : formatPeriod(ticks);
 }
 
 export function toTimeSpan(ticks: bigint): string {
   if (ticks < 0n || ticks > maxTicks) {
-    throw new RangeError('Period is outside the TimeSpan range');
+    throw new RangeError("Period is outside the TimeSpan range");
   }
 
   const seconds = ticks / ticksPerSecond;
   const days = seconds / 86400n;
-  const hours = ((seconds / 3600n) % 24n).toString().padStart(2, '0');
-  const minutes = ((seconds / 60n) % 60n).toString().padStart(2, '0');
-  const remainder = (seconds % 60n).toString().padStart(2, '0');
+  const hours = ((seconds / 3600n) % 24n).toString().padStart(2, "0");
+  const minutes = ((seconds / 60n) % 60n).toString().padStart(2, "0");
+  const remainder = (seconds % 60n).toString().padStart(2, "0");
   const fraction = ticks % ticksPerSecond;
 
   return (
-    `${days ? `${days}.` : ''}${hours}:${minutes}:${remainder}` +
-    (fraction ? `.${fraction.toString().padStart(7, '0')}` : '')
+    `${days ? `${days}.` : ""}${hours}:${minutes}:${remainder}` +
+    (fraction ? `.${fraction.toString().padStart(7, "0")}` : "")
   );
 }
 
 export function representationRows(resources: ResourceRow[]): RepresentationRow[] {
   return resources.flatMap((resource) =>
     resource.representations.flatMap((representation) => {
-      const basePeriod = parsePeriod(representation.samplePeriod ?? '');
+      const basePeriod = parsePeriod(representation.samplePeriod ?? "");
 
       if (basePeriod === null || basePeriod <= 0n) {
         return [];
       }
 
-      const row = { ...resource, representation, basePeriod, key: '' };
+      const row = { ...resource, representation, basePeriod, key: "" };
 
       row.key = selectionKey(row, {});
 
@@ -187,7 +187,7 @@ export function selectionKey(row: RepresentationRow, parameters: Record<string, 
 }
 
 export function defaultKind(period: bigint, base: bigint): RepresentationKind {
-  return period === base ? 'Original' : period < base ? 'Resampled' : 'Mean';
+  return period === base ? "Original" : period < base ? "Resampled" : "Mean";
 }
 
 export function kindValid(kind: RepresentationKind, period: bigint, base: bigint): boolean {
@@ -195,11 +195,11 @@ export function kindValid(kind: RepresentationKind, period: bigint, base: bigint
     return false;
   }
 
-  if (kind === 'Original') {
+  if (kind === "Original") {
     return period === base;
   }
 
-  if (kind === 'Resampled') {
+  if (kind === "Resampled") {
     return period < base && base % period === 0n;
   }
 
@@ -212,30 +212,30 @@ export function requestPath(
   period: bigint,
 ): string {
   const suffix =
-    kind === 'Original' ? '' : `_${kind.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
+    kind === "Original" ? "" : `_${kind.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()}`;
   const entries = parameterEntries(selection.parameters);
   const parameters = entries.length
-    ? `(${entries.map(([name, value]) => `${name}=${value}`).join(',')})`
-    : '';
+    ? `(${entries.map(([name, value]) => `${name}=${value}`).join(",")})`
+    : "";
 
-  return `${selection.path}/${formatPeriod(period, '_')}${suffix}${parameters}#base=${formatPeriod(selection.basePeriod, '_')}`;
+  return `${selection.path}/${formatPeriod(period, "_")}${suffix}${parameters}#base=${formatPeriod(selection.basePeriod, "_")}`;
 }
 
 export function parseResourcePath(value: string): ParsedResourcePath | null {
-  const baseIndex = value.indexOf('#base=');
+  const baseIndex = value.indexOf("#base=");
 
-  if (baseIndex <= 0 || value.indexOf('#base=', baseIndex + 1) !== -1) {
+  if (baseIndex <= 0 || value.indexOf("#base=", baseIndex + 1) !== -1) {
     return null;
   }
 
-  const basePeriod = parsePeriod(value.slice(baseIndex + '#base='.length));
+  const basePeriod = parsePeriod(value.slice(baseIndex + "#base=".length));
 
   if (basePeriod === null || basePeriod <= 0n) {
     return null;
   }
 
   const beforeBase = value.slice(0, baseIndex);
-  const slashIndex = beforeBase.lastIndexOf('/');
+  const slashIndex = beforeBase.lastIndexOf("/");
 
   if (slashIndex <= 0 || slashIndex === beforeBase.length - 1) {
     return null;
@@ -245,8 +245,8 @@ export function parseResourcePath(value: string): ParsedResourcePath | null {
   let method = beforeBase.slice(slashIndex + 1);
   let parameters: Record<string, string> = {};
 
-  if (method.endsWith(')')) {
-    const parameterIndex = method.lastIndexOf('(');
+  if (method.endsWith(")")) {
+    const parameterIndex = method.lastIndexOf("(");
 
     if (parameterIndex < 0) {
       return null;
@@ -265,7 +265,7 @@ export function parseResourcePath(value: string): ParsedResourcePath | null {
   const originalPeriod = parsePeriod(method);
 
   if (originalPeriod !== null && originalPeriod > 0n) {
-    return { path, period: originalPeriod, basePeriod, kind: 'Original', parameters };
+    return { path, period: originalPeriod, basePeriod, kind: "Original", parameters };
   }
 
   for (const [suffix, kind] of resourcePathMethodSuffixes) {
@@ -284,8 +284,8 @@ export function parseResourcePath(value: string): ParsedResourcePath | null {
 }
 
 const resourcePathMethodSuffixes = representationKinds
-  .filter((kind) => kind !== 'Original')
-  .map((kind) => [`_${kind.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`, kind] as const)
+  .filter((kind) => kind !== "Original")
+  .map((kind) => [`_${kind.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()}`, kind] as const)
   .sort((left, right) => right[0].length - left[0].length);
 
 function parseResourcePathParameters(value: string): Record<string, string> | null {
@@ -295,8 +295,8 @@ function parseResourcePathParameters(value: string): Record<string, string> | nu
 
   const entries: [string, string][] = [];
 
-  for (const part of value.split(',')) {
-    const separatorIndex = part.indexOf('=');
+  for (const part of value.split(",")) {
+    const separatorIndex = part.indexOf("=");
 
     if (separatorIndex <= 0) {
       return null;
@@ -316,33 +316,33 @@ function parseResourcePathParameters(value: string): Record<string, string> | nu
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export function readSelectionState(value: unknown): StoredSelectionState {
   const state: StoredSelectionState = {
     version: 1,
-    period: '1 s',
+    period: "1 s",
     automaticPeriod: true,
     selections: [],
   };
   const legacy = Array.isArray(value);
 
-  if (!legacy && (!isRecord(value) || value['version'] !== 1)) {
+  if (!legacy && (!isRecord(value) || value["version"] !== 1)) {
     return state;
   }
 
   const stored = legacy ? undefined : (value as Record<string, unknown>);
-  const period = typeof stored?.['period'] === 'string' ? parsePeriod(stored['period']) : null;
+  const period = typeof stored?.["period"] === "string" ? parsePeriod(stored["period"]) : null;
 
   if (period !== null && period > 0n) {
     state.period = formatPeriod(period);
 
     state.automaticPeriod =
-      typeof stored?.['automaticPeriod'] === 'boolean' ? stored['automaticPeriod'] : true;
+      typeof stored?.["automaticPeriod"] === "boolean" ? stored["automaticPeriod"] : true;
   }
 
-  const references = legacy ? value : stored?.['selections'];
+  const references = legacy ? value : stored?.["selections"];
 
   if (!Array.isArray(references)) {
     return state;
@@ -355,14 +355,14 @@ export function readSelectionState(value: unknown): StoredSelectionState {
       continue;
     }
 
-    const catalogId = reference['catalogId'];
-    const path = reference['path'];
+    const catalogId = reference["catalogId"];
+    const path = reference["path"];
 
-    if (typeof catalogId !== 'string' || !catalogId.startsWith('/') || typeof path !== 'string') {
+    if (typeof catalogId !== "string" || !catalogId.startsWith("/") || typeof path !== "string") {
       continue;
     }
 
-    const prefix = catalogId === '/' ? '/' : `${catalogId}/`;
+    const prefix = catalogId === "/" ? "/" : `${catalogId}/`;
 
     if (!path.startsWith(prefix) || path.length <= prefix.length) {
       continue;
@@ -373,25 +373,25 @@ export function readSelectionState(value: unknown): StoredSelectionState {
     let kinds: RepresentationKind[] = [];
 
     if (!legacy) {
-      if (!isRecord(reference['parameters']) || !Array.isArray(reference['kinds'])) {
+      if (!isRecord(reference["parameters"]) || !Array.isArray(reference["kinds"])) {
         continue;
       }
 
-      if (!Object.values(reference['parameters']).every((entry) => typeof entry === 'string')) {
+      if (!Object.values(reference["parameters"]).every((entry) => typeof entry === "string")) {
         continue;
       }
 
       parameters = Object.fromEntries(
-        parameterEntries(reference['parameters'] as Record<string, string>),
+        parameterEntries(reference["parameters"] as Record<string, string>),
       );
 
-      if (reference['basePeriod'] === null) {
-        if (reference['kinds'].length) {
+      if (reference["basePeriod"] === null) {
+        if (reference["kinds"].length) {
           continue;
         }
       } else {
         const base =
-          typeof reference['basePeriod'] === 'string' ? parsePeriod(reference['basePeriod']) : null;
+          typeof reference["basePeriod"] === "string" ? parsePeriod(reference["basePeriod"]) : null;
 
         if (base === null || base <= 0n) {
           continue;
@@ -401,7 +401,7 @@ export function readSelectionState(value: unknown): StoredSelectionState {
 
         kinds = [
           ...new Set(
-            reference['kinds'].filter((kind): kind is RepresentationKind =>
+            reference["kinds"].filter((kind): kind is RepresentationKind =>
               representationKinds.includes(kind),
             ),
           ),
@@ -529,7 +529,7 @@ export function dateTicks(value: string): bigint | null {
     value,
   );
 
-  if (!match || match[1].startsWith('0000-')) {
+  if (!match || match[1].startsWith("0000-")) {
     return null;
   }
 
@@ -541,7 +541,7 @@ export function dateTicks(value: string): bigint | null {
     return null;
   }
 
-  if (zone !== 'Z') {
+  if (zone !== "Z") {
     const hours = Number(zone.slice(1, 3));
     const minutes = Number(zone.slice(4, 6));
 
@@ -558,7 +558,7 @@ export function dateTicks(value: string): bigint | null {
 
   // Parse whole seconds separately so sub-millisecond ticks are never rounded or truncated.
   const ticks =
-    BigInt(milliseconds) * 10000n + 621355968000000000n + BigInt((fraction ?? '').padEnd(7, '0'));
+    BigInt(milliseconds) * 10000n + 621355968000000000n + BigInt((fraction ?? "").padEnd(7, "0"));
 
   return ticks >= 0n && ticks <= 3155378975999999999n ? ticks : null;
 }
@@ -579,7 +579,7 @@ export function alignRangeEndpoint(value: string, period: bigint): string {
 
   return aligned % 10000n === 0n
     ? iso
-    : `${iso.slice(0, 19)}.${(aligned % ticksPerSecond).toString().padStart(7, '0')}Z`;
+    : `${iso.slice(0, 19)}.${(aligned % ticksPerSecond).toString().padStart(7, "0")}Z`;
 }
 
 export function executionRangeError(
@@ -589,29 +589,29 @@ export function executionRangeError(
   seriesCount: number,
 ): string {
   if (!Number.isInteger(seriesCount) || seriesCount < 1) {
-    return 'Select at least one output series.';
+    return "Select at least one output series.";
   }
 
   if (seriesCount > 100) {
-    return 'Select no more than 100 output series.';
+    return "Select no more than 100 output series.";
   }
 
   if (period <= 0n || period > maxTicks) {
-    return 'Choose a positive Period within the TimeSpan range.';
+    return "Choose a positive Period within the TimeSpan range.";
   }
 
   const beginTicks = dateTicks(begin);
   const endTicks = dateTicks(end);
 
   if (beginTicks === null || endTicks === null || beginTicks >= endTicks) {
-    return 'Choose a valid UTC range with From before To.';
+    return "Choose a valid UTC range with From before To.";
   }
 
   if (beginTicks % period !== 0n || endTicks % period !== 0n) {
-    return 'From and To must align with Period.';
+    return "From and To must align with Period.";
   }
 
-  return '';
+  return "";
 }
 
 export function resourceAvailableForRange(
@@ -620,13 +620,13 @@ export function resourceAvailableForRange(
   selectedBegin: string,
   selectedEnd: string,
 ): boolean {
-  const resources = catalogProperties?.['resources'];
+  const resources = catalogProperties?.["resources"];
 
   if (!isRecord(resources)) {
     return true;
   }
 
-  const availability = resources['availability'];
+  const availability = resources["availability"];
 
   if (!Array.isArray(availability)) {
     return true;
@@ -650,9 +650,9 @@ export function resourceAvailableForRange(
       continue;
     }
 
-    const pattern = rule['pattern'];
+    const pattern = rule["pattern"];
 
-    if (typeof pattern !== 'string') {
+    if (typeof pattern !== "string") {
       continue;
     }
 
@@ -664,13 +664,13 @@ export function resourceAvailableForRange(
       continue;
     }
 
-    const begin = rule['begin'];
-    const end = rule['end'];
+    const begin = rule["begin"];
+    const end = rule["end"];
     let beginTicks: bigint | null = null;
     let endTicks: bigint | null = null;
 
     if (begin != null) {
-      if (typeof begin !== 'string') {
+      if (typeof begin !== "string") {
         continue;
       }
 
@@ -682,7 +682,7 @@ export function resourceAvailableForRange(
     }
 
     if (end != null) {
-      if (typeof end !== 'string') {
+      if (typeof end !== "string") {
         continue;
       }
 
@@ -711,11 +711,11 @@ export function resourceAvailableForRange(
 }
 
 function resourceAvailabilityPath(resource: ResourceRow | RepresentationRow): string {
-  if (!('basePeriod' in resource)) {
+  if (!("basePeriod" in resource)) {
     return resource.path;
   }
 
-  const period = formatPeriod(resource.basePeriod, '_');
+  const period = formatPeriod(resource.basePeriod, "_");
 
   return `${resource.path}/${period}#base=${period}`;
 }

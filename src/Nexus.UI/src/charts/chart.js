@@ -19,7 +19,7 @@ nexus.chart.setTextContent = function (chartId, elementId, text) {
 nexus.chart.translate = function (chartId, elementId, left, top) {
   let element = document.getElementById(`${elementId}_${chartId}`);
 
-  element.style.removeProperty('display');
+  element.style.removeProperty("display");
   element.style.left = `${left * 100}%`;
   element.style.top = `${top * 100}%`;
 };
@@ -27,13 +27,13 @@ nexus.chart.translate = function (chartId, elementId, left, top) {
 nexus.chart.hide = function (chartId, elementId) {
   let element = document.getElementById(`${elementId}_${chartId}`);
 
-  element.style.display = 'none';
+  element.style.display = "none";
 };
 
 nexus.chart.updateAuxiliary = function (chartId, x, y, timeText, updates) {
-  nexus.chart.setTextContent(chartId, 'value_datetime', timeText);
-  nexus.chart.translate(chartId, 'crosshairs-x', 0, y);
-  nexus.chart.translate(chartId, 'crosshairs-y', x, 0);
+  nexus.chart.setTextContent(chartId, "value_datetime", timeText);
+  nexus.chart.translate(chartId, "crosshairs-x", 0, y);
+  nexus.chart.translate(chartId, "crosshairs-y", x, 0);
 
   for (const update of updates) {
     const id = update.id ?? update.Id;
@@ -51,22 +51,22 @@ nexus.chart.updateAuxiliary = function (chartId, x, y, timeText, updates) {
 };
 
 nexus.chart.clearAuxiliary = function (chartId) {
-  for (const id of ['crosshairs-x', 'crosshairs-y']) {
+  for (const id of ["crosshairs-x", "crosshairs-y"]) {
     const element = document.getElementById(`${id}_${chartId}`);
 
     if (element) {
-      element.style.display = 'none';
+      element.style.display = "none";
     }
   }
 
   const chart = document.getElementById(`chart_${chartId}`);
 
-  for (const pointer of chart?.querySelectorAll('.pointer') ?? []) {
-    pointer.style.display = 'none';
+  for (const pointer of chart?.querySelectorAll(".pointer") ?? []) {
+    pointer.style.display = "none";
   }
 
   for (const value of chart?.parentElement?.querySelectorAll('[id^="value_"]') ?? []) {
-    value.textContent = '--';
+    value.textContent = "--";
   }
 };
 
@@ -96,7 +96,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
   const disposers = [];
   const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(value, maximum));
   const finiteNumber = (value, fallback) => {
-    const parsed = typeof value === 'number' ? value : Number.parseFloat(value);
+    const parsed = typeof value === "number" ? value : Number.parseFloat(value);
 
     return Number.isFinite(parsed) ? parsed : fallback;
   };
@@ -178,7 +178,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
           }
         }
       } catch (error) {
-        console.error('[chart] zoom update failed', error);
+        console.error("[chart] zoom update failed", error);
       } finally {
         invokePending = false;
 
@@ -210,10 +210,10 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
       try {
         if (!disposed && next) {
-          await dotNetHelper.invokeMethodAsync('PointerMoved', ...next);
+          await dotNetHelper.invokeMethodAsync("PointerMoved", ...next);
         }
       } catch (error) {
-        console.error('[chart] pointer update failed', error);
+        console.error("[chart] pointer update failed", error);
       } finally {
         pointerInvokePending = false;
 
@@ -242,7 +242,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       };
     };
 
-    listen(overlay, 'mousemove', (e) => {
+    listen(overlay, "mousemove", (e) => {
       const rect = overlay.getBoundingClientRect();
 
       if (rect.width <= 0 || rect.height <= 0) {
@@ -257,7 +257,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       invokePointer(...hoveredPointer);
     });
 
-    listen(overlay, 'mouseleave', () => {
+    listen(overlay, "mouseleave", () => {
       hoveredPointer = null;
       pendingPointer = null;
 
@@ -268,7 +268,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
 
     listen(
       overlay,
-      'wheel',
+      "wheel",
       (e) => {
         if (e.cancelable) {
           e.preventDefault();
@@ -279,7 +279,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         const relativeY = clamp((e.clientY - rect.top) / rect.height, 0, 1);
 
         if (e.shiftKey) {
-          invokeZoom('WheelZoom', [relativeX, relativeY, e.deltaY, true]);
+          invokeZoom("WheelZoom", [relativeX, relativeY, e.deltaY, true]);
         } else {
           const viewport = zoomInterval(
             overlay.dataset.zoomLeft,
@@ -302,13 +302,13 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
           overlay.dataset.zoomRight = viewport[1].toString();
           overlay.dataset.zoomTop = top.toString();
           overlay.dataset.zoomBottom = bottom.toString();
-          invokeZoom('SetViewport', [viewport[0], top, viewport[1], bottom]);
+          invokeZoom("SetViewport", [viewport[0], top, viewport[1], bottom]);
         }
       },
       { passive: false },
     );
 
-    listen(overlay, 'pointerdown', (e) => {
+    listen(overlay, "pointerdown", (e) => {
       if (e.button !== 0 && e.button !== 1) {
         return;
       }
@@ -321,7 +321,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       const startX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
       const startY = clamp((e.clientY - rect.top) / rect.height, 0, 1);
 
-      if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+      if (e.pointerType === "touch" || e.pointerType === "pen") {
         const now = finiteNumber(e.timeStamp, Date.now());
         const previous = lastTap;
 
@@ -333,13 +333,13 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
           Math.hypot(e.clientX - previous.x, e.clientY - previous.y) <= 24
         ) {
           lastTap = null;
-          overlay.dataset.zoomLeft = '0';
-          overlay.dataset.zoomRight = '1';
-          overlay.dataset.zoomTop = '0';
-          overlay.dataset.zoomBottom = '1';
-          selection.style.display = 'none';
+          overlay.dataset.zoomLeft = "0";
+          overlay.dataset.zoomRight = "1";
+          overlay.dataset.zoomTop = "0";
+          overlay.dataset.zoomBottom = "1";
+          selection.style.display = "none";
           drag = null;
-          invokeZoom('SetViewport', [0, 0, 1, 1]);
+          invokeZoom("SetViewport", [0, 0, 1, 1]);
 
           return;
         }
@@ -367,7 +367,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       drag.currentY = drag.startY;
     });
 
-    listen(overlay, 'pointermove', (e) => {
+    listen(overlay, "pointermove", (e) => {
       if (!drag || drag.pointerId !== e.pointerId) {
         return;
       }
@@ -384,7 +384,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         const left = clamp(drag.zoom.left - (x - drag.startX) * width, 0, 1 - width);
         const top = clamp(drag.zoom.top - (y - drag.startY) * height, 0, 1 - height);
 
-        invokeZoom('SetViewport', [left, top, left + width, top + height]);
+        invokeZoom("SetViewport", [left, top, left + width, top + height]);
 
         return;
       }
@@ -392,7 +392,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       const { left, top, right, bottom } = dragBounds(drag.startX, drag.startY, x, y, drag.rect);
 
       Object.assign(selection.style, {
-        display: 'block',
+        display: "block",
         left: `${left * 100}%`,
         top: `${top * 100}%`,
         width: `${(right - left) * 100}%`,
@@ -405,7 +405,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         return;
       }
 
-      selection.style.display = 'none';
+      selection.style.display = "none";
       const finished = drag;
 
       drag = null;
@@ -429,11 +429,11 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         finished.rect,
       );
 
-      invokeZoom('DragZoom', [left, top, right, bottom]);
+      invokeZoom("DragZoom", [left, top, right, bottom]);
     };
 
-    listen(overlay, 'pointerup', finishDrag);
-    listen(overlay, 'pointercancel', finishDrag);
+    listen(overlay, "pointerup", finishDrag);
+    listen(overlay, "pointercancel", finishDrag);
   }
 
   function initNavigator(prefix) {
@@ -472,12 +472,12 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       };
     }
 
-    listen(handleL, 'pointerdown', (e) => begin('left', e));
-    listen(handleR, 'pointerdown', (e) => begin('right', e));
-    listen(win, 'pointerdown', (e) => begin('pan', e));
+    listen(handleL, "pointerdown", (e) => begin("left", e));
+    listen(handleR, "pointerdown", (e) => begin("right", e));
+    listen(win, "pointerdown", (e) => begin("pan", e));
 
-    listen(track, 'pointerdown', (e) => {
-      if (e.target !== track && e.target.tagName !== 'CANVAS') {
+    listen(track, "pointerdown", (e) => {
+      if (e.target !== track && e.target.tagName !== "CANVAS") {
         return;
       }
 
@@ -489,10 +489,10 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       const width = parseFloat(win.dataset.right) - parseFloat(win.dataset.left);
       const left = clamp(center - width / 2, 0, 1 - width);
 
-      invokeZoom('NavigatorZoom', [left, left + width]);
+      invokeZoom("NavigatorZoom", [left, left + width]);
     });
 
-    listen(track, 'pointermove', (e) => {
+    listen(track, "pointermove", (e) => {
       if (!drag || drag.pointerId !== e.pointerId) {
         return;
       }
@@ -507,10 +507,10 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       let left;
       let right;
 
-      if (drag.mode === 'left') {
+      if (drag.mode === "left") {
         left = clamp(drag.startLeft + delta, 0, drag.startRight - minimum);
         right = drag.startRight;
-      } else if (drag.mode === 'right') {
+      } else if (drag.mode === "right") {
         left = drag.startLeft;
         right = clamp(drag.startRight + delta, drag.startLeft + minimum, 1);
       } else {
@@ -520,7 +520,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         right = left + width;
       }
 
-      invokeZoom('NavigatorZoom', [left, right]);
+      invokeZoom("NavigatorZoom", [left, right]);
     });
 
     const end = (e) => {
@@ -529,12 +529,12 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       }
     };
 
-    listen(track, 'pointerup', end);
-    listen(track, 'pointercancel', end);
+    listen(track, "pointerup", end);
+    listen(track, "pointercancel", end);
 
     listen(
       track,
-      'wheel',
+      "wheel",
       (e) => {
         if (e.cancelable) {
           e.preventDefault();
@@ -551,15 +551,15 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         const factor = e.deltaY < 0 ? 0.9 : 1.1111111111111112;
 
         invokeZoom(
-          'NavigatorZoom',
+          "NavigatorZoom",
           fitInterval(anchor - (anchor - left) * factor, anchor + (right - anchor) * factor),
         );
       },
       { passive: false },
     );
 
-    listen(win, 'keydown', (e) => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+    listen(win, "keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
         return;
       }
 
@@ -567,7 +567,7 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
         e.preventDefault();
       }
 
-      const direction = e.key === 'ArrowLeft' ? -1 : 1;
+      const direction = e.key === "ArrowLeft" ? -1 : 1;
       const left = parseFloat(win.dataset.left);
       const right = parseFloat(win.dataset.right);
       const width = right - left;
@@ -576,17 +576,17 @@ nexus.chart.initInteractions = function (chartId, dotNetHelper) {
       if (e.altKey) {
         const nextRight = clamp(right + step, left + Number.EPSILON, 1);
 
-        invokeZoom('NavigatorZoom', [left, nextRight]);
+        invokeZoom("NavigatorZoom", [left, nextRight]);
       } else {
         const nextLeft = clamp(left + step, 0, 1 - width);
 
-        invokeZoom('NavigatorZoom', [nextLeft, nextLeft + width]);
+        invokeZoom("NavigatorZoom", [nextLeft, nextLeft + width]);
       }
     });
   }
 
-  initNavigator('navigator');
-  initNavigator('navigator-detail');
+  initNavigator("navigator");
+  initNavigator("navigator-detail");
 
   nexus.chart.charts[chartId] = {
     dispose: () => {

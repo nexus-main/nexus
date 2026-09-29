@@ -4,28 +4,28 @@ export function fitLegendName(
   measure: (text: string) => number,
 ): string {
   if (width <= 0) {
-    return '';
+    return "";
   }
 
   if (measure(name) <= width) {
     return name;
   }
 
-  if (measure('...') > width) {
-    return '';
+  if (measure("...") > width) {
+    return "";
   }
 
   const characters = Array.from(name);
   let low = 0;
   let high = characters.length - 1;
-  let result = '...';
+  let result = "...";
 
   while (low <= high) {
     const count = Math.floor((low + high) / 2);
     const start = Math.ceil(count / 2);
     const end = Math.floor(count / 2);
     const candidate =
-      characters.slice(0, start).join('') + '...' + (end ? characters.slice(-end).join('') : '');
+      characters.slice(0, start).join("") + "..." + (end ? characters.slice(-end).join("") : "");
 
     if (measure(candidate) <= width) {
       result = candidate;

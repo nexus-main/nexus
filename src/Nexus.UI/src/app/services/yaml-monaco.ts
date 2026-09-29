@@ -1,4 +1,4 @@
-import type * as Monaco from 'monaco-editor';
+import type * as Monaco from "monaco-editor";
 
 export function createYamlMonaco(monaco: typeof Monaco, createYamlWorker: () => Worker) {
   // Call after AMD loading, which replaces MonacoEnvironment during startup.
@@ -7,7 +7,7 @@ export function createYamlMonaco(monaco: typeof Monaco, createYamlWorker: () => 
   globalThis.MonacoEnvironment = {
     ...environment,
     getWorker(moduleId, label) {
-      if (label === 'yaml') {
+      if (label === "yaml") {
         return createYamlWorker();
       }
 

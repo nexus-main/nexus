@@ -156,11 +156,11 @@
   }
 
   function getPlot(payload, width, height) {
-    const plot = valueOf(payload, 'Plot') ?? {};
-    const plotLeft = (valueOf(plot, 'Left') ?? 0) * width;
-    const plotTop = (valueOf(plot, 'Top') ?? 0) * height;
-    const plotRight = (valueOf(plot, 'Right') ?? 1) * width;
-    const plotBottom = (valueOf(plot, 'Bottom') ?? 1) * height;
+    const plot = valueOf(payload, "Plot") ?? {};
+    const plotLeft = (valueOf(plot, "Left") ?? 0) * width;
+    const plotTop = (valueOf(plot, "Top") ?? 0) * height;
+    const plotRight = (valueOf(plot, "Right") ?? 1) * width;
+    const plotBottom = (valueOf(plot, "Bottom") ?? 1) * height;
     const plotWidth = plotRight - plotLeft;
     const plotHeight = plotBottom - plotTop;
 
@@ -172,10 +172,10 @@
   }
 
   function getTimeWindow(payload, series, length) {
-    const zoom = valueOf(payload, 'Zoom') ?? {};
-    const zoomLeft = valueOf(zoom, 'Left') ?? 0;
-    const zoomRight = valueOf(zoom, 'Right') ?? 1;
-    const sampleStep = valueOf(series, 'SampleStep');
+    const zoom = valueOf(payload, "Zoom") ?? {};
+    const zoomLeft = valueOf(zoom, "Left") ?? 0;
+    const zoomRight = valueOf(zoom, "Right") ?? 1;
+    const sampleStep = valueOf(series, "SampleStep");
     const indexLeft = zoomLeft / sampleStep;
     const indexRight = zoomRight / sampleStep;
     const indexRange = indexRight - indexLeft;
@@ -373,21 +373,21 @@
     dpr,
     mode,
   ) {
-    const preview = valueOf(payload, 'Preview') ?? false;
+    const preview = valueOf(payload, "Preview") ?? false;
     const axisMin = preview
-      ? (valueOf(series, 'OverviewAxisMin') ?? 0)
-      : (valueOf(series, 'AxisMin') ?? 0);
+      ? (valueOf(series, "OverviewAxisMin") ?? 0)
+      : (valueOf(series, "AxisMin") ?? 0);
     const axisMax = preview
-      ? (valueOf(series, 'OverviewAxisMax') ?? 1)
-      : (valueOf(series, 'AxisMax') ?? 1);
+      ? (valueOf(series, "OverviewAxisMax") ?? 1)
+      : (valueOf(series, "AxisMax") ?? 1);
     const axisRange = axisMax - axisMin;
 
     if (!Number.isFinite(axisRange) || axisRange === 0) {
       return false;
     }
 
-    const lineWidth = (valueOf(payload, 'LineWidth') ?? 0.7) * dpr;
-    const fillOpacity = valueOf(payload, 'FillOpacity') ?? 0.1;
+    const lineWidth = (valueOf(payload, "LineWidth") ?? 0.7) * dpr;
+    const fillOpacity = valueOf(payload, "FillOpacity") ?? 0.1;
     const zeroY = Math.min(
       plot.plotBottom,
       Math.max(plot.plotTop, plot.plotBottom - ((0 - axisMin) / axisRange) * plot.plotHeight),
@@ -451,7 +451,7 @@
     }
 
     const { device, format, pipeline } = instance;
-    const target = valueOf(payload, 'Target') ?? 'series';
+    const target = valueOf(payload, "Target") ?? "series";
 
     if (
       renderState &&
@@ -471,7 +471,7 @@
 
     const context = getCanvasContext(instance, target, canvas);
     const { width, height, dpr } = ensureCanvasSize(canvas);
-    const isPreview = valueOf(payload, 'Preview') ?? false;
+    const isPreview = valueOf(payload, "Preview") ?? false;
 
     instance.lastPayloads.set(target, payload);
     let previewRenderKey = null;
@@ -492,7 +492,7 @@
     let drawResourceCount = 0;
 
     if (plot) {
-      const seriesList = valueOf(payload, 'Series') ?? [];
+      const seriesList = valueOf(payload, "Series") ?? [];
 
       for (const series of seriesList) {
         const cached = getSeriesBuffer(instance, series);
@@ -552,8 +552,8 @@
       colorAttachments: [
         {
           view: context.getCurrentTexture().createView(),
-          loadOp: 'clear',
-          storeOp: 'store',
+          loadOp: "clear",
+          storeOp: "store",
           clearValue: { r: 0, g: 0, b: 0, a: 0 },
         },
       ],
@@ -638,7 +638,7 @@
   }
 
   function scheduleRender(chartId, payload) {
-    const target = valueOf(payload, 'Target') ?? 'series';
+    const target = valueOf(payload, "Target") ?? "series";
     const key = renderStateKey(chartId, target);
     let state = renderStates.get(key);
 
@@ -663,7 +663,7 @@
 
           state.pending = null;
 
-          await runRuntimeOperation(chartId, 'WebGPU rendering failed', () =>
+          await runRuntimeOperation(chartId, "WebGPU rendering failed", () =>
             renderSeriesAsync(chartId, next, state, generation),
           );
         }
@@ -699,14 +699,14 @@
 
       if (failure) {
         dotNetHelper
-          .invokeMethodAsync('WebGpuFailed', failure.title, failure.message)
-          .catch((error) => console.error('[chart-webgpu] failure callback failed', error));
+          .invokeMethodAsync("WebGpuFailed", failure.title, failure.message)
+          .catch((error) => console.error("[chart-webgpu] failure callback failed", error));
 
         return;
       }
 
       getInstance(chartId).catch((error) =>
-        console.error('[chart-webgpu] initialization failed', error),
+        console.error("[chart-webgpu] initialization failed", error),
       );
     },
     setCacheBudget(chartId, bytes) {
@@ -732,7 +732,7 @@
       }
     },
     beginChunkedSeries(chartId, id, version, length) {
-      return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+      return runRuntimeOperation(chartId, "WebGPU upload failed", () =>
         beginChunkedSeriesAsync(chartId, id, version, length),
       );
     },
@@ -746,7 +746,7 @@
           reportRuntimeFailure(
             chartId,
             epoch,
-            'WebGPU upload failed',
+            "WebGPU upload failed",
             `${error?.message ?? error} Retry the chart to recreate its GPU resources.`,
           );
         }
@@ -755,12 +755,12 @@
       }
     },
     processChunkedSeriesUpload(chartId, token, offset, count) {
-      return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+      return runRuntimeOperation(chartId, "WebGPU upload failed", () =>
         processChunkedSeriesUploadAsync(chartId, token, offset, count),
       );
     },
     completeChunkedSeries(chartId, token) {
-      return runRuntimeOperation(chartId, 'WebGPU upload failed', () =>
+      return runRuntimeOperation(chartId, "WebGPU upload failed", () =>
         completeChunkedSeriesAsync(chartId, token),
       );
     },
@@ -773,7 +773,7 @@
     renderSeries(chartId, payload) {
       scheduleRender(chartId, payload).catch((error) => {
         if (!isCancellationError(error)) {
-          console.error('[chart-webgpu] render failed', error);
+          console.error("[chart-webgpu] render failed", error);
         }
       });
     },

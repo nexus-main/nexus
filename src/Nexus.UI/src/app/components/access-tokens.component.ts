@@ -1,16 +1,16 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { LucideCopy, LucideRefreshCw, LucideTrash2 } from '@lucide/angular';
-import { MessageService } from 'primeng/api';
-import { ButtonModule } from 'primeng/button';
-import { CheckboxModule } from 'primeng/checkbox';
-import { DialogModule } from 'primeng/dialog';
-import { InputTextModule } from 'primeng/inputtext';
-import { MessageModule } from 'primeng/message';
-import { ToastModule } from 'primeng/toast';
-import { NexusService, V1 } from '../nexus.service';
-import { RestoreFocusDirective } from '../restore-focus.directive';
+import { CommonModule } from "@angular/common";
+import { Component, OnInit, computed, inject, output, signal } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { LucideCopy, LucideRefreshCw, LucideTrash2 } from "@lucide/angular";
+import { MessageService } from "primeng/api";
+import { ButtonModule } from "primeng/button";
+import { CheckboxModule } from "primeng/checkbox";
+import { DialogModule } from "primeng/dialog";
+import { InputTextModule } from "primeng/inputtext";
+import { MessageModule } from "primeng/message";
+import { ToastModule } from "primeng/toast";
+import { NexusService, V1 } from "../nexus.service";
+import { RestoreFocusDirective } from "../restore-focus.directive";
 
 type TokenEntry = {
   id: string;
@@ -23,7 +23,7 @@ type CatalogClaimDraft = {
 };
 
 @Component({
-  selector: 'app-access-tokens',
+  selector: "app-access-tokens",
   standalone: true,
   imports: [
     CommonModule,
@@ -267,7 +267,7 @@ type CatalogClaimDraft = {
               [disabled]="busy() || !canCreate()"
               (click)="createToken()"
             >
-              {{ creating() ? 'Creating...' : 'Create token' }}
+              {{ creating() ? "Creating..." : "Create token" }}
             </button>
           </div>
         </section>
@@ -307,7 +307,7 @@ type CatalogClaimDraft = {
                 >
                   <div class="min-w-0">
                     <div class="truncate font-medium text-ink">
-                      {{ entry.token.description || 'Untitled token' }}
+                      {{ entry.token.description || "Untitled token" }}
                     </div>
                     <div class="mt-1 text-xs text-ink-muted">
                       Expires {{ formatDate(entry.token.expires) }}
@@ -342,11 +342,11 @@ export class AccessTokensComponent implements OnInit {
   readonly loading = signal(false);
   readonly creating = signal(false);
   readonly deleting = signal(false);
-  readonly error = signal('');
-  readonly createdToken = signal('');
-  readonly confirmingDeleteId = signal('');
-  readonly description = signal('');
-  readonly expiresInput = signal('');
+  readonly error = signal("");
+  readonly createdToken = signal("");
+  readonly confirmingDeleteId = signal("");
+  readonly description = signal("");
+  readonly expiresInput = signal("");
   readonly privileged = signal(false);
   readonly catalogClaims = signal<CatalogClaimDraft[]>([emptyCatalogClaim()]);
   readonly busy = computed(() => this.loading() || this.creating() || this.deleting());
@@ -359,7 +359,7 @@ export class AccessTokensComponent implements OnInit {
     () =>
       this.nexus
         .currentUser()
-        ?.claims?.some((claim) => claim.type === 'role' && claim.value === 'Administrator') ??
+        ?.claims?.some((claim) => claim.type === "role" && claim.value === "Administrator") ??
       false,
   );
 
@@ -375,7 +375,7 @@ export class AccessTokensComponent implements OnInit {
 
   async loadTokens() {
     this.loading.set(true);
-    this.error.set('');
+    this.error.set("");
 
     try {
       const tokenMap = await this.nexus.getPersonalAccessTokens();
@@ -383,10 +383,10 @@ export class AccessTokensComponent implements OnInit {
       this.tokens.set(
         Object.entries(tokenMap)
           .map(([id, token]) => ({ id, token }))
-          .sort((a, b) => (a.token.expires ?? '').localeCompare(b.token.expires ?? '')),
+          .sort((a, b) => (a.token.expires ?? "").localeCompare(b.token.expires ?? "")),
       );
     } catch (error) {
-      this.error.set(errorMessage(error, 'Could not load personal access tokens.'));
+      this.error.set(errorMessage(error, "Could not load personal access tokens."));
     } finally {
       this.loading.set(false);
     }
@@ -398,8 +398,8 @@ export class AccessTokensComponent implements OnInit {
     }
 
     this.creating.set(true);
-    this.error.set('');
-    this.createdToken.set('');
+    this.error.set("");
+    this.createdToken.set("");
 
     try {
       const tokenValue = await this.nexus.createPersonalAccessToken({
@@ -412,13 +412,13 @@ export class AccessTokensComponent implements OnInit {
       });
 
       this.createdToken.set(tokenValue);
-      this.description.set('');
-      this.expiresInput.set('');
+      this.description.set("");
+      this.expiresInput.set("");
       this.privileged.set(false);
       this.catalogClaims.set([emptyCatalogClaim()]);
       await this.loadTokens();
     } catch (error) {
-      this.error.set(errorMessage(error, 'Could not create personal access token.'));
+      this.error.set(errorMessage(error, "Could not create personal access token."));
     } finally {
       this.creating.set(false);
     }
@@ -430,24 +430,24 @@ export class AccessTokensComponent implements OnInit {
     }
 
     this.deleting.set(true);
-    this.error.set('');
+    this.error.set("");
 
     try {
-      this.messageService.clear('access-token-delete-confirm');
+      this.messageService.clear("access-token-delete-confirm");
       await this.nexus.deletePersonalAccessToken(tokenId);
-      this.confirmingDeleteId.set('');
-      this.createdToken.set('');
+      this.confirmingDeleteId.set("");
+      this.createdToken.set("");
 
       this.messageService.add({
-        key: 'access-token-status',
-        severity: 'success',
-        summary: 'Token revoked',
+        key: "access-token-status",
+        severity: "success",
+        summary: "Token revoked",
         life: 2500,
       });
 
       await this.loadTokens();
     } catch (error) {
-      this.error.set(errorMessage(error, 'Could not revoke personal access token.'));
+      this.error.set(errorMessage(error, "Could not revoke personal access token."));
     } finally {
       this.deleting.set(false);
     }
@@ -455,20 +455,20 @@ export class AccessTokensComponent implements OnInit {
 
   confirmDelete(entry: TokenEntry) {
     this.confirmingDeleteId.set(entry.id);
-    this.messageService.clear('access-token-delete-confirm');
+    this.messageService.clear("access-token-delete-confirm");
 
     this.messageService.add({
-      key: 'access-token-delete-confirm',
-      summary: 'Revoke this token?',
-      detail: `This permanently revokes ${entry.token.description || 'this token'}.`,
+      key: "access-token-delete-confirm",
+      summary: "Revoke this token?",
+      detail: `This permanently revokes ${entry.token.description || "this token"}.`,
       sticky: true,
       closable: false,
     });
   }
 
   cancelDelete() {
-    this.messageService.clear('access-token-delete-confirm');
-    this.confirmingDeleteId.set('');
+    this.messageService.clear("access-token-delete-confirm");
+    this.confirmingDeleteId.set("");
   }
 
   async deleteConfirmedToken() {
@@ -484,9 +484,9 @@ export class AccessTokensComponent implements OnInit {
 
     void navigator.clipboard.writeText(value).then(() =>
       this.messageService.add({
-        key: 'access-token-status',
-        severity: 'success',
-        summary: 'Token copied',
+        key: "access-token-status",
+        severity: "success",
+        summary: "Token copied",
         life: 2500,
       }),
     );
@@ -494,11 +494,11 @@ export class AccessTokensComponent implements OnInit {
 
   formatDate(value: string | undefined) {
     if (!value) {
-      return 'unknown';
+      return "unknown";
     }
 
-    if (value.startsWith('9999-12-31')) {
-      return 'never';
+    if (value.startsWith("9999-12-31")) {
+      return "never";
     }
 
     const date = new Date(value);
@@ -507,7 +507,7 @@ export class AccessTokensComponent implements OnInit {
       return value;
     }
 
-    return date.getUTCFullYear() >= 9999 ? 'never' : date.toLocaleString();
+    return date.getUTCFullYear() >= 9999 ? "never" : date.toLocaleString();
   }
 
   addCatalogClaim() {
@@ -541,22 +541,22 @@ export class AccessTokensComponent implements OnInit {
       .map((claim) => ({ ...claim, catalogPattern: claim.catalogPattern.trim() }))
       .filter((claim) => claim.catalogPattern.length > 0)
       .map((claim) => ({
-        type: claim.writeAccess ? 'CanWriteCatalog' : 'CanReadCatalog',
+        type: claim.writeAccess ? "CanWriteCatalog" : "CanReadCatalog",
         value: claim.catalogPattern,
       }));
 
     if (this.privileged() && this.isCurrentUserAdmin()) {
-      claims.push({ type: 'role', value: 'Administrator' });
+      claims.push({ type: "role", value: "Administrator" });
     }
 
     return claims;
   }
 }
 
-const neverExpires = '9999-12-31T23:59:59.9999999Z';
+const neverExpires = "9999-12-31T23:59:59.9999999Z";
 
 function emptyCatalogClaim(): CatalogClaimDraft {
-  return { catalogPattern: '', writeAccess: false };
+  return { catalogPattern: "", writeAccess: false };
 }
 
 function isValidLocalDateTime(value: string) {

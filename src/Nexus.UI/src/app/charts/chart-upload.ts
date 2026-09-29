@@ -1,5 +1,5 @@
-import type { VisualizationSeries } from './visualization-data.ts';
-import type { ChartInterop, GpuRange } from './chart-interop.ts';
+import type { VisualizationSeries } from "./visualization-data.ts";
+import type { ChartInterop, GpuRange } from "./chart-interop.ts";
 
 // The loader and WebGPU transient buffer both publish 4 Mi-sample chunks.
 const CHUNK_LENGTH = 4 * 1024 * 1024;
@@ -37,11 +37,11 @@ export async function waitForRange(
         reject(signal.reason);
       };
       const timer = setTimeout(() => {
-        signal.removeEventListener('abort', abort);
+        signal.removeEventListener("abort", abort);
         resolve();
       }, 32);
 
-      signal.addEventListener('abort', abort, { once: true });
+      signal.addEventListener("abort", abort, { once: true });
     });
   }
 }
@@ -62,7 +62,7 @@ export function seriesSegment(
 }
 
 export async function uploadSeries(
-  api: ChartInterop['chartWebGpu'],
+  api: ChartInterop["chartWebGpu"],
   chartId: string,
   series: VisualizationSeries,
   version: number,
@@ -76,7 +76,7 @@ export async function uploadSeries(
     }
   };
 
-  signal.addEventListener('abort', abort, { once: true });
+  signal.addEventListener("abort", abort, { once: true });
 
   try {
     signal.throwIfAborted();
@@ -111,13 +111,13 @@ export async function uploadSeries(
 
     return range;
   } finally {
-    signal.removeEventListener('abort', abort);
+    signal.removeEventListener("abort", abort);
     abort();
   }
 }
 
 export async function provideSeriesChunk(
-  api: ChartInterop['chartWebGpu'],
+  api: ChartInterop["chartWebGpu"],
   chartId: string,
   series: VisualizationSeries,
   offset: number,

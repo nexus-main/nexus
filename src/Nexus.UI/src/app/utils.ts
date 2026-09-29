@@ -1,6 +1,6 @@
 export function formatNumber(value: number | undefined) {
   if (value === undefined || Number.isNaN(value)) {
-    return '0';
+    return "0";
   }
 
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
@@ -8,26 +8,26 @@ export function formatNumber(value: number | undefined) {
 
 export function lastSegment(path: string | undefined): string {
   if (!path) {
-    return '/';
+    return "/";
   }
 
-  const segments = path.split('/').filter(Boolean);
+  const segments = path.split("/").filter(Boolean);
 
-  return segments[segments.length - 1] ?? '/';
+  return segments[segments.length - 1] ?? "/";
 }
 
 export function compactPath(path: string | undefined, maxSegments = 3) {
   if (!path) {
-    return '/';
+    return "/";
   }
 
-  const segments = path.split('/').filter(Boolean);
+  const segments = path.split("/").filter(Boolean);
 
   if (segments.length <= maxSegments) {
     return path;
   }
 
-  return `/${segments.slice(0, 1).join('/')}/.../${segments.slice(-maxSegments + 1).join('/')}`;
+  return `/${segments.slice(0, 1).join("/")}/.../${segments.slice(-maxSegments + 1).join("/")}`;
 }
 
 export function abbreviateMiddle(value: string, maxLength: number) {
@@ -44,9 +44,9 @@ export function abbreviateMiddle(value: string, maxLength: number) {
 export function getStringProperty(record: Record<string, unknown> | null | undefined, key: string) {
   const value = record?.[key];
 
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === "string" ? value : undefined;
 }
 
 export function normalizeMarkdown(markdown: string) {
-  return markdown.replace(/\r\n?/g, '\n').replace(/\\n/g, '\n');
+  return markdown.replace(/\r\n?/g, "\n").replace(/\\n/g, "\n");
 }

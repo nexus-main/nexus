@@ -1,18 +1,18 @@
-import { Component, effect, inject, input, output, signal } from '@angular/core';
-import { LucideX } from '@lucide/angular';
-import { DialogModule } from 'primeng/dialog';
-import { RestoreFocusDirective } from '../restore-focus.directive';
-import { NexusService } from '../nexus.service';
-import { AvailabilityChartComponent } from '../charts/availability-chart.component';
-import { TICKS_PER_DAY } from '../charts/chart-math';
-import { toTimeSpan } from '../resource-selection';
+import { Component, effect, inject, input, output, signal } from "@angular/core";
+import { LucideX } from "@lucide/angular";
+import { DialogModule } from "primeng/dialog";
+import { RestoreFocusDirective } from "../restore-focus.directive";
+import { NexusService } from "../nexus.service";
+import { AvailabilityChartComponent } from "../charts/availability-chart.component";
+import { TICKS_PER_DAY } from "../charts/chart-math";
+import { toTimeSpan } from "../resource-selection";
 
-type ThemeMode = 'dark' | 'light';
+type ThemeMode = "dark" | "light";
 const MAX_AVAILABILITY_STEPS = 1000;
 const MILLISECONDS_PER_DAY = 86_400_000;
 
 @Component({
-  selector: 'app-availability-dialog',
+  selector: "app-availability-dialog",
   standalone: true,
   imports: [DialogModule, RestoreFocusDirective, AvailabilityChartComponent, LucideX],
   template: `
@@ -72,18 +72,18 @@ const MILLISECONDS_PER_DAY = 86_400_000;
 })
 export class AvailabilityDialogComponent {
   readonly visible = input(false);
-  readonly catalogId = input('');
-  readonly begin = input('');
-  readonly end = input('');
-  readonly themeMode = input<ThemeMode>('dark');
+  readonly catalogId = input("");
+  readonly begin = input("");
+  readonly end = input("");
+  readonly themeMode = input<ThemeMode>("dark");
   readonly visibleChange = output<boolean>();
 
   private readonly nexus = inject(NexusService);
   readonly loading = signal(false);
-  readonly error = signal('');
+  readonly error = signal("");
   readonly data = signal<number[]>([]);
-  readonly beginDate = signal('');
-  readonly endDate = signal('');
+  readonly beginDate = signal("");
+  readonly endDate = signal("");
 
   private controller?: AbortController;
 
@@ -108,12 +108,12 @@ export class AvailabilityDialogComponent {
       return;
     }
 
-    const beginDate = begin.slice(0, 10) + 'T00:00:00Z';
-    const endDate = end.slice(0, 10) + 'T00:00:00Z';
+    const beginDate = begin.slice(0, 10) + "T00:00:00Z";
+    const endDate = end.slice(0, 10) + "T00:00:00Z";
 
     if (beginDate >= endDate) {
       this.data.set([]);
-      this.error.set('');
+      this.error.set("");
       this.loading.set(false);
       this.beginDate.set(beginDate);
       this.endDate.set(endDate);
@@ -123,7 +123,7 @@ export class AvailabilityDialogComponent {
 
     this.controller = new AbortController();
     this.loading.set(true);
-    this.error.set('');
+    this.error.set("");
 
     const rangeDays = Math.ceil(
       (Date.parse(endDate) - Date.parse(beginDate)) / MILLISECONDS_PER_DAY,
@@ -139,7 +139,7 @@ export class AvailabilityDialogComponent {
         this.endDate.set(endDate);
       })
       .catch((err) => {
-        if (err instanceof DOMException && err.name === 'AbortError') {
+        if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
 

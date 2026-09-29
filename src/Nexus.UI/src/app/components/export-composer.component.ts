@@ -1,18 +1,18 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, input, output } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
-import { InputTextModule } from 'primeng/inputtext';
-import { MessageModule } from 'primeng/message';
-import { ProgressBarModule } from 'primeng/progressbar';
-import { SelectModule } from 'primeng/select';
-import { AppTooltipDirective } from '../app-tooltip.directive';
-import { V2, WriterDescription, WriterOption } from '../nexus.service';
-import { RestoreFocusDirective } from '../restore-focus.directive';
+import { CommonModule } from "@angular/common";
+import { Component, computed, input, output } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { ButtonModule } from "primeng/button";
+import { DialogModule } from "primeng/dialog";
+import { InputTextModule } from "primeng/inputtext";
+import { MessageModule } from "primeng/message";
+import { ProgressBarModule } from "primeng/progressbar";
+import { SelectModule } from "primeng/select";
+import { AppTooltipDirective } from "../app-tooltip.directive";
+import { V2, WriterDescription, WriterOption } from "../nexus.service";
+import { RestoreFocusDirective } from "../restore-focus.directive";
 
 @Component({
-  selector: 'app-export-composer',
+  selector: "app-export-composer",
   standalone: true,
   imports: [
     CommonModule,
@@ -242,7 +242,7 @@ import { RestoreFocusDirective } from '../restore-focus.directive';
                 [disabled]="currentJobDownloading()"
                 (click)="downloadJob.emit()"
               >
-                {{ currentJobDownloading() ? 'Downloading...' : 'Download result' }}
+                {{ currentJobDownloading() ? "Downloading..." : "Download result" }}
               </button>
             }
           </div>
@@ -269,7 +269,7 @@ import { RestoreFocusDirective } from '../restore-focus.directive';
           [disabled]="!!exportError() || exportBusy() || currentJobCanCancel()"
           (click)="createJob.emit()"
         >
-          {{ exportBusy() ? 'Creating...' : 'Create export job' }}
+          {{ exportBusy() ? "Creating..." : "Create export job" }}
         </button>
       </span>
     </p-dialog>
@@ -283,32 +283,32 @@ export class ExportComposerComponent {
   readonly exportFilePeriod = input.required<string>();
   readonly exportFilePeriodError = input.required<string>();
   readonly exportPrecision = input.required<V2.Precision>();
-  readonly exportSize = input('');
+  readonly exportSize = input("");
   readonly writerOptions = input.required<[string, WriterOption][]>();
   readonly exportConfiguration = input.required<Record<string, unknown>>();
   readonly exportError = input.required<string>();
   readonly exportPreview = input.required<V2.ExportParameters>();
   readonly exportStatus = input.required<string>();
   readonly exportBusy = input.required<boolean>();
-  readonly currentJobStatus = input('');
+  readonly currentJobStatus = input("");
   readonly currentJobProgress = input(0);
-  readonly currentJobError = input('');
+  readonly currentJobError = input("");
   readonly currentJobCanCancel = input(false);
   readonly currentJobCanDownload = input(false);
   readonly currentJobDownloading = input(false);
 
   readonly writerSelectOptions = computed(() =>
     this.writerDescriptions().map((writer) => ({
-      label: writer.additionalInformation?.label ?? writer.type ?? '',
-      value: writer.type ?? '',
+      label: writer.additionalInformation?.label ?? writer.type ?? "",
+      value: writer.type ?? "",
     })),
   );
   readonly precisionOptions = [
-    { label: '32-bit', value: V2.Precision.Float32 },
-    { label: '64-bit', value: V2.Precision.Float64 },
+    { label: "32-bit", value: V2.Precision.Float32 },
+    { label: "64-bit", value: V2.Precision.Float64 },
   ];
   readonly rawDataSizeTooltip =
-    'Approximate uncompressed sample payload for the selected time range, resources, and precision. Compression-friendly formats may be smaller; text formats such as CSV can be larger because each value is written as characters.';
+    "Approximate uncompressed sample payload for the selected time range, resources, and precision. Compression-friendly formats may be smaller; text formats such as CSV can be larger because each value is written as characters.";
 
   readonly close = output<void>();
   readonly selectedWriterTypeChange = output<string>();

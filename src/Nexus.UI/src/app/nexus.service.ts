@@ -1,7 +1,7 @@
-import { Injectable, isDevMode, signal } from '@angular/core';
-import { NexusClient, type BufferProvider } from '@nexus-api/_client';
-import * as V1 from '@nexus-api/V1';
-import * as V2 from '@nexus-api/V2';
+import { Injectable, isDevMode, signal } from "@angular/core";
+import { NexusClient, type BufferProvider } from "@nexus-api/_client";
+import * as V1 from "@nexus-api/V1";
+import * as V2 from "@nexus-api/V2";
 
 export type CatalogNode = V1.CatalogInfo & {
   nodeKey: string;
@@ -11,7 +11,7 @@ export type CatalogNode = V1.CatalogInfo & {
   groupedChildren?: V1.CatalogInfo[];
 };
 
-export type PreparedCatalogNode = Omit<CatalogNode, 'depth' | 'parentId'>;
+export type PreparedCatalogNode = Omit<CatalogNode, "depth" | "parentId">;
 
 export type ResourceRow = {
   catalogId: string;
@@ -56,14 +56,14 @@ export type SessionOverview = {
   roots: V1.CatalogInfo[];
 };
 
-export type DevAuthMode = 'admin' | 'user';
+export type DevAuthMode = "admin" | "user";
 
-const devAuthModeStorageKey = 'nexus.devAuthMode';
-const devAuthRoleHeader = 'X-Nexus-Dev-Role';
+const devAuthModeStorageKey = "nexus.devAuthMode";
+const devAuthRoleHeader = "X-Nexus-Dev-Role";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class NexusService {
-  readonly endpoint = globalThis.location?.origin ?? 'http://localhost:4200';
+  readonly endpoint = globalThis.location?.origin ?? "http://localhost:4200";
   readonly apiAvailable = signal(false);
   readonly system = signal<V1.SystemResponse | null>(null);
   readonly currentUser = signal<V1.MeResponse | null>(null);
@@ -72,15 +72,15 @@ export class NexusService {
   readonly v1 = new V1.V1(this.invoke.bind(this));
   readonly v2 = new V2.V2(this.invoke.bind(this));
 
-  async getCatalogChildren(catalogId = '/') {
+  async getCatalogChildren(catalogId = "/") {
     const children = await this.v1.catalogs.getChildCatalogInfos(catalogId);
 
     this.apiAvailable.set(true);
-    const devChildren = isDevMode() && catalogId === '/' ? [createRestrictedDevCatalog()] : [];
+    const devChildren = isDevMode() && catalogId === "/" ? [createRestrictedDevCatalog()] : [];
 
     return [...children, ...devChildren]
       .filter((info) => info.isVisible)
-      .sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''));
+      .sort((a, b) => (a.id ?? "").localeCompare(b.id ?? ""));
   }
 
   async getCatalogBundle(catalogId: string): Promise<CatalogBundle> {
@@ -101,7 +101,7 @@ export class NexusService {
 
     this.apiAvailable.set(true);
 
-    return license ?? '';
+    return license ?? "";
   }
 
   async acceptCatalogLicense(catalogId: string) {
@@ -133,7 +133,7 @@ export class NexusService {
       }),
       this.v1.writers.getDescriptions() as Promise<WriterDescription[]>,
       this.v1.jobs.getJobs(),
-      this.getCatalogChildren('/'),
+      this.getCatalogChildren("/"),
     ]);
 
     this.apiAvailable.set(true);
@@ -163,7 +163,7 @@ export class NexusService {
   }
 
   setDevAuthMode(mode: DevAuthMode) {
-    const nextMode = mode === 'user' ? 'user' : 'admin';
+    const nextMode = mode === "user" ? "user" : "admin";
 
     this.devAuthMode.set(nextMode);
 
@@ -226,11 +226,11 @@ export class NexusService {
     const headers = new Headers();
 
     if (accept) {
-      headers.set('Accept', accept);
+      headers.set("Accept", accept);
     }
 
     if (contentType) {
-      headers.set('Content-Type', contentType);
+      headers.set("Content-Type", contentType);
     }
 
     if (isDevMode()) {
@@ -243,7 +243,7 @@ export class NexusService {
       throw new Error(`Nexus request failed: ${response.status} ${response.statusText}`);
     }
 
-    if (accept === 'application/octet-stream' || accept === 'application/vnd.apache.arrow.stream') {
+    if (accept === "application/octet-stream" || accept === "application/vnd.apache.arrow.stream") {
       return response as T;
     }
 
@@ -254,18 +254,18 @@ export class NexusService {
     }
 
     // Reject unrepresentable configuration numbers before JSON.parse can round a saved value.
-    if (method === 'GET' && url.split('?')[0] === '/api/v1/sources/pipelines') {
-      const { parseJsonSafely } = await import('./json-schema');
+    if (method === "GET" && url.split("?")[0] === "/api/v1/sources/pipelines") {
+      const { parseJsonSafely } = await import("./json-schema");
       const parsed = parseJsonSafely(text);
 
       if (!parsed.valid) {
-        throw new Error(`Cannot safely edit these pipelines: ${parsed.errors.join(' ')}`);
+        throw new Error(`Cannot safely edit these pipelines: ${parsed.errors.join(" ")}`);
       }
 
       return parsed.value as T;
     }
 
-    return accept?.includes('json') ? (JSON.parse(text) as T) : (text as T);
+    return accept?.includes("json") ? (JSON.parse(text) as T) : (text as T);
   }
 }
 
@@ -273,7 +273,7 @@ export function prepareChildCatalogs(
   parentId: string,
   childInfos: V1.CatalogInfo[],
 ): PreparedCatalogNode[] {
-  const normalizedParentId = parentId === '/' ? '' : parentId;
+  const normalizedParentId = parentId === "/" ? "" : parentId;
   const groups = new Map<string, V1.CatalogInfo[]>();
 
   for (const info of childInfos) {
@@ -281,8 +281,8 @@ export function prepareChildCatalogs(
       continue;
     }
 
-    const remainder = (info.id ?? '').slice(normalizedParentId.length);
-    const nextSegment = remainder.split('/').filter(Boolean)[0] ?? '';
+    const remainder = (info.id ?? "").slice(normalizedParentId.length);
+    const nextSegment = remainder.split("/").filter(Boolean)[0] ?? "";
 
     groups.set(nextSegment, [...(groups.get(nextSegment) ?? []), info]);
   }
@@ -294,7 +294,7 @@ export function prepareChildCatalogs(
 
     if (group.length > 1 || group[0].id !== fakeId) {
       result.push({
-        nodeKey: `fake:${normalizedParentId || '/'}:${fakeId}`,
+        nodeKey: `fake:${normalizedParentId || "/"}:${fakeId}`,
         id: fakeId,
         title: null,
         contact: null,
@@ -304,32 +304,32 @@ export function prepareChildCatalogs(
         isWritable: false,
         isVisible: true,
         packageReferenceIds: [],
-        pipelineInfo: { id: '', types: [], infoUrls: [] },
+        pipelineInfo: { id: "", types: [], infoUrls: [] },
         isFake: true,
         groupedChildren: group,
       });
     } else {
-      result.push({ ...group[0], nodeKey: `real:${group[0].id ?? ''}`, isFake: false });
+      result.push({ ...group[0], nodeKey: `real:${group[0].id ?? ""}`, isFake: false });
     }
   }
 
-  return result.sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''));
+  return result.sort((a, b) => (a.id ?? "").localeCompare(b.id ?? ""));
 }
 
 export function mapResources(catalog: V1.ResourceCatalog | undefined): ResourceRow[] {
-  const catalogId = catalog?.id ?? '/';
+  const catalogId = catalog?.id ?? "/";
 
   return (catalog?.resources ?? []).map((resource) => {
     const properties = resource.properties;
 
     return {
       catalogId,
-      id: resource.id ?? 'unnamed-resource',
-      path: `${catalogId}/${resource.id ?? ''}`.replace(/\/+/g, '/'),
-      description: getString(properties, 'description') ?? '',
-      warning: getString(properties, 'warning') ?? '',
-      unit: getString(properties, 'unit') ?? '',
-      groups: getStringArray(properties, 'groups'),
+      id: resource.id ?? "unnamed-resource",
+      path: `${catalogId}/${resource.id ?? ""}`.replace(/\/+/g, "/"),
+      description: getString(properties, "description") ?? "",
+      warning: getString(properties, "warning") ?? "",
+      unit: getString(properties, "unit") ?? "",
+      groups: getStringArray(properties, "groups"),
       properties: properties ?? null,
       representations: resource.representations ?? [],
     };
@@ -359,39 +359,39 @@ export function buildExportParameters(
 function getString(record: Record<string, unknown> | null | undefined, key: string) {
   const value = record?.[key];
 
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === "string" ? value : undefined;
 }
 
 function getStringArray(record: Record<string, unknown> | null | undefined, key: string) {
   const value = record?.[key];
 
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
+    ? value.filter((item): item is string => typeof item === "string")
     : [];
 }
 
 function createRestrictedDevCatalog(): V1.CatalogInfo {
   return {
-    id: '/DEV/RESTRICTED',
-    title: 'Restricted development catalog',
-    contact: 'nexus-dev@example.invalid',
+    id: "/DEV/RESTRICTED",
+    title: "Restricted development catalog",
+    contact: "nexus-dev@example.invalid",
     readme:
-      'This synthetic catalog is visible in Angular dev mode only, but it is intentionally not readable.',
+      "This synthetic catalog is visible in Angular dev mode only, but it is intentionally not readable.",
     license: null,
     isReadable: false,
     isWritable: false,
     isVisible: true,
     packageReferenceIds: [],
-    pipelineInfo: { id: '', types: ['dev'], infoUrls: [] },
+    pipelineInfo: { id: "", types: ["dev"], infoUrls: [] },
   };
 }
 
 function getInitialDevAuthMode(): DevAuthMode {
   if (!isDevMode()) {
-    return 'admin';
+    return "admin";
   }
 
-  return localStorage.getItem(devAuthModeStorageKey) === 'user' ? 'user' : 'admin';
+  return localStorage.getItem(devAuthModeStorageKey) === "user" ? "user" : "admin";
 }
 
 export { V1, V2 };

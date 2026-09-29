@@ -1,4 +1,4 @@
-import { CommonModule, DOCUMENT } from '@angular/common';
+import { CommonModule, DOCUMENT } from "@angular/common";
 import {
   Component,
   HostListener,
@@ -9,8 +9,8 @@ import {
   isDevMode,
   signal,
   viewChild,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
+} from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import {
   LucideChartColumn,
   LucideCodeXml,
@@ -23,41 +23,41 @@ import {
   LucidePilcrow,
   LucideRefreshCw,
   LucideX,
-} from '@lucide/angular';
-import { MenuItem, MessageService } from 'primeng/api';
-import { ButtonModule } from 'primeng/button';
-import { CheckboxModule } from 'primeng/checkbox';
-import { DialogModule } from 'primeng/dialog';
-import { DrawerModule } from 'primeng/drawer';
-import { InputTextModule } from 'primeng/inputtext';
-import { MenuModule } from 'primeng/menu';
-import { ProgressBarModule } from 'primeng/progressbar';
-import { TabsModule } from 'primeng/tabs';
-import { ToastModule } from 'primeng/toast';
-import { AppTooltipDirective } from './app-tooltip.directive';
-import { DrawerPassThrough } from 'primeng/types/drawer';
-import { BrowserStorageService } from './browser-storage.service';
-import { VisualizationChartComponent } from './charts/visualization-chart.component';
+} from "@lucide/angular";
+import { MenuItem, MessageService } from "primeng/api";
+import { ButtonModule } from "primeng/button";
+import { CheckboxModule } from "primeng/checkbox";
+import { DialogModule } from "primeng/dialog";
+import { DrawerModule } from "primeng/drawer";
+import { InputTextModule } from "primeng/inputtext";
+import { MenuModule } from "primeng/menu";
+import { ProgressBarModule } from "primeng/progressbar";
+import { TabsModule } from "primeng/tabs";
+import { ToastModule } from "primeng/toast";
+import { AppTooltipDirective } from "./app-tooltip.directive";
+import { DrawerPassThrough } from "primeng/types/drawer";
+import { BrowserStorageService } from "./browser-storage.service";
+import { VisualizationChartComponent } from "./charts/visualization-chart.component";
 import {
   VisualizationBuffers,
   VisualizationData,
   createVisualizationData,
   releaseVisualizationData,
-} from './charts/visualization-data';
-import { dateTicks } from './resource-selection';
-import { CatalogAboutDialogComponent } from './components/catalog-about-dialog.component';
-import { AvailabilityDialogComponent } from './components/availability-dialog.component';
-import { AppHeaderComponent } from './components/app-header.component';
-import { CatalogTreeComponent } from './components/catalog-tree.component';
-import { ExportComposerComponent } from './components/export-composer.component';
-import { PinnedResourceComponent } from './components/pinned-resource.component';
-import { PackageReferencesComponent } from './components/package-references.component';
-import { AccessTokensComponent } from './components/access-tokens.component';
-import { DataSourcePipelinesComponent } from './components/data-source-pipelines.component';
-import { GitComponent } from './components/git.component';
-import { PropertiesDialogComponent } from './components/properties-dialog.component';
-import { ResourceMatrixComponent } from './components/resource-matrix.component';
-import { MetadataDrafts, mergeResourceMetadata } from './resource-matrix';
+} from "./charts/visualization-data";
+import { dateTicks } from "./resource-selection";
+import { CatalogAboutDialogComponent } from "./components/catalog-about-dialog.component";
+import { AvailabilityDialogComponent } from "./components/availability-dialog.component";
+import { AppHeaderComponent } from "./components/app-header.component";
+import { CatalogTreeComponent } from "./components/catalog-tree.component";
+import { ExportComposerComponent } from "./components/export-composer.component";
+import { PinnedResourceComponent } from "./components/pinned-resource.component";
+import { PackageReferencesComponent } from "./components/package-references.component";
+import { AccessTokensComponent } from "./components/access-tokens.component";
+import { DataSourcePipelinesComponent } from "./components/data-source-pipelines.component";
+import { GitComponent } from "./components/git.component";
+import { PropertiesDialogComponent } from "./components/properties-dialog.component";
+import { ResourceMatrixComponent } from "./components/resource-matrix.component";
+import { MetadataDrafts, mergeResourceMetadata } from "./resource-matrix";
 import {
   RepresentationRow,
   ResourceSelection,
@@ -80,12 +80,12 @@ import {
   selectionKey,
   storeSelectionReference,
   toTimeSpan,
-} from './resource-selection';
-import type { ParsedResourcePath } from './resource-selection';
-import { parseNexusUiSetupJson } from './nexus-ui-setup';
-import type { NexusUiSetup, ParsedNexusUiSetup } from './nexus-ui-setup';
-import { MarkdownPipe } from './markdown.pipe';
-import { RestoreFocusDirective } from './restore-focus.directive';
+} from "./resource-selection";
+import type { ParsedResourcePath } from "./resource-selection";
+import { parseNexusUiSetupJson } from "./nexus-ui-setup";
+import type { NexusUiSetup, ParsedNexusUiSetup } from "./nexus-ui-setup";
+import { MarkdownPipe } from "./markdown.pipe";
+import { RestoreFocusDirective } from "./restore-focus.directive";
 import {
   CatalogBundle,
   CatalogNode,
@@ -99,28 +99,28 @@ import {
   buildExportParameters,
   mapResources,
   prepareChildCatalogs,
-} from './nexus.service';
+} from "./nexus.service";
 import {
   abbreviateMiddle,
   compactPath,
   formatNumber,
   getStringProperty,
   lastSegment,
-} from './utils';
+} from "./utils";
 
-const catalogExpansionStorageKey = 'nexus.catalog.expandedNodeKeys';
-const selectedResourcesStorageKey = 'nexus.selectedResources';
-const themeModeStorageKey = 'nexus.themeMode';
-const exportSettingsStorageKey = 'nexus.exportSettings';
-const defaultWriterType = 'Nexus.Writers.Csv';
+const catalogExpansionStorageKey = "nexus.catalog.expandedNodeKeys";
+const selectedResourcesStorageKey = "nexus.selectedResources";
+const themeModeStorageKey = "nexus.themeMode";
+const exportSettingsStorageKey = "nexus.exportSettings";
+const defaultWriterType = "Nexus.Writers.Csv";
 
-type ResolvedThemeMode = 'dark' | 'light';
-type ThemeMode = ResolvedThemeMode | 'system';
+type ResolvedThemeMode = "dark" | "light";
+type ThemeMode = ResolvedThemeMode | "system";
 
 type ParameterField = {
   key: string;
   label: string;
-  kind: 'input-integer' | 'select';
+  kind: "input-integer" | "select";
   defaultValue: string;
   minimum?: number;
   maximum?: number;
@@ -128,17 +128,17 @@ type ParameterField = {
 };
 
 const timeRangePresets = [
-  { label: 'Last hour', kind: 'rolling', unit: 'hour', amount: 1 },
-  { label: 'Last 24 hours', kind: 'rolling', unit: 'day', amount: 1 },
-  { label: 'Last 7 days', kind: 'rolling', unit: 'day', amount: 7 },
-  { label: 'Today so far', kind: 'calendarToNow', unit: 'day', amount: 0 },
-  { label: 'Yesterday', kind: 'previousCalendar', unit: 'day', amount: 1 },
-  { label: 'This week so far', kind: 'calendarToNow', unit: 'week', amount: 0 },
-  { label: 'Previous week', kind: 'previousCalendar', unit: 'week', amount: 1 },
-  { label: 'This month so far', kind: 'calendarToNow', unit: 'month', amount: 0 },
-  { label: 'Previous month', kind: 'previousCalendar', unit: 'month', amount: 1 },
-  { label: 'This year so far', kind: 'calendarToNow', unit: 'year', amount: 0 },
-  { label: 'Previous year', kind: 'previousCalendar', unit: 'year', amount: 1 },
+  { label: "Last hour", kind: "rolling", unit: "hour", amount: 1 },
+  { label: "Last 24 hours", kind: "rolling", unit: "day", amount: 1 },
+  { label: "Last 7 days", kind: "rolling", unit: "day", amount: 7 },
+  { label: "Today so far", kind: "calendarToNow", unit: "day", amount: 0 },
+  { label: "Yesterday", kind: "previousCalendar", unit: "day", amount: 1 },
+  { label: "This week so far", kind: "calendarToNow", unit: "week", amount: 0 },
+  { label: "Previous week", kind: "previousCalendar", unit: "week", amount: 1 },
+  { label: "This month so far", kind: "calendarToNow", unit: "month", amount: 0 },
+  { label: "Previous month", kind: "previousCalendar", unit: "month", amount: 1 },
+  { label: "This year so far", kind: "calendarToNow", unit: "year", amount: 0 },
+  { label: "Previous year", kind: "previousCalendar", unit: "year", amount: 1 },
 ] as const;
 
 type TimeRangePreset = (typeof timeRangePresets)[number];
@@ -155,10 +155,10 @@ function formatDateForDownloadName(value: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return 'export';
+    return "export";
   }
 
-  return date.toISOString().slice(0, 19).replace(/:/g, '-');
+  return date.toISOString().slice(0, 19).replace(/:/g, "-");
 }
 
 type ExportJobHistoryEntry = {
@@ -184,7 +184,7 @@ type StoredExportSettings = {
 };
 
 @Component({
-  selector: 'app-root',
+  selector: "app-root",
   standalone: true,
   imports: [
     CommonModule,
@@ -227,7 +227,7 @@ type StoredExportSettings = {
     ResourceMatrixComponent,
   ],
   providers: [MessageService],
-  templateUrl: './app.component.html',
+  templateUrl: "./app.component.html",
 })
 export class AppComponent implements OnDestroy {
   private readonly nexus = inject(NexusService);
@@ -251,7 +251,7 @@ export class AppComponent implements OnDestroy {
   private restoreHistory: (() => void) | null = null;
   private acceptedHistoryNavigation = false;
   private readonly resourceMatrix = viewChild(ResourceMatrixComponent);
-  readonly revealResourceKey = signal('');
+  readonly revealResourceKey = signal("");
   readonly revealResourceSequence = signal(0);
   readonly selectionLoading = signal(true);
   readonly unresolvedSelections = signal<StoredSelectionReference[]>([]);
@@ -264,9 +264,9 @@ export class AppComponent implements OnDestroy {
     getInitialExpandedCatalogNodeKeys(this.storage, getSelectedCatalogIdFromUrl()),
   );
   readonly searchCollapsedCatalogNodeKeys = signal<ReadonlySet<string>>(new Set());
-  readonly catalogSearch = signal('');
+  readonly catalogSearch = signal("");
   readonly selectedResourceRows = signal<ReadonlyMap<string, ResourceSelection>>(new Map());
-  readonly activeResourcePath = signal('');
+  readonly activeResourcePath = signal("");
   readonly isExportOpen = signal(false);
   readonly isJobsOpen = signal(false);
   readonly isPackageReferencesOpen = signal(false);
@@ -292,24 +292,24 @@ export class AppComponent implements OnDestroy {
   );
   readonly visualizationDialogStyle = computed(() =>
     this.compactLayout()
-      ? { width: '100vw', height: '100dvh', maxHeight: '100dvh', margin: '0', borderRadius: '0' }
+      ? { width: "100vw", height: "100dvh", maxHeight: "100dvh", margin: "0", borderRadius: "0" }
       : {
-          width: 'calc(100vw - 2rem)',
-          height: 'calc(100dvh - 2rem)',
-          maxHeight: 'calc(100dvh - 2rem)',
+          width: "calc(100vw - 2rem)",
+          height: "calc(100dvh - 2rem)",
+          maxHeight: "calc(100dvh - 2rem)",
         },
   );
   readonly visualizationData = signal<VisualizationData | null>(null);
   readonly visualizationLoading = signal(false);
   readonly visualizationProgress = signal(0);
-  readonly visualizationError = signal('');
+  readonly visualizationError = signal("");
   readonly visualizationBeginAtZero = signal(false);
   readonly visualizationCacheMiB = signal(2048);
   private visualizationController?: AbortController;
   private visualizationBuffers?: VisualizationBuffers;
   private exportController?: AbortController;
-  private readonly loadedVisualizationKey = signal('');
-  private readonly systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  private readonly loadedVisualizationKey = signal("");
+  private readonly systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
   private readonly systemThemeDark = signal(this.systemThemeQuery.matches);
   private readonly systemThemeListener = (event: MediaQueryListEvent) =>
     this.systemThemeDark.set(event.matches);
@@ -317,13 +317,13 @@ export class AppComponent implements OnDestroy {
   readonly resolvedThemeMode = computed<ResolvedThemeMode>(() => {
     const themeMode = this.themeMode();
 
-    if (themeMode === 'system') {
-      return this.systemThemeDark() ? 'dark' : 'light';
+    if (themeMode === "system") {
+      return this.systemThemeDark() ? "dark" : "light";
     }
 
     return themeMode;
   });
-  readonly activeSidebarTab = signal<'catalogs' | 'selectedResources'>('catalogs');
+  readonly activeSidebarTab = signal<"catalogs" | "selectedResources">("catalogs");
   readonly overviewLoading = signal(true);
   readonly catalogLoading = signal(false);
   readonly overviewError = signal<unknown>(null);
@@ -341,8 +341,8 @@ export class AppComponent implements OnDestroy {
     const period = parsePeriod(this.periodDraft());
 
     return period === null || period <= 0n
-      ? 'Enter a positive period, for example 100 ms, 1 s, or 10 min (100 ns minimum).'
-      : '';
+      ? "Enter a positive period, for example 100 ms, 1 s, or 10 min (100 ns minimum)."
+      : "";
   });
   readonly exportFilePeriod = signal(this.storedExportSettings.exportFilePeriod);
   readonly exportFilePeriodDraft = signal(
@@ -352,12 +352,12 @@ export class AppComponent implements OnDestroy {
     const period = parseFilePeriod(this.exportFilePeriodDraft());
 
     if (period === null) {
-      return 'Enter a file period, for example Single file, 100 ms, 1 s, or 10 min.';
+      return "Enter a file period, for example Single file, 100 ms, 1 s, or 10 min.";
     }
 
     return period % this.samplePeriod() === 0n
-      ? ''
-      : 'File period must be zero or an integer multiple of Period.';
+      ? ""
+      : "File period must be zero or an integer multiple of Period.";
   });
   readonly selectedWriterType = signal(this.storedExportSettings.selectedWriterType);
   readonly configurationByWriter = signal(this.storedExportSettings.configurationByWriter);
@@ -366,20 +366,20 @@ export class AppComponent implements OnDestroy {
       {},
   );
   readonly exportPrecision = signal<V2.Precision>(this.storedExportSettings.exportPrecision);
-  readonly exportStatus = signal('');
+  readonly exportStatus = signal("");
   readonly exportBusy = signal(false);
-  readonly licenseText = signal('');
+  readonly licenseText = signal("");
   readonly licenseLoading = signal(false);
   readonly licenseAccepting = signal(false);
-  readonly licenseError = signal('');
+  readonly licenseError = signal("");
   readonly catalogFilesBusy = signal(false);
-  readonly catalogFilesError = signal('');
+  readonly catalogFilesError = signal("");
   readonly catalogFilesDragActive = signal(false);
-  readonly deletingAttachmentId = signal('');
-  readonly pendingDeleteAttachmentId = signal('');
-  readonly currentExportJobId = signal('');
+  readonly deletingAttachmentId = signal("");
+  readonly pendingDeleteAttachmentId = signal("");
+  readonly currentExportJobId = signal("");
   readonly currentExportJobStatus = signal<V1.JobStatus | null>(null);
-  readonly currentExportJobError = signal('');
+  readonly currentExportJobError = signal("");
   readonly currentExportDownloading = signal(false);
   readonly jobHistory = signal<ExportJobHistoryEntry[]>([]);
   readonly setupDragActive = signal(false);
@@ -391,13 +391,13 @@ export class AppComponent implements OnDestroy {
       command: () => this.applyTimeRangePreset(preset),
     };
 
-    return preset.kind === 'calendarToNow' ? [{ separator: true }, item] : [item];
+    return preset.kind === "calendarToNow" ? [{ separator: true }, item] : [item];
   });
   readonly catalogDrawerPt: DrawerPassThrough = {
     root: {
       // Keep Escape local; the drawer's document listener also closes nested overlays.
       onkeydown: (event: KeyboardEvent) => {
-        if (event.key !== 'Escape') {
+        if (event.key !== "Escape") {
           return;
         }
 
@@ -415,12 +415,12 @@ export class AppComponent implements OnDestroy {
     this.jobHistory().filter((entry) => this.isExportJobEntry(entry)),
   );
   readonly jobHistoryCount = computed(() => this.exportJobHistory().length);
-  readonly userName = computed(() => this.nexus.currentUser()?.name ?? 'Start Lord');
+  readonly userName = computed(() => this.nexus.currentUser()?.name ?? "Start Lord");
   readonly isAdministrator = computed(
     () =>
       this.nexus
         .currentUser()
-        ?.claims?.some((claim) => claim.type === 'role' && claim.value === 'Administrator') ??
+        ?.claims?.some((claim) => claim.type === "role" && claim.value === "Administrator") ??
       false,
   );
   readonly isDevelopmentMode = isDevMode();
@@ -429,7 +429,7 @@ export class AppComponent implements OnDestroy {
   readonly applicationName = computed(() => this.nexus.system()?.applicationName ?? null);
   readonly helpLink = computed(() => this.nexus.system()?.helpLink ?? null);
   readonly logoutUrl = computed(() => this.nexus.system()?.logoutUrl ?? null);
-  readonly nexusVersion = computed(() => this.nexus.system()?.version ?? '');
+  readonly nexusVersion = computed(() => this.nexus.system()?.version ?? "");
   readonly userInitials = computed(() => getInitials(this.userName()));
 
   changeDevAuthMode(mode: DevAuthMode) {
@@ -466,7 +466,7 @@ export class AppComponent implements OnDestroy {
       }
     };
 
-    appendPreparedNodes(prepareChildCatalogs('/', this.rootCatalogInfos()), '/', 0);
+    appendPreparedNodes(prepareChildCatalogs("/", this.rootCatalogInfos()), "/", 0);
 
     return nodes;
   });
@@ -495,7 +495,7 @@ export class AppComponent implements OnDestroy {
       }
     };
 
-    appendPreparedNodes(prepareChildCatalogs('/', this.rootCatalogInfos()), '/', 0);
+    appendPreparedNodes(prepareChildCatalogs("/", this.rootCatalogInfos()), "/", 0);
 
     return nodes;
   });
@@ -521,7 +521,7 @@ export class AppComponent implements OnDestroy {
 
       while (current && !includedNodeKeys.has(current.nodeKey)) {
         includedNodeKeys.add(current.nodeKey);
-        current = current.parentId === '/' ? undefined : nodeById.get(current.parentId);
+        current = current.parentId === "/" ? undefined : nodeById.get(current.parentId);
       }
     }
 
@@ -553,24 +553,24 @@ export class AppComponent implements OnDestroy {
     this.catalogNodes().find((node) => node.nodeKey === this.selectedCatalogNodeKey()),
   );
   readonly isSelectedFake = computed(
-    () => this.selectedNode()?.isFake ?? this.selectedCatalogNodeKey().startsWith('fake:'),
+    () => this.selectedNode()?.isFake ?? this.selectedCatalogNodeKey().startsWith("fake:"),
   );
   readonly selectedCatalog = computed(() => this.selectedBundle()?.catalog);
   readonly selectedCatalogTitle = computed(
     () =>
-      getStringProperty(this.selectedCatalog()?.properties, 'title') ??
+      getStringProperty(this.selectedCatalog()?.properties, "title") ??
       this.selectedCatalogInfo()?.title ??
-      '',
+      "",
   );
   readonly selectedCatalogReadme = computed(
     () =>
-      getStringProperty(this.selectedCatalog()?.properties, 'readme') ??
+      getStringProperty(this.selectedCatalog()?.properties, "readme") ??
       this.selectedCatalogInfo()?.readme ??
       this.selectedNode()?.readme ??
-      '',
+      "",
   );
   readonly selectedCatalogContact = computed(
-    () => this.selectedCatalogInfo()?.contact ?? this.selectedNode()?.contact ?? '',
+    () => this.selectedCatalogInfo()?.contact ?? this.selectedNode()?.contact ?? "",
   );
   readonly selectedCatalogDisplayPath = computed(() =>
     formatCatalogDisplayPath(this.selectedCatalogId()),
@@ -584,7 +584,7 @@ export class AppComponent implements OnDestroy {
       !!(
         this.selectedCatalogInfo()?.license ||
         this.selectedNode()?.license ||
-        this.selectedBundle()?.attachments.includes('LICENSE.md')
+        this.selectedBundle()?.attachments.includes("LICENSE.md")
       ),
   );
   readonly selectedCatalogReadable = computed(
@@ -687,11 +687,11 @@ export class AppComponent implements OnDestroy {
   );
   readonly selectionError = computed(() => {
     if (this.selectionLoading()) {
-      return 'Restoring selected representations...';
+      return "Restoring selected representations...";
     }
 
     if (this.unresolvedSelections().length) {
-      return 'Some selected representations could not be loaded. Retry or clear them before loading data.';
+      return "Some selected representations could not be loaded. Retry or clear them before loading data.";
     }
 
     if (this.periodError()) {
@@ -699,15 +699,15 @@ export class AppComponent implements OnDestroy {
     }
 
     if (!this.selectedResources().length) {
-      return 'Select at least one representation.';
+      return "Select at least one representation.";
     }
 
     if (this.visualizationResources().some((resource) => !resource.valid)) {
-      return 'Remove the invalid methods or choose a compatible Period.';
+      return "Remove the invalid methods or choose a compatible Period.";
     }
 
     if (this.selectedResources().some((resource) => !this.parametersValid(resource))) {
-      return 'A selected representation requires parameter values that this UI cannot edit yet.';
+      return "A selected representation requires parameter values that this UI cannot edit yet.";
     }
 
     return executionRangeError(
@@ -735,7 +735,7 @@ export class AppComponent implements OnDestroy {
     const unsupportedKeys = this.unsupportedParameterKeys();
 
     if (unsupportedKeys.length) {
-      return `Unsupported parameter schema: ${unsupportedKeys.join(', ')}`;
+      return `Unsupported parameter schema: ${unsupportedKeys.join(", ")}`;
     }
 
     const draft = this.parameterDraft();
@@ -743,11 +743,11 @@ export class AppComponent implements OnDestroy {
     for (const field of this.parameterFields()) {
       const value = draft[field.key];
 
-      if (value === undefined || value === '') {
+      if (value === undefined || value === "") {
         return `${field.label} is required.`;
       }
 
-      if (field.kind === 'input-integer') {
+      if (field.kind === "input-integer") {
         const parsed = Number(value);
 
         if (!Number.isInteger(parsed)) {
@@ -766,7 +766,7 @@ export class AppComponent implements OnDestroy {
       }
     }
 
-    return '';
+    return "";
   });
   readonly exportError = computed(() => {
     if (this.selectionError()) {
@@ -778,15 +778,15 @@ export class AppComponent implements OnDestroy {
     }
 
     if (!this.apiAvailable()) {
-      return 'Connect to the Nexus API before creating an export job.';
+      return "Connect to the Nexus API before creating an export job.";
     }
 
-    return '';
+    return "";
   });
   readonly visualizationValidation = computed(
     () =>
       this.selectionError() ||
-      (!this.apiAvailable() ? 'Connect to the Nexus API before visualizing data.' : ''),
+      (!this.apiAvailable() ? "Connect to the Nexus API before visualizing data." : ""),
   );
   readonly visualizationKey = computed(() =>
     JSON.stringify([
@@ -817,14 +817,14 @@ export class AppComponent implements OnDestroy {
     const status = this.currentExportJobStatus();
 
     if (this.exportBusy()) {
-      return 'Creating export job...';
+      return "Creating export job...";
     }
 
     if (!this.currentExportJobId()) {
-      return '';
+      return "";
     }
 
-    return status ? this.formatJobStatus(status) : 'Export job queued...';
+    return status ? this.formatJobStatus(status) : "Export job queued...";
   });
   readonly currentExportCanCancel = computed(
     () =>
@@ -835,9 +835,9 @@ export class AppComponent implements OnDestroy {
   );
 
   formatSamplePeriod(samplePeriod: string | null | undefined) {
-    const ticks = parsePeriod(samplePeriod ?? '');
+    const ticks = parsePeriod(samplePeriod ?? "");
 
-    return ticks === null ? 'no cadence' : formatPeriod(ticks);
+    return ticks === null ? "no cadence" : formatPeriod(ticks);
   }
 
   setPeriod(value: string) {
@@ -868,7 +868,7 @@ export class AppComponent implements OnDestroy {
   }
 
   setSidebarTab(value: unknown) {
-    if (value === 'catalogs' || value === 'selectedResources') {
+    if (value === "catalogs" || value === "selectedResources") {
       this.activeSidebarTab.set(value);
     }
   }
@@ -879,16 +879,16 @@ export class AppComponent implements OnDestroy {
     let end: Date;
 
     switch (preset.kind) {
-      case 'rolling':
+      case "rolling":
         end = reference;
         begin = new Date(end);
         subtractUtcRange(begin, preset.unit, preset.amount);
         break;
-      case 'calendarToNow':
+      case "calendarToNow":
         end = reference;
         begin = getUtcPeriodStart(reference, preset.unit);
         break;
-      case 'previousCalendar':
+      case "previousCalendar":
         end = getUtcPeriodStart(reference, preset.unit);
         begin = new Date(end);
         subtractUtcRange(begin, preset.unit, preset.amount);
@@ -912,12 +912,12 @@ export class AppComponent implements OnDestroy {
 
   toggleTheme() {
     this.themeMode.update((value) =>
-      value === 'dark' ? 'light' : value === 'light' ? 'system' : 'dark',
+      value === "dark" ? "light" : value === "light" ? "system" : "dark",
     );
   }
 
   constructor() {
-    this.systemThemeQuery.addEventListener('change', this.systemThemeListener);
+    this.systemThemeQuery.addEventListener("change", this.systemThemeListener);
 
     this.catalogHistoryPosition = writeSelectedCatalogToUrl(this.selectedCatalogId(), true);
 
@@ -966,7 +966,7 @@ export class AppComponent implements OnDestroy {
     effect(() => {
       const themeMode = this.themeMode();
 
-      this.document.documentElement.dataset['theme'] = this.resolvedThemeMode();
+      this.document.documentElement.dataset["theme"] = this.resolvedThemeMode();
       this.storage.setJson(themeModeStorageKey, themeMode);
     });
 
@@ -988,7 +988,7 @@ export class AppComponent implements OnDestroy {
     });
   }
 
-  @HostListener('window:resize')
+  @HostListener("window:resize")
   onResize() {
     if (window.innerWidth >= 1024) {
       this.isMobileCatalogOpen.set(false);
@@ -1039,7 +1039,7 @@ export class AppComponent implements OnDestroy {
 
   private formatByteCount(byteCount: bigint): string {
     if (byteCount <= 0n) {
-      return '';
+      return "";
     }
 
     if (byteCount >= 1000n * 1000n * 1000n) {
@@ -1058,7 +1058,7 @@ export class AppComponent implements OnDestroy {
   }
 
   private formatSignificantDigits(value: number): string {
-    return value.toPrecision(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1');
+    return value.toPrecision(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
   }
 
   async visualize(open = true) {
@@ -1072,7 +1072,7 @@ export class AppComponent implements OnDestroy {
     }
 
     this.cancelVisualization();
-    this.visualizationError.set('');
+    this.visualizationError.set("");
 
     if (this.visualizationValidation()) {
       this.visualizationError.set(this.visualizationValidation());
@@ -1091,9 +1091,9 @@ export class AppComponent implements OnDestroy {
     const descriptors = resources.map((resource) => ({
       id: resource.path,
       name:
-        resource.kind === 'Original'
+        resource.kind === "Original"
           ? resource.id
-          : `${resource.id} (${resource.kind.replace(/[A-Z]/g, (letter, index) => `${index ? '_' : ''}${letter.toLowerCase()}`)})`,
+          : `${resource.id} (${resource.kind.replace(/[A-Z]/g, (letter, index) => `${index ? "_" : ""}${letter.toLowerCase()}`)})`,
       unit: resource.unit,
     }));
     const existing = this.visualizationData();
@@ -1112,7 +1112,7 @@ export class AppComponent implements OnDestroy {
 
       if (data.series.some((series) => series.length < 2)) {
         throw new Error(
-          'A line chart needs at least two samples. Extend the time range or reduce Period.',
+          "A line chart needs at least two samples. Extend the time range or reduce Period.",
         );
       }
 
@@ -1256,7 +1256,7 @@ export class AppComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
-    this.systemThemeQuery.removeEventListener('change', this.systemThemeListener);
+    this.systemThemeQuery.removeEventListener("change", this.systemThemeListener);
     this.cancelVisualization();
     this.resetCurrentExportJob();
     this.refreshController.abort();
@@ -1272,7 +1272,7 @@ export class AppComponent implements OnDestroy {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
 
-    input.value = '';
+    input.value = "";
 
     if (file) {
       await this.previewSetupImport(file);
@@ -1280,20 +1280,20 @@ export class AppComponent implements OnDestroy {
   }
 
   openSetupImportPicker() {
-    this.document.getElementById('nexus-setup-import-input')?.click();
+    this.document.getElementById("nexus-setup-import-input")?.click();
   }
 
   async previewSetupImport(file: File) {
-    this.messageService.clear('app-status');
+    this.messageService.clear("app-status");
 
     try {
       const parsed = parseNexusUiSetupJson(await file.text());
 
       if (this.resourceMatrix()?.hasUnsavedChanges() || this.resourceMatrix()?.saving()) {
         this.messageService.add({
-          key: 'app-status',
-          severity: 'error',
-          summary: 'Save or discard resource metadata edits before importing a setup.',
+          key: "app-status",
+          severity: "error",
+          summary: "Save or discard resource metadata edits before importing a setup.",
           life: 5000,
         });
 
@@ -1301,11 +1301,11 @@ export class AppComponent implements OnDestroy {
       }
 
       await this.applySetupImport(parsed);
-      this.showSetupStatus(`Imported ${file.name || 'setup.json'}.`);
+      this.showSetupStatus(`Imported ${file.name || "setup.json"}.`);
     } catch (error) {
       this.messageService.add({
-        key: 'app-status',
-        severity: 'error',
+        key: "app-status",
+        severity: "error",
         summary: this.errorMessage(error),
         life: 5000,
       });
@@ -1314,27 +1314,27 @@ export class AppComponent implements OnDestroy {
 
   exportSetup() {
     const setup = this.createSetupExport();
-    const blob = new Blob([`${JSON.stringify(setup, null, 2)}\n`], { type: 'application/json' });
+    const blob = new Blob([`${JSON.stringify(setup, null, 2)}\n`], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const link = this.document.createElement('a');
+    const link = this.document.createElement("a");
 
     link.href = url;
-    link.download = `setup-${new Date().toISOString().slice(0, 16).replace(/[:-]/g, '')}.nexus.json`;
+    link.download = `setup-${new Date().toISOString().slice(0, 16).replace(/[:-]/g, "")}.nexus.json`;
     link.click();
     URL.revokeObjectURL(url);
-    this.showSetupStatus('Setup exported.');
+    this.showSetupStatus("Setup exported.");
   }
 
   private showSetupStatus(message: string) {
     this.messageService.add({
-      key: 'app-status',
-      severity: 'success',
+      key: "app-status",
+      severity: "success",
       summary: message,
       life: 1800,
     });
   }
 
-  @HostListener('window:dragenter', ['$event'])
+  @HostListener("window:dragenter", ["$event"])
   onSetupDragEnter(event: DragEvent) {
     if (!hasSetupFile(event.dataTransfer)) {
       return;
@@ -1345,7 +1345,7 @@ export class AppComponent implements OnDestroy {
     this.setupDragActive.set(true);
   }
 
-  @HostListener('window:dragover', ['$event'])
+  @HostListener("window:dragover", ["$event"])
   onSetupDragOver(event: DragEvent) {
     if (!hasSetupFile(event.dataTransfer)) {
       return;
@@ -1355,7 +1355,7 @@ export class AppComponent implements OnDestroy {
     this.setupDragActive.set(true);
   }
 
-  @HostListener('window:dragleave', ['$event'])
+  @HostListener("window:dragleave", ["$event"])
   onSetupDragLeave(event: DragEvent) {
     if (!hasSetupFile(event.dataTransfer)) {
       return;
@@ -1368,17 +1368,17 @@ export class AppComponent implements OnDestroy {
     }
   }
 
-  @HostListener('window:dragend')
+  @HostListener("window:dragend")
   onSetupDragEnd() {
     this.clearSetupDragState();
   }
 
-  @HostListener('window:blur')
+  @HostListener("window:blur")
   onSetupDragBlur() {
     this.clearSetupDragState();
   }
 
-  @HostListener('window:drop', ['$event'])
+  @HostListener("window:drop", ["$event"])
   async onSetupDrop(event: DragEvent) {
     if (!hasSetupFile(event.dataTransfer)) {
       return;
@@ -1547,19 +1547,19 @@ export class AppComponent implements OnDestroy {
 
     if (parsed.legacyUiSettings?.catalogHidePatterns?.length) {
       warnings.push(
-        'Catalog hide patterns are preserved for compatibility, but this UI has no catalog hiding setting to apply.',
+        "Catalog hide patterns are preserved for compatibility, but this UI has no catalog hiding setting to apply.",
       );
     }
 
     if (parsed.legacyUiSettings?.chartGpuCacheBudgetMiB !== undefined) {
       warnings.push(
-        'Chart cache budget is not part of setup export settings and will not be imported.',
+        "Chart cache budget is not part of setup export settings and will not be imported.",
       );
     }
 
-    if (parsed.source === 'legacy-ui-settings') {
+    if (parsed.source === "legacy-ui-settings") {
       warnings.push(
-        'Legacy settings do not include time range, export period, precision, or resource paths.',
+        "Legacy settings do not include time range, export period, precision, or resource paths.",
       );
     }
 
@@ -1570,7 +1570,7 @@ export class AppComponent implements OnDestroy {
     // Metadata drafts are guarded before opening the pipeline dialog, not beneath its modal.
     if (this.resourceMatrix()?.hasUnsavedChanges() || this.resourceMatrix()?.saving()) {
       throw new Error(
-        'Close this dialog and save or discard resource metadata edits before refreshing.',
+        "Close this dialog and save or discard resource metadata edits before refreshing.",
       );
     }
 
@@ -1578,7 +1578,7 @@ export class AppComponent implements OnDestroy {
     const job = await this.nexus.v1.jobs.refreshDatabase(signal);
 
     if (!job.id) {
-      throw new Error('The refresh job did not return an ID.');
+      throw new Error("The refresh job did not return an ID.");
     }
 
     for (;;) {
@@ -1588,11 +1588,11 @@ export class AppComponent implements OnDestroy {
           reject(signal.reason);
         };
         const timer = setTimeout(() => {
-          signal.removeEventListener('abort', abort);
+          signal.removeEventListener("abort", abort);
           resolve();
         }, 1000);
 
-        signal.addEventListener('abort', abort, { once: true });
+        signal.addEventListener("abort", abort, { once: true });
 
         if (signal.aborted) {
           abort();
@@ -1606,11 +1606,11 @@ export class AppComponent implements OnDestroy {
       }
 
       if (status.status === V1.TaskStatus.Canceled) {
-        throw new Error('Database refresh was canceled.');
+        throw new Error("Database refresh was canceled.");
       }
 
       if (status.status === V1.TaskStatus.Faulted) {
-        throw new Error(status.exceptionMessage || 'Database refresh failed.');
+        throw new Error(status.exceptionMessage || "Database refresh failed.");
       }
     }
 
@@ -1624,7 +1624,7 @@ export class AppComponent implements OnDestroy {
     this.selectedBundle.set(null);
     this.cancelVisualization();
     this.visualizationData.set(null);
-    this.loadedVisualizationKey.set('');
+    this.loadedVisualizationKey.set("");
     await this.loadOverview();
 
     if (this.overviewError()) {
@@ -1644,7 +1644,7 @@ export class AppComponent implements OnDestroy {
     return true;
   };
 
-  @HostListener('window:popstate')
+  @HostListener("window:popstate")
   onPopState() {
     if (this.restoreHistory) {
       const restored = this.restoreHistory;
@@ -1684,18 +1684,18 @@ export class AppComponent implements OnDestroy {
     this.selectedCatalogInfo.set(null);
     this.expandCatalogPath(catalogId);
     this.isMobileCatalogOpen.set(false);
-    this.activeResourcePath.set('');
-    this.revealResourceKey.set('');
+    this.activeResourcePath.set("");
+    this.revealResourceKey.set("");
   }
 
-  @HostListener('window:beforeunload', ['$event'])
+  @HostListener("window:beforeunload", ["$event"])
   onBeforeUnload(event: BeforeUnloadEvent) {
     if (!this.resourceMatrix()?.hasUnsavedChanges()) {
       return;
     }
 
     event.preventDefault();
-    event.returnValue = '';
+    event.returnValue = "";
   }
 
   private requestCatalogNavigation(action: () => void) {
@@ -1726,10 +1726,10 @@ export class AppComponent implements OnDestroy {
       const roots = this.overview()?.roots ?? [];
 
       this.childMap.update((current) =>
-        current.has('/') ? current : new Map(current).set('/', roots),
+        current.has("/") ? current : new Map(current).set("/", roots),
       );
 
-      await this.loadExpandedDescendants('/', roots);
+      await this.loadExpandedDescendants("/", roots);
     } catch (error) {
       if (generation !== this.catalogCacheGeneration) {
         return;
@@ -1765,7 +1765,7 @@ export class AppComponent implements OnDestroy {
   private validateInitialCatalogSelection() {
     const catalogId = this.selectedCatalogId();
 
-    if (!catalogId || catalogId === '/' || this.overviewError()) {
+    if (!catalogId || catalogId === "/" || this.overviewError()) {
       return;
     }
 
@@ -1781,10 +1781,10 @@ export class AppComponent implements OnDestroy {
         (info) => info.id && (catalogId === info.id || catalogId.startsWith(`${info.id}/`)),
       )
     ) {
-      this.selectedCatalogId.set('');
-      this.selectedCatalogNodeKey.set('');
+      this.selectedCatalogId.set("");
+      this.selectedCatalogNodeKey.set("");
       this.selectedCatalogInfo.set(null);
-      this.catalogHistoryPosition = writeSelectedCatalogToUrl('', true);
+      this.catalogHistoryPosition = writeSelectedCatalogToUrl("", true);
     }
   }
 
@@ -1918,7 +1918,7 @@ export class AppComponent implements OnDestroy {
     drafts: MetadataDrafts,
   ): Promise<{ warning?: string }> => {
     if (catalogId !== this.selectedCatalogId() || !this.resourceMetadataWritable()) {
-      throw new Error('This catalog is not writable.');
+      throw new Error("This catalog is not writable.");
     }
 
     // Never use the optional bundle metadata: a failed GET must not erase existing overrides.
@@ -1984,7 +1984,7 @@ export class AppComponent implements OnDestroy {
 
         this.catalogError.set(
           new Error(
-            'Metadata saved, but catalog refresh failed. Select the catalog again to retry.',
+            "Metadata saved, but catalog refresh failed. Select the catalog again to retry.",
           ),
         );
       }
@@ -2060,15 +2060,15 @@ export class AppComponent implements OnDestroy {
       return;
     }
 
-    const catalogId = catalog.id ?? '/';
+    const catalogId = catalog.id ?? "/";
     const select = () => {
       this.selectedCatalogId.set(catalogId);
       this.selectedCatalogNodeKey.set(catalog.nodeKey);
       this.selectedCatalogInfo.set(catalog);
       this.catalogHistoryPosition = writeSelectedCatalogToUrl(catalogId);
       this.isMobileCatalogOpen.set(false);
-      this.activeResourcePath.set('');
-      this.revealResourceKey.set('');
+      this.activeResourcePath.set("");
+      this.revealResourceKey.set("");
 
       if (!this.selectedBundle() && !this.catalogLoading()) {
         void this.loadSelectedCatalog(catalogId, false, this.apiAvailable());
@@ -2172,7 +2172,7 @@ export class AppComponent implements OnDestroy {
     const generation = this.catalogCacheGeneration;
     const ancestors = getCatalogAncestorPaths(catalogId);
     let currentInfos: V1.CatalogInfo[] = this.rootCatalogInfos();
-    let currentParent = '/';
+    let currentParent = "/";
 
     for (const ancestor of ancestors) {
       const prepared = prepareChildCatalogs(currentParent, currentInfos);
@@ -2339,7 +2339,7 @@ export class AppComponent implements OnDestroy {
     return (
       reference.catalogId === selection.catalogId &&
       reference.path === selection.path &&
-      parsePeriod(reference.basePeriod ?? '') === selection.basePeriod &&
+      parsePeriod(reference.basePeriod ?? "") === selection.basePeriod &&
       selectionKey(selection, reference.parameters) === selection.key
     );
   }
@@ -2359,7 +2359,7 @@ export class AppComponent implements OnDestroy {
     return (
       expectedKeys.length === actualKeys.length &&
       expectedKeys.every(
-        (key, index) => key === actualKeys[index] && resource.parameters[key] !== '',
+        (key, index) => key === actualKeys[index] && resource.parameters[key] !== "",
       )
     );
   }
@@ -2400,7 +2400,7 @@ export class AppComponent implements OnDestroy {
   parameterSummary(resource: ResourceSelection) {
     return Object.entries(resource.parameters)
       .map(([key, value]) => `${key}=${value}`)
-      .join(', ');
+      .join(", ");
   }
 
   addParameterizedResource() {
@@ -2441,23 +2441,23 @@ export class AppComponent implements OnDestroy {
   private toParameterFields(resource: RepresentationRow | null): ParameterField[] {
     return Object.entries(resource?.representation.parameters ?? {}).flatMap<ParameterField>(
       ([key, value]) => {
-        if (!this.isRecord(value) || typeof value['type'] !== 'string') {
+        if (!this.isRecord(value) || typeof value["type"] !== "string") {
           return [];
         }
 
-        const label = typeof value['label'] === 'string' ? value['label'] : key;
+        const label = typeof value["label"] === "string" ? value["label"] : key;
 
-        if (value['type'] === 'input-integer') {
-          const minimum = typeof value['minimum'] === 'number' ? value['minimum'] : undefined;
-          const maximum = typeof value['maximum'] === 'number' ? value['maximum'] : undefined;
+        if (value["type"] === "input-integer") {
+          const minimum = typeof value["minimum"] === "number" ? value["minimum"] : undefined;
+          const maximum = typeof value["maximum"] === "number" ? value["maximum"] : undefined;
           const defaultValue =
-            typeof value['default'] === 'number' ? String(value['default']) : String(minimum ?? 0);
+            typeof value["default"] === "number" ? String(value["default"]) : String(minimum ?? 0);
 
           return [
             {
               key,
               label,
-              kind: 'input-integer',
+              kind: "input-integer",
               defaultValue,
               minimum,
               maximum,
@@ -2465,18 +2465,18 @@ export class AppComponent implements OnDestroy {
           ];
         }
 
-        if (value['type'] === 'select' && this.isRecord(value['items'])) {
+        if (value["type"] === "select" && this.isRecord(value["items"])) {
           const items = Object.fromEntries(
-            Object.entries(value['items']).filter(
-              (entry): entry is [string, string] => typeof entry[1] === 'string',
+            Object.entries(value["items"]).filter(
+              (entry): entry is [string, string] => typeof entry[1] === "string",
             ),
           );
           const defaultValue =
-            typeof value['default'] === 'string' && Object.hasOwn(items, value['default'])
-              ? value['default']
-              : (Object.keys(items)[0] ?? '');
+            typeof value["default"] === "string" && Object.hasOwn(items, value["default"])
+              ? value["default"]
+              : (Object.keys(items)[0] ?? "");
 
-          return [{ key, label, kind: 'select', defaultValue, items } satisfies ParameterField];
+          return [{ key, label, kind: "select", defaultValue, items } satisfies ParameterField];
         }
 
         return [];
@@ -2485,7 +2485,7 @@ export class AppComponent implements OnDestroy {
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
+    return value !== null && typeof value === "object" && !Array.isArray(value);
   }
 
   requestClearPinnedResources() {
@@ -2546,8 +2546,8 @@ export class AppComponent implements OnDestroy {
 
     this.isLicenseOpen.set(true);
     this.licenseLoading.set(true);
-    this.licenseError.set('');
-    this.licenseText.set('');
+    this.licenseError.set("");
+    this.licenseText.set("");
 
     try {
       this.licenseText.set(await this.nexus.getCatalogLicense(catalogId));
@@ -2566,7 +2566,7 @@ export class AppComponent implements OnDestroy {
     }
 
     this.licenseAccepting.set(true);
-    this.licenseError.set('');
+    this.licenseError.set("");
 
     try {
       await this.nexus.acceptCatalogLicense(catalogId);
@@ -2603,7 +2603,7 @@ export class AppComponent implements OnDestroy {
     }
 
     this.catalogFilesBusy.set(true);
-    this.catalogFilesError.set('');
+    this.catalogFilesError.set("");
 
     try {
       for (const file of selectedFiles) {
@@ -2650,7 +2650,7 @@ export class AppComponent implements OnDestroy {
 
   cancelDeleteCatalogAttachment() {
     if (!this.deletingAttachmentId()) {
-      this.pendingDeleteAttachmentId.set('');
+      this.pendingDeleteAttachmentId.set("");
     }
   }
 
@@ -2672,7 +2672,7 @@ export class AppComponent implements OnDestroy {
     }
 
     this.deletingAttachmentId.set(attachmentId);
-    this.catalogFilesError.set('');
+    this.catalogFilesError.set("");
 
     try {
       await this.nexus.deleteCatalogAttachment(catalogId, attachmentId);
@@ -2681,8 +2681,8 @@ export class AppComponent implements OnDestroy {
     } catch (error) {
       this.catalogFilesError.set(this.errorMessage(error));
     } finally {
-      this.deletingAttachmentId.set('');
-      this.pendingDeleteAttachmentId.set('');
+      this.deletingAttachmentId.set("");
+      this.pendingDeleteAttachmentId.set("");
     }
   }
 
@@ -2733,14 +2733,14 @@ export class AppComponent implements OnDestroy {
     const parameters = this.exportPreview();
 
     this.exportBusy.set(true);
-    this.exportStatus.set('');
-    this.currentExportJobError.set('');
+    this.exportStatus.set("");
+    this.currentExportJobError.set("");
 
     try {
       const job = await this.nexus.v2.jobs.export(parameters, controller.signal);
 
       if (!job.id) {
-        throw new Error('The export job did not return an ID.');
+        throw new Error("The export job did not return an ID.");
       }
 
       this.currentExportJobId.set(job.id);
@@ -2777,15 +2777,15 @@ export class AppComponent implements OnDestroy {
 
     this.exportController?.abort();
     this.exportBusy.set(false);
-    this.currentExportJobError.set('Canceling export job...');
+    this.currentExportJobError.set("Canceling export job...");
 
     try {
       await this.cancelJobById(jobId);
       const status = await this.nexus.v1.jobs.getJobStatus(jobId);
 
       this.currentExportJobStatus.set(status);
-      this.updateJobHistory(jobId, { status, error: '' });
-      this.currentExportJobError.set('The export job has been canceled.');
+      this.updateJobHistory(jobId, { status, error: "" });
+      this.currentExportJobError.set("The export job has been canceled.");
     } catch (error) {
       this.currentExportJobError.set(this.errorMessage(error));
       this.updateJobHistory(jobId, { error: this.errorMessage(error) });
@@ -2817,7 +2817,7 @@ export class AppComponent implements OnDestroy {
     try {
       const status = await this.nexus.v1.jobs.getJobStatus(entry.id);
 
-      this.updateJobHistory(entry.id, { status, error: '' });
+      this.updateJobHistory(entry.id, { status, error: "" });
     } catch (error) {
       this.updateJobHistory(entry.id, { error: this.errorMessage(error) });
     }
@@ -2828,7 +2828,7 @@ export class AppComponent implements OnDestroy {
       await this.cancelJobById(entry.id);
       const status = await this.nexus.v1.jobs.getJobStatus(entry.id);
 
-      this.updateJobHistory(entry.id, { status, error: '' });
+      this.updateJobHistory(entry.id, { status, error: "" });
 
       if (this.currentExportJobId() === entry.id) {
         this.currentExportJobStatus.set(status);
@@ -2845,7 +2845,7 @@ export class AppComponent implements OnDestroy {
       return;
     }
 
-    this.updateJobHistory(entry.id, { downloading: true, error: '' });
+    this.updateJobHistory(entry.id, { downloading: true, error: "" });
 
     try {
       await this.downloadArtifact(artifactId, entry.downloadName);
@@ -2859,7 +2859,7 @@ export class AppComponent implements OnDestroy {
   jobProgress(status?: V1.JobStatus) {
     const progress = status?.status === V1.TaskStatus.RanToCompletion ? 1 : status?.progress;
 
-    if (typeof progress !== 'number' || !Number.isFinite(progress)) {
+    if (typeof progress !== "number" || !Number.isFinite(progress)) {
       return 0;
     }
 
@@ -2867,14 +2867,14 @@ export class AppComponent implements OnDestroy {
   }
 
   jobStatusLabel(entry: ExportJobHistoryEntry) {
-    return entry.status ? this.formatJobStatus(entry.status) : 'Status not loaded.';
+    return entry.status ? this.formatJobStatus(entry.status) : "Status not loaded.";
   }
 
   jobStartLabel(entry: ExportJobHistoryEntry) {
     const value = entry.status?.start;
 
     if (!value) {
-      return 'Start time pending';
+      return "Start time pending";
     }
 
     const date = new Date(value);
@@ -2920,13 +2920,13 @@ export class AppComponent implements OnDestroy {
       }
 
       this.currentExportJobStatus.set(status);
-      this.updateJobHistory(jobId, { status, error: '' });
+      this.updateJobHistory(jobId, { status, error: "" });
 
       if (status.status === V1.TaskStatus.RanToCompletion) {
         const artifactId = this.artifactIdFromStatus(status);
 
         if (!artifactId) {
-          throw new Error('The completed export job did not return an artifact ID.');
+          throw new Error("The completed export job did not return an artifact ID.");
         }
 
         await this.downloadArtifact(artifactId, this.exportDownloadName(parameters));
@@ -2935,11 +2935,11 @@ export class AppComponent implements OnDestroy {
       }
 
       if (status.status === V1.TaskStatus.Canceled) {
-        throw new Error('The export job has been canceled.');
+        throw new Error("The export job has been canceled.");
       }
 
       if (status.status === V1.TaskStatus.Faulted) {
-        throw new Error(`The export job failed. Reason: ${status.exceptionMessage ?? 'unknown'}`);
+        throw new Error(`The export job failed. Reason: ${status.exceptionMessage ?? "unknown"}`);
       }
     }
   }
@@ -2948,10 +2948,10 @@ export class AppComponent implements OnDestroy {
     this.exportController?.abort();
     this.exportController = undefined;
     this.exportBusy.set(false);
-    this.exportStatus.set('');
-    this.currentExportJobId.set('');
+    this.exportStatus.set("");
+    this.currentExportJobId.set("");
     this.currentExportJobStatus.set(null);
-    this.currentExportJobError.set('');
+    this.currentExportJobError.set("");
     this.currentExportDownloading.set(false);
   }
 
@@ -3018,10 +3018,10 @@ export class AppComponent implements OnDestroy {
     parameters = this.exportParametersFromJob(job),
   ): ExportJobHistoryEntry {
     return {
-      id: job.id ?? '',
+      id: job.id ?? "",
       job,
       parameters,
-      error: '',
+      error: "",
       downloading: false,
       downloadName: this.exportDownloadName(parameters),
     };
@@ -3036,23 +3036,23 @@ export class AppComponent implements OnDestroy {
   }
 
   private isExportJob(job: V1.Job | V2.Job, parameters = this.exportParametersFromJob(job)) {
-    return !!parameters || job.type?.toLowerCase().includes('export') === true;
+    return !!parameters || job.type?.toLowerCase().includes("export") === true;
   }
 
   private formatJobStatus(status: V1.JobStatus) {
     if (status.status === V1.TaskStatus.RanToCompletion) {
-      return 'Completed.';
+      return "Completed.";
     }
 
     if (status.status === V1.TaskStatus.Canceled) {
-      return 'Canceled.';
+      return "Canceled.";
     }
 
     if (status.status === V1.TaskStatus.Faulted) {
-      return `Failed: ${status.exceptionMessage ?? 'unknown'}`;
+      return `Failed: ${status.exceptionMessage ?? "unknown"}`;
     }
 
-    return `${status.status ?? 'Pending'} (${this.jobProgress(status)}%)`;
+    return `${status.status ?? "Pending"} (${this.jobProgress(status)}%)`;
   }
 
   private isTerminalStatus(status?: V1.TaskStatus) {
@@ -3064,9 +3064,9 @@ export class AppComponent implements OnDestroy {
   }
 
   private artifactIdFromStatus(status?: V1.JobStatus) {
-    return status?.status === V1.TaskStatus.RanToCompletion && typeof status.result === 'string'
+    return status?.status === V1.TaskStatus.RanToCompletion && typeof status.result === "string"
       ? status.result
-      : '';
+      : "";
   }
 
   private async downloadArtifact(artifactId: string, downloadName: string) {
@@ -3078,7 +3078,7 @@ export class AppComponent implements OnDestroy {
 
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
-    const anchor = this.document.createElement('a');
+    const anchor = this.document.createElement("a");
 
     anchor.href = url;
     anchor.download = downloadName;
@@ -3090,7 +3090,7 @@ export class AppComponent implements OnDestroy {
 
   private exportDownloadName(parameters = this.exportPreview()) {
     const begin = formatDateForDownloadName(parameters.begin ?? this.exportBegin());
-    const period = (parameters.filePeriod ?? this.exportFilePeriod()).replace(/\s+/g, '_');
+    const period = (parameters.filePeriod ?? this.exportFilePeriod()).replace(/\s+/g, "_");
 
     return `Nexus_${begin}_${period}.zip`;
   }
@@ -3099,14 +3099,14 @@ export class AppComponent implements OnDestroy {
     return new Promise<void>((resolve, reject) => {
       const abort = () => {
         clearTimeout(timer);
-        reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+        reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
       };
       const timer = setTimeout(() => {
-        signal.removeEventListener('abort', abort);
+        signal.removeEventListener("abort", abort);
         resolve();
       }, milliseconds);
 
-      signal.addEventListener('abort', abort, { once: true });
+      signal.addEventListener("abort", abort, { once: true });
 
       if (signal.aborted) {
         abort();
@@ -3123,9 +3123,9 @@ export class AppComponent implements OnDestroy {
 
     void navigator.clipboard.writeText(catalogId).then(() =>
       this.messageService.add({
-        key: 'app-status',
-        severity: 'success',
-        summary: 'Catalog path copied',
+        key: "app-status",
+        severity: "success",
+        summary: "Catalog path copied",
         life: 1800,
       }),
     );
@@ -3148,32 +3148,32 @@ export class AppComponent implements OnDestroy {
   }
 
   errorMessage(error: unknown) {
-    return error instanceof Error ? error.message : 'The Nexus API request failed.';
+    return error instanceof Error ? error.message : "The Nexus API request failed.";
   }
 }
 
-function getUtcPeriodStart(reference: Date, unit: TimeRangePreset['unit']) {
+function getUtcPeriodStart(reference: Date, unit: TimeRangePreset["unit"]) {
   const start = new Date(reference);
 
   switch (unit) {
-    case 'hour':
+    case "hour":
       start.setUTCMinutes(0, 0, 0);
       break;
-    case 'day':
+    case "day":
       start.setUTCHours(0, 0, 0, 0);
       break;
-    case 'week': {
+    case "week": {
       const daysSinceMonday = (start.getUTCDay() + 6) % 7;
 
       start.setUTCDate(start.getUTCDate() - daysSinceMonday);
       start.setUTCHours(0, 0, 0, 0);
       break;
     }
-    case 'month':
+    case "month":
       start.setUTCDate(1);
       start.setUTCHours(0, 0, 0, 0);
       break;
-    case 'year':
+    case "year":
       start.setUTCMonth(0, 1);
       start.setUTCHours(0, 0, 0, 0);
       break;
@@ -3182,30 +3182,30 @@ function getUtcPeriodStart(reference: Date, unit: TimeRangePreset['unit']) {
   return start;
 }
 
-function subtractUtcRange(date: Date, unit: TimeRangePreset['unit'], amount: number) {
+function subtractUtcRange(date: Date, unit: TimeRangePreset["unit"], amount: number) {
   switch (unit) {
-    case 'hour':
+    case "hour":
       date.setUTCHours(date.getUTCHours() - amount);
       break;
-    case 'day':
+    case "day":
       date.setUTCDate(date.getUTCDate() - amount);
       break;
-    case 'week':
+    case "week":
       date.setUTCDate(date.getUTCDate() - 7 * amount);
       break;
-    case 'month':
+    case "month":
       date.setUTCMonth(date.getUTCMonth() - amount);
       break;
-    case 'year':
+    case "year":
       date.setUTCFullYear(date.getUTCFullYear() - amount);
       break;
   }
 }
 
 function getSelectedCatalogIdFromUrl() {
-  const catalogId = new URLSearchParams(window.location.search).get('catalog')?.trim();
+  const catalogId = new URLSearchParams(window.location.search).get("catalog")?.trim();
 
-  return catalogId ?? '';
+  return catalogId ?? "";
 }
 
 function compareResources(left: ResourceRow, right: ResourceRow) {
@@ -3213,7 +3213,7 @@ function compareResources(left: ResourceRow, right: ResourceRow) {
 }
 
 function catalogNodeMatchesSearch(node: CatalogNode, term: string) {
-  return `${node.id ?? ''} ${node.title ?? ''} ${node.pipelineInfo?.types?.join(' ') ?? ''}`
+  return `${node.id ?? ""} ${node.title ?? ""} ${node.pipelineInfo?.types?.join(" ") ?? ""}`
     .toLowerCase()
     .includes(term);
 }
@@ -3223,27 +3223,27 @@ function hasCollapsedSearchAncestor(
   nodeById: ReadonlyMap<string, CatalogNode>,
   collapsedNodeKeys: ReadonlySet<string>,
 ) {
-  let parent = node.parentId === '/' ? undefined : nodeById.get(node.parentId);
+  let parent = node.parentId === "/" ? undefined : nodeById.get(node.parentId);
 
   while (parent) {
     if (collapsedNodeKeys.has(parent.nodeKey)) {
       return true;
     }
 
-    parent = parent.parentId === '/' ? undefined : nodeById.get(parent.parentId);
+    parent = parent.parentId === "/" ? undefined : nodeById.get(parent.parentId);
   }
 
   return false;
 }
 
 function isExportParameters(value: unknown): value is V2.ExportParameters {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== "object") {
     return false;
   }
 
   const parameters = value as V2.ExportParameters;
 
-  return typeof parameters.begin === 'string' && typeof parameters.end === 'string';
+  return typeof parameters.begin === "string" && typeof parameters.end === "string";
 }
 
 function getRealCatalogNodeKey(catalogId: string) {
@@ -3270,50 +3270,50 @@ function formatStoredSelectionRequestPath(
   period: bigint,
 ) {
   const suffix =
-    kind === 'Original' ? '' : `_${kind.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
+    kind === "Original" ? "" : `_${kind.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()}`;
   const entries = Object.keys(selection.parameters)
     .sort()
     .map((name) => [name, selection.parameters[name]]);
   const parameters = entries.length
-    ? `(${entries.map(([name, value]) => `${name}=${value}`).join(',')})`
-    : '';
-  const base = selection.basePeriod ? `#base=${selection.basePeriod.replace(/\s+/g, '_')}` : '';
+    ? `(${entries.map(([name, value]) => `${name}=${value}`).join(",")})`
+    : "";
+  const base = selection.basePeriod ? `#base=${selection.basePeriod.replace(/\s+/g, "_")}` : "";
 
-  return `${selection.path}/${formatPeriod(period, '_')}${suffix}${parameters}${base}`;
+  return `${selection.path}/${formatPeriod(period, "_")}${suffix}${parameters}${base}`;
 }
 
 function getResourcePathCatalogCandidates(path: string) {
-  const segments = path.split('/').filter(Boolean);
+  const segments = path.split("/").filter(Boolean);
   const candidates: string[] = [];
 
   for (let count = segments.length - 1; count >= 0; count -= 1) {
-    candidates.push(count === 0 ? '/' : `/${segments.slice(0, count).join('/')}`);
+    candidates.push(count === 0 ? "/" : `/${segments.slice(0, count).join("/")}`);
   }
 
   return candidates;
 }
 
 function readSetupExportSettings(value: unknown): Partial<StoredExportSettings> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }
 
   const settings = value as NexusUiSetup;
   const result: Partial<StoredExportSettings> = {};
 
-  if (typeof settings.begin === 'string') {
+  if (typeof settings.begin === "string") {
     result.begin = settings.begin;
   }
 
-  if (typeof settings.end === 'string') {
+  if (typeof settings.end === "string") {
     result.end = settings.end;
   }
 
-  if (typeof settings.filePeriod === 'string') {
+  if (typeof settings.filePeriod === "string") {
     result.exportFilePeriod = settings.filePeriod;
   }
 
-  if (typeof settings.type === 'string' && settings.type) {
+  if (typeof settings.type === "string" && settings.type) {
     result.selectedWriterType = settings.type;
   }
 
@@ -3323,13 +3323,13 @@ function readSetupExportSettings(value: unknown): Partial<StoredExportSettings> 
 
   if (Array.isArray(settings.resourcePaths)) {
     result.resourcePaths = settings.resourcePaths.filter(
-      (path): path is string => typeof path === 'string',
+      (path): path is string => typeof path === "string",
     );
   }
 
   if (
     settings.configuration &&
-    typeof settings.configuration === 'object' &&
+    typeof settings.configuration === "object" &&
     !Array.isArray(settings.configuration) &&
     result.selectedWriterType
   ) {
@@ -3364,55 +3364,55 @@ function hasSetupFile(dataTransfer: DataTransfer | null) {
   }
 
   return Array.from(dataTransfer.items).some(
-    (item) => item.kind === 'file' && (item.type === 'application/json' || item.type === ''),
+    (item) => item.kind === "file" && (item.type === "application/json" || item.type === ""),
   );
 }
 
 function isSetupFile(file: File) {
   const name = file.name.toLowerCase();
 
-  return name.endsWith('.nexus.json') || name.endsWith('.json') || file.type === 'application/json';
+  return name.endsWith(".nexus.json") || name.endsWith(".json") || file.type === "application/json";
 }
 
 function getStoredCatalogNodeKeys(storage: BrowserStorageService) {
   const storedKeys = storage.getJson<unknown>(catalogExpansionStorageKey, []);
 
   return Array.isArray(storedKeys)
-    ? storedKeys.filter((key): key is string => typeof key === 'string')
+    ? storedKeys.filter((key): key is string => typeof key === "string")
     : [];
 }
 
 function getInitialThemeMode(storage: BrowserStorageService): ThemeMode {
-  const value = storage.getJson<string>(themeModeStorageKey, 'system');
+  const value = storage.getJson<string>(themeModeStorageKey, "system");
 
-  return value === 'dark' || value === 'light' || value === 'system' ? value : 'system';
+  return value === "dark" || value === "light" || value === "system" ? value : "system";
 }
 
 function getStoredExportSettings(storage: BrowserStorageService): StoredExportSettings {
   const stored = storage.getJson<unknown>(exportSettingsStorageKey, null);
   const defaults: StoredExportSettings = {
     selectedWriterType: defaultWriterType,
-    exportFilePeriod: 'PT0S',
+    exportFilePeriod: "PT0S",
     exportPrecision: V2.Precision.Float32,
     configurationByWriter: {
-      [defaultWriterType]: { 'row-index-format': 'excel', 'significant-figures': 4 },
+      [defaultWriterType]: { "row-index-format": "excel", "significant-figures": 4 },
     },
   };
 
-  if (!stored || typeof stored !== 'object') {
+  if (!stored || typeof stored !== "object") {
     return defaults;
   }
 
   const value = stored as Partial<StoredExportSettings>;
   const selectedWriterType =
-    typeof value.selectedWriterType === 'string' && value.selectedWriterType
+    typeof value.selectedWriterType === "string" && value.selectedWriterType
       ? value.selectedWriterType
       : defaults.selectedWriterType;
 
   return {
     selectedWriterType,
     exportFilePeriod:
-      typeof value.exportFilePeriod === 'string'
+      typeof value.exportFilePeriod === "string"
         ? value.exportFilePeriod
         : defaults.exportFilePeriod,
     exportPrecision:
@@ -3428,7 +3428,7 @@ function getStoredWriterConfigurations(
   value: unknown,
   fallback: Record<string, Record<string, unknown>>,
 ) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return fallback;
   }
 
@@ -3436,9 +3436,9 @@ function getStoredWriterConfigurations(
 
   for (const [writerType, configuration] of Object.entries(value)) {
     if (
-      typeof writerType === 'string' &&
+      typeof writerType === "string" &&
       configuration &&
-      typeof configuration === 'object' &&
+      typeof configuration === "object" &&
       !Array.isArray(configuration)
     ) {
       result[writerType] = { ...(configuration as Record<string, unknown>) };
@@ -3459,8 +3459,8 @@ function getCatalogPathNodeKeys(catalogId: string) {
   const segments = getCatalogSegments(catalogId);
 
   for (let index = 0; index < segments.length - 1; index += 1) {
-    const parentPath = index === 0 ? '/' : `/${segments.slice(0, index).join('/')}`;
-    const path = `/${segments.slice(0, index + 1).join('/')}`;
+    const parentPath = index === 0 ? "/" : `/${segments.slice(0, index).join("/")}`;
+    const path = `/${segments.slice(0, index + 1).join("/")}`;
 
     keys.add(getFakeCatalogNodeKey(parentPath, path));
   }
@@ -3473,14 +3473,14 @@ function getCatalogAncestorPaths(catalogId: string) {
   const ancestors: string[] = [];
 
   for (let index = 1; index < segments.length; index += 1) {
-    ancestors.push(`/${segments.slice(0, index).join('/')}`);
+    ancestors.push(`/${segments.slice(0, index).join("/")}`);
   }
 
   return ancestors;
 }
 
 function getCatalogSegments(catalogId: string) {
-  return catalogId.split('/').filter(Boolean);
+  return catalogId.split("/").filter(Boolean);
 }
 
 function writeSelectedCatalogToUrl(catalogId: string, replace = false) {
@@ -3488,7 +3488,7 @@ function writeSelectedCatalogToUrl(catalogId: string, replace = false) {
   const position = window.history.state?.nexusCatalogPosition ?? 0;
 
   if (
-    url.searchParams.get('catalog') === (catalogId || null) &&
+    url.searchParams.get("catalog") === (catalogId || null) &&
     window.history.state?.nexusCatalogPosition !== undefined
   ) {
     return position;
@@ -3497,14 +3497,14 @@ function writeSelectedCatalogToUrl(catalogId: string, replace = false) {
   const nextPosition = replace ? position : position + 1;
 
   if (catalogId) {
-    url.searchParams.set('catalog', catalogId);
+    url.searchParams.set("catalog", catalogId);
   } else {
-    url.searchParams.delete('catalog');
+    url.searchParams.delete("catalog");
   }
 
-  window.history[replace ? 'replaceState' : 'pushState'](
+  window.history[replace ? "replaceState" : "pushState"](
     { ...window.history.state, nexusCatalogPosition: nextPosition },
-    '',
+    "",
     `${url.pathname}${url.search}${url.hash}`,
   );
 
@@ -3540,17 +3540,17 @@ function getInitials(name: string) {
       .filter(Boolean)
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
-      .join('') || 'NU'
+      .join("") || "NU"
   );
 }
 
 function formatRange(timeRange: V1.CatalogTimeRange | undefined) {
   if (!timeRange?.begin || !timeRange.end) {
-    return '';
+    return "";
   }
 
-  if (timeRange.begin.startsWith('0001-01-01') && timeRange.end.startsWith('9999-12-31')) {
-    return '';
+  if (timeRange.begin.startsWith("0001-01-01") && timeRange.end.startsWith("9999-12-31")) {
+    return "";
   }
 
   const begin = formatRangeDate(timeRange.begin);
@@ -3577,12 +3577,12 @@ function getUtcMidnightDaysAgo(daysAgo: number) {
 function toDateTimeLocalValue(value: string) {
   const date = new Date(value);
 
-  return Number.isNaN(date.valueOf()) ? '' : date.toISOString().slice(0, 19);
+  return Number.isNaN(date.valueOf()) ? "" : date.toISOString().slice(0, 19);
 }
 
 function fromDateTimeLocalValue(value: string) {
   if (!value) {
-    return '';
+    return "";
   }
 
   const withSeconds = value.length === 16 ? `${value}:00` : value;
@@ -3591,7 +3591,7 @@ function fromDateTimeLocalValue(value: string) {
 }
 
 function resolveRangeEndpoint(value: string, reference: Date) {
-  if (value === 'now') {
+  if (value === "now") {
     return toUtcSecondString(reference);
   }
 
@@ -3603,19 +3603,19 @@ function resolveRangeEndpoint(value: string, reference: Date) {
 
   const amount = Number(relativeDuration[1]);
   const unit = relativeDuration[2];
-  const offsetMs = amount * (unit === 'H' ? 60 : 1) * 60 * 1000;
+  const offsetMs = amount * (unit === "H" ? 60 : 1) * 60 * 1000;
 
   return toUtcSecondString(new Date(reference.valueOf() - offsetMs));
 }
 
 function toUtcSecondString(date: Date) {
-  return date.toISOString().slice(0, 19) + 'Z';
+  return date.toISOString().slice(0, 19) + "Z";
 }
 
 function formatCatalogDisplayPath(path: string) {
-  if (path === '/') {
-    return '';
+  if (path === "/") {
+    return "";
   }
 
-  return path.replaceAll('/', ' / ').replace(/^ \/ /, '');
+  return path.replaceAll("/", " / ").replace(/^ \/ /, "");
 }

@@ -1,8 +1,8 @@
-import type { CatalogMetadata } from '@nexus-api/V1';
-import { formatPeriod } from './resource-selection.ts';
-import type { RepresentationRow } from './resource-selection.ts';
+import type { CatalogMetadata } from "@nexus-api/V1";
+import { formatPeriod } from "./resource-selection.ts";
+import type { RepresentationRow } from "./resource-selection.ts";
 
-export type MetadataField = 'unit' | 'description' | 'warning';
+export type MetadataField = "unit" | "description" | "warning";
 export type MetadataDrafts = Record<string, Partial<Record<MetadataField, string>>>;
 
 export function mergeResourceMetadata(
@@ -13,7 +13,7 @@ export function mergeResourceMetadata(
   const overrides = { ...metadata.overrides, id: catalogId };
 
   for (const [id, draft] of Object.entries(drafts)) {
-    const fields = (['unit', 'description', 'warning'] as const).filter(
+    const fields = (["unit", "description", "warning"] as const).filter(
       (field) => draft[field] !== undefined,
     );
 
@@ -85,7 +85,7 @@ export function groupResourceRows(
         row.warning,
         formatPeriod(row.basePeriod),
       ]
-        .join('\n')
+        .join("\n")
         .toLowerCase()
         .includes(query)
     ) {
@@ -94,11 +94,11 @@ export function groupResourceRows(
 
     for (const label of labels.length ? labels : [null]) {
       // Real labels always have a prefix, including labels named "Ungrouped" or "ungrouped".
-      const key = label === null ? 'ungrouped' : `group:${label}`;
+      const key = label === null ? "ungrouped" : `group:${label}`;
       let group = groups.get(key);
 
       if (!group) {
-        group = { key, name: label ?? 'Ungrouped', rows: [], resourceCount: 0 };
+        group = { key, name: label ?? "Ungrouped", rows: [], resourceCount: 0 };
         groups.set(key, group);
       }
 

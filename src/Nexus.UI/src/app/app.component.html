@@ -480,8 +480,8 @@
                 visualizationError() ||
                   visualizationValidation() ||
                   (visualizationStale()
-                    ? 'The time range or selected representations have changed. Update to visualize the new selection.'
-                    : 'Visualize the selected representations.')
+                    ? "The time range or selected representations have changed. Update to visualize the new selection."
+                    : "Visualize the selected representations.")
               }}
             </p>
             @if (!visualizationValidation()) {
@@ -492,7 +492,7 @@
                 [outlined]="true"
                 (click)="visualize(false)"
               >
-                {{ visualizationStale() ? 'Update' : 'Visualize' }}
+                {{ visualizationStale() ? "Update" : "Visualize" }}
               </button>
             }
           </div>
@@ -635,7 +635,7 @@
     </div>
     <div class="rounded-sm border border-surface-border bg-overlay/[0.035] px-4 py-3">
       <div class="text-xs uppercase tracking-[0.18em] text-ink-muted">Version</div>
-      <div class="mt-1 font-mono text-base text-ink">{{ nexusVersion() || 'unknown' }}</div>
+      <div class="mt-1 font-mono text-base text-ink">{{ nexusVersion() || "unknown" }}</div>
     </div>
   </div>
 </p-dialog>
@@ -696,7 +696,7 @@
           [disabled]="licenseLoading() || licenseAccepting() || !licenseText()"
           (click)="acceptSelectedCatalogLicense()"
         >
-          {{ licenseAccepting() ? 'Accepting...' : 'Accept license' }}
+          {{ licenseAccepting() ? "Accepting..." : "Accept license" }}
         </button>
       }
     </div>
@@ -794,7 +794,7 @@
         [disabled]="catalogFilesBusy()"
         (click)="catalogFileInput.click()"
       >
-        {{ catalogFilesBusy() ? 'Uploading...' : 'Choose files' }}
+        {{ catalogFilesBusy() ? "Uploading..." : "Choose files" }}
       </button>
     </div>
 
@@ -816,7 +816,7 @@
                 [disabled]="catalogFilesBusy() || deletingAttachmentId() === attachment"
                 (click)="requestDeleteCatalogAttachment(attachment)"
               >
-                {{ deletingAttachmentId() === attachment ? 'Deleting...' : 'Delete' }}
+                {{ deletingAttachmentId() === attachment ? "Deleting..." : "Delete" }}
               </button>
             </div>
           }
@@ -876,7 +876,7 @@
         [disabled]="!!deletingAttachmentId()"
         (click)="confirmDeleteCatalogAttachment()"
       >
-        {{ deletingAttachmentId() ? 'Deleting...' : 'Delete' }}
+        {{ deletingAttachmentId() ? "Deleting..." : "Delete" }}
       </button>
     </div>
   </div>
@@ -972,7 +972,7 @@
                 [disabled]="job.downloading"
                 (click)="downloadJob(job)"
               >
-                {{ job.downloading ? 'Downloading...' : 'Download' }}
+                {{ job.downloading ? "Downloading..." : "Download" }}
               </button>
             }
           </div>
@@ -1077,7 +1077,7 @@
       @for (field of parameterFields(); track field.key) {
         <label class="block space-y-2">
           <span class="font-medium text-ink">{{ field.label }}</span>
-          @if (field.kind === 'input-integer') {
+          @if (field.kind === "input-integer") {
             <input
               class="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-ink outline-none focus:border-cyan-core"
               type="number"
@@ -1217,7 +1217,7 @@
             >Selected resources<span class="hidden sm:inline"> ({{ pinnedCount() }})</span></p-tab
           >
         </p-tablist>
-        @if (activeSidebarTab() === 'catalogs') {
+        @if (activeSidebarTab() === "catalogs") {
           <div class="mt-3 flex items-center gap-2">
             <input
               pInputText

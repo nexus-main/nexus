@@ -1,8 +1,8 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, input, output, signal } from '@angular/core';
-import { ButtonModule } from 'primeng/button';
-import { Popover, PopoverModule } from 'primeng/popover';
-import { AppTooltipDirective } from '../app-tooltip.directive';
+import { CommonModule } from "@angular/common";
+import { Component, computed, input, output, signal } from "@angular/core";
+import { ButtonModule } from "primeng/button";
+import { Popover, PopoverModule } from "primeng/popover";
+import { AppTooltipDirective } from "../app-tooltip.directive";
 import {
   ResourceSelection,
   RepresentationKind,
@@ -10,13 +10,13 @@ import {
   kindValid,
   formatPeriod,
   requestPath,
-} from '../resource-selection';
+} from "../resource-selection";
 
 @Component({
-  selector: 'app-pinned-resource',
+  selector: "app-pinned-resource",
   standalone: true,
   imports: [CommonModule, ButtonModule, PopoverModule, AppTooltipDirective],
-  host: { class: 'block min-w-0' },
+  host: { class: "block min-w-0" },
   template: `
     <div
       class="selected-resource-card mb-1 min-w-0 cursor-pointer rounded-sm border p-1 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-key/70"
@@ -250,7 +250,7 @@ export class PinnedResourceComponent {
     Object.entries(this.selection().parameters)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, value]) => `${key}=${value}`)
-      .join(', '),
+      .join(", "),
   );
   readonly resourceLabel = computed(
     () => `${this.selection().path}, native period ${formatPeriod(this.selection().basePeriod)}`,
@@ -264,9 +264,9 @@ export class PinnedResourceComponent {
   invalidReason(kind: RepresentationKind): string {
     const base = formatPeriod(this.selection().basePeriod);
     const requirement =
-      kind === 'Original'
+      kind === "Original"
         ? `must equal the native period (${base})`
-        : kind === 'Resampled'
+        : kind === "Resampled"
           ? `must be positive, shorter than and divide the native period (${base}) exactly`
           : `must be a larger integer multiple of the native period (${base})`;
 
@@ -274,24 +274,24 @@ export class PinnedResourceComponent {
   }
 
   displayKind(kind: RepresentationKind): string {
-    if (kind === 'MeanPolarDeg') {
-      return 'Mean polar (deg)';
+    if (kind === "MeanPolarDeg") {
+      return "Mean polar (deg)";
     }
 
-    if (kind === 'Std') {
-      return 'STD';
+    if (kind === "Std") {
+      return "STD";
     }
 
-    if (kind === 'Rms') {
-      return 'RMS';
+    if (kind === "Rms") {
+      return "RMS";
     }
 
-    if (kind === 'MinBitwise') {
-      return 'Minimum (bitwise)';
+    if (kind === "MinBitwise") {
+      return "Minimum (bitwise)";
     }
 
-    if (kind === 'MaxBitwise') {
-      return 'Maximum (bitwise)';
+    if (kind === "MaxBitwise") {
+      return "Maximum (bitwise)";
     }
 
     return kind;
@@ -299,32 +299,32 @@ export class PinnedResourceComponent {
 
   methodChipClass(kind: RepresentationKind): string {
     if (!this.valid(kind)) {
-      return 'method-invalid';
+      return "method-invalid";
     }
 
-    if (kind === 'Original') {
-      return 'method-original';
+    if (kind === "Original") {
+      return "method-original";
     }
 
-    if (kind === 'Resampled') {
-      return 'method-resampled';
+    if (kind === "Resampled") {
+      return "method-resampled";
     }
 
-    return 'method-aggregated';
+    return "method-aggregated";
   }
 
   methodOptionClass(kind: RepresentationKind): string {
     const selected = this.methodSelected(kind);
 
-    if (kind === 'Original') {
-      return selected ? 'method-selected method-original' : 'method-unselected';
+    if (kind === "Original") {
+      return selected ? "method-selected method-original" : "method-unselected";
     }
 
-    if (kind === 'Resampled') {
-      return selected ? 'method-selected method-resampled' : 'method-unselected';
+    if (kind === "Resampled") {
+      return selected ? "method-selected method-resampled" : "method-unselected";
     }
 
-    return selected ? 'method-selected method-aggregated' : 'method-unselected';
+    return selected ? "method-selected method-aggregated" : "method-unselected";
   }
 
   methodSelected(kind: RepresentationKind): boolean {

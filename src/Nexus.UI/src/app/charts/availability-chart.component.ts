@@ -7,19 +7,19 @@ import {
   effect,
   input,
   viewChild,
-} from '@angular/core';
+} from "@angular/core";
 import {
   UNIX_EPOCH_TICKS,
   formatTime,
   getTimeTicks,
   isSlowTickRequired,
   roundAway,
-} from './chart-math';
+} from "./chart-math";
 
-type ThemeMode = 'dark' | 'light';
+type ThemeMode = "dark" | "light";
 
 @Component({
-  selector: 'nexus-availability-chart',
+  selector: "nexus-availability-chart",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<canvas #canvas class="block h-full w-full"></canvas>`,
@@ -34,11 +34,11 @@ type ThemeMode = 'dark' | 'light';
 })
 export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
   readonly data = input<number[]>([]);
-  readonly begin = input(''); // ISO string
-  readonly end = input(''); // ISO string
-  readonly themeMode = input<ThemeMode>('dark');
+  readonly begin = input(""); // ISO string
+  readonly end = input(""); // ISO string
+  readonly themeMode = input<ThemeMode>("dark");
 
-  private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
+  private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>("canvas");
   private frame = 0;
   private disposed = false;
   private resizeObserver?: ResizeObserver;
@@ -63,7 +63,7 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     this.resizeObserver = new ResizeObserver(this.onResize);
     this.resizeObserver.observe(this.canvasRef().nativeElement);
-    window.addEventListener('resize', this.onResize);
+    window.addEventListener("resize", this.onResize);
     this.watchDpr();
     void this.loadFont();
   }
@@ -71,8 +71,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.disposed = true;
     this.resizeObserver?.disconnect();
-    window.removeEventListener('resize', this.onResize);
-    this.dprQuery?.removeEventListener('change', this.onDprChange);
+    window.removeEventListener("resize", this.onResize);
+    this.dprQuery?.removeEventListener("change", this.onDprChange);
   }
 
   private async loadFont(): Promise<void> {
@@ -88,9 +88,9 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
   }
 
   private watchDpr(): void {
-    this.dprQuery?.removeEventListener('change', this.onDprChange);
+    this.dprQuery?.removeEventListener("change", this.onDprChange);
     this.dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
-    this.dprQuery.addEventListener('change', this.onDprChange);
+    this.dprQuery.addEventListener("change", this.onDprChange);
   }
 
   private scheduleDraw(): void {
@@ -117,7 +117,7 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
 
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext("2d");
 
     if (!context) {
       return;
@@ -127,17 +127,17 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
     context.scale(dpr, dpr);
     context.clearRect(0, 0, width, height);
 
-    const lightTheme = this.themeMode() === 'light';
-    const labelColor = lightTheme ? '#555555' : '#94a3b8';
-    const tickColor = lightTheme ? '#dddddd' : 'rgba(148, 163, 184, 0.25)';
-    const barColor = '#f97316'; // (249, 115, 22)
+    const lightTheme = this.themeMode() === "light";
+    const labelColor = lightTheme ? "#555555" : "#94a3b8";
+    const tickColor = lightTheme ? "#dddddd" : "rgba(148, 163, 184, 0.25)";
+    const barColor = "#f97316"; // (249, 115, 22)
     const barFillAlpha = 0x19 / 0xff; // ~10%
 
     context.font = 'bold 12px "Nexus Chart", "Courier New", monospace';
     context.fillStyle = labelColor;
     context.strokeStyle = tickColor;
-    context.textAlign = 'start';
-    context.textBaseline = 'alphabetic';
+    context.textAlign = "start";
+    context.textBaseline = "alphabetic";
 
     /* sizes — match dev branch AvailabilityChart.razor.cs, with an inset margin for the dialog canvas */
     const LINE_HEIGHT = 7;
@@ -154,19 +154,19 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
     context.save();
     context.translate(xMin, yMin + yRange / 2);
     context.rotate(-Math.PI / 2);
-    context.textAlign = 'center';
-    context.textBaseline = 'alphabetic';
+    context.textAlign = "center";
+    context.textBaseline = "alphabetic";
     context.font = '17px "Nexus Chart", "Courier New", monospace';
-    context.fillText('Availability / %', 0, 0);
+    context.fillText("Availability / %", 0, 0);
     context.restore();
 
     xMin += 10;
 
     /* y-axis labels + grid lines (0-100% in 11 steps) */
     context.font = 'bold 12px "Nexus Chart", "Courier New", monospace';
-    context.textAlign = 'start';
-    context.textBaseline = 'middle';
-    const characterWidth = context.measureText(' ').width;
+    context.textAlign = "start";
+    context.textBaseline = "middle";
+    const characterWidth = context.measureText(" ").width;
     const desiredYLabelCount = 11;
     const maxYLabelCount = yRange / 50;
     const ySkip = Math.ceil(desiredYLabelCount / Math.max(1, maxYLabelCount));
@@ -178,7 +178,7 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
 
       const relative = i / 10;
       const y = yMin + (1 - relative) * yRange;
-      const label = String(Math.round(relative * 100)).padStart(3, ' ');
+      const label = String(Math.round(relative * 100)).padStart(3, " ");
 
       context.fillText(label, xMin, y);
       const lineOffset = characterWidth * 3;
@@ -206,7 +206,7 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
       context.strokeStyle = barColor;
       context.fillStyle = barColor;
       context.globalAlpha = barFillAlpha;
-      context.textBaseline = 'alphabetic';
+      context.textBaseline = "alphabetic";
 
       for (let i = 0; i < count; i++) {
         const availability = data[i];
@@ -262,8 +262,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
 
         context.fillStyle = labelColor;
         context.strokeStyle = tickColor;
-        context.textAlign = 'center';
-        context.textBaseline = 'alphabetic';
+        context.textAlign = "center";
+        context.textBaseline = "alphabetic";
 
         for (const tick of ticks) {
           const x = xMin + (Number(tick - beginTicks) / Number(endTicks - beginTicks)) * xRange;

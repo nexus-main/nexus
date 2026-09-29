@@ -1,14 +1,14 @@
-import { Component, computed, input, output } from '@angular/core';
-import { MenuItem } from 'primeng/api';
-import { ButtonModule } from 'primeng/button';
-import { MenuModule } from 'primeng/menu';
-import { AppIconComponent } from './app-icon.component';
+import { Component, computed, input, output } from "@angular/core";
+import { MenuItem } from "primeng/api";
+import { ButtonModule } from "primeng/button";
+import { MenuModule } from "primeng/menu";
+import { AppIconComponent } from "./app-icon.component";
 
-type ThemeMode = 'dark' | 'light' | 'system';
-type DevAuthMode = 'admin' | 'user';
+type ThemeMode = "dark" | "light" | "system";
+type DevAuthMode = "admin" | "user";
 
 @Component({
-  selector: 'app-header',
+  selector: "app-header",
   standalone: true,
   imports: [ButtonModule, MenuModule, AppIconComponent],
   template: `
@@ -98,28 +98,28 @@ type DevAuthMode = 'admin' | 'user';
                 [attr.rel]="item.target === '_blank' ? 'noopener' : null"
               >
                 @switch (item.icon) {
-                  @case ('api') {
+                  @case ("api") {
                     <app-icon name="api" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('download') {
+                  @case ("download") {
                     <app-icon name="download" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('git') {
+                  @case ("git") {
                     <app-icon name="git" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('package') {
+                  @case ("package") {
                     <app-icon name="package" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('upload') {
+                  @case ("upload") {
                     <app-icon name="upload" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('waypoints') {
+                  @case ("waypoints") {
                     <app-icon name="waypoints" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('help') {
+                  @case ("help") {
                     <app-icon name="help" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('info') {
+                  @case ("info") {
                     <app-icon name="info" class="h-4 w-4 shrink-0" />
                   }
                 }
@@ -131,28 +131,28 @@ type DevAuthMode = 'admin' | 'user';
                 (click)="$event.stopPropagation(); item.command?.($event)"
               >
                 @switch (item.icon) {
-                  @case ('api') {
+                  @case ("api") {
                     <app-icon name="api" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('download') {
+                  @case ("download") {
                     <app-icon name="download" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('git') {
+                  @case ("git") {
                     <app-icon name="git" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('package') {
+                  @case ("package") {
                     <app-icon name="package" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('upload') {
+                  @case ("upload") {
                     <app-icon name="upload" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('waypoints') {
+                  @case ("waypoints") {
                     <app-icon name="waypoints" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('help') {
+                  @case ("help") {
                     <app-icon name="help" class="h-4 w-4 shrink-0" />
                   }
-                  @case ('info') {
+                  @case ("info") {
                     <app-icon name="info" class="h-4 w-4 shrink-0" />
                   }
                 }
@@ -171,7 +171,7 @@ type DevAuthMode = 'admin' | 'user';
           <ng-template pTemplate="item" let-item>
             @if (item.url) {
               <a class="flex cursor-pointer items-center gap-2 px-3 py-2" [href]="item.url">
-                @if (item.icon === 'log-out') {
+                @if (item.icon === "log-out") {
                   <app-icon name="log-out" class="h-4 w-4 shrink-0" />
                 }
                 <span>{{ item.label }}</span>
@@ -181,13 +181,13 @@ type DevAuthMode = 'admin' | 'user';
                 class="flex cursor-pointer items-center gap-2 px-3 py-2"
                 (click)="$event.stopPropagation(); item.command?.($event)"
               >
-                @if (item.icon === 'key') {
+                @if (item.icon === "key") {
                   <app-icon name="key" class="h-4 w-4 shrink-0" />
                 }
-                @if (item.icon === 'shield') {
+                @if (item.icon === "shield") {
                   <app-icon name="shield" class="h-4 w-4 shrink-0" />
                 }
-                @if (item.icon === 'user') {
+                @if (item.icon === "user") {
                   <app-icon name="user" class="h-4 w-4 shrink-0" />
                 }
                 <span>{{ item.label }}</span>
@@ -206,15 +206,15 @@ type DevAuthMode = 'admin' | 'user';
             (click)="toggleTheme.emit()"
             aria-label="Toggle theme"
           >
-            @if (themeMode() === 'dark') {
+            @if (themeMode() === "dark") {
               <app-icon name="moon" class="h-4 w-4" />
-            } @else if (themeMode() === 'system') {
+            } @else if (themeMode() === "system") {
               <app-icon name="sun-moon" class="h-4 w-4" />
             } @else {
               <app-icon name="sun" class="h-4 w-4" />
             }
             <span class="hidden lg:inline">{{
-              themeMode() === 'dark' ? 'Dark' : themeMode() === 'light' ? 'Light' : 'System'
+              themeMode() === "dark" ? "Dark" : themeMode() === "light" ? "Light" : "System"
             }}</span>
           </button>
           <button
@@ -271,7 +271,7 @@ export class AppHeaderComponent {
   readonly themeMode = input.required<ThemeMode>();
   readonly isAdministrator = input(false);
   readonly isDevelopmentMode = input(false);
-  readonly devAuthMode = input<DevAuthMode>('admin');
+  readonly devAuthMode = input<DevAuthMode>("admin");
   readonly helpLink = input<string | null | undefined>(null);
   readonly logoutUrl = input<string | null | undefined>(null);
   readonly openPackageReferences = output<void>();
@@ -288,47 +288,47 @@ export class AppHeaderComponent {
 
     if (this.isAdministrator()) {
       items.push({
-        label: 'Package references',
-        icon: 'package',
+        label: "Package references",
+        icon: "package",
         command: () => this.openPackageReferences.emit(),
       });
 
       items.push({
-        label: 'Data source pipelines',
-        icon: 'waypoints',
+        label: "Data source pipelines",
+        icon: "waypoints",
         command: () => this.openDataSourcePipelines.emit(),
       });
 
-      items.push({ label: 'Git', icon: 'git', command: () => this.openGit.emit() });
+      items.push({ label: "Git", icon: "git", command: () => this.openGit.emit() });
       items.push({ separator: true });
     }
 
     items.push({
-      label: 'Import settings...',
-      icon: 'upload',
+      label: "Import settings...",
+      icon: "upload",
       command: () => this.openSetupImport.emit(),
     });
 
     items.push({
-      label: 'Export settings...',
-      icon: 'download',
+      label: "Export settings...",
+      icon: "download",
       command: () => this.openSetupExport.emit(),
     });
 
     items.push({ separator: true });
-    items.push({ label: 'API', icon: 'api', url: '/api', target: '_blank' });
+    items.push({ label: "API", icon: "api", url: "/api", target: "_blank" });
 
     if (this.helpLink()) {
-      items.push({ label: 'Help', icon: 'help', url: this.helpLink()!, target: '_blank' });
+      items.push({ label: "Help", icon: "help", url: this.helpLink()!, target: "_blank" });
     }
 
-    items.push({ label: 'About', icon: 'info', command: () => this.openAbout.emit() });
+    items.push({ label: "About", icon: "info", command: () => this.openAbout.emit() });
 
     return items;
   });
   readonly userMenuItems = computed<MenuItem[]>(() => {
     const items: MenuItem[] = [
-      { label: 'Access tokens', icon: 'key', command: () => this.openAccessTokens.emit() },
+      { label: "Access tokens", icon: "key", command: () => this.openAccessTokens.emit() },
     ];
 
     if (this.isDevelopmentMode()) {
@@ -337,20 +337,20 @@ export class AppHeaderComponent {
       items.push(
         { separator: true },
         {
-          label: mode === 'admin' ? 'Admin mode (current)' : 'Admin mode',
-          icon: 'shield',
-          command: () => this.changeDevAuthMode.emit('admin'),
+          label: mode === "admin" ? "Admin mode (current)" : "Admin mode",
+          icon: "shield",
+          command: () => this.changeDevAuthMode.emit("admin"),
         },
         {
-          label: mode === 'user' ? 'User mode (current)' : 'User mode',
-          icon: 'user',
-          command: () => this.changeDevAuthMode.emit('user'),
+          label: mode === "user" ? "User mode (current)" : "User mode",
+          icon: "user",
+          command: () => this.changeDevAuthMode.emit("user"),
         },
       );
     }
 
     if (this.logoutUrl()) {
-      items.push({ separator: true }, { label: 'Logout', icon: 'log-out', url: this.logoutUrl()! });
+      items.push({ separator: true }, { label: "Logout", icon: "log-out", url: this.logoutUrl()! });
     }
 
     return items;

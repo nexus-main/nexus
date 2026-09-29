@@ -147,7 +147,7 @@ input:disabled {
 }
 .group-bar::before,
 .group-bar::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: 8px;
@@ -218,7 +218,7 @@ input:disabled {
   border: 1px solid transparent;
   border-radius: 6px;
 }
-.group-chip[aria-pressed='true'] {
+.group-chip[aria-pressed="true"] {
   color: var(--p-primary-color);
   text-shadow: 0 0 0 currentColor;
 }
@@ -565,7 +565,7 @@ input:disabled {
 }
 
 @media (forced-colors: active) {
-  .group-chip[aria-pressed='true'] {
+  .group-chip[aria-pressed="true"] {
     text-decoration: underline;
   }
   .resource-row.active {

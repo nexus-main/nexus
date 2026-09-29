@@ -26,7 +26,7 @@ export interface Axis {
   min: number;
   max: number;
 }
-export type TriggerPeriod = 'second' | 'minute' | 'hour' | 'day' | 'month' | 'year';
+export type TriggerPeriod = "second" | "minute" | "hour" | "day" | "month" | "year";
 export interface TimeAxisConfig {
   interval: bigint;
   fast: string;
@@ -46,7 +46,7 @@ export const roundAway = (value: number): number =>
 // preserves the endpoints of ranges longer than Number.MAX_SAFE_INTEGER ticks.
 export function scaleTicks(ticks: bigint, factor: number): bigint {
   if (!Number.isFinite(factor)) {
-    throw new RangeError('Time position must be finite.');
+    throw new RangeError("Time position must be finite.");
   }
 
   if (factor === 0) {
@@ -81,23 +81,23 @@ export function toTime(begin: bigint, end: bigint, position: number): bigint {
   return begin + scaleTicks(end - begin, clamp(position));
 }
 
-export function formatTime(ticks: bigint, pattern = 'yyyy-MM-dd HH:mm:ss.fffffff'): string {
+export function formatTime(ticks: bigint, pattern = "yyyy-MM-dd HH:mm:ss.fffffff"): string {
   const milliseconds = ticks / 10_000n - UNIX_EPOCH_TICKS / 10_000n;
   const date = new Date(Number(milliseconds));
   const parts: Record<string, string> = {
-    yyyy: String(date.getUTCFullYear()).padStart(4, '0'),
-    MM: String(date.getUTCMonth() + 1).padStart(2, '0'),
-    dd: String(date.getUTCDate()).padStart(2, '0'),
-    HH: String(date.getUTCHours()).padStart(2, '0'),
-    mm: String(date.getUTCMinutes()).padStart(2, '0'),
-    ss: String(date.getUTCSeconds()).padStart(2, '0'),
+    yyyy: String(date.getUTCFullYear()).padStart(4, "0"),
+    MM: String(date.getUTCMonth() + 1).padStart(2, "0"),
+    dd: String(date.getUTCDate()).padStart(2, "0"),
+    HH: String(date.getUTCHours()).padStart(2, "0"),
+    mm: String(date.getUTCMinutes()).padStart(2, "0"),
+    ss: String(date.getUTCSeconds()).padStart(2, "0"),
   };
   const fraction = (((ticks % TICKS_PER_SECOND) + TICKS_PER_SECOND) % TICKS_PER_SECOND)
     .toString()
-    .padStart(7, '0');
+    .padStart(7, "0");
 
   return pattern.replace(/yyyy|MM|dd|HH|mm|ss|f{1,7}/g, (token) =>
-    token[0] === 'f' ? fraction.slice(0, token.length) : parts[token],
+    token[0] === "f" ? fraction.slice(0, token.length) : parts[token],
   );
 }
 
@@ -107,12 +107,12 @@ export function formatRange(begin: bigint, end: bigint): string {
 
 export function formatDuration(ticks: bigint): string {
   for (const [size, unit, digits] of [
-    [TICKS_PER_DAY, 'd', 2],
-    [36_000_000_000n, 'h', 2],
-    [600_000_000n, 'min', 2],
-    [TICKS_PER_SECOND, 's', 2],
-    [10_000n, 'ms', 3],
-    [10n, 'us', 3],
+    [TICKS_PER_DAY, "d", 2],
+    [36_000_000_000n, "h", 2],
+    [600_000_000n, "min", 2],
+    [TICKS_PER_SECOND, "s", 2],
+    [10_000n, "ms", 3],
+    [10n, "us", 3],
   ] as const) {
     if (ticks >= size) {
       return `${Number((Number(ticks) / Number(size)).toFixed(digits))} ${unit}`;
@@ -125,57 +125,57 @@ export function formatDuration(ticks: bigint): string {
 export const TIME_AXIS_CONFIGS: readonly TimeAxisConfig[] = [
   {
     interval: 1n,
-    fast: '.fffffff',
-    trigger: 'second',
-    slow1: 'HH:mm.ss',
-    slow2: 'yyyy-MM-dd',
-    cursor: 'yyyy-MM-dd HH:mm:ss.fffffff',
+    fast: ".fffffff",
+    trigger: "second",
+    slow1: "HH:mm.ss",
+    slow2: "yyyy-MM-dd",
+    cursor: "yyyy-MM-dd HH:mm:ss.fffffff",
   },
   ...[10n, 50n, 100n, 500n, 1000n, 5000n].map((interval) => ({
     interval,
-    fast: '.ffffff',
-    trigger: 'second' as const,
-    slow1: 'HH:mm.ss',
-    slow2: 'yyyy-MM-dd',
-    cursor: 'yyyy-MM-dd HH:mm:ss.fffffff',
+    fast: ".ffffff",
+    trigger: "second" as const,
+    slow1: "HH:mm.ss",
+    slow2: "yyyy-MM-dd",
+    cursor: "yyyy-MM-dd HH:mm:ss.fffffff",
   })),
   ...[10_000n, 50_000n, 100_000n, 500_000n, 1_000_000n, 5_000_000n].map((interval, index) => ({
     interval,
-    fast: '.fff',
-    trigger: 'minute' as const,
-    slow1: 'HH:mm:ss',
-    slow2: 'yyyy-MM-dd',
-    cursor: `yyyy-MM-dd HH:mm:ss.${'f'.repeat(6 - Math.floor(index / 2))}`,
+    fast: ".fff",
+    trigger: "minute" as const,
+    slow1: "HH:mm:ss",
+    slow2: "yyyy-MM-dd",
+    cursor: `yyyy-MM-dd HH:mm:ss.${"f".repeat(6 - Math.floor(index / 2))}`,
   })),
   ...[1n, 5n, 10n, 30n].map((seconds) => ({
     interval: seconds * TICKS_PER_SECOND,
-    fast: 'HH:mm:ss',
-    trigger: 'hour' as const,
-    slow1: 'yyyy-MM-dd',
-    cursor: 'yyyy-MM-dd HH:mm:ss.fff',
+    fast: "HH:mm:ss",
+    trigger: "hour" as const,
+    slow1: "yyyy-MM-dd",
+    cursor: "yyyy-MM-dd HH:mm:ss.fff",
   })),
   ...[1n, 5n, 10n, 30n].map((minutes) => ({
     interval: minutes * 600_000_000n,
-    fast: 'HH:mm',
-    trigger: 'day' as const,
-    slow1: 'yyyy-MM-dd',
-    cursor: 'yyyy-MM-dd HH:mm:ss',
+    fast: "HH:mm",
+    trigger: "day" as const,
+    slow1: "yyyy-MM-dd",
+    cursor: "yyyy-MM-dd HH:mm:ss",
   })),
   ...[1n, 3n, 6n, 12n].map((hours) => ({
     interval: hours * 36_000_000_000n,
-    fast: 'HH',
-    trigger: 'day' as const,
-    slow1: 'yyyy-MM-dd',
-    cursor: 'yyyy-MM-dd HH:mm',
+    fast: "HH",
+    trigger: "day" as const,
+    slow1: "yyyy-MM-dd",
+    cursor: "yyyy-MM-dd HH:mm",
   })),
   ...[1n, 10n, 30n, 90n].map((days, index) => ({
     interval: days * TICKS_PER_DAY,
-    fast: 'dd',
-    trigger: 'month' as const,
-    slow1: 'yyyy-MM',
-    cursor: index === 0 ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd HH',
+    fast: "dd",
+    trigger: "month" as const,
+    slow1: "yyyy-MM",
+    cursor: index === 0 ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd HH",
   })),
-  { interval: 365n * TICKS_PER_DAY, fast: 'yyyy', trigger: 'year', cursor: 'yyyy-MM-dd' },
+  { interval: 365n * TICKS_PER_DAY, fast: "yyyy", trigger: "year", cursor: "yyyy-MM-dd" },
 ];
 
 export function roundTimeUp(value: bigint, interval: bigint): bigint {
@@ -215,12 +215,12 @@ export function isSlowTickRequired(
   trigger: TriggerPeriod,
 ): boolean {
   const formats = {
-    second: 'yyyy-MM-dd HH:mm:ss',
-    minute: 'yyyy-MM-dd HH:mm',
-    hour: 'yyyy-MM-dd HH',
-    day: 'yyyy-MM-dd',
-    month: 'yyyy-MM',
-    year: 'yyyy',
+    second: "yyyy-MM-dd HH:mm:ss",
+    minute: "yyyy-MM-dd HH:mm",
+    hour: "yyyy-MM-dd HH",
+    day: "yyyy-MM-dd",
+    month: "yyyy-MM",
+    year: "yyyy",
   };
 
   return formatTime(previous, formats[trigger]) !== formatTime(tick, formats[trigger]);
@@ -366,7 +366,7 @@ export function getYTicks(min: number, max: number, maximumCount: number): numbe
 
 export function toEngineering(value: number): string {
   if (value === 0) {
-    return '0';
+    return "0";
   }
 
   const exponent = Math.floor(Math.log10(Math.abs(value)));
@@ -382,7 +382,7 @@ export function toEngineering(value: number): string {
       .toExponential()
       .replace(
         /e([+-])(\d+)$/,
-        (_, sign: string, digits: string) => `E${sign}${digits.padStart(2, '0')}`,
+        (_, sign: string, digits: string) => `E${sign}${digits.padStart(2, "0")}`,
       );
   }
 

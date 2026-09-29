@@ -1,5 +1,5 @@
-import { DOCUMENT } from '@angular/common';
-import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
+import { DOCUMENT } from "@angular/common";
+import { CdkVirtualScrollViewport, ScrollingModule } from "@angular/cdk/scrolling";
 import {
   Component,
   DestroyRef,
@@ -13,8 +13,8 @@ import {
   signal,
   untracked,
   viewChild,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
+} from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import {
   LucideChartNoAxesCombined,
   LucideChevronDown,
@@ -25,24 +25,24 @@ import {
   LucideSlidersHorizontal,
   LucideTriangleAlert,
   LucideX,
-} from '@lucide/angular';
-import { ButtonModule } from 'primeng/button';
-import { CheckboxModule } from 'primeng/checkbox';
-import { ContextMenu, ContextMenuModule } from 'primeng/contextmenu';
-import { DialogModule } from 'primeng/dialog';
-import { InputTextModule } from 'primeng/inputtext';
-import { TextareaModule } from 'primeng/textarea';
-import { AppTooltipDirective } from '../app-tooltip.directive';
-import { MenuItem } from 'primeng/api';
-import { groupResourceRows } from '../resource-matrix';
-import type { MetadataDrafts, MetadataField } from '../resource-matrix';
-import { formatPeriod, resourceAvailableForRange } from '../resource-selection';
-import type { RepresentationRow } from '../resource-selection';
-import { PropertiesDialogComponent } from './properties-dialog.component';
-import { type ThemeMode } from '../services/nexus-monaco-themes';
+} from "@lucide/angular";
+import { ButtonModule } from "primeng/button";
+import { CheckboxModule } from "primeng/checkbox";
+import { ContextMenu, ContextMenuModule } from "primeng/contextmenu";
+import { DialogModule } from "primeng/dialog";
+import { InputTextModule } from "primeng/inputtext";
+import { TextareaModule } from "primeng/textarea";
+import { AppTooltipDirective } from "../app-tooltip.directive";
+import { MenuItem } from "primeng/api";
+import { groupResourceRows } from "../resource-matrix";
+import type { MetadataDrafts, MetadataField } from "../resource-matrix";
+import { formatPeriod, resourceAvailableForRange } from "../resource-selection";
+import type { RepresentationRow } from "../resource-selection";
+import { PropertiesDialogComponent } from "./properties-dialog.component";
+import { type ThemeMode } from "../services/nexus-monaco-themes";
 
 @Component({
-  selector: 'app-resource-matrix',
+  selector: "app-resource-matrix",
   standalone: true,
   imports: [
     ScrollingModule,
@@ -65,9 +65,9 @@ import { type ThemeMode } from '../services/nexus-monaco-themes';
     LucideTriangleAlert,
     LucideX,
   ],
-  templateUrl: './resource-matrix.component.html',
-  styleUrl: './resource-matrix.component.css',
-  host: { '[class.narrow]': 'narrow()' },
+  templateUrl: "./resource-matrix.component.html",
+  styleUrl: "./resource-matrix.component.css",
+  host: { "[class.narrow]": "narrow()" },
 })
 export class ResourceMatrixComponent {
   private static nextId = 0;
@@ -75,19 +75,19 @@ export class ResourceMatrixComponent {
   readonly catalogId = input.required<string>();
   readonly rows = input.required<RepresentationRow[]>();
   readonly selectedKeys = input.required<ReadonlySet<string>>();
-  readonly activeKey = input('');
-  readonly revealKey = input('');
+  readonly activeKey = input("");
+  readonly revealKey = input("");
   readonly revealSequence = input(0);
   readonly writable = input(false);
   readonly loading = input(false);
   readonly selectionLoading = input(false);
   readonly visualizationPanelVisible = input(false);
-  readonly visualizationSize = input('');
-  readonly visualizationDisabledReason = input('');
-  readonly exportDisabledReason = input('');
+  readonly visualizationSize = input("");
+  readonly visualizationDisabledReason = input("");
+  readonly exportDisabledReason = input("");
   readonly catalogProperties = input<Record<string, unknown> | null | undefined>(null);
-  readonly selectedBegin = input('');
-  readonly selectedEnd = input('');
+  readonly selectedBegin = input("");
+  readonly selectedEnd = input("");
   readonly saveMetadata =
     input.required<(catalogId: string, drafts: MetadataDrafts) => Promise<{ warning?: string }>>();
   readonly themeMode = input.required<ThemeMode>();
@@ -101,7 +101,7 @@ export class ResourceMatrixComponent {
   private readonly contextMenu = viewChild(ContextMenu);
   readonly contextMenuItems: MenuItem[] = [
     {
-      label: 'Properties',
+      label: "Properties",
       command: () => {
         if (this.propertiesRow()) {
           this.propertiesVisible.set(true);
@@ -114,8 +114,8 @@ export class ResourceMatrixComponent {
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   private readonly viewport = viewChild(CdkVirtualScrollViewport);
-  private readonly groupStrip = viewChild<ElementRef<HTMLElement>>('groupStrip');
-  private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+  private readonly groupStrip = viewChild<ElementRef<HTMLElement>>("groupStrip");
+  private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>("searchInput");
   private readonly rememberedGroups = new Map<string, string>();
   private readonly sourceSnapshot = signal<RepresentationRow[] | null>(null);
   private readonly scrollRequest = signal<{ key: string } | null>(null);
@@ -128,25 +128,25 @@ export class ResourceMatrixComponent {
   private requestedIndex: number | null = null;
   private previousItemSize = 48;
 
-  readonly search = signal('');
+  readonly search = signal("");
   readonly expanded = signal(false);
   readonly showAll = signal(false);
   readonly canScrollGroupsBack = signal(false);
   readonly canScrollGroupsForward = signal(false);
-  readonly groupKey = signal('');
+  readonly groupKey = signal("");
   readonly narrow = signal(false);
   readonly editing = signal(false);
   readonly itemSize = computed(() => (this.editing() && !this.narrow() ? 56 : 48));
   readonly saving = signal(false);
   readonly drafts = signal<MetadataDrafts>({});
   readonly dirtyCount = computed(() => Object.keys(this.drafts()).length);
-  readonly error = signal('');
-  readonly status = signal('');
+  readonly error = signal("");
+  readonly status = signal("");
   readonly navigationVisible = signal(false);
   readonly detail = signal<RepresentationRow | null>(null);
   readonly detailVisible = signal(false);
   readonly canEdit = computed(() => this.editing() && this.writable() && !this.saving());
-  readonly fields: MetadataField[] = ['unit', 'description', 'warning'];
+  readonly fields: MetadataField[] = ["unit", "description", "warning"];
   readonly formatPeriod = formatPeriod;
   // Search never sees draft text; an edit session also survives a parent metadata refresh.
   readonly sourceRows = computed(() => {
@@ -189,14 +189,14 @@ export class ResourceMatrixComponent {
       untracked(() => {
         this.saving.set(false);
         this.cancelEditing();
-        this.search.set('');
+        this.search.set("");
         this.expanded.set(false);
         this.showAll.set(false);
-        this.groupKey.set(this.rememberedGroups.get(catalog) ?? '');
+        this.groupKey.set(this.rememberedGroups.get(catalog) ?? "");
         this.navigationVisible.set(false);
         this.pendingNavigation = null;
-        this.error.set('');
-        this.status.set('');
+        this.error.set("");
+        this.status.set("");
         this.scrollRequest.set(null);
       });
     });
@@ -219,8 +219,8 @@ export class ResourceMatrixComponent {
       }
     });
 
-    let revealed = '';
-    let revealCatalog = '';
+    let revealed = "";
+    let revealCatalog = "";
 
     effect(() => {
       const catalog = this.catalogId();
@@ -229,12 +229,12 @@ export class ResourceMatrixComponent {
       const token = JSON.stringify([catalog, key, this.revealSequence()]);
 
       if (catalog !== revealCatalog) {
-        revealed = '';
+        revealed = "";
         revealCatalog = catalog;
       }
 
       if (!key) {
-        revealed = '';
+        revealed = "";
 
         return;
       }
@@ -250,7 +250,7 @@ export class ResourceMatrixComponent {
       } // Keep the request pending while the catalog is loading.
 
       untracked(() => {
-        const groups = groupResourceRows(rows, '');
+        const groups = groupResourceRows(rows, "");
         const matches = groups.filter((group) => group.rows.some((item) => item.key === key));
         const group = matches.find((group) => group.key === this.groupKey()) ?? matches[0];
 
@@ -258,7 +258,7 @@ export class ResourceMatrixComponent {
           return;
         }
 
-        this.search.set('');
+        this.search.set("");
         this.groupKey.set(group.key);
         this.scrollRequest.set({ key });
         revealed = token;
@@ -266,8 +266,8 @@ export class ResourceMatrixComponent {
     });
 
     let renderedCatalog: string | undefined;
-    let renderedSearch = '';
-    let renderedGroup = '';
+    let renderedSearch = "";
+    let renderedGroup = "";
 
     afterRenderEffect(() => {
       const rows = this.visibleRows();
@@ -341,7 +341,7 @@ export class ResourceMatrixComponent {
     afterRenderEffect((onCleanup) => {
       const strip = this.groupStrip()?.nativeElement;
 
-      if (!strip || typeof ResizeObserver === 'undefined') {
+      if (!strip || typeof ResizeObserver === "undefined") {
         return;
       }
 
@@ -368,7 +368,7 @@ export class ResourceMatrixComponent {
     afterRenderEffect((onCleanup) => {
       const viewport = this.viewport();
 
-      if (!viewport || typeof ResizeObserver === 'undefined') {
+      if (!viewport || typeof ResizeObserver === "undefined") {
         return;
       }
 
@@ -525,7 +525,7 @@ export class ResourceMatrixComponent {
   }
 
   private sourceValue(row: RepresentationRow, field: MetadataField): string {
-    return row[field] ?? '';
+    return row[field] ?? "";
   }
 
   setField(row: RepresentationRow, field: MetadataField, value: string): void {
@@ -547,7 +547,7 @@ export class ResourceMatrixComponent {
     }
 
     this.drafts.set(drafts);
-    this.error.set('');
+    this.error.set("");
   }
 
   startEditing(): void {
@@ -557,8 +557,8 @@ export class ResourceMatrixComponent {
 
     this.sourceSnapshot.set(this.rows().map((row) => ({ ...row, groups: [...row.groups] })));
     this.editing.set(true);
-    this.error.set('');
-    this.status.set('');
+    this.error.set("");
+    this.status.set("");
   }
 
   cancelEditing(): void {
@@ -570,7 +570,7 @@ export class ResourceMatrixComponent {
     this.editing.set(false);
     this.drafts.set({});
     this.sourceSnapshot.set(null);
-    this.error.set('');
+    this.error.set("");
   }
 
   openDetail(row: RepresentationRow, event: Event): void {
@@ -617,7 +617,7 @@ export class ResourceMatrixComponent {
 
   restoreDetailFocus(): void {
     // CDK can reuse the very same DOM button for a different representation.
-    const key = this.dialogOpener?.closest<HTMLElement>('[data-row-key]')?.dataset['rowKey'];
+    const key = this.dialogOpener?.closest<HTMLElement>("[data-row-key]")?.dataset["rowKey"];
 
     this.restoreFocus(key === this.dialogOpenerKey ? this.dialogOpener : null);
     this.dialogOpener = null;
@@ -629,7 +629,7 @@ export class ResourceMatrixComponent {
     }
 
     const target =
-      opener?.isConnected && !opener.matches(':disabled')
+      opener?.isConnected && !opener.matches(":disabled")
         ? opener
         : this.searchInput()?.nativeElement;
 
@@ -697,8 +697,8 @@ export class ResourceMatrixComponent {
     );
 
     this.saving.set(true);
-    this.error.set('');
-    this.status.set('');
+    this.error.set("");
+    this.status.set("");
     let action: (() => void) | null = null;
 
     try {
@@ -712,7 +712,7 @@ export class ResourceMatrixComponent {
       this.cancelEditing();
 
       this.status.set(
-        result.warning ? `Changes saved. ${result.warning}` : 'Metadata changes saved.',
+        result.warning ? `Changes saved. ${result.warning}` : "Metadata changes saved.",
       );
 
       action = this.pendingNavigation;
@@ -723,7 +723,7 @@ export class ResourceMatrixComponent {
         this.error.set(
           error instanceof Error
             ? error.message
-            : 'Could not save metadata. Your drafts are retained; try again.',
+            : "Could not save metadata. Your drafts are retained; try again.",
         );
       }
     } finally {

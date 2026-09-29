@@ -1,8 +1,8 @@
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
-import { LucideExternalLink, LucideInfo, LucideX } from '@lucide/angular';
-import { DialogModule } from 'primeng/dialog';
-import { RestoreFocusDirective } from '../restore-focus.directive';
-import { NexusService, V1 } from '../nexus.service';
+import { Component, computed, effect, inject, input, output, signal } from "@angular/core";
+import { LucideExternalLink, LucideInfo, LucideX } from "@lucide/angular";
+import { DialogModule } from "primeng/dialog";
+import { RestoreFocusDirective } from "../restore-focus.directive";
+import { NexusService, V1 } from "../nexus.service";
 
 interface AboutEntry {
   type: string;
@@ -14,7 +14,7 @@ interface AboutEntry {
 }
 
 @Component({
-  selector: 'app-catalog-about-dialog',
+  selector: "app-catalog-about-dialog",
   standalone: true,
   imports: [DialogModule, RestoreFocusDirective, LucideExternalLink, LucideInfo, LucideX],
   template: `

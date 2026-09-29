@@ -10,7 +10,7 @@
     <div class="toolbar-actions">
       @if (editing()) {
         <span class="dirty-count" role="status"
-          >{{ dirtyCount() }} resource{{ dirtyCount() === 1 ? '' : 's' }} changed</span
+          >{{ dirtyCount() }} resource{{ dirtyCount() === 1 ? "" : "s" }} changed</span
         >
         <button
           pButton
@@ -30,7 +30,7 @@
           [disabled]="saving() || !writable() || !dirtyCount()"
           (click)="saveChanges()"
         >
-          {{ saving() ? 'Saving...' : 'Save changes' }}
+          {{ saving() ? "Saving..." : "Save changes" }}
         </button>
       } @else if (writable()) {
         <button
@@ -153,7 +153,7 @@
         (click)="showAll.set(!showAll())"
         [attr.aria-pressed]="showAll()"
       >
-        {{ showAll() ? 'Hide unavailable' : 'Show all' }}
+        {{ showAll() ? "Hide unavailable" : "Show all" }}
       </button>
     }
   </div>
@@ -245,7 +245,7 @@
   @if (visibleRows().length) {
     <div class="list-summary" role="status">
       <strong>{{
-        loading() ? 'Loading resources...' : (activeGroup()?.name ?? 'Resources')
+        loading() ? "Loading resources..." : (activeGroup()?.name ?? "Resources")
       }}</strong>
     </div>
   }
@@ -344,23 +344,23 @@
             <span class="resource-line">
               <span class="resource-name"
                 ><strong [pTooltip]="row.path" tooltipPosition="top">{{ row.id }}</strong>
-                @if (value(row, 'unit')) {
+                @if (value(row, "unit")) {
                   <span
                     class="unit"
                     [pTooltip]="value(row, 'unit')"
                     [tooltipDisabled]="!value(row, 'unit')"
                     tooltipPosition="top"
-                    >{{ value(row, 'unit') }}</span
+                    >{{ value(row, "unit") }}</span
                   >
                 }
               </span>
-              @if (value(row, 'warning')) {
+              @if (value(row, "warning")) {
                 <span
                   class="warning"
                   [pTooltip]="'Warning: ' + value(row, 'warning')"
                   tooltipPosition="top"
                   ><svg lucideTriangleAlert aria-hidden="true"></svg
-                  ><span>{{ value(row, 'warning') }}</span></span
+                  ><span>{{ value(row, "warning") }}</span></span
                 >
               }
             </span>
@@ -371,7 +371,7 @@
                 [pTooltip]="value(row, 'description')"
                 [tooltipDisabled]="!value(row, 'description')"
                 tooltipPosition="top"
-                >{{ value(row, 'description') }}</span
+                >{{ value(row, "description") }}</span
               ></span
             >
           </button>
@@ -382,10 +382,10 @@
       <div class="empty-state">
         <strong>{{
           loading()
-            ? 'Loading catalog'
+            ? "Loading catalog"
             : search()
-              ? 'No matching resources'
-              : 'No representations available'
+              ? "No matching resources"
+              : "No representations available"
         }}</strong>
         @if (search()) {
           <p>Try a different search, or clear it to see all groups.</p>
@@ -451,10 +451,10 @@
         </p>
       } @else {
         @for (field of fields; track field) {
-          @if (field === 'unit' || value(row, field)) {
+          @if (field === "unit" || value(row, field)) {
             <section class="detail-field" [class.warning]="field === 'warning'">
               <h3>{{ field }}</h3>
-              <p class="full-text">{{ value(row, field) || '-' }}</p>
+              <p class="full-text">{{ value(row, field) || "-" }}</p>
             </section>
           }
         }
@@ -477,7 +477,7 @@
         [disabled]="saving()"
         (click)="closeDetail()"
       >
-        {{ editing() ? 'Cancel' : 'Close' }}
+        {{ editing() ? "Cancel" : "Close" }}
       </button>
       @if (editing()) {
         <button
@@ -500,7 +500,7 @@
           [disabled]="saving() || !dirtyCount()"
           (click)="saveChanges()"
         >
-          {{ saving() ? 'Saving...' : 'Save changes' }}
+          {{ saving() ? "Saving..." : "Save changes" }}
         </button>
       }
     </div>
@@ -524,7 +524,7 @@
   [closeButtonProps]="{ ariaLabel: 'Stay and keep editing', severity: 'secondary', text: true }"
 >
   <p class="full-text">
-    {{ dirtyCount() }} resource{{ dirtyCount() === 1 ? ' has' : 's have' }} unsaved changes. Save
+    {{ dirtyCount() }} resource{{ dirtyCount() === 1 ? " has" : "s have" }} unsaved changes. Save
     before leaving, discard the drafts, or stay here to keep editing.
   </p>
   @if (!writable()) {
@@ -566,7 +566,7 @@
         [disabled]="saving() || !writable()"
         (click)="saveChanges()"
       >
-        {{ saving() ? 'Saving...' : 'Save changes' }}
+        {{ saving() ? "Saving..." : "Save changes" }}
       </button>
     </div>
   </ng-template>

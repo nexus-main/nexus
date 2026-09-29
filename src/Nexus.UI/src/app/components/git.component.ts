@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule } from "@angular/common";
 import {
   Component,
   DestroyRef,
@@ -8,26 +8,26 @@ import {
   input,
   output,
   signal,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { DiffEditorComponent, type DiffEditorModel } from 'ngx-monaco-editor-v2';
-import type * as Monaco from 'monaco-editor';
-import { MessageService } from 'primeng/api';
-import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
-import { MessageModule } from 'primeng/message';
-import { SelectModule } from 'primeng/select';
-import { TabsModule } from 'primeng/tabs';
-import { AppTooltipDirective } from '../app-tooltip.directive';
-import { NexusService } from '../nexus.service';
-import { RestoreFocusDirective } from '../restore-focus.directive';
+} from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { DiffEditorComponent, type DiffEditorModel } from "ngx-monaco-editor-v2";
+import type * as Monaco from "monaco-editor";
+import { MessageService } from "primeng/api";
+import { ButtonModule } from "primeng/button";
+import { DialogModule } from "primeng/dialog";
+import { MessageModule } from "primeng/message";
+import { SelectModule } from "primeng/select";
+import { TabsModule } from "primeng/tabs";
+import { AppTooltipDirective } from "../app-tooltip.directive";
+import { NexusService } from "../nexus.service";
+import { RestoreFocusDirective } from "../restore-focus.directive";
 import {
   defineNexusMonacoThemes,
   getNexusMonacoTheme,
   type ThemeMode,
-} from '../services/nexus-monaco-themes';
+} from "../services/nexus-monaco-themes";
 
-type GitPushStatus = 0 | 1 | 2 | 'NotConfigured' | 'Succeeded' | 'Failed';
+type GitPushStatus = 0 | 1 | 2 | "NotConfigured" | "Succeeded" | "Failed";
 
 type GitConfigResponse = {
   branch: string;
@@ -70,7 +70,7 @@ type GitDiffFile = {
 };
 
 @Component({
-  selector: 'app-git',
+  selector: "app-git",
   standalone: true,
   imports: [
     CommonModule,
@@ -84,7 +84,7 @@ type GitDiffFile = {
     AppTooltipDirective,
     RestoreFocusDirective,
   ],
-  styleUrl: './git.component.css',
+  styleUrl: "./git.component.css",
   template: `
     <p-dialog
       appRestoreFocus
@@ -168,13 +168,13 @@ type GitDiffFile = {
                             {{ toolAvailabilityLabel() }}
                           </dt>
                           <dd class="min-w-0 truncate">
-                            {{ toolsAvailable() ? 'available' : 'not available' }}
+                            {{ toolsAvailable() ? "available" : "not available" }}
                           </dd>
                         </div>
                         <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2">
                           <dt class="text-[var(--p-text-muted-color)]">Changes</dt>
                           <dd class="min-w-0 truncate">
-                            {{ current.hasUncommittedChanges ? 'pending' : 'clean' }}
+                            {{ current.hasUncommittedChanges ? "pending" : "clean" }}
                           </dd>
                         </div>
                         <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2">
@@ -232,31 +232,31 @@ type GitDiffFile = {
                         <div>
                           <dt class="text-[var(--p-text-muted-color)]">Remote URL</dt>
                           <dd class="break-all font-mono">
-                            {{ effective.remoteUrl || 'not configured' }}
+                            {{ effective.remoteUrl || "not configured" }}
                           </dd>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                           <dt class="text-[var(--p-text-muted-color)]">Remote ready</dt>
-                          <dd>{{ effective.isRemoteConfigured ? 'yes' : 'no' }}</dd>
+                          <dd>{{ effective.isRemoteConfigured ? "yes" : "no" }}</dd>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                           <dt class="text-[var(--p-text-muted-color)]">Auth</dt>
                           <dd>{{ effective.authMode }}</dd>
                         </div>
-                        @if (effective.authMode === 'HttpsToken') {
+                        @if (effective.authMode === "HttpsToken") {
                           <div class="grid grid-cols-2 gap-2">
                             <dt class="text-[var(--p-text-muted-color)]">HTTPS username</dt>
-                            <dd>{{ effective.username || 'x-access-token' }}</dd>
+                            <dd>{{ effective.username || "x-access-token" }}</dd>
                           </div>
                         }
                         <div class="grid grid-cols-2 gap-2">
                           <dt class="text-[var(--p-text-muted-color)]">Token</dt>
-                          <dd>{{ effective.hasToken ? 'configured' : 'not configured' }}</dd>
+                          <dd>{{ effective.hasToken ? "configured" : "not configured" }}</dd>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                           <dt class="text-[var(--p-text-muted-color)]">SSH key</dt>
                           <dd>
-                            {{ effective.hasSshPrivateKey ? 'configured' : 'not configured' }}
+                            {{ effective.hasSshPrivateKey ? "configured" : "not configured" }}
                           </dd>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
@@ -539,13 +539,13 @@ type GitDiffFile = {
                           {{ toolAvailabilityLabel() }}
                         </dt>
                         <dd class="min-w-0 truncate">
-                          {{ toolsAvailable() ? 'available' : 'not available' }}
+                          {{ toolsAvailable() ? "available" : "not available" }}
                         </dd>
                       </div>
                       <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2">
                         <dt class="text-[var(--p-text-muted-color)]">Changes</dt>
                         <dd class="min-w-0 truncate">
-                          {{ current.hasUncommittedChanges ? 'pending' : 'clean' }}
+                          {{ current.hasUncommittedChanges ? "pending" : "clean" }}
                         </dd>
                       </div>
                       <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2">
@@ -601,30 +601,30 @@ type GitDiffFile = {
                       <div>
                         <dt class="text-[var(--p-text-muted-color)]">Remote URL</dt>
                         <dd class="break-all font-mono">
-                          {{ effective.remoteUrl || 'not configured' }}
+                          {{ effective.remoteUrl || "not configured" }}
                         </dd>
                       </div>
                       <div class="grid grid-cols-2 gap-2">
                         <dt class="text-[var(--p-text-muted-color)]">Remote ready</dt>
-                        <dd>{{ effective.isRemoteConfigured ? 'yes' : 'no' }}</dd>
+                        <dd>{{ effective.isRemoteConfigured ? "yes" : "no" }}</dd>
                       </div>
                       <div class="grid grid-cols-2 gap-2">
                         <dt class="text-[var(--p-text-muted-color)]">Auth</dt>
                         <dd>{{ effective.authMode }}</dd>
                       </div>
-                      @if (effective.authMode === 'HttpsToken') {
+                      @if (effective.authMode === "HttpsToken") {
                         <div class="grid grid-cols-2 gap-2">
                           <dt class="text-[var(--p-text-muted-color)]">HTTPS username</dt>
-                          <dd>{{ effective.username || 'x-access-token' }}</dd>
+                          <dd>{{ effective.username || "x-access-token" }}</dd>
                         </div>
                       }
                       <div class="grid grid-cols-2 gap-2">
                         <dt class="text-[var(--p-text-muted-color)]">Token</dt>
-                        <dd>{{ effective.hasToken ? 'configured' : 'not configured' }}</dd>
+                        <dd>{{ effective.hasToken ? "configured" : "not configured" }}</dd>
                       </div>
                       <div class="grid grid-cols-2 gap-2">
                         <dt class="text-[var(--p-text-muted-color)]">SSH key</dt>
-                        <dd>{{ effective.hasSshPrivateKey ? 'configured' : 'not configured' }}</dd>
+                        <dd>{{ effective.hasSshPrivateKey ? "configured" : "not configured" }}</dd>
                       </div>
                       <div class="grid grid-cols-2 gap-2">
                         <dt class="text-[var(--p-text-muted-color)]">Throttle</dt>
@@ -862,11 +862,11 @@ export class GitComponent {
   readonly diffFiles = signal<GitDiffFile[]>([]);
   readonly selectedCommit = signal<GitHistoryEntry | null>(null);
   readonly selectedFile = signal<GitDiffFile | null>(null);
-  readonly mobileTab = signal('commits');
+  readonly mobileTab = signal("commits");
   readonly loading = signal(false);
   readonly busy = signal(false);
-  readonly error = signal('');
-  readonly statusMessage = signal('');
+  readonly error = signal("");
+  readonly statusMessage = signal("");
   readonly confirmForce = signal(false);
   readonly confirmRestore = signal(false);
   readonly renderSideBySide = signal(true);
@@ -879,7 +879,7 @@ export class GitComponent {
     scrollBeyondLastLine: false,
   }));
   readonly gitAvailable = computed(() => this.status()?.gitAvailable ?? false);
-  readonly sshRequired = computed(() => this.config()?.authMode === 'SshPrivateKey');
+  readonly sshRequired = computed(() => this.config()?.authMode === "SshPrivateKey");
   readonly toolsAvailable = computed(
     () => this.gitAvailable() && (!this.sshRequired() || (this.status()?.sshAvailable ?? false)),
   );
@@ -894,29 +894,29 @@ export class GitComponent {
     const file = this.selectedFile();
 
     return {
-      code: file?.originalText ?? '',
-      language: file ? this.detectLanguage(file.path) : 'plaintext',
+      code: file?.originalText ?? "",
+      language: file ? this.detectLanguage(file.path) : "plaintext",
     };
   });
   readonly modifiedModel = computed<DiffEditorModel>(() => {
     const file = this.selectedFile();
 
     return {
-      code: file?.modifiedText ?? '',
-      language: file ? this.detectLanguage(file.path) : 'plaintext',
+      code: file?.modifiedText ?? "",
+      language: file ? this.detectLanguage(file.path) : "plaintext",
     };
   });
 
   constructor() {
     effect(() => this.applyTheme());
 
-    const mq = window.matchMedia('(min-width: 1280px)');
+    const mq = window.matchMedia("(min-width: 1280px)");
 
     this.renderSideBySide.set(mq.matches);
     const onChange = (event: MediaQueryListEvent) => this.renderSideBySide.set(event.matches);
 
-    mq.addEventListener('change', onChange);
-    this.destroyRef.onDestroy(() => mq.removeEventListener('change', onChange));
+    mq.addEventListener("change", onChange);
+    this.destroyRef.onDestroy(() => mq.removeEventListener("change", onChange));
 
     void this.refresh();
   }
@@ -933,13 +933,13 @@ export class GitComponent {
 
   async refresh() {
     this.loading.set(true);
-    this.error.set('');
+    this.error.set("");
 
     try {
       const [config, status, history] = await Promise.all([
-        this.request<GitConfigResponse>('git/config'),
-        this.request<GitStatusResponse>('git/status'),
-        this.request<GitHistoryEntry[]>('git/history'),
+        this.request<GitConfigResponse>("git/config"),
+        this.request<GitStatusResponse>("git/status"),
+        this.request<GitHistoryEntry[]>("git/history"),
       ]);
 
       this.config.set(config);
@@ -950,14 +950,14 @@ export class GitComponent {
         await this.selectCommit(history[0]);
       }
     } catch (error) {
-      this.showError('load Git state', error);
+      this.showError("load Git state", error);
     } finally {
       this.loading.set(false);
     }
   }
 
   setMobileTab(value: string | number | undefined) {
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       this.mobileTab.set(value);
     }
   }
@@ -965,10 +965,10 @@ export class GitComponent {
   async selectCommit(entry: GitHistoryEntry, openDetails = false) {
     this.selectedCommit.set(entry);
     this.confirmRestore.set(false);
-    this.error.set('');
+    this.error.set("");
 
     if (openDetails) {
-      this.mobileTab.set('details');
+      this.mobileTab.set("details");
     }
 
     try {
@@ -977,32 +977,32 @@ export class GitComponent {
       this.diffFiles.set(files);
       this.selectedFile.set(files[0] ?? null);
     } catch (error) {
-      this.showError('load commit diff', error);
+      this.showError("load commit diff", error);
     }
   }
 
   async sync(force: boolean) {
     this.busy.set(true);
-    this.error.set('');
-    this.statusMessage.set('');
+    this.error.set("");
+    this.statusMessage.set("");
     this.confirmForce.set(false);
 
     try {
-      await this.request<{ id: string }>('jobs/git/sync', {
-        method: 'POST',
+      await this.request<{ id: string }>("jobs/git/sync", {
+        method: "POST",
         body: JSON.stringify({ force }),
       });
 
       this.messageService.add({
-        key: 'app-status',
-        severity: 'success',
-        summary: force ? 'Git force push started' : 'Git sync started',
+        key: "app-status",
+        severity: "success",
+        summary: force ? "Git force push started" : "Git sync started",
         life: 1800,
       });
 
       await this.refresh();
     } catch (error) {
-      this.showError('start Git sync', error);
+      this.showError("start Git sync", error);
     } finally {
       this.busy.set(false);
     }
@@ -1010,13 +1010,13 @@ export class GitComponent {
 
   async restore(commitSha: string) {
     this.busy.set(true);
-    this.error.set('');
-    this.statusMessage.set('');
+    this.error.set("");
+    this.statusMessage.set("");
     this.confirmRestore.set(false);
 
     try {
-      const result = await this.request<{ message: string }>('git/restore', {
-        method: 'POST',
+      const result = await this.request<{ message: string }>("git/restore", {
+        method: "POST",
         body: JSON.stringify({ commitSha }),
       });
 
@@ -1025,7 +1025,7 @@ export class GitComponent {
       this.selectedFile.set(null);
       await this.refresh();
     } catch (error) {
-      this.showError('restore configuration', error);
+      this.showError("restore configuration", error);
     } finally {
       this.busy.set(false);
     }
@@ -1033,7 +1033,7 @@ export class GitComponent {
 
   formatDate(value?: string | null) {
     if (!value) {
-      return 'never';
+      return "never";
     }
 
     const date = new Date(value);
@@ -1042,24 +1042,24 @@ export class GitComponent {
   }
 
   shortSha(value?: string | null) {
-    return value ? value.slice(0, 8) : 'none';
+    return value ? value.slice(0, 8) : "none";
   }
 
   toolAvailabilityLabel() {
-    return this.sshRequired() ? 'Git + SSH' : 'Git';
+    return this.sshRequired() ? "Git + SSH" : "Git";
   }
 
   pushStatusLabel(value: GitPushStatus) {
-    if (value === 0 || value === 'NotConfigured') {
-      return 'not pushed yet';
+    if (value === 0 || value === "NotConfigured") {
+      return "not pushed yet";
     }
 
-    if (value === 1 || value === 'Succeeded') {
-      return 'succeeded';
+    if (value === 1 || value === "Succeeded") {
+      return "succeeded";
     }
 
-    if (value === 2 || value === 'Failed') {
-      return 'failed';
+    if (value === 2 || value === "Failed") {
+      return "failed";
     }
 
     return String(value);
@@ -1076,18 +1076,18 @@ export class GitComponent {
   }
 
   private detectLanguage(path: string): string {
-    const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+    const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
 
     switch (ext) {
-      case 'json':
-        return 'json';
-      case 'yaml':
-      case 'yml':
-        return 'yaml';
-      case 'md':
-        return 'markdown';
+      case "json":
+        return "json";
+      case "yaml":
+      case "yml":
+        return "yaml";
+      case "md":
+        return "markdown";
       default:
-        return 'plaintext';
+        return "plaintext";
     }
   }
 
@@ -1095,7 +1095,7 @@ export class GitComponent {
     const response = await fetch(`${this.nexus.endpoint}/api/v1/${path}`, {
       ...init,
       headers: {
-        ...(init.body ? { 'content-type': 'application/json' } : {}),
+        ...(init.body ? { "content-type": "application/json" } : {}),
         ...init.headers,
       },
     });

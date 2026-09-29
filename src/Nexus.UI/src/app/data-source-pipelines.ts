@@ -2,8 +2,8 @@ import type {
   DataSourcePipeline,
   DataSourceRegistration,
   ExtensionDescription,
-} from '../../../clients/typescript/V1.ts';
-import { isJsonObject, parseConfigurationText, validateConfiguration } from './json-schema.ts';
+} from "../../../clients/typescript/V1.ts";
+import { isJsonObject, parseConfigurationText, validateConfiguration } from "./json-schema.ts";
 
 const jsonEnvelopeSchema = {};
 
@@ -34,7 +34,7 @@ export type PreparedPipeline =
 
 export function sourceSchema(descriptions: ExtensionDescription[], type: string): unknown {
   return descriptions.find((description) => description.type === type)?.additionalInformation?.[
-    'source-configuration-schema'
+    "source-configuration-schema"
   ];
 }
 
@@ -46,7 +46,7 @@ export function createPipelineDraft(
   const registrations = (original.registrations ?? []).map((registration, key) => ({
     key,
     original: registration,
-    type: registration.type ?? '',
+    type: registration.type ?? "",
     resourceLocator: registration.resourceLocator ?? null,
     infoUrl: registration.infoUrl ?? null,
     configuration: registration.configuration,
@@ -147,7 +147,7 @@ export function updateRegistration(
   draft: PipelineDraft,
   key: number,
   patch: Partial<
-    Pick<RegistrationDraft, 'type' | 'resourceLocator' | 'infoUrl' | 'configuration' | 'rawText'>
+    Pick<RegistrationDraft, "type" | "resourceLocator" | "infoUrl" | "configuration" | "rawText">
   >,
 ): PipelineDraft {
   return {
@@ -160,7 +160,7 @@ export function updateRegistration(
 
 export function updatePipeline(
   draft: PipelineDraft,
-  patch: Partial<Pick<PipelineDraft, 'disabled' | 'visibilityPattern'>>,
+  patch: Partial<Pick<PipelineDraft, "disabled" | "visibilityPattern">>,
 ): PipelineDraft {
   return { ...draft, ...patch };
 }
@@ -187,7 +187,7 @@ export function addRegistration(draft: PipelineDraft): PipelineDraft {
       {
         key: draft.nextKey,
         original: {},
-        type: '',
+        type: "",
         resourceLocator: null,
         infoUrl: null,
         configuration: null,
@@ -233,12 +233,12 @@ export function preparePipeline(
   if (draft.serverDiverged) {
     issues.push({
       message:
-        'The saved pipeline changed or was removed on the server. Reload and discard local edits before saving to avoid overwriting server changes.',
+        "The saved pipeline changed or was removed on the server. Reload and discard local edits before saving to avoid overwriting server changes.",
     });
   }
 
   if (!draft.registrations.length) {
-    issues.push({ message: 'Add at least one registration.' });
+    issues.push({ message: "Add at least one registration." });
   }
 
   const registrations = draft.registrations.map((registration, index) => {
@@ -246,10 +246,10 @@ export function preparePipeline(
       issues.push({ key: registration.key, message: `Registration ${index + 1}: ${message}` });
 
     if (!registration.type.trim()) {
-      issue('Select a source type.');
+      issue("Select a source type.");
     } else if (!descriptions.some((description) => description.type === registration.type)) {
       issue(
-        'The source description is unavailable. Configuration is available for inspection, but saving is blocked.',
+        "The source description is unavailable. Configuration is available for inspection, but saving is blocked.",
       );
     }
 
@@ -299,17 +299,17 @@ export function preparePipeline(
   return issues.length ? { valid: false, issues } : { valid: true, payload, issues: [] };
 }
 
-export type UnsavedChoice = 'save' | 'discard' | 'stay';
+export type UnsavedChoice = "save" | "discard" | "stay";
 
 export async function resolveUnsavedChoice(
   choice: UnsavedChoice,
   save: () => Promise<boolean>,
 ): Promise<boolean> {
-  if (choice === 'stay') {
+  if (choice === "stay") {
     return false;
   }
 
-  if (choice === 'discard') {
+  if (choice === "discard") {
     return true;
   }
 

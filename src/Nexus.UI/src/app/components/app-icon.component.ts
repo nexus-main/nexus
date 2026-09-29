@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input } from "@angular/core";
 import {
   LucideCircleHelp,
   LucideCodeXml,
@@ -19,31 +19,31 @@ import {
   LucideUpload,
   LucideUser,
   LucideWaypoints,
-} from '@lucide/angular';
+} from "@lucide/angular";
 
 export type AppIconName =
-  | 'api'
-  | 'download'
-  | 'git'
-  | 'help'
-  | 'info'
-  | 'key'
-  | 'jobs'
-  | 'log-out'
-  | 'map-pin'
-  | 'monitor'
-  | 'moon'
-  | 'package'
-  | 'settings'
-  | 'shield'
-  | 'sun'
-  | 'sun-moon'
-  | 'upload'
-  | 'user'
-  | 'waypoints';
+  | "api"
+  | "download"
+  | "git"
+  | "help"
+  | "info"
+  | "key"
+  | "jobs"
+  | "log-out"
+  | "map-pin"
+  | "monitor"
+  | "moon"
+  | "package"
+  | "settings"
+  | "shield"
+  | "sun"
+  | "sun-moon"
+  | "upload"
+  | "user"
+  | "waypoints";
 
 @Component({
-  selector: 'app-icon',
+  selector: "app-icon",
   standalone: true,
   imports: [
     LucideCircleHelp,
@@ -68,61 +68,61 @@ export type AppIconName =
   ],
   template: `
     @switch (name()) {
-      @case ('api') {
+      @case ("api") {
         <svg lucideCodeXml aria-hidden="true"></svg>
       }
-      @case ('download') {
+      @case ("download") {
         <svg lucideDownload aria-hidden="true"></svg>
       }
-      @case ('git') {
+      @case ("git") {
         <svg lucideGitBranch aria-hidden="true"></svg>
       }
-      @case ('help') {
+      @case ("help") {
         <svg lucideCircleHelp aria-hidden="true"></svg>
       }
-      @case ('info') {
+      @case ("info") {
         <svg lucideInfo aria-hidden="true"></svg>
       }
-      @case ('key') {
+      @case ("key") {
         <svg lucideKeyRound aria-hidden="true"></svg>
       }
-      @case ('jobs') {
+      @case ("jobs") {
         <svg lucideListChecks aria-hidden="true"></svg>
       }
-      @case ('log-out') {
+      @case ("log-out") {
         <svg lucideLogOut aria-hidden="true"></svg>
       }
-      @case ('map-pin') {
+      @case ("map-pin") {
         <svg lucideMapPin aria-hidden="true"></svg>
       }
-      @case ('monitor') {
+      @case ("monitor") {
         <svg lucideMonitor aria-hidden="true"></svg>
       }
-      @case ('moon') {
+      @case ("moon") {
         <svg lucideMoon aria-hidden="true"></svg>
       }
-      @case ('package') {
+      @case ("package") {
         <svg lucidePackage aria-hidden="true"></svg>
       }
-      @case ('settings') {
+      @case ("settings") {
         <svg lucideSettings aria-hidden="true"></svg>
       }
-      @case ('shield') {
+      @case ("shield") {
         <svg lucideShield aria-hidden="true"></svg>
       }
-      @case ('sun') {
+      @case ("sun") {
         <svg lucideSun aria-hidden="true"></svg>
       }
-      @case ('sun-moon') {
+      @case ("sun-moon") {
         <svg lucideSunMoon aria-hidden="true"></svg>
       }
-      @case ('upload') {
+      @case ("upload") {
         <svg lucideUpload aria-hidden="true"></svg>
       }
-      @case ('user') {
+      @case ("user") {
         <svg lucideUser aria-hidden="true"></svg>
       }
-      @case ('waypoints') {
+      @case ("waypoints") {
         <svg lucideWaypoints aria-hidden="true"></svg>
       }
     }

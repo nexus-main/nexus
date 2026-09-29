@@ -8,28 +8,28 @@ import {
   linkedSignal,
   output,
   signal,
-} from '@angular/core';
-import { EditorComponent } from 'ngx-monaco-editor-v2';
-import type * as Monaco from 'monaco-editor';
-import { ButtonModule } from 'primeng/button';
-import { MessageModule } from 'primeng/message';
+} from "@angular/core";
+import { EditorComponent } from "ngx-monaco-editor-v2";
+import type * as Monaco from "monaco-editor";
+import { ButtonModule } from "primeng/button";
+import { MessageModule } from "primeng/message";
 import {
   configurationYamlText,
   createSchemaScaffold,
   isJsonObject,
   parseConfigurationText,
   validateConfiguration,
-} from '../json-schema';
-import type { ConfigurationValidation } from '../json-schema';
+} from "../json-schema";
+import type { ConfigurationValidation } from "../json-schema";
 import {
   defineNexusMonacoThemes,
   getNexusMonacoTheme,
   type ThemeMode,
-} from '../services/nexus-monaco-themes';
-import { YamlEditorService } from '../services/yaml-editor.service';
+} from "../services/nexus-monaco-themes";
+import { YamlEditorService } from "../services/yaml-editor.service";
 
 @Component({
-  selector: 'app-json-schema-editor',
+  selector: "app-json-schema-editor",
   standalone: true,
   imports: [EditorComponent, ButtonModule, MessageModule],
   template: `
@@ -160,7 +160,7 @@ export class JsonSchemaEditorComponent {
   private suppressChange = false;
 
   readonly editorOptions: Monaco.editor.IStandaloneEditorConstructionOptions = {
-    language: 'yaml',
+    language: "yaml",
     automaticLayout: true,
     fixedOverflowWidgets: true,
     fontSize: 13,
@@ -168,7 +168,7 @@ export class JsonSchemaEditorComponent {
     scrollBeyondLastLine: false,
     tabSize: 2,
     insertSpaces: true,
-    wordWrap: 'on',
+    wordWrap: "on",
     lineNumbersMinChars: 3,
     quickSuggestions: { other: true, comments: false, strings: true },
     suggestOnTriggerCharacters: true,
@@ -259,14 +259,14 @@ export class JsonSchemaEditorComponent {
     const text = configurationYamlText(createSchemaScaffold(this.schema()));
 
     editor.pushUndoStop();
-    editor.executeEdits('nexus-scaffold', [{ range: model.getFullModelRange(), text }]);
+    editor.executeEdits("nexus-scaffold", [{ range: model.getFullModelRange(), text }]);
     editor.pushUndoStop();
     this.confirmScaffold.set(false);
     editor.focus();
   }
 
   formatDocument(): void {
-    void this.editor?.getAction('editor.action.formatDocument')?.run();
+    void this.editor?.getAction("editor.action.formatDocument")?.run();
   }
 
   private requestSave(): void {

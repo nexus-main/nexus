@@ -314,7 +314,7 @@
   function readFloatDataReferenceSync(dataReference, dataLength) {
     if (dataReference?._unsafe_create_view) {
       const view = dataReference._unsafe_create_view();
-      const actualByteLength = getDataLength(dataLength, view.byteLength, 'byte');
+      const actualByteLength = getDataLength(dataLength, view.byteLength, "byte");
 
       if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
         throw new Error(`Chunk byte length ${actualByteLength} is not aligned to float size`);
@@ -335,7 +335,7 @@
 
     if (dataReference?.getUint8Array) {
       const bytes = dataReference.getUint8Array();
-      const actualByteLength = getDataLength(dataLength, bytes.byteLength, 'byte');
+      const actualByteLength = getDataLength(dataLength, bytes.byteLength, "byte");
 
       if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
         throw new Error(`Chunk byte length ${actualByteLength} is not aligned to float size`);
@@ -350,13 +350,13 @@
 
     if (dataReference?.getFloat32Array) {
       const values = dataReference.getFloat32Array();
-      const actualLength = getDataLength(dataLength, values.length, 'sample');
+      const actualLength = getDataLength(dataLength, values.length, "sample");
 
       return actualLength === values.length ? values : values.subarray(0, actualLength);
     }
 
     if (dataReference instanceof Float32Array) {
-      const actualLength = getDataLength(dataLength, dataReference.length, 'sample');
+      const actualLength = getDataLength(dataLength, dataReference.length, "sample");
 
       return actualLength === dataReference.length
         ? dataReference
@@ -369,7 +369,7 @@
         dataReference instanceof Int8Array ||
         dataReference instanceof Uint8ClampedArray
       ) {
-        const actualByteLength = getDataLength(dataLength, dataReference.byteLength, 'byte');
+        const actualByteLength = getDataLength(dataLength, dataReference.byteLength, "byte");
 
         if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
           throw new Error(`Chunk byte length ${actualByteLength} is not aligned to float size`);
@@ -383,13 +383,13 @@
       }
 
       const values = Float32Array.from(dataReference);
-      const actualLength = getDataLength(dataLength, values.length, 'sample');
+      const actualLength = getDataLength(dataLength, values.length, "sample");
 
       return actualLength === values.length ? values : values.subarray(0, actualLength);
     }
 
     if (dataReference instanceof ArrayBuffer) {
-      const actualByteLength = getDataLength(dataLength, dataReference.byteLength, 'byte');
+      const actualByteLength = getDataLength(dataLength, dataReference.byteLength, "byte");
 
       if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
         throw new Error(`Chunk byte length ${actualByteLength} is not aligned to float size`);
@@ -400,19 +400,19 @@
 
     if (Array.isArray(dataReference)) {
       const values = Float32Array.from(dataReference);
-      const actualLength = getDataLength(dataLength, values.length, 'sample');
+      const actualLength = getDataLength(dataLength, values.length, "sample");
 
       return actualLength === values.length ? values : values.subarray(0, actualLength);
     }
 
     throw new Error(
-      'Synchronous chunk upload requires a MemoryView, typed array, ArrayBuffer, or array payload',
+      "Synchronous chunk upload requires a MemoryView, typed array, ArrayBuffer, or array payload",
     );
   }
 
   async function readFloatDataReferenceAsync(dataReference, dataLength) {
     if (dataReference instanceof Float32Array) {
-      const actualLength = getDataLength(dataLength, dataReference.length, 'sample');
+      const actualLength = getDataLength(dataLength, dataReference.length, "sample");
 
       return actualLength === dataReference.length
         ? dataReference
@@ -430,7 +430,7 @@
           dataReference.byteOffset,
           dataReference.byteLength,
         );
-        const actualByteLength = getDataLength(dataLength, bytes.byteLength, 'byte');
+        const actualByteLength = getDataLength(dataLength, bytes.byteLength, "byte");
 
         if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
           throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
@@ -444,13 +444,13 @@
       }
 
       const values = Float32Array.from(dataReference);
-      const actualLength = getDataLength(dataLength, values.length, 'sample');
+      const actualLength = getDataLength(dataLength, values.length, "sample");
 
       return actualLength === values.length ? values : values.subarray(0, actualLength);
     }
 
     if (dataReference instanceof ArrayBuffer) {
-      const actualByteLength = getDataLength(dataLength, dataReference.byteLength, 'byte');
+      const actualByteLength = getDataLength(dataLength, dataReference.byteLength, "byte");
 
       if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
         throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
@@ -461,13 +461,13 @@
 
     if (Array.isArray(dataReference)) {
       const values = Float32Array.from(dataReference);
-      const actualLength = getDataLength(dataLength, values.length, 'sample');
+      const actualLength = getDataLength(dataLength, values.length, "sample");
 
       return actualLength === values.length ? values : values.subarray(0, actualLength);
     }
 
     const bytes = new Uint8Array(await dataReference.arrayBuffer());
-    const actualByteLength = getDataLength(dataLength, bytes.byteLength, 'byte');
+    const actualByteLength = getDataLength(dataLength, bytes.byteLength, "byte");
 
     if (actualByteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
       throw new Error(`Chunk byte length ${actualByteLength} is not float-aligned`);
@@ -601,9 +601,9 @@
   }
 
   function getSeriesBuffer(instance, series) {
-    const id = valueOf(series, 'Id');
-    const version = valueOf(series, 'DataVersion') ?? 0;
-    const length = valueOf(series, 'Length') ?? 0;
+    const id = valueOf(series, "Id");
+    const version = valueOf(series, "DataVersion") ?? 0;
+    const length = valueOf(series, "Length") ?? 0;
 
     if (length < 2) {
       return null;
@@ -613,36 +613,36 @@
   }
 
   function getPreviewRenderKey(instance, payload, width, height) {
-    const zoom = valueOf(payload, 'Zoom') ?? {};
-    const seriesList = valueOf(payload, 'Series') ?? [];
+    const zoom = valueOf(payload, "Zoom") ?? {};
+    const seriesList = valueOf(payload, "Series") ?? [];
     const seriesKey = seriesList.map((series) => {
-      const id = valueOf(series, 'Id');
-      const version = valueOf(series, 'DataVersion') ?? 0;
-      const length = valueOf(series, 'Length') ?? 0;
-      const color = valueOf(series, 'Color') ?? {};
+      const id = valueOf(series, "Id");
+      const version = valueOf(series, "DataVersion") ?? 0;
+      const length = valueOf(series, "Length") ?? 0;
+      const color = valueOf(series, "Color") ?? {};
 
       return [
         id,
         version,
         length,
-        valueOf(series, 'SampleStep'),
+        valueOf(series, "SampleStep"),
         instance.seriesBuffers.has(getSeriesKey(id, version, length)),
-        valueOf(series, 'OverviewAxisMin'),
-        valueOf(series, 'OverviewAxisMax'),
-        valueOf(color, 'Red'),
-        valueOf(color, 'Green'),
-        valueOf(color, 'Blue'),
-        valueOf(color, 'Alpha'),
+        valueOf(series, "OverviewAxisMin"),
+        valueOf(series, "OverviewAxisMax"),
+        valueOf(color, "Red"),
+        valueOf(color, "Green"),
+        valueOf(color, "Blue"),
+        valueOf(color, "Alpha"),
       ];
     });
 
     return JSON.stringify([
       width,
       height,
-      valueOf(zoom, 'Left') ?? 0,
-      valueOf(zoom, 'Right') ?? 1,
-      valueOf(payload, 'LineWidth') ?? 0.7,
-      valueOf(payload, 'FillOpacity') ?? 0.1,
+      valueOf(zoom, "Left") ?? 0,
+      valueOf(zoom, "Right") ?? 1,
+      valueOf(payload, "LineWidth") ?? 0.7,
+      valueOf(payload, "FillOpacity") ?? 0.1,
       seriesKey,
     ]);
   }
@@ -726,7 +726,7 @@
 
       return { hasValue, minimum, maximum };
     } finally {
-      if (readbackBuffer?.mapState === 'mapped') {
+      if (readbackBuffer?.mapState === "mapped") {
         readbackBuffer.unmap();
       }
 
@@ -808,7 +808,7 @@
       callbacks.onerror({ message: `Chart ${source.chartId} is no longer active` });
     } else {
       helper
-        .invokeMethodAsync('ProvideSeriesChunk', source.id, offset, count, requestId)
+        .invokeMethodAsync("ProvideSeriesChunk", source.id, offset, count, requestId)
         .catch((error) => callbacks.onerror({ message: error?.message ?? error }));
     }
 
@@ -859,7 +859,7 @@
 
       ns.scheduleRender(instance.chartId, payload).catch((error) => {
         if (!ns.isCancellationError(error)) {
-          console.error('[chart-webgpu] raw rerender failed', error);
+          console.error("[chart-webgpu] raw rerender failed", error);
         }
       });
     }
@@ -902,11 +902,11 @@
             ns.reportRuntimeFailure(
               source.chartId,
               source.lifecycleEpoch,
-              'WebGPU data generation failed',
+              "WebGPU data generation failed",
               `${error?.message ?? error} Retry the chart to recreate its GPU resources.`,
             );
 
-            console.error('[chart-webgpu] raw request failed', error);
+            console.error("[chart-webgpu] raw request failed", error);
           }
         });
       } catch (error) {
@@ -924,12 +924,12 @@
       try {
         requestRawChunk(instance, source, index, protectedKeys).catch((error) => {
           if (!ns.isCancellationError(error)) {
-            console.error('[chart-webgpu] raw prefetch failed', error);
+            console.error("[chart-webgpu] raw prefetch failed", error);
           }
         });
       } catch (error) {
         if (!ns.isCancellationError(error)) {
-          console.error('[chart-webgpu] raw prefetch skipped', error);
+          console.error("[chart-webgpu] raw prefetch skipped", error);
         }
       }
     }

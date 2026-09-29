@@ -30,13 +30,13 @@
   }
 
   function colorOf(source) {
-    const color = valueOf(source, 'Color') ?? {};
+    const color = valueOf(source, "Color") ?? {};
 
     return [
-      (valueOf(color, 'Red') ?? 0) / 255,
-      (valueOf(color, 'Green') ?? 0) / 255,
-      (valueOf(color, 'Blue') ?? 0) / 255,
-      (valueOf(color, 'Alpha') ?? 255) / 255,
+      (valueOf(color, "Red") ?? 0) / 255,
+      (valueOf(color, "Green") ?? 0) / 255,
+      (valueOf(color, "Blue") ?? 0) / 255,
+      (valueOf(color, "Alpha") ?? 255) / 255,
     ];
   }
 
@@ -62,16 +62,16 @@
 
     configured?.context.unconfigure?.();
     instance.previewRenderKeys.delete(target);
-    const context = canvas.getContext('webgpu');
+    const context = canvas.getContext("webgpu");
 
     if (!context) {
-      throw new Error('The browser could not create a WebGPU canvas context.');
+      throw new Error("The browser could not create a WebGPU canvas context.");
     }
 
     context.configure({
       device: instance.device,
       format: instance.format,
-      alphaMode: 'premultiplied',
+      alphaMode: "premultiplied",
     });
 
     instance.canvasContexts.set(target, { canvas, context });
@@ -162,8 +162,8 @@
     const helper = dotNetHelpers.get(chartId);
 
     helper
-      ?.invokeMethodAsync('WebGpuFailed', title, message)
-      .catch((error) => console.error('[chart-webgpu] failure callback failed', error));
+      ?.invokeMethodAsync("WebGpuFailed", title, message)
+      .catch((error) => console.error("[chart-webgpu] failure callback failed", error));
   }
 
   function reportRuntimeFailure(chartId, epoch, title, message) {
@@ -266,7 +266,7 @@
       .then(async () => {
         if (!navigator.gpu) {
           throw new Error(
-            'WebGPU is not available. Use a current WebGPU-capable browser and ensure hardware acceleration is enabled.',
+            "WebGPU is not available. Use a current WebGPU-capable browser and ensure hardware acceleration is enabled.",
           );
         }
 
@@ -274,7 +274,7 @@
 
         if (!adapter) {
           throw new Error(
-            'No compatible GPU adapter was found. Ensure hardware acceleration is enabled, then retry.',
+            "No compatible GPU adapter was found. Ensure hardware acceleration is enabled, then retry.",
           );
         }
 
@@ -288,7 +288,7 @@
 
         try {
           if (generation !== sharedGpuGeneration) {
-            throw new Error('WebGPU initialization was superseded.');
+            throw new Error("WebGPU initialization was superseded.");
           }
 
           const format = navigator.gpu.getPreferredCanvasFormat();
@@ -304,46 +304,46 @@
             device,
             format,
             pipeline: device.createRenderPipeline({
-              layout: 'auto',
-              vertex: { module, entryPoint: 'vertexMain' },
+              layout: "auto",
+              vertex: { module, entryPoint: "vertexMain" },
               fragment: {
                 module,
-                entryPoint: 'fragmentMain',
+                entryPoint: "fragmentMain",
                 targets: [
                   {
                     format,
                     blend: {
                       color: {
-                        srcFactor: 'src-alpha',
-                        dstFactor: 'one-minus-src-alpha',
-                        operation: 'add',
+                        srcFactor: "src-alpha",
+                        dstFactor: "one-minus-src-alpha",
+                        operation: "add",
                       },
                       alpha: {
-                        srcFactor: 'one',
-                        dstFactor: 'one-minus-src-alpha',
-                        operation: 'add',
+                        srcFactor: "one",
+                        dstFactor: "one-minus-src-alpha",
+                        operation: "add",
                       },
                     },
                   },
                 ],
               },
-              primitive: { topology: 'triangle-list' },
+              primitive: { topology: "triangle-list" },
             }),
             decimationPipeline: device.createComputePipeline({
-              layout: 'auto',
-              compute: { module: decimationModule, entryPoint: 'decimate' },
+              layout: "auto",
+              compute: { module: decimationModule, entryPoint: "decimate" },
             }),
             rangePipeline: device.createComputePipeline({
-              layout: 'auto',
-              compute: { module: rangeModule, entryPoint: 'reduceRange' },
+              layout: "auto",
+              compute: { module: rangeModule, entryPoint: "reduceRange" },
             }),
             overviewPipeline: device.createComputePipeline({
-              layout: 'auto',
-              compute: { module: overviewModule, entryPoint: 'reduceOverview' },
+              layout: "auto",
+              compute: { module: overviewModule, entryPoint: "reduceOverview" },
             }),
             pointDecimationPipeline: device.createComputePipeline({
-              layout: 'auto',
-              compute: { module: pointDecimationModule, entryPoint: 'decimatePoints' },
+              layout: "auto",
+              compute: { module: pointDecimationModule, entryPoint: "decimatePoints" },
             }),
           };
         } catch (error) {
@@ -360,7 +360,7 @@
               sharedGpuGeneration++;
             }
 
-            const detail = info.message ? ` ${info.message}` : '';
+            const detail = info.message ? ` ${info.message}` : "";
 
             for (const [chartId, instance] of [...instances]) {
               if (instance.gpuGeneration !== bundle.generation) {
@@ -373,12 +373,12 @@
 
               reportFailure(
                 chartId,
-                'GPU connection lost',
+                "GPU connection lost",
                 `The browser lost access to the GPU.${detail} Retry the chart to recreate its GPU resources.`,
               );
             }
           })
-          .catch((error) => console.error('[chart-webgpu] device loss handler failed', error));
+          .catch((error) => console.error("[chart-webgpu] device loss handler failed", error));
 
         sharedGpu = bundle;
 
@@ -426,7 +426,7 @@
         const canvas = document.getElementById(`series_${chartId}`);
 
         if (!canvas) {
-          throw new Error('The chart canvas is unavailable.');
+          throw new Error("The chart canvas is unavailable.");
         }
 
         const gpu = await getSharedGpu();
@@ -436,7 +436,7 @@
         }
 
         if (!gpu.alive || sharedGpu !== gpu || gpu.generation !== sharedGpuGeneration) {
-          throw new Error('The WebGPU device was lost during chart initialization.');
+          throw new Error("The WebGPU device was lost during chart initialization.");
         }
 
         instance = {
@@ -472,11 +472,11 @@
       } catch (error) {
         if (!failureStates.has(chartId) && getLifecycleEpoch(chartId) === epoch) {
           const unavailable =
-            !navigator.gpu || error?.message?.startsWith('No compatible GPU adapter');
+            !navigator.gpu || error?.message?.startsWith("No compatible GPU adapter");
 
           reportFailure(
             chartId,
-            unavailable ? 'WebGPU unavailable' : 'WebGPU initialization failed',
+            unavailable ? "WebGPU unavailable" : "WebGPU initialization failed",
             unavailable
               ? error.message
               : `The chart could not initialize WebGPU: ${error?.message ?? error}. Check browser hardware acceleration, then retry.`,

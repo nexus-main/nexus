@@ -32,7 +32,7 @@
         [disabled]="editingLocked() || !loaded()"
         (click)="request({ kind: 'refresh' })"
       >
-        {{ refreshing() ? 'Refreshing database...' : 'Refresh database' }}
+        {{ refreshing() ? "Refreshing database..." : "Refresh database" }}
       </button>
     </div>
     @if (!administrator()) {
@@ -149,13 +149,13 @@
                         (click)="navigate('pipeline')"
                       >
                         <strong>{{
-                          current.id ? 'Continue unsaved edits' : 'New pipeline draft'
+                          current.id ? "Continue unsaved edits" : "New pipeline draft"
                         }}</strong>
                         <span class="not-saved">Not saved</span>
                         @for (registration of current.registrations; track registration.key) {
                           <span class="registration-line">
                             <span class="registration-type">{{
-                              registration.type || 'Untyped'
+                              registration.type || "Untyped"
                             }}</span>
                             @if (registration.resourceLocator) {
                               <span class="registration-locator">{{
@@ -187,7 +187,7 @@
                       @for (registration of entry.pipeline.registrations ?? []; track $index) {
                         <span class="registration-line">
                           <span class="registration-type">{{
-                            registration.type || 'Untyped'
+                            registration.type || "Untyped"
                           }}</span>
                           @if (registration.resourceLocator) {
                             <span class="registration-locator">{{
@@ -225,7 +225,7 @@
                   </button>
                   <div class="pipeline-editor" aria-label="Pipeline editor">
                     <span class="save-indicator {{ dirty() ? 'not-saved' : 'saved' }}">{{
-                      dirty() ? 'Unsaved changes' : 'Saved'
+                      dirty() ? "Unsaved changes" : "Saved"
                     }}</span>
                     <fieldset [disabled]="editingLocked()">
                       <div class="switch-row">
@@ -261,7 +261,7 @@
                           [disabled]="editingLocked()"
                         />
                         <label for="pipeline-enabled">{{
-                          current.disabled ? 'Disabled' : 'Enabled'
+                          current.disabled ? "Disabled" : "Enabled"
                         }}</label>
                       </div>
                       <div class="field">
@@ -317,7 +317,7 @@
                             >
                               <span class="stage-number">{{ index + 1 }}</span>
                               <span
-                                >{{ registration.type || 'Select a source type' }}
+                                >{{ registration.type || "Select a source type" }}
                                 @if (hasIssue(registration.key)) {
                                   <small class="invalid-label">Needs attention</small>
                                 }
@@ -537,8 +537,8 @@
               <p>
                 {{
                   draft()
-                    ? 'Select a registration to edit its configuration.'
-                    : 'Select a pipeline to get started.'
+                    ? "Select a registration to edit its configuration."
+                    : "Select a pipeline to get started."
                 }}
               </p>
             </div>
@@ -600,7 +600,7 @@
               [disabled]="locked() || !administrator()"
               (click)="remove()"
             >
-              {{ busy() ? 'Deleting...' : 'Yes, delete' }}
+              {{ busy() ? "Deleting..." : "Yes, delete" }}
             </button>
           </div>
         } @else {
@@ -635,7 +635,7 @@
               [disabled]="editingLocked() || !draft() || !dirty() || !prepared()?.valid"
               (click)="save()"
             >
-              {{ busy() ? 'Working...' : 'Save pipeline' }}
+              {{ busy() ? "Working..." : "Save pipeline" }}
             </button>
           </div>
         }

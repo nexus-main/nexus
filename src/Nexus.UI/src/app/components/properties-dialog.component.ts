@@ -7,19 +7,19 @@ import {
   input,
   output,
   signal,
-} from '@angular/core';
-import { EditorComponent } from 'ngx-monaco-editor-v2';
-import type * as Monaco from 'monaco-editor';
-import { DialogModule } from 'primeng/dialog';
+} from "@angular/core";
+import { EditorComponent } from "ngx-monaco-editor-v2";
+import type * as Monaco from "monaco-editor";
+import { DialogModule } from "primeng/dialog";
 import {
   defineNexusMonacoThemes,
   getNexusMonacoTheme,
   type ThemeMode,
-} from '../services/nexus-monaco-themes';
-import { RestoreFocusDirective } from '../restore-focus.directive';
+} from "../services/nexus-monaco-themes";
+import { RestoreFocusDirective } from "../restore-focus.directive";
 
 @Component({
-  selector: 'app-properties-dialog',
+  selector: "app-properties-dialog",
   standalone: true,
   imports: [DialogModule, EditorComponent, RestoreFocusDirective],
   template: `
@@ -64,7 +64,7 @@ import { RestoreFocusDirective } from '../restore-focus.directive';
 })
 export class PropertiesDialogComponent {
   readonly visible = input(false);
-  readonly header = input('Properties');
+  readonly header = input("Properties");
   readonly data = input<Record<string, unknown> | null>(null);
   readonly themeMode = input.required<ThemeMode>();
   readonly visibleChange = output<boolean>();
@@ -75,13 +75,13 @@ export class PropertiesDialogComponent {
   readonly editorHeight = signal(84);
 
   readonly editorOptions: Monaco.editor.IStandaloneEditorConstructionOptions = {
-    language: 'json',
+    language: "json",
     readOnly: true,
     automaticLayout: true,
     minimap: { enabled: false },
-    wordWrap: 'on',
+    wordWrap: "on",
     scrollBeyondLastLine: false,
-    lineNumbers: 'on',
+    lineNumbers: "on",
     folding: true,
     fontSize: 13,
   };
@@ -90,13 +90,13 @@ export class PropertiesDialogComponent {
     const data = this.data();
 
     if (!data) {
-      return '{}';
+      return "{}";
     }
 
     try {
       return JSON.stringify(data, null, 2);
     } catch {
-      return '{}';
+      return "{}";
     }
   });
 

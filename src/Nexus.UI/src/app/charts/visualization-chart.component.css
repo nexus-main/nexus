@@ -1,6 +1,6 @@
 @font-face {
-  font-family: 'Nexus Chart';
-  src: url('../../resources/Courier New Bold.ttf') format('truetype');
+  font-family: "Nexus Chart";
+  src: url("../../resources/Courier New Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -225,7 +225,7 @@
   gap: 0.5rem;
 }
 .navigator-range {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
@@ -297,7 +297,7 @@
   touch-action: none;
 }
 .navigator-handle::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 9px;
   bottom: 9px;
@@ -323,7 +323,7 @@
   color: var(--p-text-color);
   background: color-mix(in srgb, var(--p-content-background) 84%, transparent);
   border-radius: 3px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 0.68rem;
   line-height: 1.15;
   text-overflow: ellipsis;
