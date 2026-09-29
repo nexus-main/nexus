@@ -301,7 +301,7 @@ public record GitHistoryEntry(
 /// <param name="Path">The repository-relative file path.</param>
 /// <param name="Status">The Git file status.</param>
 /// <param name="OriginalText">The file text before the commit.</param>
-/// <param name="ModifiedText">The file text text after the commit.</param>
+/// <param name="ModifiedText">The file text after the commit.</param>
 public record GitDiffFile(
     string Path,
     string Status,
