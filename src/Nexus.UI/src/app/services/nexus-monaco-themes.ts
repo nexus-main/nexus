@@ -5,7 +5,8 @@ export type ThemeMode = 'dark' | 'light'
 let themesDefined = false
 
 export function defineNexusMonacoThemes(monaco: typeof Monaco): void {
-  if (themesDefined) return
+  if (themesDefined) 
+return
 
   themesDefined = true
 

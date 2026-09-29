@@ -165,7 +165,8 @@ export class NexusService {
 
     this.devAuthMode.set(nextMode)
 
-    if (isDevMode()) localStorage.setItem(devAuthModeStorageKey, nextMode)
+    if (isDevMode()) 
+localStorage.setItem(devAuthModeStorageKey, nextMode)
   }
 
   async exportResources(parameters: V2.ExportParameters) {
@@ -206,15 +207,19 @@ export class NexusService {
   private async invoke<T>(method: string, url: string, accept?: string, contentType?: string, body?: BodyInit | null, signal?: AbortSignal): Promise<T> {
     const headers = new Headers()
 
-    if (accept) headers.set('Accept', accept)
+    if (accept) 
+headers.set('Accept', accept)
 
-    if (contentType) headers.set('Content-Type', contentType)
+    if (contentType) 
+headers.set('Content-Type', contentType)
 
-    if (isDevMode()) headers.set(devAuthRoleHeader, this.devAuthMode())
+    if (isDevMode()) 
+headers.set(devAuthRoleHeader, this.devAuthMode())
 
     const response = await fetch(`${this.endpoint}${url}`, { method, headers, body, signal })
 
-    if (!response.ok) throw new Error(`Nexus request failed: ${response.status} ${response.statusText}`)
+    if (!response.ok) 
+throw new Error(`Nexus request failed: ${response.status} ${response.statusText}`)
 
     if (accept === 'application/octet-stream' || accept === 'application/vnd.apache.arrow.stream') {
       return response as T
@@ -222,14 +227,16 @@ export class NexusService {
 
     const text = await response.text()
 
-    if (!text) return undefined as T
+    if (!text) 
+return undefined as T
 
     // Reject unrepresentable configuration numbers before JSON.parse can round a saved value.
     if (method === 'GET' && url.split('?')[0] === '/api/v1/sources/pipelines') {
       const { parseJsonSafely } = await import('./json-schema')
       const parsed = parseJsonSafely(text)
 
-      if (!parsed.valid) throw new Error(`Cannot safely edit these pipelines: ${parsed.errors.join(' ')}`)
+      if (!parsed.valid) 
+throw new Error(`Cannot safely edit these pipelines: ${parsed.errors.join(' ')}`)
 
       return parsed.value as T
     }
@@ -243,7 +250,8 @@ export function prepareChildCatalogs(parentId: string, childInfos: V1.CatalogInf
   const groups = new Map<string, V1.CatalogInfo[]>()
 
   for (const info of childInfos) {
-    if (!info.isVisible) continue
+    if (!info.isVisible) 
+continue
 
     const remainder = (info.id ?? '').slice(normalizedParentId.length)
     const nextSegment = remainder.split('/').filter(Boolean)[0] ?? ''
@@ -348,7 +356,8 @@ function createRestrictedDevCatalog(): V1.CatalogInfo {
 }
 
 function getInitialDevAuthMode(): DevAuthMode {
-  if (!isDevMode()) return 'admin'
+  if (!isDevMode()) 
+return 'admin'
 
   return localStorage.getItem(devAuthModeStorageKey) === 'user' ? 'user' : 'admin'
 }

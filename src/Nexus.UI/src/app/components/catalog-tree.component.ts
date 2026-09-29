@@ -68,7 +68,8 @@ export class CatalogTreeComponent {
     const expandable = this.expandableNodeKeys()
 
     for (const node of this.nodes()) {
-      while (stack.length && stack[stack.length - 1].data!.depth >= node.depth) stack.pop()
+      while (stack.length && stack[stack.length - 1].data!.depth >= node.depth) 
+stack.pop()
 
       const treeNode: TreeNode<CatalogNode> = {
         key: node.nodeKey,
@@ -80,8 +81,10 @@ export class CatalogTreeComponent {
       }
       const parent = stack[stack.length - 1]
 
-      if (parent) parent.children!.push(treeNode)
-      else roots.push(treeNode)
+      if (parent) 
+parent.children!.push(treeNode)
+      else 
+roots.push(treeNode)
 
       stack.push(treeNode)
     }
@@ -96,7 +99,8 @@ export class CatalogTreeComponent {
     while (stack.length) {
       const node = stack.pop()!
 
-      if (node.key === key) return node
+      if (node.key === key) 
+return node
 
       stack.push(...(node.children ?? []))
     }

@@ -101,7 +101,8 @@ export class JsonSchemaEditorComponent {
     effect(() => {
       const schema = this.schema()
 
-      if (this.monaco && this.model) this.yamlService.configure(this.monaco, this.model, schema)
+      if (this.monaco && this.model) 
+this.yamlService.configure(this.monaco, this.model, schema)
     })
 
     effect(() => this.applyTheme())
@@ -119,17 +120,21 @@ export class JsonSchemaEditorComponent {
     this.monaco = (window as unknown as { monaco?: typeof Monaco }).monaco ?? null
     this.model = editor.getModel()
 
-    if (this.monaco && this.model) this.yamlService.configure(this.monaco, this.model, this.schema())
+    if (this.monaco && this.model) 
+this.yamlService.configure(this.monaco, this.model, this.schema())
 
-    if (this.monaco) defineNexusMonacoThemes(this.monaco)
+    if (this.monaco) 
+defineNexusMonacoThemes(this.monaco)
 
     this.applyTheme()
     editor.setValue(this.text())
 
-    if (this.monaco) editor.addCommand(this.monaco.KeyMod.CtrlCmd | this.monaco.KeyCode.KeyS, () => this.requestSave())
+    if (this.monaco) 
+editor.addCommand(this.monaco.KeyMod.CtrlCmd | this.monaco.KeyCode.KeyS, () => this.requestSave())
 
     editor.onDidChangeModelContent(() => {
-      if (!this.editor || this.suppressChange) return
+      if (!this.editor || this.suppressChange) 
+return
 
       this.applyText(editor.getValue(), false)
     })
@@ -139,7 +144,8 @@ export class JsonSchemaEditorComponent {
     const editor = this.editor
     const model = this.model
 
-    if (!editor || !model) return
+    if (!editor || !model) 
+return
 
     const text = configurationYamlText(createSchemaScaffold(this.schema()))
 
@@ -155,7 +161,8 @@ export class JsonSchemaEditorComponent {
   }
 
   private requestSave(): void {
-    if (this.editor) this.applyText(this.editor.getValue(), false)
+    if (this.editor) 
+this.applyText(this.editor.getValue(), false)
 
     this.saveRequested.emit()
   }
@@ -165,13 +172,16 @@ export class JsonSchemaEditorComponent {
     this.rawTextChange.emit(text)
     const parsed = parseConfigurationText(text)
 
-    if (parsed.valid) this.valueChange.emit(parsed.value)
+    if (parsed.valid) 
+this.valueChange.emit(parsed.value)
 
-    if (updateEditor) this.updateEditorText(text)
+    if (updateEditor) 
+this.updateEditorText(text)
   }
 
   private updateEditorText(text: string): void {
-    if (!this.editor || this.editor.getValue() === text) return
+    if (!this.editor || this.editor.getValue() === text) 
+return
 
     this.suppressChange = true
     this.editor.setValue(text)
@@ -181,7 +191,8 @@ export class JsonSchemaEditorComponent {
   private applyTheme(): void {
     const monaco = this.monaco
 
-    if (!monaco) return
+    if (!monaco) 
+return
 
     monaco.editor.setTheme(getNexusMonacoTheme(this.themeMode()))
   }

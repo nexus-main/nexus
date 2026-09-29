@@ -156,7 +156,8 @@ export class AppHeaderComponent {
     items.push({ separator: true })
     items.push({ label: 'API', icon: 'api', url: '/api', target: '_blank' })
 
-    if (this.helpLink()) items.push({ label: 'Help', icon: 'help', url: this.helpLink()!, target: '_blank' })
+    if (this.helpLink()) 
+items.push({ label: 'Help', icon: 'help', url: this.helpLink()!, target: '_blank' })
 
     items.push({ label: 'About', icon: 'info', command: () => this.openAbout.emit() })
 
@@ -175,7 +176,8 @@ export class AppHeaderComponent {
       )
     }
 
-    if (this.logoutUrl()) items.push({ separator: true }, { label: 'Logout', icon: 'log-out', url: this.logoutUrl()! })
+    if (this.logoutUrl()) 
+items.push({ separator: true }, { label: 'Logout', icon: 'log-out', url: this.logoutUrl()! })
 
     return items
   })

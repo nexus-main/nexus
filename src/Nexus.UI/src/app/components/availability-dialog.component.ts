@@ -69,7 +69,8 @@ export class AvailabilityDialogComponent {
 
   constructor() {
     effect(() => {
-      if (!this.visible()) return
+      if (!this.visible()) 
+return
 
       const catalogId = this.catalogId()
       const begin = this.begin()
@@ -82,7 +83,8 @@ export class AvailabilityDialogComponent {
   private load(catalogId: string, begin: string, end: string): void {
     this.controller?.abort()
 
-    if (!catalogId || !begin || !end) return
+    if (!catalogId || !begin || !end) 
+return
 
     const beginDate = begin.slice(0, 10) + 'T00:00:00Z'
     const endDate = end.slice(0, 10) + 'T00:00:00Z'
@@ -112,7 +114,8 @@ export class AvailabilityDialogComponent {
         this.endDate.set(endDate)
       })
       .catch(err => {
-        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (err instanceof DOMException && err.name === 'AbortError') 
+return
 
         this.error.set(err instanceof Error ? err.message : String(err))
       })

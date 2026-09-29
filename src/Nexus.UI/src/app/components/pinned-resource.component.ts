@@ -118,25 +118,33 @@ export class PinnedResourceComponent {
   }
 
   displayKind(kind: RepresentationKind): string {
-    if (kind === 'MeanPolarDeg') return 'Mean polar (deg)'
+    if (kind === 'MeanPolarDeg') 
+return 'Mean polar (deg)'
 
-    if (kind === 'Std') return 'STD'
+    if (kind === 'Std') 
+return 'STD'
 
-    if (kind === 'Rms') return 'RMS'
+    if (kind === 'Rms') 
+return 'RMS'
 
-    if (kind === 'MinBitwise') return 'Minimum (bitwise)'
+    if (kind === 'MinBitwise') 
+return 'Minimum (bitwise)'
 
-    if (kind === 'MaxBitwise') return 'Maximum (bitwise)'
+    if (kind === 'MaxBitwise') 
+return 'Maximum (bitwise)'
 
     return kind
   }
 
   methodChipClass(kind: RepresentationKind): string {
-    if (!this.valid(kind)) return 'method-invalid'
+    if (!this.valid(kind)) 
+return 'method-invalid'
 
-    if (kind === 'Original') return 'method-original'
+    if (kind === 'Original') 
+return 'method-original'
 
-    if (kind === 'Resampled') return 'method-resampled'
+    if (kind === 'Resampled') 
+return 'method-resampled'
 
     return 'method-aggregated'
   }
@@ -144,11 +152,13 @@ export class PinnedResourceComponent {
   methodOptionClass(kind: RepresentationKind): string {
     const selected = this.methodSelected(kind)
 
-    if (kind === 'Original') return selected
+    if (kind === 'Original') 
+return selected
       ? 'method-selected method-original'
       : 'method-unselected'
 
-    if (kind === 'Resampled') return selected
+    if (kind === 'Resampled') 
+return selected
       ? 'method-selected method-resampled'
       : 'method-unselected'
 
@@ -166,7 +176,8 @@ export class PinnedResourceComponent {
   }
 
   copyMethodPath(kind: RepresentationKind): void {
-    if (!navigator.clipboard) return
+    if (!navigator.clipboard) 
+return
 
     void navigator.clipboard.writeText(this.methodPath(kind)).then(() => {
       this.resourcePathCopied.set(true)

@@ -21,7 +21,8 @@ const schemaId = 'urn:nexus:configuration'
 function validTimeSpan(text: string): boolean {
   const match = /^(-)?(?:(\d+)\.)?(\d{2}):([0-5]\d):([0-5]\d)(?:\.(\d{1,7}))?$/.exec(text)
 
-  if (!match || match[0] !== text || Number(match[3]) > 23) return false
+  if (!match || match[0] !== text || Number(match[3]) > 23) 
+return false
 
   const ticks = ((BigInt(match[2] ?? '0') * 24n + BigInt(match[3])) * 3600n +
     BigInt(match[4]) * 60n + BigInt(match[5])) * 10000000n + BigInt((match[6] ?? '').padEnd(7, '0'))
@@ -35,7 +36,8 @@ function validDotNetTime(text: string, withDate: boolean): boolean {
   if (withDate) {
     const date = /^(\d{4})-(\d{2})-(\d{2})T/.exec(text)
 
-    if (!date) return false
+    if (!date) 
+return false
 
     const year = Number(date[1])
     const month = Number(date[2])
@@ -43,14 +45,16 @@ function validDotNetTime(text: string, withDate: boolean): boolean {
     const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
     const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-    if (year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1]) return false
+    if (year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1]) 
+return false
 
     time = text.slice(date[0].length)
   }
 
   const match = /^(\d{2}):([0-5]\d):([0-5]\d)(?:\.(\d{1,7}))?(?:Z|([+-])(\d{2}):([0-5]\d))?$/.exec(time)
 
-  if (!match || match[0] !== time || Number(match[1]) > 23) return false
+  if (!match || match[0] !== time || Number(match[1]) > 23) 
+return false
 
   const offsetHour = Number(match[6] ?? 0)
   const offsetMinute = Number(match[7] ?? 0)
@@ -63,11 +67,13 @@ export function isJsonObject(value: unknown): value is Record<string, unknown> {
 }
 
 function validatorEntry(schema: unknown): ValidatorEntry | string {
-  if (!isJsonObject(schema)) return 'A Draft 4 schema object is required.'
+  if (!isJsonObject(schema)) 
+return 'A Draft 4 schema object is required.'
 
   const cached = validators.get(schema)
 
-  if (cached) return cached
+  if (cached) 
+return cached
 
   try {
     // One Ajv per root avoids collisions between registration schemas with the same id.
@@ -85,9 +91,11 @@ function validatorEntry(schema: unknown): ValidatorEntry | string {
     ajv.addKeyword({ keyword: 'multipleOf', type: 'number', schemaType: 'number', errors: false,
       metaSchema: { type: 'number', minimum: 0, exclusiveMinimum: true },
       validate: (divisor: number, value: number) => {
-        if (!Number.isFinite(value) || !Number.isFinite(divisor) || divisor <= 0) return false
+        if (!Number.isFinite(value) || !Number.isFinite(divisor) || divisor <= 0) 
+return false
 
-        if (value === 0) return true
+        if (value === 0) 
+return true
 
         // Number's round-trip decimal tokens are the parser's supported numeric domain.
         const [numerator, numeratorPower] = decimalIdentity(String(value)).split('e')
@@ -110,7 +118,8 @@ function validatorEntry(schema: unknown): ValidatorEntry | string {
     while (pending.length) {
       const node = pending.pop()
 
-      if (!isJsonObject(node) || seen.has(node)) continue
+      if (!isJsonObject(node) || seen.has(node)) 
+continue
 
       seen.add(node)
 
@@ -131,21 +140,25 @@ function validatorEntry(schema: unknown): ValidatorEntry | string {
       }
 
       for (const keyword of ['properties', 'patternProperties', 'definitions', 'dependencies']) {
-        if (isJsonObject(node[keyword])) pending.push(...Object.values(node[keyword]))
+        if (isJsonObject(node[keyword])) 
+pending.push(...Object.values(node[keyword]))
       }
 
       for (const keyword of ['items', 'additionalItems', 'additionalProperties', 'not', 'allOf', 'anyOf', 'oneOf']) {
         const child = node[keyword]
 
-        if (Array.isArray(child)) pending.push(...child)
-        else if (isJsonObject(child)) pending.push(child)
+        if (Array.isArray(child)) 
+pending.push(...child)
+        else if (isJsonObject(child)) 
+pending.push(child)
       }
     }
 
     ajv.addSchema(schema, schemaId)
     const validate = ajv.getSchema(schemaId)
 
-    if (!validate) throw new Error('Schema could not be compiled.')
+    if (!validate) 
+throw new Error('Schema could not be compiled.')
 
     const entry = { ajv, validate, fragments: new Map<string, ValidateFunction>() }
 
@@ -162,16 +175,19 @@ function validatorEntry(schema: unknown): ValidatorEntry | string {
 }
 
 function jsonValueError(value: unknown, seen = new Set<object>()): string | undefined {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return undefined
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') 
+return undefined
 
   if (typeof value === 'number') {
     return !Number.isFinite(value) || (Number.isInteger(value) && !Number.isSafeInteger(value)) || Object.is(value, -0)
       ? 'Configuration contains an unsafe JSON number.' : undefined
   }
 
-  if (typeof value !== 'object') return 'Configuration must contain only JSON values; the root must be present.'
+  if (typeof value !== 'object') 
+return 'Configuration must contain only JSON values; the root must be present.'
 
-  if (seen.has(value)) return 'Configuration contains a circular reference.'
+  if (seen.has(value)) 
+return 'Configuration contains a circular reference.'
 
   if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) {
     return 'Configuration must contain plain JSON objects, not class instances or dates.'
@@ -182,7 +198,8 @@ function jsonValueError(value: unknown, seen = new Set<object>()): string | unde
   for (const item of Array.isArray(value) ? value : Object.values(value)) {
     const error = jsonValueError(item, seen)
 
-    if (error) return error
+    if (error) 
+return error
   }
 
   seen.delete(value)
@@ -194,12 +211,14 @@ function jsonValueError(value: unknown, seen = new Set<object>()): string | unde
 export function validateConfiguration(schema: unknown, value: unknown): ConfigurationValidation {
   const entry = validatorEntry(schema)
 
-  if (typeof entry === 'string') return { valid: false, errors: [entry] }
+  if (typeof entry === 'string') 
+return { valid: false, errors: [entry] }
 
   try {
     const error = jsonValueError(value)
 
-    if (error) return { valid: false, errors: [error] }
+    if (error) 
+return { valid: false, errors: [error] }
 
     const valid = entry.validate(value) === true
 
@@ -217,7 +236,8 @@ function decimalIdentity(token: string): string {
   const [whole, fraction = ''] = unsigned.split('.')
   const digits = (whole + fraction).replace(/^0+/, '')
 
-  if (!digits) return negative ? '-0' : '0'
+  if (!digits) 
+return negative ? '-0' : '0'
 
   const coefficient = digits.replace(/0+$/, '')
   const power = BigInt(exponent) - BigInt(fraction.length) + BigInt(digits.length - coefficient.length)
@@ -240,7 +260,8 @@ export function parseJsonSafely(text: string): JsonParseResult {
     for (const match of text.matchAll(tokens)) {
       const token = match[1]
 
-      if (token === undefined) continue
+      if (token === undefined) 
+continue
 
       const number = Number(token)
 
@@ -265,17 +286,20 @@ export function configurationText(value: unknown): string {
 }
 
 export function parseConfigurationText(text: string): JsonParseResult {
-  if (text.trim() === '') return { valid: false, errors: ['Configuration YAML is empty.'] }
+  if (text.trim() === '') 
+return { valid: false, errors: ['Configuration YAML is empty.'] }
 
   try {
     const document = parseDocument(text, { schema: 'core', uniqueKeys: true })
     const errors = [...document.errors, ...document.warnings].map(error => error.message)
 
-    if (errors.length) return { valid: false, errors }
+    if (errors.length) 
+return { valid: false, errors }
 
     // Check scalar sources (including map keys) before toJS can discard rounded tokens.
     visit(document, { Scalar(_key, node) {
-      if (typeof node.value !== 'number') return
+      if (typeof node.value !== 'number') 
+return
 
       const token = node.source!
       const number = node.value
@@ -286,7 +310,8 @@ export function parseConfigurationText(text: string): JsonParseResult {
       }
     } })
 
-    if (errors.length) return { valid: false, errors }
+    if (errors.length) 
+return { valid: false, errors }
 
     const value = document.toJS({ maxAliasCount: 0 }) as unknown
     const error = jsonValueError(value)
@@ -329,16 +354,19 @@ export function schemaPointer(path: string, key: string): string {
 }
 
 function atPointer(root: unknown, path: string): unknown {
-  if (path === '#') return root
+  if (path === '#') 
+return root
 
-  if (!path.startsWith('#/')) return undefined
+  if (!path.startsWith('#/')) 
+return undefined
 
   let value = root
 
   for (const part of decodeURIComponent(path.slice(2)).split('/')) {
     const key = part.replace(/~1/g, '/').replace(/~0/g, '~')
 
-    if ((!isJsonObject(value) && !Array.isArray(value)) || !Object.hasOwn(value, key)) return undefined
+    if ((!isJsonObject(value) && !Array.isArray(value)) || !Object.hasOwn(value, key)) 
+return undefined
 
     value = (value as Record<string, unknown>)[key]
   }
@@ -349,11 +377,13 @@ function atPointer(root: unknown, path: string): unknown {
 function validAtPaths(root: unknown, paths: string[], value: unknown): boolean {
   const entry = validatorEntry(root)
 
-  if (typeof entry === 'string') return false
+  if (typeof entry === 'string') 
+return false
 
   try {
     return paths.every(path => {
-      if (path === '#') return entry.validate(value) === true
+      if (path === '#') 
+return entry.validate(value) === true
 
       let validate = entry.fragments.get(path)
 
@@ -374,41 +404,50 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
   const view: SchemaView = { kind: 'raw', nullable: false, enumValues: [], enumLabels: [], properties: [],
     itemPaths: [], additionalPaths: [], allowAdditional: false }
 
-  if (typeof validatorEntry(root) === 'string') return view
+  if (typeof validatorEntry(root) === 'string') 
+return view
 
   view.nullable = validAtPaths(root, paths, null)
   const parts: { schema: Schema; path: string }[] = []
   const flatten = (path: string, seen: Set<string>): boolean => {
-    if (seen.has(path) || seen.size > 64) return false
+    if (seen.has(path) || seen.size > 64) 
+return false
 
     const schema = atPointer(root, path)
 
-    if (!isJsonObject(schema)) return false
+    if (!isJsonObject(schema)) 
+return false
 
     const next = new Set(seen).add(path)
 
     // Nested ids change reference scope; leave these less common schemas to raw editing.
-    if (path !== '#' && schema['id'] !== undefined) return false
+    if (path !== '#' && schema['id'] !== undefined) 
+return false
 
-    if (typeof schema['$ref'] === 'string') return flatten(schema['$ref'], next)
+    if (typeof schema['$ref'] === 'string') 
+return flatten(schema['$ref'], next)
 
     for (const union of ['anyOf', 'oneOf']) {
       const branches = schema[union]
 
-      if (!Array.isArray(branches)) continue
+      if (!Array.isArray(branches)) 
+continue
 
       if (branches.length === 1) {
-        if (!flatten(schemaPointer(schemaPointer(path, union), '0'), next)) return false
+        if (!flatten(schemaPointer(schemaPointer(path, union), '0'), next)) 
+return false
 
         continue
       }
 
-      if (branches.length !== 2) return false
+      if (branches.length !== 2) 
+return false
 
       const nullIndex = branches.findIndex(branch => isJsonObject(branch) &&
         (branch['type'] === 'null' || (Array.isArray(branch['enum']) && branch['enum'].length === 1 && branch['enum'][0] === null)))
 
-      if (nullIndex < 0 || !flatten(schemaPointer(schemaPointer(path, union), String(1 - nullIndex)), next)) return false
+      if (nullIndex < 0 || !flatten(schemaPointer(schemaPointer(path, union), String(1 - nullIndex)), next)) 
+return false
     }
 
     parts.push({ schema, path })
@@ -421,7 +460,8 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
   }
 
   try {
-    if (!paths.every(path => flatten(path, new Set()))) return view
+    if (!paths.every(path => flatten(path, new Set()))) 
+return view
   } catch {
     return view
   }
@@ -431,9 +471,11 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
   let enumSchema: Schema | undefined
 
   for (const { schema } of parts) {
-    if (typeof schema['title'] === 'string') view.title = schema['title']
+    if (typeof schema['title'] === 'string') 
+view.title = schema['title']
 
-    if (typeof schema['description'] === 'string') view.description = schema['description']
+    if (typeof schema['description'] === 'string') 
+view.description = schema['description']
 
     if (!enumeration && Array.isArray(schema['enum'])) {
       enumeration = schema['enum']
@@ -445,10 +487,12 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
 
     candidates = candidates?.filter(item => item !== 'null')
 
-    if (candidates) types = types ? [...new Set(types.flatMap(item => candidates.includes(item) ? [item] :
+    if (candidates) 
+types = types ? [...new Set(types.flatMap(item => candidates.includes(item) ? [item] :
       (item === 'integer' && candidates.includes('number')) || (item === 'number' && candidates.includes('integer')) ? ['integer'] : []))] : candidates
 
-    if (schema['patternProperties'] !== undefined || schema['extends'] !== undefined) return view
+    if (schema['patternProperties'] !== undefined || schema['extends'] !== undefined) 
+return view
   }
 
   if (enumeration) {
@@ -457,7 +501,8 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
     const names = enumSchema?.['x-enumNames']
 
     for (const [index, value] of enumeration.entries()) {
-      if (value === null || !validAtPaths(root, paths, value)) continue
+      if (value === null || !validAtPaths(root, paths, value)) 
+continue
 
       const display = Array.isArray(displayNames) && displayNames.length === enumeration.length ? displayNames[index] : undefined
       const name = Array.isArray(names) && names.length === enumeration.length ? names[index] : undefined
@@ -470,7 +515,8 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
   }
 
   if (types?.length === 0) {
-    if (view.nullable) view.kind = 'null'
+    if (view.nullable) 
+view.kind = 'null'
 
     return view
   }
@@ -479,7 +525,8 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
     parts.some(({ schema }) => schema['properties'] !== undefined || schema['additionalProperties'] !== undefined) ? 'object' :
       parts.some(({ schema }) => schema['items'] !== undefined) ? 'array' : undefined
 
-  if (!type || !['string', 'number', 'integer', 'boolean', 'object', 'array'].includes(type)) return view
+  if (!type || !['string', 'number', 'integer', 'boolean', 'object', 'array'].includes(type)) 
+return view
 
   view.kind = type as SchemaView['kind']
 
@@ -490,7 +537,10 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
     view.allowAdditional = true
 
     for (const { schema, path } of parts) {
-      if (Array.isArray(schema['required'])) for (const key of schema['required']) if (typeof key === 'string') required.add(key)
+      if (Array.isArray(schema['required'])) 
+for (const key of schema['required']) 
+if (typeof key === 'string') 
+required.add(key)
 
       if (isJsonObject(schema['properties'])) {
         for (const key of Object.keys(schema['properties'])) {
@@ -501,35 +551,44 @@ export function getSchemaView(root: unknown, paths: string[] = ['#']): SchemaVie
         }
       }
 
-      if (schema['additionalProperties'] === false) view.allowAdditional = false
+      if (schema['additionalProperties'] === false) 
+view.allowAdditional = false
 
-      if (schema['additionalProperties'] === false || isJsonObject(schema['additionalProperties'])) view.additionalPaths.push(schemaPointer(path, 'additionalProperties'))
+      if (schema['additionalProperties'] === false || isJsonObject(schema['additionalProperties'])) 
+view.additionalPaths.push(schemaPointer(path, 'additionalProperties'))
     }
 
     // An allOf branch's additionalProperties also constrains properties declared in other branches.
     for (const property of properties.values()) {
       for (const { schema, path } of parts) {
-        if (isJsonObject(schema['properties']) && Object.hasOwn(schema['properties'], property.key)) continue
+        if (isJsonObject(schema['properties']) && Object.hasOwn(schema['properties'], property.key)) 
+continue
 
-        if (schema['additionalProperties'] === false) return { ...view, kind: 'raw' }
+        if (schema['additionalProperties'] === false) 
+return { ...view, kind: 'raw' }
 
-        if (isJsonObject(schema['additionalProperties'])) property.paths.push(schemaPointer(path, 'additionalProperties'))
+        if (isJsonObject(schema['additionalProperties'])) 
+property.paths.push(schemaPointer(path, 'additionalProperties'))
       }
 
       property.required = required.has(property.key)
     }
 
     // Required dictionary keys need a visible field even without a properties declaration.
-    for (const key of required) if (!properties.has(key)) properties.set(key, { key, paths: view.additionalPaths, required: true })
+    for (const key of required) 
+if (!properties.has(key)) 
+properties.set(key, { key, paths: view.additionalPaths, required: true })
 
     view.properties = [...properties.values()]
   }
 
   if (type === 'array') {
     for (const { schema, path } of parts) {
-      if (Array.isArray(schema['items'])) return { ...view, kind: 'raw' }
+      if (Array.isArray(schema['items'])) 
+return { ...view, kind: 'raw' }
 
-      if (isJsonObject(schema['items'])) view.itemPaths.push(schemaPointer(path, 'items'))
+      if (isJsonObject(schema['items'])) 
+view.itemPaths.push(schemaPointer(path, 'items'))
     }
   }
 
@@ -557,18 +616,23 @@ export function createSchemaScaffold(schema: unknown): unknown {
   let inspected = 0
   // Do not hand cyclic JS objects or excessively large schemas/annotations to Ajv or cloning.
   const bounded = (value: unknown, depth = 0, ancestors = new Set<object>()): boolean => {
-    if (++inspected > maxNodes || depth > maxDepth) return false
+    if (++inspected > maxNodes || depth > maxDepth) 
+return false
 
-    if (typeof value === 'string') return value.length <= maxStringLength
+    if (typeof value === 'string') 
+return value.length <= maxStringLength
 
-    if (value === null || typeof value !== 'object') return true
+    if (value === null || typeof value !== 'object') 
+return true
 
-    if (ancestors.has(value)) return false
+    if (ancestors.has(value)) 
+return false
 
     const next = new Set(ancestors).add(value)
 
     for (const key of Object.keys(value)) {
-      if (key.length > maxStringLength || !bounded((value as Schema)[key], depth + 1, next)) return false
+      if (key.length > maxStringLength || !bounded((value as Schema)[key], depth + 1, next)) 
+return false
     }
 
     return true
@@ -577,24 +641,29 @@ export function createSchemaScaffold(schema: unknown): unknown {
 
   type Part = { schema: Schema; path: string }
   const build = (paths: string[], depth: number, ancestors: Set<object>): unknown => {
-    if (depth >= maxDepth || remaining-- <= 0) return null
+    if (depth >= maxDepth || remaining-- <= 0) 
+return null
 
     const visited = new Set<object>()
     const expand = (path: string, trail: Set<object>, level: number): Part[] | null => {
-      if (level >= maxDepth || remaining-- <= 0) return null
+      if (level >= maxDepth || remaining-- <= 0) 
+return null
 
       let node: unknown
 
       try { node = atPointer(schema, path) } catch { return null }
 
-      if (!isJsonObject(node)) return node === true ? [] : null
+      if (!isJsonObject(node)) 
+return node === true ? [] : null
 
-      if (trail.has(node) || (path !== '#' && node['id'] !== undefined)) return null
+      if (trail.has(node) || (path !== '#' && node['id'] !== undefined)) 
+return null
 
       visited.add(node)
       const next = new Set(trail).add(node)
 
-      if (typeof node['$ref'] === 'string') return expand(node['$ref'], next, level + 1)
+      if (typeof node['$ref'] === 'string') 
+return expand(node['$ref'], next, level + 1)
 
       const parts: Part[] = [{ schema: node, path }]
 
@@ -602,7 +671,8 @@ export function createSchemaScaffold(schema: unknown): unknown {
         for (let index = 0; index < node['allOf'].length; index++) {
           const child = expand(schemaPointer(schemaPointer(path, 'allOf'), String(index)), next, level + 1)
 
-          if (!child) return null
+          if (!child) 
+return null
 
           parts.push(...child)
         }
@@ -611,14 +681,16 @@ export function createSchemaScaffold(schema: unknown): unknown {
       for (const union of ['oneOf', 'anyOf']) {
         const branches = node[union]
 
-        if (!Array.isArray(branches)) continue
+        if (!Array.isArray(branches)) 
+continue
 
         let selected: Part[] | null = null
 
         for (let index = 0; index < branches.length && remaining > 0; index++) {
           const child = expand(schemaPointer(schemaPointer(path, union), String(index)), next, level + 1)
 
-          if (!child) continue
+          if (!child) 
+continue
 
           selected ??= child
           const nullOnly = child.some(part => part.schema['type'] === 'null' ||
@@ -628,7 +700,8 @@ export function createSchemaScaffold(schema: unknown): unknown {
           if (!nullOnly) { selected = child; break }
         }
 
-        if (!selected) return null
+        if (!selected) 
+return null
 
         parts.push(...selected)
       }
@@ -640,18 +713,21 @@ export function createSchemaScaffold(schema: unknown): unknown {
     for (const path of paths) {
       const expanded = expand(path, ancestors, depth)
 
-      if (!expanded) return null
+      if (!expanded) 
+return null
 
       parts.push(...expanded)
     }
 
     const next = new Set([...ancestors, ...visited])
     const accepts = (value: unknown): boolean => {
-      if (!canValidate || remaining <= 0) return false
+      if (!canValidate || remaining <= 0) 
+return false
 
       inspected = 0
 
-      if (!bounded(value, depth)) return false
+      if (!bounded(value, depth)) 
+return false
 
       remaining -= inspected
 
@@ -665,9 +741,11 @@ export function createSchemaScaffold(schema: unknown): unknown {
         const candidates = keyword === 'examples' ? (Array.isArray(annotation) ? annotation : []) : [annotation]
 
         for (const candidate of candidates) {
-          if (!canValidate || remaining-- <= 0) break
+          if (!canValidate || remaining-- <= 0) 
+break
 
-          if (candidate !== undefined && candidate !== null && accepts(candidate)) return structuredClone(candidate)
+          if (candidate !== undefined && candidate !== null && accepts(candidate)) 
+return structuredClone(candidate)
         }
       }
     }
@@ -677,9 +755,11 @@ export function createSchemaScaffold(schema: unknown): unknown {
 
     if (enumeration) {
       for (const candidate of enumeration) {
-        if (!canValidate || remaining-- <= 0) break
+        if (!canValidate || remaining-- <= 0) 
+break
 
-        if (candidate !== null && accepts(candidate)) return structuredClone(candidate)
+        if (candidate !== null && accepts(candidate)) 
+return structuredClone(candidate)
       }
 
       return null
@@ -691,7 +771,8 @@ export function createSchemaScaffold(schema: unknown): unknown {
       const type = part.schema['type']
       const candidates = typeof type === 'string' ? [type] : Array.isArray(type) ? type.filter((item): item is string => typeof item === 'string') : undefined
 
-      if (candidates) types = types ? [...new Set(types.flatMap(item => candidates.includes(item) ? [item] :
+      if (candidates) 
+types = types ? [...new Set(types.flatMap(item => candidates.includes(item) ? [item] :
         (item === 'integer' && candidates.includes('number')) || (item === 'number' && candidates.includes('integer')) ? ['integer'] : []))] : candidates
     }
 
@@ -708,8 +789,10 @@ export function createSchemaScaffold(schema: unknown): unknown {
       for (const part of parts) {
         const declared = part.schema['properties']
 
-        if (isJsonObject(declared)) for (const key of Object.keys(declared)) {
-          if (properties.size >= maxNodes) break
+        if (isJsonObject(declared)) 
+for (const key of Object.keys(declared)) {
+          if (properties.size >= maxNodes) 
+break
 
           const paths = properties.get(key) ?? []
 
@@ -717,13 +800,17 @@ export function createSchemaScaffold(schema: unknown): unknown {
           properties.set(key, paths)
         }
 
-        if (Array.isArray(part.schema['required'])) for (const key of part.schema['required']) {
-          if (properties.size >= maxNodes) break
+        if (Array.isArray(part.schema['required'])) 
+for (const key of part.schema['required']) {
+          if (properties.size >= maxNodes) 
+break
 
-          if (typeof key === 'string' && !properties.has(key)) properties.set(key, [])
+          if (typeof key === 'string' && !properties.has(key)) 
+properties.set(key, [])
         }
 
-        if (part.schema['additionalProperties'] === false || part.schema['maxProperties'] === 0) allowAdditional = false
+        if (part.schema['additionalProperties'] === false || part.schema['maxProperties'] === 0) 
+allowAdditional = false
 
         if (isJsonObject(part.schema['additionalProperties']) || part.schema['additionalProperties'] === true) {
           additional.push(schemaPointer(part.path, 'additionalProperties'))
@@ -732,19 +819,23 @@ export function createSchemaScaffold(schema: unknown): unknown {
         if (isJsonObject(part.schema['patternProperties'])) {
           const key = Object.keys(part.schema['patternProperties'])[0]
 
-          if (key !== undefined) patterns.push(schemaPointer(schemaPointer(part.path, 'patternProperties'), key))
+          if (key !== undefined) 
+patterns.push(schemaPointer(schemaPointer(part.path, 'patternProperties'), key))
         }
       }
 
       const entries = new Map<string, unknown>()
 
       for (const [key, propertyPaths] of properties) {
-        if (remaining <= 0) break
+        if (remaining <= 0) 
+break
 
         for (const part of parts) {
-          if (isJsonObject(part.schema['properties']) && Object.hasOwn(part.schema['properties'], key)) continue
+          if (isJsonObject(part.schema['properties']) && Object.hasOwn(part.schema['properties'], key)) 
+continue
 
-          if (isJsonObject(part.schema['additionalProperties'])) propertyPaths.push(schemaPointer(part.path, 'additionalProperties'))
+          if (isJsonObject(part.schema['additionalProperties'])) 
+propertyPaths.push(schemaPointer(part.path, 'additionalProperties'))
         }
 
         entries.set(key, build(propertyPaths, depth + 1, next))
@@ -759,7 +850,8 @@ export function createSchemaScaffold(schema: unknown): unknown {
 
     if (type === 'array') {
       if (parts.some(part => part.schema['maxItems'] === 0 || part.schema['items'] === false ||
-        (Array.isArray(part.schema['items']) && !part.schema['items'].length && part.schema['additionalItems'] === false))) return []
+        (Array.isArray(part.schema['items']) && !part.schema['items'].length && part.schema['additionalItems'] === false))) 
+return []
 
       const itemPaths = parts.flatMap(part => {
         const items = part.schema['items']
@@ -773,9 +865,11 @@ export function createSchemaScaffold(schema: unknown): unknown {
       return remaining > 0 ? [build(itemPaths, depth + 1, next)] : []
     }
 
-    if (type === 'boolean') return false
+    if (type === 'boolean') 
+return false
 
-    if (type === 'null') return null
+    if (type === 'null') 
+return null
 
     if (type === 'string') {
       const formats: Record<string, string> = { 'date-time': '2000-01-01T00:00:00Z', date: '2000-01-01', time: '00:00:00',
@@ -788,9 +882,11 @@ export function createSchemaScaffold(schema: unknown): unknown {
       let maximum = maxStringLength
 
       for (const part of parts) {
-        if (typeof part.schema['minLength'] === 'number' && Number.isFinite(part.schema['minLength'])) minimum = Math.max(minimum, part.schema['minLength'])
+        if (typeof part.schema['minLength'] === 'number' && Number.isFinite(part.schema['minLength'])) 
+minimum = Math.max(minimum, part.schema['minLength'])
 
-        if (typeof part.schema['maxLength'] === 'number' && Number.isFinite(part.schema['maxLength'])) maximum = Math.min(maximum, part.schema['maxLength'])
+        if (typeof part.schema['maxLength'] === 'number' && Number.isFinite(part.schema['maxLength'])) 
+maximum = Math.min(maximum, part.schema['maxLength'])
       }
 
       value = value.padEnd(Math.min(maxStringLength, Math.ceil(minimum)), 'x')
@@ -808,7 +904,8 @@ export function createSchemaScaffold(schema: unknown): unknown {
       for (const part of parts) {
         const node = part.schema
 
-        if (typeof node['multipleOf'] === 'number' && Number.isFinite(node['multipleOf']) && node['multipleOf'] > 0) step = node['multipleOf']
+        if (typeof node['multipleOf'] === 'number' && Number.isFinite(node['multipleOf']) && node['multipleOf'] > 0) 
+step = node['multipleOf']
 
         if (typeof node['minimum'] === 'number' && node['minimum'] >= minimum) {
           exclusiveMinimum = node['exclusiveMinimum'] === true || (node['minimum'] === minimum && exclusiveMinimum)
@@ -827,7 +924,9 @@ export function createSchemaScaffold(schema: unknown): unknown {
         (exclusiveMaximum && value === maximum ? Math.ceil(value / step) - 1 : Math.floor(value / step)) * step,
         type === 'integer' ? Math.ceil(minimum) : minimum / 2 + maximum / 2]
 
-      for (const candidate of candidates) if (accepts(candidate)) return candidate
+      for (const candidate of candidates) 
+if (accepts(candidate)) 
+return candidate
 
       const fallback = type === 'integer' ? Math.ceil(value) : value
 

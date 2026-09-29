@@ -12,7 +12,8 @@ export class LegendNameDirective implements AfterViewInit, OnChanges, OnDestroy 
   private readonly context = this.element.ownerDocument.createElement('canvas').getContext('2d');
   private observer?: ResizeObserver;
   private readonly fit = (): void => {
-    if (!this.context) return;
+    if (!this.context) 
+return;
 
     const style = getComputedStyle(this.element);
 

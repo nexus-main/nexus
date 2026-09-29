@@ -1,9 +1,12 @@
 export function fitLegendName(name: string, width: number, measure: (text: string) => number): string {
-  if (width <= 0) return '';
+  if (width <= 0) 
+return '';
 
-  if (measure(name) <= width) return name;
+  if (measure(name) <= width) 
+return name;
 
-  if (measure('...') > width) return '';
+  if (measure('...') > width) 
+return '';
 
   const characters = Array.from(name);
   let low = 0;
@@ -19,7 +22,8 @@ export function fitLegendName(name: string, width: number, measure: (text: strin
     if (measure(candidate) <= width) {
       result = candidate;
       low = count + 1;
-    } else high = count - 1;
+    } else 
+high = count - 1;
   }
 
   return result;

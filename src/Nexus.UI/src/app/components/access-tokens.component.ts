@@ -155,7 +155,8 @@ export class AccessTokensComponent implements OnInit {
   }
 
   setVisible(visible: boolean) {
-    if (!visible) this.close.emit()
+    if (!visible) 
+this.close.emit()
   }
 
   async loadTokens() {
@@ -176,7 +177,8 @@ export class AccessTokensComponent implements OnInit {
   }
 
   async createToken() {
-    if (!this.canCreate()) return
+    if (!this.canCreate()) 
+return
 
     this.creating.set(true)
     this.error.set('')
@@ -204,7 +206,8 @@ export class AccessTokensComponent implements OnInit {
   }
 
   async deleteToken(tokenId: string) {
-    if (!tokenId) return
+    if (!tokenId) 
+return
 
     this.deleting.set(true)
     this.error.set('')
@@ -248,19 +251,23 @@ export class AccessTokensComponent implements OnInit {
   copyCreatedToken() {
     const value = this.createdToken()
 
-    if (!value || !navigator.clipboard) return
+    if (!value || !navigator.clipboard) 
+return
 
     void navigator.clipboard.writeText(value).then(() => this.messageService.add({ key: 'access-token-status', severity: 'success', summary: 'Token copied', life: 2500 }))
   }
 
   formatDate(value: string | undefined) {
-    if (!value) return 'unknown'
+    if (!value) 
+return 'unknown'
 
-    if (value.startsWith('9999-12-31')) return 'never'
+    if (value.startsWith('9999-12-31')) 
+return 'never'
 
     const date = new Date(value)
 
-    if (Number.isNaN(date.getTime())) return value
+    if (Number.isNaN(date.getTime())) 
+return value
 
     return date.getUTCFullYear() >= 9999 ? 'never' : date.toLocaleString()
   }

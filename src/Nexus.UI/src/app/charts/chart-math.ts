@@ -27,9 +27,11 @@ export const roundAway = (value: number): number => Math.sign(value) * Math.floo
 // Multiply only the duration, never the absolute .NET timestamp. Integer arithmetic also
 // preserves the endpoints of ranges longer than Number.MAX_SAFE_INTEGER ticks.
 export function scaleTicks(ticks: bigint, factor: number): bigint {
-  if (!Number.isFinite(factor)) throw new RangeError('Time position must be finite.');
+  if (!Number.isFinite(factor)) 
+throw new RangeError('Time position must be finite.');
 
-  if (factor === 0) return 0n;
+  if (factor === 0) 
+return 0n;
 
   const bits = new DataView(new ArrayBuffer(8));
 
@@ -40,7 +42,8 @@ export function scaleTicks(ticks: bigint, factor: number): bigint {
   const numerator = ticks * (exponent === 0 ? mantissa : mantissa | (1n << 52n)) * (factor < 0 ? -1n : 1n);
   const shift = (exponent === 0 ? -1022 : exponent - 1023) - 52;
 
-  if (shift >= 0) return numerator << BigInt(shift);
+  if (shift >= 0) 
+return numerator << BigInt(shift);
 
   const denominator = 1n << BigInt(-shift);
   const quotient = numerator / denominator;
@@ -80,7 +83,8 @@ export function formatDuration(ticks: bigint): string {
     [TICKS_PER_DAY, 'd', 2], [36_000_000_000n, 'h', 2], [600_000_000n, 'min', 2],
     [TICKS_PER_SECOND, 's', 2], [10_000n, 'ms', 3], [10n, 'us', 3],
   ] as const) {
-    if (ticks >= size) return `${Number((Number(ticks) / Number(size)).toFixed(digits))} ${unit}`;
+    if (ticks >= size) 
+return `${Number((Number(ticks) / Number(size)).toFixed(digits))} ${unit}`;
   }
 
   return `${ticks * 100n} ns`;
@@ -109,11 +113,13 @@ export function getTimeTicks(begin: bigint, end: bigint, maximumCount: number): 
   const config = TIME_AXIS_CONFIGS.find(item => (duration + item.interval - 1n) / item.interval <= count) ?? TIME_AXIS_CONFIGS[TIME_AXIS_CONFIGS.length - 1];
   let interval = config.interval;
 
-  while ((duration + interval - 1n) / interval > count) interval *= 2n;
+  while ((duration + interval - 1n) / interval > count) 
+interval *= 2n;
 
   const ticks: bigint[] = [];
 
-  for (let tick = roundTimeUp(begin, interval); tick < end; tick += interval) ticks.push(tick);
+  for (let tick = roundTimeUp(begin, interval); tick < end; tick += interval) 
+ticks.push(tick);
 
   return { config, ticks };
 }
@@ -145,9 +151,11 @@ export function getYLimits(min: number, max: number): { min: number; max: number
   let minLimit = Math.fround(Math.floor(min * scale) / scale);
   let maxLimit = Math.fround(Math.ceil(max * scale) / scale);
 
-  if (min === minLimit) minLimit = Math.fround(Math.floor((min - range / 8) * scale) / scale);
+  if (min === minLimit) 
+minLimit = Math.fround(Math.floor((min - range / 8) * scale) / scale);
 
-  if (max === maxLimit) maxLimit = Math.fround(Math.ceil((max + range / 8) * scale) / scale);
+  if (max === maxLimit) 
+maxLimit = Math.fround(Math.ceil((max + range / 8) * scale) / scale);
 
   return { min: Math.max(-floatMax, minLimit), max: Math.min(floatMax, maxLimit), step: Math.max(2 ** -149, Math.fround(10 ** (significant - 1))) };
 }
@@ -167,7 +175,8 @@ export function createAxis(unit: string, min: number, max: number, beginAtZero: 
 }
 
 export function getYTicks(min: number, max: number, maximumCount: number): number[] {
-  if (!Number.isFinite(min) || !Number.isFinite(max) || min > max || !Number.isFinite(maximumCount) || maximumCount < 1) return [];
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min > max || !Number.isFinite(maximumCount) || maximumCount < 1) 
+return [];
 
   maximumCount = Math.min(1000, Math.floor(maximumCount));
   const limits = getYLimits(Math.fround(min), Math.fround(max));
@@ -176,7 +185,8 @@ export function getYTicks(min: number, max: number, maximumCount: number): numbe
   let step = limits.step;
 
   for (const factor of [2, 5, 10, 20, 50]) {
-    if (count <= maximumCount) break;
+    if (count <= maximumCount) 
+break;
 
     count = Math.ceil(Math.fround(originalCount / factor));
     step = Math.fround(limits.step * factor);
@@ -185,13 +195,15 @@ export function getYTicks(min: number, max: number, maximumCount: number): numbe
   const ticks = Number.isFinite(count) && count > 0 && count <= maximumCount && Number.isFinite(step)
     ? Array.from({ length: count }, (_, index) => Math.fround(limits.min + Math.fround(index * step))).filter(Number.isFinite) : [];
 
-  if (min === max || maximumCount < 2 || new Set(ticks.filter(tick => tick >= min && tick <= max)).size >= 2) return ticks;
+  if (min === max || maximumCount < 2 || new Set(ticks.filter(tick => tick >= min && tick <= max)).size >= 2) 
+return ticks;
 
   // Rounded-limit padding can leave only zero visible after thinning. Use the
   // actual range in that case, with indexed, bounded generation at GPU precision.
   const range = max - min;
 
-  if (!Number.isFinite(range)) return ticks;
+  if (!Number.isFinite(range)) 
+return ticks;
 
   const targetStep = Math.max(2 ** -149, range / (maximumCount - 1));
   const scale = 10 ** Math.floor(Math.log10(targetStep));
@@ -201,7 +213,8 @@ export function getYTicks(min: number, max: number, maximumCount: number): numbe
   const visible = [...new Set(Array.from({ length: maximumCount }, (_, index) => Math.fround((first + index) * step))
     .filter(tick => Number.isFinite(tick) && tick >= min && tick <= max))];
 
-  if (visible.length >= 2) return visible;
+  if (visible.length >= 2) 
+return visible;
 
   // Adjacent float32 values may have no pair of decimal-aligned ticks.
   return [...new Set([Math.fround(min), Math.fround(max)])]
@@ -209,14 +222,16 @@ export function getYTicks(min: number, max: number, maximumCount: number): numbe
 }
 
 export function toEngineering(value: number): string {
-  if (value === 0) return '0';
+  if (value === 0) 
+return '0';
 
   const exponent = Math.floor(Math.log10(Math.abs(value)));
 
   if (Math.abs(value) < 1000) {
     const rounded = Number(value.toPrecision(4));
 
-    if (Math.floor(Math.log10(Math.abs(rounded))) >= -4 && Math.abs(rounded) < 10_000) return String(rounded);
+    if (Math.floor(Math.log10(Math.abs(rounded))) >= -4 && Math.abs(rounded) < 10_000) 
+return String(rounded);
 
     return rounded.toExponential().replace(/e([+-])(\d+)$/, (_, sign: string, digits: string) => `E${sign}${digits.padStart(2, '0')}`);
   }
@@ -227,11 +242,13 @@ export function toEngineering(value: number): string {
 }
 
 export function setViewport(viewport: Viewport, duration: bigint): Viewport | null {
-  if (!Object.values(viewport).every(Number.isFinite)) return null;
+  if (!Object.values(viewport).every(Number.isFinite)) 
+return null;
 
   const next = { left: clamp(viewport.left), top: clamp(viewport.top), right: clamp(viewport.right), bottom: clamp(viewport.bottom) };
 
-  if (next.right - next.left < 1 / Math.max(1, Number(duration)) || next.bottom - next.top < 1e-6) return null;
+  if (next.right - next.left < 1 / Math.max(1, Number(duration)) || next.bottom - next.top < 1e-6) 
+return null;
 
   next.top = Math.fround(next.top);
   next.bottom = Math.fround(next.bottom);

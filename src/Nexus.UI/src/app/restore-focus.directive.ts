@@ -12,7 +12,8 @@ export class RestoreFocusDirective {
     const overlay = inject(Dialog, { optional: true }) ?? inject(Drawer)
     let opener: HTMLElement | null = null
     const restore = () => {
-      if (opener?.isConnected) opener.focus()
+      if (opener?.isConnected) 
+opener.focus()
 
       opener = null
     }
@@ -23,7 +24,8 @@ export class RestoreFocusDirective {
 
     // Drawer does not emit onHide when its visibility is changed by application state.
     afterRenderEffect(() => {
-      if (!this.appRestoreFocus()) restore()
+      if (!this.appRestoreFocus()) 
+restore()
     })
 
     inject(DestroyRef).onDestroy(() => {

@@ -136,11 +136,13 @@ export class PackageReferencesComponent {
     root: {
       // PrimeNG's document handler can lose Escape after a nested select has closed.
       onkeydown: (event: KeyboardEvent) => {
-        if (event.key !== 'Escape') return
+        if (event.key !== 'Escape') 
+return
 
         event.stopPropagation()
 
-        if (!this.busy()) this.close.emit()
+        if (!this.busy()) 
+this.close.emit()
       },
     },
   }
@@ -170,7 +172,8 @@ export class PackageReferencesComponent {
       this.editing()
 
       // View changes remove the focused action; keep keyboard focus inside the dialog.
-      if (!this.loading() && !this.busy()) this.panel()?.nativeElement.focus()
+      if (!this.loading() && !this.busy()) 
+this.panel()?.nativeElement.focus()
     })
 
     void this.load()
@@ -211,17 +214,21 @@ export class PackageReferencesComponent {
     this.versionOptions.set([])
     this.versionError.set('')
 
-    if (!this.editedEntry()) this.version.set('')
+    if (!this.editedEntry()) 
+this.version.set('')
 
-    if (this.location().trim()) void this.loadVersions()
+    if (this.location().trim()) 
+void this.loadVersions()
   }
 
   async loadVersions() {
-    if (this.versionsLoading()) return
+    if (this.versionsLoading()) 
+return
 
     const location = this.location().trim()
 
-    if (!location) return
+    if (!location) 
+return
 
     this.versionsLoading.set(true)
     this.versionError.set('')
@@ -251,7 +258,8 @@ export class PackageReferencesComponent {
   }
 
   async save() {
-    if (!this.valid() || this.busy()) return
+    if (!this.valid() || this.busy()) 
+return
 
     this.busy.set(true)
     this.error.set('')
@@ -287,7 +295,8 @@ export class PackageReferencesComponent {
   async remove() {
     const entry = this.editedEntry()
 
-    if (!entry || this.busy()) return
+    if (!entry || this.busy()) 
+return
 
     this.busy.set(true)
     this.error.set('')
@@ -306,7 +315,8 @@ export class PackageReferencesComponent {
   }
 
   async refreshDatabase() {
-    if (this.refreshing()) return
+    if (this.refreshing()) 
+return
 
     this.refreshing.set(true)
     this.error.set('')
@@ -317,7 +327,8 @@ export class PackageReferencesComponent {
       const job = await this.jobs.refreshDatabase()
       const jobId = job.id ?? ''
 
-      if (!jobId) throw new Error('The refresh job did not return an id.')
+      if (!jobId) 
+throw new Error('The refresh job did not return an id.')
 
       while (this.refreshing()) {
         await delay(1000)
@@ -333,9 +344,11 @@ export class PackageReferencesComponent {
           return
         }
 
-        if (jobStatus.status === V1.TaskStatus.Canceled) throw new Error('The refresh job was canceled.')
+        if (jobStatus.status === V1.TaskStatus.Canceled) 
+throw new Error('The refresh job was canceled.')
 
-        if (jobStatus.status === V1.TaskStatus.Faulted) throw new Error(`The refresh job failed. Reason: ${jobStatus.exceptionMessage ?? 'unknown'}`)
+        if (jobStatus.status === V1.TaskStatus.Faulted) 
+throw new Error(`The refresh job failed. Reason: ${jobStatus.exceptionMessage ?? 'unknown'}`)
       }
     } catch (error) {
       this.showError('refresh the database', error)

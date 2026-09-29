@@ -8,6 +8,8 @@ import tseslint from 'typescript-eslint'
 // return, multiline-expression) on both TS and JS via the @typescript-eslint parser.
 // Other readability rules (max-len, max-statements-per-line, brace-style) are intentionally
 // NOT enabled: they are not auto-fixable and would require manual rewrites.
+// nonblock-statement-body-position ("below") forbids single-line control bodies such as
+// `if (x) y;` by moving the body onto its own line; it is whitespace-fixable (semantically inert).
 const paddingLineBetweenStatements = [
   'error',
   // blank line after a run of variable declarations
@@ -36,6 +38,8 @@ export default tseslint.config(
     },
     rules: {
       'padding-line-between-statements': paddingLineBetweenStatements,
+      // forbid single-line control bodies: `if (x) y;` -> `if (x)\n  y;`
+      'nonblock-statement-body-position': ['error', 'below'],
     },
   },
 )

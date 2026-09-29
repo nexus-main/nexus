@@ -12,9 +12,11 @@ export async function waitForRange(series: VisualizationSeries, offset: number, 
   while (true) {
     signal.throwIfAborted();
 
-    if (offset + count <= series.availableLength) return;
+    if (offset + count <= series.availableLength) 
+return;
 
-    if (series.complete) throw new Error(`Series '${series.id}' completed without the requested samples.`);
+    if (series.complete) 
+throw new Error(`Series '${series.id}' completed without the requested samples.`);
 
     await new Promise<void>((resolve, reject) => {
       const abort = (): void => { clearTimeout(timer); reject(signal.reason); };
@@ -29,7 +31,8 @@ export function seriesSegment(series: VisualizationSeries, offset: number, count
   const chunk = series.chunks[Math.floor(offset / CHUNK_LENGTH)];
   const local = offset % CHUNK_LENGTH;
 
-  if (!chunk || local >= chunk.length) throw new Error(`Series '${series.id}' has no published chunk at ${offset}.`);
+  if (!chunk || local >= chunk.length) 
+throw new Error(`Series '${series.id}' has no published chunk at ${offset}.`);
 
   return chunk.subarray(local, Math.min(chunk.length, local + count));
 }
@@ -48,7 +51,8 @@ export async function uploadSeries(api: ChartInterop['chartWebGpu'], chartId: st
   try {
     signal.throwIfAborted();
 
-    if (series.length < 2) return { hasValue: false, minimum: 0, maximum: 0 };
+    if (series.length < 2) 
+return { hasValue: false, minimum: 0, maximum: 0 };
 
     token = await api.beginChunkedSeries(chartId, series.id, version, series.length);
     signal.throwIfAborted();
@@ -59,7 +63,8 @@ export async function uploadSeries(api: ChartInterop['chartWebGpu'], chartId: st
       await waitForRange(series, offset, count, signal);
       const values = seriesSegment(series, offset, count);
 
-      if (values.length !== count) throw new Error(`Series '${series.id}' contains a short non-final chunk.`);
+      if (values.length !== count) 
+throw new Error(`Series '${series.id}' contains a short non-final chunk.`);
 
       api.appendChunkedSeries(chartId, token, offset, values, values.length);
       await api.processChunkedSeriesUpload(chartId, token, offset, values.length);

@@ -48,7 +48,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
     try {
       await document.fonts.load('bold 12px "Nexus Chart"')
 
-      if (!this.disposed) this.scheduleDraw()
+      if (!this.disposed) 
+this.scheduleDraw()
     } catch {
       /* fallback to Courier New */
     }
@@ -61,7 +62,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
   }
 
   private scheduleDraw(): void {
-    if (this.frame) return
+    if (this.frame) 
+return
 
     this.frame = requestAnimationFrame(() => { this.frame = 0; this.draw() })
   }
@@ -72,7 +74,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
     const width = canvas.clientWidth
     const height = canvas.clientHeight
 
-    if (width <= 0 || height <= 0) return
+    if (width <= 0 || height <= 0) 
+return
 
     const dpr = window.devicePixelRatio || 1
 
@@ -80,7 +83,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
     canvas.height = Math.max(1, Math.round(height * dpr))
     const context = canvas.getContext('2d')
 
-    if (!context) return
+    if (!context) 
+return
 
     context.setTransform(1, 0, 0, 1, 0, 0)
     context.scale(dpr, dpr)
@@ -131,7 +135,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
     const ySkip = Math.ceil(desiredYLabelCount / Math.max(1, maxYLabelCount))
 
     for (let i = 0; i < desiredYLabelCount; i++) {
-      if ((i + ySkip) % ySkip !== 0) continue
+      if ((i + ySkip) % ySkip !== 0) 
+continue
 
       const relative = i / 10
       const y = yMin + (1 - relative) * yRange
@@ -168,7 +173,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
       for (let i = 0; i < count; i++) {
         const availability = data[i]
 
-        if (!Number.isFinite(availability) || availability <= 0) continue
+        if (!Number.isFinite(availability) || availability <= 0) 
+continue
 
         const x = xMin + i * valueWidth + barOffset
         const w = barWidth
@@ -183,7 +189,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
       for (let i = 0; i < count; i++) {
         const availability = data[i]
 
-        if (!Number.isFinite(availability) || availability <= 0) continue
+        if (!Number.isFinite(availability) || availability <= 0) 
+continue
 
         const x = xMin + i * valueWidth + barOffset
         const w = barWidth
@@ -224,9 +231,11 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
           context.fillText(formatTime(tick, config.fast), x, yMax - 26)
 
           if (isSlowTickRequired(previous, tick, config.trigger)) {
-            if (config.slow1) context.fillText(formatTime(tick, config.slow1), x, yMax - 8)
+            if (config.slow1) 
+context.fillText(formatTime(tick, config.slow1), x, yMax - 8)
 
-            if (config.slow2) context.fillText(formatTime(tick, config.slow2), x, yMax - 8)
+            if (config.slow2) 
+context.fillText(formatTime(tick, config.slow2), x, yMax - 8)
           }
 
           previous = tick
@@ -239,7 +248,8 @@ export class AvailabilityChartComponent implements AfterViewInit, OnDestroy {
 function toTicks(iso: string): bigint | null {
   const ms = Date.parse(iso)
 
-  if (!Number.isFinite(ms)) return null
+  if (!Number.isFinite(ms)) 
+return null
 
   return BigInt(Math.round(ms)) * 10_000n + UNIX_EPOCH_TICKS
 }

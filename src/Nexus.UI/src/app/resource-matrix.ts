@@ -11,11 +11,13 @@ export function mergeResourceMetadata(metadata: CatalogMetadata, catalogId: stri
   for (const [id, draft] of Object.entries(drafts)) {
     const fields = (['unit', 'description', 'warning'] as const).filter((field) => draft[field] !== undefined)
 
-    if (!fields.length) continue
+    if (!fields.length) 
+continue
 
     const index = overrides.resources?.findIndex((resource) => resource.id === id) ?? -1
 
-    if (index < 0 && fields.every((field) => !draft[field]!.trim())) continue
+    if (index < 0 && fields.every((field) => !draft[field]!.trim())) 
+continue
 
     const resource = index < 0 ? { id } : overrides.resources![index]
     const properties = { ...resource.properties }
@@ -23,14 +25,18 @@ export function mergeResourceMetadata(metadata: CatalogMetadata, catalogId: stri
     for (const field of fields) {
       const value = draft[field]!
 
-      if (value.trim()) properties[field] = value
-      else delete properties[field]
+      if (value.trim()) 
+properties[field] = value
+      else 
+delete properties[field]
     }
 
     const resources = [...(overrides.resources ?? [])]
 
-    if (index < 0) resources.push({ ...resource, properties })
-    else resources[index] = { ...resource, properties }
+    if (index < 0) 
+resources.push({ ...resource, properties })
+    else 
+resources[index] = { ...resource, properties }
 
     overrides.resources = resources
   }
@@ -50,7 +56,8 @@ export function groupResourceRows(rows: RepresentationRow[], search: string): {
 
     if (query && ![row.catalogId, row.id, row.path, ...labels, row.unit, row.description,
       row.warning, formatPeriod(row.basePeriod),
-    ].join('\n').toLowerCase().includes(query)) continue
+    ].join('\n').toLowerCase().includes(query)) 
+continue
 
     for (const label of labels.length ? labels : [null]) {
       // Real labels always have a prefix, including labels named "Ungrouped" or "ungrouped".

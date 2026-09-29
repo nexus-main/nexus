@@ -7,9 +7,11 @@ export function createYamlMonaco(monaco: typeof Monaco, createYamlWorker: () => 
   globalThis.MonacoEnvironment = {
     ...environment,
     getWorker(moduleId, label) {
-      if (label === 'yaml') return createYamlWorker()
+      if (label === 'yaml') 
+return createYamlWorker()
 
-      if (environment?.getWorker) return environment.getWorker(moduleId, label)
+      if (environment?.getWorker) 
+return environment.getWorker(moduleId, label)
 
       throw new Error(`No Monaco worker configured for ${label}`)
     },

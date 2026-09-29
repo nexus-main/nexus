@@ -91,7 +91,8 @@ export class CatalogAboutDialogComponent {
 
   constructor() {
     effect(() => {
-      if (!this.visible()) return
+      if (!this.visible()) 
+return
 
       const pipelineInfo = this.pipelineInfo()
 

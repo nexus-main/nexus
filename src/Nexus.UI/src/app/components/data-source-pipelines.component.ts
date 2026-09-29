@@ -83,21 +83,27 @@ export class DataSourcePipelinesComponent {
     const types = this.descriptions().flatMap(description => description.type ? [description.type] : [])
     const selected = this.selected()?.type
 
-    if (selected && !types.includes(selected)) types.unshift(selected)
+    if (selected && !types.includes(selected)) 
+types.unshift(selected)
 
     return types
   })
   readonly dialogPt: DialogPassThrough = { root: { onkeydown: (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return
+    if (event.key !== 'Escape' || event.defaultPrevented) 
+return
 
     event.stopPropagation()
 
-    if (this.locked()) return
+    if (this.locked()) 
+return
 
     if (this.pending()) { this.confirmationService.close(); this.pending.set(null) }
-    else if (this.confirmingDelete()) this.cancelDelete()
-    else if (this.removingKey() !== null) this.removingKey.set(null)
-    else this.request({ kind: 'close' })
+    else if (this.confirmingDelete()) 
+this.cancelDelete()
+    else if (this.removingKey() !== null) 
+this.removingKey.set(null)
+    else 
+this.request({ kind: 'close' })
   } } }
 
   constructor() {
@@ -122,7 +128,8 @@ export class DataSourcePipelinesComponent {
       this.confirmingDelete()
       this.removingKey()
 
-      if (!this.locked()) this.panel()?.nativeElement.focus()
+      if (!this.locked()) 
+this.panel()?.nativeElement.focus()
     })
 
     void this.load()
@@ -134,7 +141,8 @@ export class DataSourcePipelinesComponent {
 
     this.mobilePipelineLayout.set(mobile)
 
-    if (!mobile && this.pipelineTab() === 'registration') this.pipelineTab.set('pipeline')
+    if (!mobile && this.pipelineTab() === 'registration') 
+this.pipelineTab.set('pipeline')
   }
 
   hasIssue(key: number): boolean { return this.prepared()?.issues.some(issue => issue.key === key) ?? false }
@@ -144,7 +152,8 @@ export class DataSourcePipelinesComponent {
   }
 
   private async load(descriptionsOnly = false): Promise<boolean> {
-    if (!this.administrator() || this.destroyed) return false
+    if (!this.administrator() || this.destroyed) 
+return false
 
     this.readController?.abort()
     const controller = this.readController = new AbortController()
@@ -152,7 +161,8 @@ export class DataSourcePipelinesComponent {
 
     this.loading.set(true)
 
-    if (!descriptionsOnly) this.loaded.set(false)
+    if (!descriptionsOnly) 
+this.loaded.set(false)
 
     this.error.set('')
 
@@ -162,7 +172,8 @@ export class DataSourcePipelinesComponent {
         descriptionsOnly ? Promise.resolve(null) : this.api.getPipelines(controller.signal),
       ])
 
-      if (this.destroyed || generation !== this.readGeneration) return false
+      if (this.destroyed || generation !== this.readGeneration) 
+return false
 
       this.descriptions.set(descriptions.status === 'fulfilled' ? descriptions.value : [])
 
@@ -192,28 +203,34 @@ export class DataSourcePipelinesComponent {
 
       return descriptions.status === 'fulfilled'
     } catch (error) {
-      if (!this.destroyed && generation === this.readGeneration) this.showError('load pipelines and source descriptions', error)
+      if (!this.destroyed && generation === this.readGeneration) 
+this.showError('load pipelines and source descriptions', error)
 
       return false
     } finally {
-      if (!this.destroyed && generation === this.readGeneration) this.loading.set(false)
+      if (!this.destroyed && generation === this.readGeneration) 
+this.loading.set(false)
     }
   }
 
   request(destination: Destination): void {
-    if (this.locked() || this.pending() || this.confirmingDelete() || this.removingKey() !== null) return
+    if (this.locked() || this.pending() || this.confirmingDelete() || this.removingKey() !== null) 
+return
 
-    if (destination.kind !== 'close' && (!this.administrator() || (!this.loaded() && destination.kind !== 'reload' && destination.kind !== 'descriptions'))) return
+    if (destination.kind !== 'close' && (!this.administrator() || (!this.loaded() && destination.kind !== 'reload' && destination.kind !== 'descriptions'))) 
+return
 
     if (destination.kind === 'pipeline' && destination.id !== null && destination.id === this.draft()?.id) {
-      if (this.draft()?.serverDiverged) destination = { kind: 'reload' }
+      if (this.draft()?.serverDiverged) 
+destination = { kind: 'reload' }
       else { this.pipelineTab.set('pipeline'); this.mobileView.set('pipeline');
 
  return }
     }
 
     if (this.dirty()) { this.pending.set(destination); this.showUnsavedConfirm(destination) }
-    else void this.proceed(destination)
+    else 
+void this.proceed(destination)
   }
 
   private showUnsavedConfirm(destination: Destination): void {
@@ -237,12 +254,16 @@ export class DataSourcePipelinesComponent {
       acceptButtonProps: { severity: 'primary', outlined: true, size: 'small' },
       rejectButtonProps: { severity: 'secondary', text: true, size: 'small' },
       accept: () => {
-        if (isDescriptions) void this.retryDescriptions()
-        else void this.choose('save')
+        if (isDescriptions) 
+void this.retryDescriptions()
+        else 
+void this.choose('save')
       },
       reject: (type: ConfirmEventType) => {
-        if (type === ConfirmEventType.REJECT && !isDescriptions) void this.choose('discard')
-        else this.pending.set(null)
+        if (type === ConfirmEventType.REJECT && !isDescriptions) 
+void this.choose('discard')
+        else 
+this.pending.set(null)
       },
     })
   }
@@ -250,28 +271,36 @@ export class DataSourcePipelinesComponent {
   async choose(choice: UnsavedChoice): Promise<void> {
     const destination = this.pending()
 
-    if (!destination || this.locked()) return
+    if (!destination || this.locked()) 
+return
 
     if (choice === 'stay') { this.pending.set(null);
 
  return }
 
-    if (!await resolveUnsavedChoice(choice, () => this.save()) || this.destroyed) return
+    if (!await resolveUnsavedChoice(choice, () => this.save()) || this.destroyed) 
+return
 
     this.pending.set(null)
     await this.proceed(destination)
   }
 
   private async proceed(destination: Destination): Promise<void> {
-    if (destination.kind === 'close') this.close.emit()
-    else if (destination.kind === 'pipeline') this.openPipeline(destination.id)
-    else if (destination.kind === 'descriptions') await this.load(true)
-    else if (destination.kind === 'reload') await this.load()
-    else await this.refresh()
+    if (destination.kind === 'close') 
+this.close.emit()
+    else if (destination.kind === 'pipeline') 
+this.openPipeline(destination.id)
+    else if (destination.kind === 'descriptions') 
+await this.load(true)
+    else if (destination.kind === 'reload') 
+await this.load()
+    else 
+await this.refresh()
   }
 
   async retryDescriptions(): Promise<void> {
-    if (this.pending()?.kind !== 'descriptions' || this.locked()) return
+    if (this.pending()?.kind !== 'descriptions' || this.locked()) 
+return
 
     this.pending.set(null)
     await this.load(true)
@@ -280,7 +309,8 @@ export class DataSourcePipelinesComponent {
   private openPipeline(id: string | null): void {
     const entry = this.entries().find(entry => entry.id === id)
 
-    if (id !== null && !entry) return
+    if (id !== null && !entry) 
+return
 
     const draft = createPipelineDraft(id, entry?.pipeline)
 
@@ -300,14 +330,18 @@ export class DataSourcePipelinesComponent {
   }
 
   navigate(view: MobileView, key = this.selectedKey()): void {
-    if (this.editingLocked()) return
+    if (this.editingLocked()) 
+return
 
     this.selectedKey.set(key)
     this.mobileView.set(view)
 
-    if (view === 'list') this.pipelineTab.set('pipelines')
-    else if (view === 'pipeline') this.pipelineTab.set('pipeline')
-    else this.pipelineTab.set(this.mobilePipelineLayout() ? 'registration' : 'pipeline')
+    if (view === 'list') 
+this.pipelineTab.set('pipelines')
+    else if (view === 'pipeline') 
+this.pipelineTab.set('pipeline')
+    else 
+this.pipelineTab.set(this.mobilePipelineLayout() ? 'registration' : 'pipeline')
   }
 
   private isMobilePipelineLayout(): boolean {
@@ -315,27 +349,32 @@ export class DataSourcePipelinesComponent {
   }
 
   setPattern(field: 'visibilityPattern', value: string | null): void {
-    if (!this.editingLocked()) this.draft.update(draft => draft ? updatePipeline(draft, { [field]: value }) : draft)
+    if (!this.editingLocked()) 
+this.draft.update(draft => draft ? updatePipeline(draft, { [field]: value }) : draft)
   }
 
   setPipelineEnabled(enabled: boolean): void {
-    if (!this.editingLocked()) this.draft.update(draft => draft ? updatePipeline(draft, { disabled: !enabled }) : draft)
+    if (!this.editingLocked()) 
+this.draft.update(draft => draft ? updatePipeline(draft, { disabled: !enabled }) : draft)
   }
 
   editRegistration(key: number, field: 'type' | 'resourceLocator' | 'infoUrl', value: string | null): void {
-    if (this.editingLocked()) return
+    if (this.editingLocked()) 
+return
 
     this.draft.update(draft => draft ? updateRegistration(draft, key, { [field]: value }) : draft)
   }
 
   editText(key: number, rawText: string): void {
-    if (!this.editingLocked()) this.draft.update(draft => draft ? editRegistrationText(draft, key, rawText) : draft)
+    if (!this.editingLocked()) 
+this.draft.update(draft => draft ? editRegistrationText(draft, key, rawText) : draft)
   }
 
   addStage(): void {
     const draft = this.draft()
 
-    if (!draft || this.editingLocked()) return
+    if (!draft || this.editingLocked()) 
+return
 
     this.draft.set(addRegistration(draft))
     this.navigate('registration', draft.nextKey)
@@ -344,33 +383,39 @@ export class DataSourcePipelinesComponent {
   removeStage(key: number): void {
     const draft = this.draft()
 
-    if (!draft || this.editingLocked()) return
+    if (!draft || this.editingLocked()) 
+return
 
-    if (draft.registrations.some(registration => registration.key === key)) this.removingKey.set(key)
+    if (draft.registrations.some(registration => registration.key === key)) 
+this.removingKey.set(key)
   }
 
   confirmRemoveStage(): void {
     const draft = this.draft()
     const key = this.removingKey()
 
-    if (!draft || key === null || this.locked() || !this.administrator()) return
+    if (!draft || key === null || this.locked() || !this.administrator()) 
+return
 
     const next = removeRegistration(draft, key)
 
     this.draft.set(next)
     this.removingKey.set(null)
 
-    if (this.selectedKey() === key) this.navigate('pipeline', next.registrations[0]?.key ?? null)
+    if (this.selectedKey() === key) 
+this.navigate('pipeline', next.registrations[0]?.key ?? null)
   }
 
   moveStage(key: number, direction: -1 | 1): void {
-    if (!this.editingLocked()) this.draft.update(draft => draft ? moveRegistration(draft, key, direction) : draft)
+    if (!this.editingLocked()) 
+this.draft.update(draft => draft ? moveRegistration(draft, key, direction) : draft)
   }
 
   async save(): Promise<boolean> {
     const draft = this.draft()
 
-    if (!draft || this.locked() || !this.loaded() || this.confirmingDelete() || this.removingKey() !== null || !this.administrator()) return false
+    if (!draft || this.locked() || !this.loaded() || this.confirmingDelete() || this.removingKey() !== null || !this.administrator()) 
+return false
 
     const prepared = preparePipeline(draft, this.descriptions())
 
@@ -385,12 +430,16 @@ export class DataSourcePipelinesComponent {
       const payload = prepared.payload
       let id = draft.id
 
-      if (id !== null) await this.api.updatePipeline(id, payload, this.lifetime.signal)
-      else id = await this.api.createPipeline(payload, this.lifetime.signal)
+      if (id !== null) 
+await this.api.updatePipeline(id, payload, this.lifetime.signal)
+      else 
+id = await this.api.createPipeline(payload, this.lifetime.signal)
 
-      if (this.destroyed) return false
+      if (this.destroyed) 
+return false
 
-      if (!id) throw new Error('The server did not return a pipeline ID. Reload before retrying creation.')
+      if (!id) 
+throw new Error('The server did not return a pipeline ID. Reload before retrying creation.')
 
       this.entries.update(entries => draft.id === null ? [...entries, { id, pipeline: payload }] : entries.map(entry => entry.id === id ? { id, pipeline: payload } : entry))
       this.draft.set(acceptPipelineSave(draft, id, payload))
@@ -398,14 +447,17 @@ export class DataSourcePipelinesComponent {
 
       return true
     } catch (error) {
-      if (!this.destroyed) this.showError('save the pipeline; your draft has been retained', error)
+      if (!this.destroyed) 
+this.showError('save the pipeline; your draft has been retained', error)
 
       return false
-    } finally { if (!this.destroyed) this.busy.set(false) }
+    } finally { if (!this.destroyed) 
+this.busy.set(false) }
   }
 
   requestDelete(): void {
-    if (!this.draft()?.id || this.locked() || !this.administrator()) return
+    if (!this.draft()?.id || this.locked() || !this.administrator()) 
+return
 
     this.confirmingDelete.set(true)
   }
@@ -417,7 +469,8 @@ export class DataSourcePipelinesComponent {
   async remove(): Promise<void> {
     const id = this.draft()?.id
 
-    if (!id || !this.confirmingDelete() || this.locked() || !this.administrator()) return
+    if (!id || !this.confirmingDelete() || this.locked() || !this.administrator()) 
+return
 
     this.busy.set(true)
     this.error.set('')
@@ -425,7 +478,8 @@ export class DataSourcePipelinesComponent {
     try {
       await this.api.deletePipeline(id, this.lifetime.signal)
 
-      if (this.destroyed) return
+      if (this.destroyed) 
+return
 
       this.entries.update(entries => entries.filter(entry => entry.id !== id))
       this.draft.set(null)
@@ -435,12 +489,15 @@ export class DataSourcePipelinesComponent {
       this.confirmingDelete.set(false)
       this.messageService.add({ key: 'status', severity: 'success', summary: 'Pipeline deleted', detail: 'Refresh the database to apply pipeline changes to catalogs.', life: 5000 })
     } catch (error) {
-      if (!this.destroyed) this.showError('delete the pipeline; your draft has been retained', error)
-    } finally { if (!this.destroyed) this.busy.set(false) }
+      if (!this.destroyed) 
+this.showError('delete the pipeline; your draft has been retained', error)
+    } finally { if (!this.destroyed) 
+this.busy.set(false) }
   }
 
   private async refresh(): Promise<void> {
-    if (this.locked() || !this.administrator()) return
+    if (this.locked() || !this.administrator()) 
+return
 
     this.refreshing.set(true)
     this.error.set('')
@@ -449,17 +506,22 @@ export class DataSourcePipelinesComponent {
       // The parent owns its metadata guard, refresh job, and shared cache invalidation.
       const refreshed = await this.refreshDatabase()()
 
-      if (this.destroyed) return
+      if (this.destroyed) 
+return
 
       if (!refreshed) { this.messageService.add({ key: 'status', severity: 'info', summary: 'Refresh canceled', detail: 'Your pipeline draft has been retained.', life: 5000 });
 
  return }
 
-      if (await this.load()) this.messageService.add({ key: 'status', severity: 'success', summary: 'Database refreshed', detail: 'Pipelines and source schemas reloaded, including configuration upgrades.', life: 5000 })
-      else if (!this.destroyed) this.messageService.add({ key: 'status', severity: 'warn', summary: 'Database refreshed', detail: 'Reloading was incomplete. Clean drafts follow loaded server data; unsaved edits are retained. Review the warnings before saving.', life: 8000 })
+      if (await this.load()) 
+this.messageService.add({ key: 'status', severity: 'success', summary: 'Database refreshed', detail: 'Pipelines and source schemas reloaded, including configuration upgrades.', life: 5000 })
+      else if (!this.destroyed) 
+this.messageService.add({ key: 'status', severity: 'warn', summary: 'Database refreshed', detail: 'Reloading was incomplete. Clean drafts follow loaded server data; unsaved edits are retained. Review the warnings before saving.', life: 8000 })
     } catch (error) {
-      if (!this.destroyed) this.showError('refresh the database; your pipeline draft has been retained', error)
-    } finally { if (!this.destroyed) this.refreshing.set(false) }
+      if (!this.destroyed) 
+this.showError('refresh the database; your pipeline draft has been retained', error)
+    } finally { if (!this.destroyed) 
+this.refreshing.set(false) }
   }
 
   private showError(action: string, error: unknown): void {

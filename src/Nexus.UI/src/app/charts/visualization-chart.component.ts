@@ -84,7 +84,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   ngOnChanges(): void {
-    if (this.disposed) return;
+    if (this.disposed) 
+return;
 
     if (this.data !== this.activeData) {
       this.cancelSession();
@@ -110,9 +111,11 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     try {
       await document.fonts.load('bold 12px "Nexus Chart"');
 
-      if (!this.disposed) this.scheduleDraw();
+      if (!this.disposed) 
+this.scheduleDraw();
     } catch (error) {
-      if (!this.disposed) console.warn('[chart] Chart font unavailable; using Courier New Bold.', error);
+      if (!this.disposed) 
+console.warn('[chart] Chart font unavailable; using Courier New Bold.', error);
     }
   }
 
@@ -123,13 +126,15 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   private initialize(): void {
-    if (this.api) return;
+    if (this.api) 
+return;
 
     const api = getChartInterop();
     const id = this.chartId;
     const adapter: ChartCallbackAdapter = {
       invokeMethodAsync: async <K extends keyof ChartCallbacks>(method: K, ...args: ChartCallbacks[K]): Promise<void> => {
-        if (this.disposed || this.chartId !== id) return;
+        if (this.disposed || this.chartId !== id) 
+return;
 
         switch (method) {
           case 'PointerMoved': { const [x, y] = args as ChartCallbacks['PointerMoved'];
@@ -154,7 +159,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
             const [seriesId, offset, count, requestId] = args as ChartCallbacks['ProvideSeriesChunk'];
             const source = this.states.get(seriesId)?.source;
 
-            if (!source) throw Object.assign(new Error('Raw series request is no longer active.'), { webGpuCancelled: true });
+            if (!source) 
+throw Object.assign(new Error('Raw series request is no longer active.'), { webGpuCancelled: true });
 
             await provideSeriesChunk(api.chartWebGpu, id, source, offset, count, requestId, this.controller.signal);
             break;
@@ -173,13 +179,15 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     this.controller.abort(Object.assign(new Error('Chart data or GPU session was superseded.'), { webGpuCancelled: true }));
     this.controller = new AbortController();
 
-    if (this.pollTimer !== undefined) clearTimeout(this.pollTimer);
+    if (this.pollTimer !== undefined) 
+clearTimeout(this.pollTimer);
 
     this.pollTimer = undefined;
   }
 
   private fail(title: string, message: string): void {
-    if (this.disposed) return;
+    if (this.disposed) 
+return;
 
     this.cancelSession();
     this.errorTitle = title;
@@ -190,7 +198,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   private ensureUploads(): void {
-    if (!this.api || !this.data || this.errorTitle) return;
+    if (!this.api || !this.data || this.errorTitle) 
+return;
 
     const api = this.api.chartWebGpu;
     const id = this.chartId;
@@ -201,20 +210,23 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     for (const series of this.series) {
       // Version is a publication counter, not a new dataset identity. Freeze the GPU
       // key for this append-only source so each CPU chunk is transmitted only once.
-      if (this.states.has(series.id)) continue;
+      if (this.states.has(series.id)) 
+continue;
 
       const state: SeriesState = { source: series, version: series.version };
 
       this.states.set(series.id, state);
 
       state.task = uploadSeries(api, id, series, state.version, signal).then(range => {
-        if (signal.aborted || this.disposed || id !== this.chartId) return;
+        if (signal.aborted || this.disposed || id !== this.chartId) 
+return;
 
         state.range = range;
         this.rebuildAxes();
         this.scheduleDraw();
       }).catch((error: unknown) => {
-        if (!signal.aborted && !this.disposed && id === this.chartId) this.fail('WebGPU upload failed', String(error));
+        if (!signal.aborted && !this.disposed && id === this.chartId) 
+this.fail('WebGPU upload failed', String(error));
       });
     }
 
@@ -235,7 +247,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     this.axes.clear();
 
     for (const series of this.series) {
-      if (this.axes.has(series.unit)) continue;
+      if (this.axes.has(series.unit)) 
+continue;
 
       const ranges = this.series.filter(item => item.unit === series.unit).map(item => this.states.get(item.id)?.range).filter((range): range is GpuRange => !!range?.hasValue);
 
@@ -244,7 +257,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   toggleSeries(series: VisualizationSeries): void {
-    if (!this.hidden.delete(series.id)) this.hidden.add(series.id);
+    if (!this.hidden.delete(series.id)) 
+this.hidden.add(series.id);
 
     this.api?.chart.clearAuxiliary(this.chartId);
     this.scheduleDraw();
@@ -268,7 +282,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   private commitViewport(next: Viewport | null): void {
-    if (!next || this.errorTitle || !this.data) return;
+    if (!next || this.errorTitle || !this.data) 
+return;
 
     this.viewport = next;
     this.rebuildAxes();
@@ -278,7 +293,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   private drawAuxiliary(x: number, y: number): void {
-    if (!this.api || !this.data || this.errorTitle || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    if (!this.api || !this.data || this.errorTitle || !Number.isFinite(x) || !Number.isFinite(y)) 
+return;
 
     const time = this.zoomedBegin + scaleTicks(this.zoomedEnd - this.zoomedBegin, x);
     const updates = this.series.map(series => {
@@ -300,12 +316,14 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   private scheduleDraw(): void {
-    if (!this.ready || this.disposed || this.frame) return;
+    if (!this.ready || this.disposed || this.frame) 
+return;
 
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
 
-      if (this.disposed) return;
+      if (this.disposed) 
+return;
 
       try {
         this.changeDetector.detectChanges();
@@ -322,7 +340,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
 
-    if (width <= 0 || height <= 0) return;
+    if (width <= 0 || height <= 0) 
+return;
 
     const dpr = window.devicePixelRatio || 1;
 
@@ -330,7 +349,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     canvas.height = Math.max(1, Math.round(height * dpr));
     const context = canvas.getContext('2d');
 
-    if (!context) throw new Error('The browser could not create the chart axis canvas.');
+    if (!context) 
+throw new Error('The browser could not create the chart axis canvas.');
 
     context.scale(dpr, dpr);
     context.font = 'bold 12px "Nexus Chart", "Courier New", monospace';
@@ -356,7 +376,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         context.strokeStyle = lightTheme ? '#dddddd' : 'rgba(148, 163, 184, 0.25)';
 
         ticks.forEach((tick, index) => {
-          if (tick < axis.min || tick > axis.max) return;
+          if (tick < axis.min || tick > axis.max) 
+return;
 
           const y = yMax - (tick - axis.min) * (yMax - plotTop) / (axis.max - axis.min);
 
@@ -388,9 +409,11 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         context.fillText(formatTime(tick, config.fast), x, yMax + 25);
 
         if (isSlowTickRequired(previous, tick, config.trigger)) {
-          if (config.slow1) context.fillText(formatTime(tick, config.slow1), x, yMax + 40);
+          if (config.slow1) 
+context.fillText(formatTime(tick, config.slow1), x, yMax + 40);
 
-          if (config.slow2) context.fillText(formatTime(tick, config.slow2), x, yMax + 55);
+          if (config.slow2) 
+context.fillText(formatTime(tick, config.slow2), x, yMax + 55);
         }
 
         previous = tick;
@@ -401,10 +424,12 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
     this.api!.chart.resize(this.chartId, 'overlay', plot.left, plot.top, plot.right, plot.bottom);
 
-    if (this.errorTitle) return;
+    if (this.errorTitle) 
+return;
 
     const series: SeriesPayload[] = this.series.flatMap((source, index) => {
-      if (this.hidden.has(source.id)) return [];
+      if (this.hidden.has(source.id)) 
+return [];
 
       const state = this.states.get(source.id);
       const axis = this.axes.get(source.unit)!;
@@ -417,8 +442,10 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     gpu.renderSeries(this.chartId, { plot, zoom: this.viewport, lineWidth: 0.7, fillOpacity: 0.10, series });
     gpu.renderSeries(this.chartId, { target: 'navigator-overview-series', preview: true, plot: FULL_VIEWPORT, zoom: { left: 0, right: 1 }, lineWidth: 0.65, fillOpacity: 0.08, series });
 
-    if (this.detail.visible) gpu.renderSeries(this.chartId, { target: 'navigator-detail-series', preview: true, plot: FULL_VIEWPORT, zoom: this.detail, lineWidth: 0.65, fillOpacity: 0.08, series });
-    else gpu.releaseTarget(this.chartId, 'navigator-detail-series');
+    if (this.detail.visible) 
+gpu.renderSeries(this.chartId, { target: 'navigator-detail-series', preview: true, plot: FULL_VIEWPORT, zoom: this.detail, lineWidth: 0.65, fillOpacity: 0.08, series });
+    else 
+gpu.releaseTarget(this.chartId, 'navigator-detail-series');
   }
 
   ngOnDestroy(): void {

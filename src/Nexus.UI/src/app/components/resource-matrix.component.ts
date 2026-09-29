@@ -57,7 +57,8 @@ export class ResourceMatrixComponent {
   readonly propertiesVisible = signal(false)
   private readonly contextMenu = viewChild(ContextMenu)
   readonly contextMenuItems: MenuItem[] = [
-    { label: 'Properties', command: () => { if (this.propertiesRow()) this.propertiesVisible.set(true) } },
+    { label: 'Properties', command: () => { if (this.propertiesRow()) 
+this.propertiesVisible.set(true) } },
   ]
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef)
@@ -102,7 +103,8 @@ export class ResourceMatrixComponent {
   readonly sourceRows = computed(() => {
     const rows = (this.sourceSnapshot() ?? this.rows()).filter(row => row.catalogId === this.catalogId())
 
-    if (this.showAll()) return rows
+    if (this.showAll()) 
+return rows
 
     const properties = this.catalogProperties()
     const begin = this.selectedBegin()
@@ -148,13 +150,15 @@ export class ResourceMatrixComponent {
       const key = this.groupKey()
       const catalog = this.catalogId()
 
-      if (!groups.length) return
+      if (!groups.length) 
+return
 
       const next = groups.some(group => group.key === key) ? key : groups[0].key
 
       this.rememberedGroups.set(catalog, next)
 
-      if (next !== key) this.groupKey.set(next)
+      if (next !== key) 
+this.groupKey.set(next)
     })
 
     let revealed = ''
@@ -172,18 +176,21 @@ export class ResourceMatrixComponent {
 
  return }
 
-      if (token === revealed) return
+      if (token === revealed) 
+return
 
       const row = rows.find(row => row.key === key)
 
-      if (!row) return // Keep the request pending while the catalog is loading.
+      if (!row) 
+return // Keep the request pending while the catalog is loading.
 
       untracked(() => {
         const groups = groupResourceRows(rows, '')
         const matches = groups.filter(group => group.rows.some(item => item.key === key))
         const group = matches.find(group => group.key === this.groupKey()) ?? matches[0]
 
-        if (!group) return
+        if (!group) 
+return
 
         this.search.set('')
         this.groupKey.set(group.key)
@@ -204,9 +211,11 @@ export class ResourceMatrixComponent {
       const request = this.scrollRequest()
       const viewport = this.viewport()
 
-      if (!viewport) return
+      if (!viewport) 
+return
 
-      if (!request && catalog === renderedCatalog && search === renderedSearch && group === renderedGroup) return
+      if (!request && catalog === renderedCatalog && search === renderedSearch && group === renderedGroup) 
+return
 
       renderedCatalog = catalog
       renderedSearch = search
@@ -215,7 +224,8 @@ export class ResourceMatrixComponent {
 
       this.resizeViewport(Math.max(0, index))
 
-      if (request && index >= 0) untracked(() => this.scrollRequest.set(null))
+      if (request && index >= 0) 
+untracked(() => this.scrollRequest.set(null))
     })
 
     afterRenderEffect(() => {
@@ -231,13 +241,15 @@ export class ResourceMatrixComponent {
 
       // Scroll only the strip, not its ancestors or the page.
       if (this.expanded()) {
-        if (selected.offsetTop < strip.scrollTop) strip.scrollTop = selected.offsetTop
+        if (selected.offsetTop < strip.scrollTop) 
+strip.scrollTop = selected.offsetTop
         else if (selected.offsetTop + selected.offsetHeight > strip.scrollTop + strip.clientHeight)
           strip.scrollTop = selected.offsetTop + selected.offsetHeight - strip.clientHeight
       } else {
         const left = selected.offsetLeft
 
-        if (left < strip.scrollLeft) strip.scrollLeft = left
+        if (left < strip.scrollLeft) 
+strip.scrollLeft = left
         else if (left + selected.offsetWidth > strip.scrollLeft + strip.clientWidth)
           strip.scrollLeft = left + selected.offsetWidth - strip.clientWidth
       }
@@ -248,7 +260,8 @@ export class ResourceMatrixComponent {
     afterRenderEffect(onCleanup => {
       const strip = this.groupStrip()?.nativeElement
 
-      if (!strip || typeof ResizeObserver === 'undefined') return
+      if (!strip || typeof ResizeObserver === 'undefined') 
+return
 
       const observer = new ResizeObserver(() => this.updateGroupScroll())
 
@@ -260,7 +273,8 @@ export class ResourceMatrixComponent {
       const size = this.itemSize()
       const viewport = this.viewport()
 
-      if (!viewport || size === this.previousItemSize) return
+      if (!viewport || size === this.previousItemSize) 
+return
 
       const index = Math.floor(viewport.measureScrollOffset() / this.previousItemSize)
 
@@ -271,7 +285,8 @@ export class ResourceMatrixComponent {
     afterRenderEffect(onCleanup => {
       const viewport = this.viewport()
 
-      if (!viewport || typeof ResizeObserver === 'undefined') return
+      if (!viewport || typeof ResizeObserver === 'undefined') 
+return
 
       const observer = new ResizeObserver(() => {
         const index = Math.floor(viewport.measureScrollOffset() / this.previousItemSize)
@@ -286,14 +301,16 @@ export class ResourceMatrixComponent {
     })
 
     this.destroyRef.onDestroy(() => {
-      if (this.frame !== null) cancelAnimationFrame(this.frame)
+      if (this.frame !== null) 
+cancelAnimationFrame(this.frame)
     })
   }
 
   private resizeViewport(index: number): void {
     this.requestedIndex = index
 
-    if (this.frame !== null) cancelAnimationFrame(this.frame)
+    if (this.frame !== null) 
+cancelAnimationFrame(this.frame)
 
     this.frame = requestAnimationFrame(() => {
       this.frame = null
@@ -306,11 +323,13 @@ export class ResourceMatrixComponent {
   }
 
   setSearch(value: string): void {
-    if (!this.saving()) this.search.set(value)
+    if (!this.saving()) 
+this.search.set(value)
   }
 
   selectGroup(key: string): void {
-    if (!this.saving()) this.groupKey.set(key)
+    if (!this.saving()) 
+this.groupKey.set(key)
   }
 
   updateGroupScroll(): void {
@@ -335,15 +354,18 @@ export class ResourceMatrixComponent {
   }
 
   scrollCollapsedGroups(event: WheelEvent): void {
-    if (this.expanded() || this.saving()) return
+    if (this.expanded() || this.saving()) 
+return
 
     const strip = this.groupStrip()?.nativeElement
 
-    if (!strip) return
+    if (!strip) 
+return
 
     const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
 
-    if (!delta) return
+    if (!delta) 
+return
 
     event.preventDefault()
     strip.scrollBy({ left: delta })
@@ -356,9 +378,11 @@ export class ResourceMatrixComponent {
   selectionLabel(row: RepresentationRow): string {
     const label = `${row.id}, ${formatPeriod(row.basePeriod)}`
 
-    if (this.selectedKeys().has(row.key)) return `Deselect ${label}`
+    if (this.selectedKeys().has(row.key)) 
+return `Deselect ${label}`
 
-    if (this.requiresParameters(row)) return `Add ${label} with parameters`
+    if (this.requiresParameters(row)) 
+return `Add ${label} with parameters`
 
     return `Select ${label}`
   }
@@ -368,7 +392,8 @@ export class ResourceMatrixComponent {
   }
 
   toggleRow(row: RepresentationRow): void {
-    if (!this.selectionDisabled(row)) this.toggle.emit(row)
+    if (!this.selectionDisabled(row)) 
+this.toggle.emit(row)
   }
 
   onRowContextMenu(event: MouseEvent, row: RepresentationRow): void {
@@ -378,11 +403,13 @@ export class ResourceMatrixComponent {
   }
 
   activateRow(row: RepresentationRow, event: Event): void {
-    if (this.saving()) return
+    if (this.saving()) 
+return
 
     this.activate.emit(row)
 
-    if (this.narrow()) this.openDetail(row, event)
+    if (this.narrow()) 
+this.openDetail(row, event)
   }
 
   value(row: RepresentationRow, field: MetadataField): string {
@@ -400,22 +427,27 @@ export class ResourceMatrixComponent {
   }
 
   setField(row: RepresentationRow, field: MetadataField, value: string): void {
-    if (!this.canEdit()) return
+    if (!this.canEdit()) 
+return
 
     let drafts = { ...this.drafts() }
     const draft = { ...this.resourceDraft(row.id), [field]: value }
 
-    if (value === this.sourceValue(row, field)) delete draft[field]
+    if (value === this.sourceValue(row, field)) 
+delete draft[field]
 
-    if (Object.keys(draft).length) drafts = { ...drafts, [row.id]: draft }
-    else delete drafts[row.id]
+    if (Object.keys(draft).length) 
+drafts = { ...drafts, [row.id]: draft }
+    else 
+delete drafts[row.id]
 
     this.drafts.set(drafts)
     this.error.set('')
   }
 
   startEditing(): void {
-    if (!this.writable() || this.saving() || this.loading()) return
+    if (!this.writable() || this.saving() || this.loading()) 
+return
 
     this.sourceSnapshot.set(this.rows().map(row => ({ ...row, groups: [...row.groups] })))
     this.editing.set(true)
@@ -424,7 +456,8 @@ export class ResourceMatrixComponent {
   }
 
   cancelEditing(): void {
-    if (this.saving()) return
+    if (this.saving()) 
+return
 
     this.detailVisible.set(false)
     this.editing.set(false)
@@ -434,7 +467,8 @@ export class ResourceMatrixComponent {
   }
 
   openDetail(row: RepresentationRow, event: Event): void {
-    if (this.saving()) return
+    if (this.saving()) 
+return
 
     this.dialogOpener = event.currentTarget as HTMLElement
     this.dialogOpenerKey = row.key
@@ -446,15 +480,18 @@ export class ResourceMatrixComponent {
   }
 
   closeDetail(): void {
-    if (this.saving()) return
+    if (this.saving()) 
+return
 
     const row = this.detail()
 
     if (row && this.editing()) {
       let drafts = { ...this.drafts() }
 
-      if (this.dialogDraft) drafts = { ...drafts, [row.id]: this.dialogDraft }
-      else delete drafts[row.id]
+      if (this.dialogDraft) 
+drafts = { ...drafts, [row.id]: this.dialogDraft }
+      else 
+delete drafts[row.id]
 
       this.drafts.set(drafts)
     }
@@ -463,7 +500,8 @@ export class ResourceMatrixComponent {
   }
 
   keepDetailDraft(): void {
-    if (!this.saving()) this.detailVisible.set(false)
+    if (!this.saving()) 
+this.detailVisible.set(false)
   }
 
   restoreDetailFocus(): void {
@@ -475,7 +513,8 @@ export class ResourceMatrixComponent {
   }
 
   private restoreFocus(opener: HTMLElement | null): void {
-    if (this.destroyRef.destroyed) return
+    if (this.destroyRef.destroyed) 
+return
 
     const target = opener?.isConnected && !opener.matches(':disabled') ? opener : this.searchInput()?.nativeElement
 
@@ -487,7 +526,8 @@ export class ResourceMatrixComponent {
   }
 
   requestNavigation(action: () => void): void {
-    if (this.saving() || this.navigationVisible()) return
+    if (this.saving() || this.navigationVisible()) 
+return
 
     if (!this.hasUnsavedChanges()) {
       this.cancelEditing()
@@ -502,7 +542,8 @@ export class ResourceMatrixComponent {
   }
 
   stay(): void {
-    if (this.saving()) return
+    if (this.saving()) 
+return
 
     this.pendingNavigation = null
     this.navigationVisible.set(false)
@@ -514,7 +555,8 @@ export class ResourceMatrixComponent {
   }
 
   discardAndNavigate(): void {
-    if (this.saving()) return
+    if (this.saving()) 
+return
 
     const action = this.pendingNavigation
 
@@ -525,7 +567,8 @@ export class ResourceMatrixComponent {
   }
 
   async saveChanges(): Promise<void> {
-    if (!this.writable() || this.saving() || !this.hasUnsavedChanges()) return
+    if (!this.writable() || this.saving() || !this.hasUnsavedChanges()) 
+return
 
     const catalog = this.catalogId()
     const drafts = Object.fromEntries(Object.entries(this.drafts()).map(([id, fields]) => [id, { ...fields }]))
@@ -538,7 +581,8 @@ export class ResourceMatrixComponent {
     try {
       const result = await this.saveMetadata()(catalog, drafts)
 
-      if (this.destroyRef.destroyed || this.catalogId() !== catalog) return
+      if (this.destroyRef.destroyed || this.catalogId() !== catalog) 
+return
 
       this.saving.set(false)
       this.cancelEditing()
@@ -550,7 +594,8 @@ export class ResourceMatrixComponent {
       if (!this.destroyRef.destroyed && this.catalogId() === catalog)
         this.error.set(error instanceof Error ? error.message : 'Could not save metadata. Your drafts are retained; try again.')
     } finally {
-      if (!this.destroyRef.destroyed && this.catalogId() === catalog) this.saving.set(false)
+      if (!this.destroyRef.destroyed && this.catalogId() === catalog) 
+this.saving.set(false)
     }
 
     action?.()

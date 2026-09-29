@@ -99,7 +99,8 @@ type SelectedResourceGroup = {
 function formatDateForDownloadName(value: string): string {
   const date = new Date(value)
 
-  if (Number.isNaN(date.getTime())) return 'export'
+  if (Number.isNaN(date.getTime())) 
+return 'export'
 
   return date.toISOString().slice(0, 19).replace(/:/g, '-')
 }
@@ -208,7 +209,8 @@ export class AppComponent implements OnDestroy {
   readonly resolvedThemeMode = computed<ResolvedThemeMode>(() => {
     const themeMode = this.themeMode()
 
-    if (themeMode === 'system') return this.systemThemeDark() ? 'dark' : 'light'
+    if (themeMode === 'system') 
+return this.systemThemeDark() ? 'dark' : 'light'
 
     return themeMode
   })
@@ -236,7 +238,8 @@ export class AppComponent implements OnDestroy {
   readonly exportFilePeriodError = computed(() => {
     const period = parseFilePeriod(this.exportFilePeriodDraft())
 
-    if (period === null) return 'Enter a file period, for example Single file, 100 ms, 1 s, or 10 min.'
+    if (period === null) 
+return 'Enter a file period, for example Single file, 100 ms, 1 s, or 10 min.'
 
     return period % this.samplePeriod() === 0n ? '' : 'File period must be zero or an integer multiple of Period.'
   })
@@ -272,7 +275,8 @@ export class AppComponent implements OnDestroy {
     root: {
       // Keep Escape local; the drawer's document listener also closes nested overlays.
       onkeydown: (event: KeyboardEvent) => {
-        if (event.key !== 'Escape') return
+        if (event.key !== 'Escape') 
+return
 
         event.stopPropagation()
         this.isMobileCatalogOpen.set(false)
@@ -298,7 +302,8 @@ export class AppComponent implements OnDestroy {
   readonly userInitials = computed(() => getInitials(this.userName()))
 
   changeDevAuthMode(mode: DevAuthMode) {
-    if (this.devAuthMode() === mode) return
+    if (this.devAuthMode() === mode) 
+return
 
     this.nexus.setDevAuthMode(mode)
     window.location.reload()
@@ -334,11 +339,13 @@ export class AppComponent implements OnDestroy {
       for (const node of prepared) {
         nodes.push({ ...node, depth, parentId })
 
-        if (!node.id) continue
+        if (!node.id) 
+continue
 
         const children = node.isFake && node.groupedChildren ? node.groupedChildren : childMap.get(node.id)
 
-        if (children?.length) appendPreparedNodes(prepareChildCatalogs(node.id, children), node.id, depth + 1)
+        if (children?.length) 
+appendPreparedNodes(prepareChildCatalogs(node.id, children), node.id, depth + 1)
       }
     }
 
@@ -350,7 +357,8 @@ export class AppComponent implements OnDestroy {
   readonly filteredCatalogNodes = computed(() => {
     const term = this.catalogSearch().trim().toLowerCase()
 
-    if (!term) return this.catalogNodes()
+    if (!term) 
+return this.catalogNodes()
 
     const nodes = this.searchableCatalogNodes()
     const nodeById = new Map(nodes.flatMap((node) => node.id ? [[node.id, node] as const] : []))
@@ -358,7 +366,8 @@ export class AppComponent implements OnDestroy {
     const collapsedNodeKeys = this.searchCollapsedCatalogNodeKeys()
 
     for (const node of nodes) {
-      if (!catalogNodeMatchesSearch(node, term)) continue
+      if (!catalogNodeMatchesSearch(node, term)) 
+continue
 
       let current: CatalogNode | undefined = node
 
@@ -400,9 +409,11 @@ export class AppComponent implements OnDestroy {
   readonly selectedCatalogWritable = computed(() => this.resourceMetadataWritable())
 
   readonly resourceRows = computed(() => {
-    if (!this.apiAvailable()) return []
+    if (!this.apiAvailable()) 
+return []
 
-    if (this.isSelectedFake()) return []
+    if (this.isSelectedFake()) 
+return []
 
     return representationRows(mapResources(this.selectedCatalog()))
   })
@@ -412,7 +423,8 @@ export class AppComponent implements OnDestroy {
   readonly groupedSelectedResources = computed<SelectedResourceGroup[]>(() => {
     const groups = new Map<string, ResourceSelection[]>()
 
-    for (const resource of this.selectedResources()) groups.set(resource.catalogId, [...(groups.get(resource.catalogId) ?? []), resource])
+    for (const resource of this.selectedResources()) 
+groups.set(resource.catalogId, [...(groups.get(resource.catalogId) ?? []), resource])
 
     return [...groups.entries()].map(([catalogId, resources]) => ({ catalogId, resources }))
   })
@@ -425,17 +437,23 @@ export class AppComponent implements OnDestroy {
   readonly formattedSamplePeriod = computed(() => formatPeriod(this.samplePeriod()))
   readonly requestPaths = computed(() => this.visualizationResources().map(resource => resource.path))
   readonly selectionError = computed(() => {
-    if (this.selectionLoading()) return 'Restoring selected representations...'
+    if (this.selectionLoading()) 
+return 'Restoring selected representations...'
 
-    if (this.unresolvedSelections().length) return 'Some selected representations could not be loaded. Retry or clear them before loading data.'
+    if (this.unresolvedSelections().length) 
+return 'Some selected representations could not be loaded. Retry or clear them before loading data.'
 
-    if (this.periodError()) return this.periodError()
+    if (this.periodError()) 
+return this.periodError()
 
-    if (!this.selectedResources().length) return 'Select at least one representation.'
+    if (!this.selectedResources().length) 
+return 'Select at least one representation.'
 
-    if (this.visualizationResources().some(resource => !resource.valid)) return 'Remove the invalid methods or choose a compatible Period.'
+    if (this.visualizationResources().some(resource => !resource.valid)) 
+return 'Remove the invalid methods or choose a compatible Period.'
 
-    if (this.selectedResources().some(resource => !this.parametersValid(resource))) return 'A selected representation requires parameter values that this UI cannot edit yet.'
+    if (this.selectedResources().some(resource => !this.parametersValid(resource))) 
+return 'A selected representation requires parameter values that this UI cannot edit yet.'
 
     return executionRangeError(this.exportBegin(), this.exportEnd(), this.samplePeriod(), this.requestPaths().length)
   })
@@ -443,7 +461,8 @@ export class AppComponent implements OnDestroy {
   readonly unsupportedParameterKeys = computed(() => {
     const resource = this.parameterResource()
 
-    if (!resource) return []
+    if (!resource) 
+return []
 
     const supported = new Set(this.parameterFields().map(field => field.key))
 
@@ -452,23 +471,28 @@ export class AppComponent implements OnDestroy {
   readonly parameterDialogError = computed(() => {
     const unsupportedKeys = this.unsupportedParameterKeys()
 
-    if (unsupportedKeys.length) return `Unsupported parameter schema: ${unsupportedKeys.join(', ')}`
+    if (unsupportedKeys.length) 
+return `Unsupported parameter schema: ${unsupportedKeys.join(', ')}`
 
     const draft = this.parameterDraft()
 
     for (const field of this.parameterFields()) {
       const value = draft[field.key]
 
-      if (value === undefined || value === '') return `${field.label} is required.`
+      if (value === undefined || value === '') 
+return `${field.label} is required.`
 
       if (field.kind === 'input-integer') {
         const parsed = Number(value)
 
-        if (!Number.isInteger(parsed)) return `${field.label} must be an integer.`
+        if (!Number.isInteger(parsed)) 
+return `${field.label} must be an integer.`
 
-        if (field.minimum !== undefined && parsed < field.minimum) return `${field.label} must be at least ${field.minimum}.`
+        if (field.minimum !== undefined && parsed < field.minimum) 
+return `${field.label} must be at least ${field.minimum}.`
 
-        if (field.maximum !== undefined && parsed > field.maximum) return `${field.label} must be at most ${field.maximum}.`
+        if (field.maximum !== undefined && parsed > field.maximum) 
+return `${field.label} must be at most ${field.maximum}.`
       } else if (!Object.hasOwn(field.items ?? {}, value)) {
         return `${field.label} has an invalid value.`
       }
@@ -477,11 +501,14 @@ export class AppComponent implements OnDestroy {
     return ''
   })
   readonly exportError = computed(() => {
-    if (this.selectionError()) return this.selectionError()
+    if (this.selectionError()) 
+return this.selectionError()
 
-    if (this.exportFilePeriodError()) return this.exportFilePeriodError()
+    if (this.exportFilePeriodError()) 
+return this.exportFilePeriodError()
 
-    if (!this.apiAvailable()) return 'Connect to the Nexus API before creating an export job.'
+    if (!this.apiAvailable()) 
+return 'Connect to the Nexus API before creating an export job.'
 
     return ''
   })
@@ -501,9 +528,11 @@ export class AppComponent implements OnDestroy {
   readonly currentExportStatusText = computed(() => {
     const status = this.currentExportJobStatus()
 
-    if (this.exportBusy()) return 'Creating export job...'
+    if (this.exportBusy()) 
+return 'Creating export job...'
 
-    if (!this.currentExportJobId()) return ''
+    if (!this.currentExportJobId()) 
+return ''
 
     return status ? this.formatJobStatus(status) : 'Export job queued...'
   })
@@ -517,19 +546,22 @@ export class AppComponent implements OnDestroy {
   }
 
   setPeriod(value: string) {
-    if (this.selectionLoading()) return
+    if (this.selectionLoading()) 
+return
 
     this.periodDraft.set(value)
     const period = parsePeriod(value)
 
-    if (period === null || period <= 0n || period === this.samplePeriod()) return
+    if (period === null || period <= 0n || period === this.samplePeriod()) 
+return
 
     this.samplePeriod.set(period)
     this.automaticPeriod.set(false)
   }
 
   normalizePeriod() {
-    if (!this.periodError()) this.periodDraft.set(formatPeriod(this.samplePeriod()))
+    if (!this.periodError()) 
+this.periodDraft.set(formatPeriod(this.samplePeriod()))
   }
 
   setCatalogSearch(value: string) {
@@ -538,7 +570,8 @@ export class AppComponent implements OnDestroy {
   }
 
   setSidebarTab(value: unknown) {
-    if (value === 'catalogs' || value === 'selectedResources') this.activeSidebarTab.set(value)
+    if (value === 'catalogs' || value === 'selectedResources') 
+this.activeSidebarTab.set(value)
   }
 
   applyTimeRangePreset(preset: TimeRangePreset) {
@@ -570,7 +603,8 @@ export class AppComponent implements OnDestroy {
   applySelectedCatalogRange() {
     const timeRange = this.selectedBundle()?.timeRange
 
-    if (!formatRange(timeRange) || !timeRange?.begin || !timeRange.end) return
+    if (!formatRange(timeRange) || !timeRange?.begin || !timeRange.end) 
+return
 
     this.exportBegin.set(alignRangeEndpoint(timeRange.begin, this.samplePeriod()))
     this.exportEnd.set(alignRangeEndpoint(timeRange.end, this.samplePeriod()))
@@ -604,7 +638,8 @@ export class AppComponent implements OnDestroy {
     })
 
     effect(() => {
-      if (!this.selectedResourcesRestored()) return
+      if (!this.selectedResourcesRestored()) 
+return
 
       this.storage.setJson(selectedResourcesStorageKey, {
         version: 1,
@@ -620,7 +655,8 @@ export class AppComponent implements OnDestroy {
 
       this.expandCatalogPath(catalogId)
 
-      if (apiAvailable) void this.loadCatalogPathChildren(catalogId)
+      if (apiAvailable) 
+void this.loadCatalogPathChildren(catalogId)
     })
 
     effect(() => {
@@ -650,12 +686,14 @@ export class AppComponent implements OnDestroy {
 
   @HostListener('window:resize')
   onResize() {
-    if (window.innerWidth >= 1024) this.isMobileCatalogOpen.set(false)
+    if (window.innerWidth >= 1024) 
+this.isMobileCatalogOpen.set(false)
 
     this.compactLayout.set(window.innerWidth < 640)
     this.wideLayout.set(window.innerWidth >= 1536)
 
-    if (!this.wideLayout() && !this.visualizationOpen()) this.cancelVisualization()
+    if (!this.wideLayout() && !this.visualizationOpen()) 
+this.cancelVisualization()
   }
 
   readonly visualizationByteCount = computed(() => {
@@ -663,7 +701,8 @@ export class AppComponent implements OnDestroy {
     const endTicks = dateTicks(this.exportEnd())
     const samplePeriod = this.samplePeriod()
 
-    if (beginTicks === null || endTicks === null || beginTicks >= endTicks || samplePeriod <= 0n) return 0n
+    if (beginTicks === null || endTicks === null || beginTicks >= endTicks || samplePeriod <= 0n) 
+return 0n
 
     const elementCount = (endTicks - beginTicks) / samplePeriod
 
@@ -677,7 +716,8 @@ export class AppComponent implements OnDestroy {
     const endTicks = dateTicks(this.exportEnd())
     const samplePeriod = this.samplePeriod()
 
-    if (beginTicks === null || endTicks === null || beginTicks >= endTicks || samplePeriod <= 0n) return 0n
+    if (beginTicks === null || endTicks === null || beginTicks >= endTicks || samplePeriod <= 0n) 
+return 0n
 
     const elementCount = (endTicks - beginTicks) / samplePeriod
     const elementSize = this.exportPrecision() === V2.Precision.Float64 ? 8n : 4n
@@ -688,13 +728,17 @@ export class AppComponent implements OnDestroy {
   readonly exportByteCountLabel = computed(() => this.formatByteCount(this.exportByteCount()))
 
   private formatByteCount(byteCount: bigint): string {
-    if (byteCount <= 0n) return ''
+    if (byteCount <= 0n) 
+return ''
 
-    if (byteCount >= 1000n * 1000n * 1000n) return `${this.formatSignificantDigits(Number(byteCount) / 1000 / 1000 / 1000)} GB`
+    if (byteCount >= 1000n * 1000n * 1000n) 
+return `${this.formatSignificantDigits(Number(byteCount) / 1000 / 1000 / 1000)} GB`
 
-    if (byteCount >= 1000n * 1000n) return `${this.formatSignificantDigits(Number(byteCount) / 1000 / 1000)} MB`
+    if (byteCount >= 1000n * 1000n) 
+return `${this.formatSignificantDigits(Number(byteCount) / 1000 / 1000)} MB`
 
-    if (byteCount >= 1000n) return `${this.formatSignificantDigits(Number(byteCount) / 1000)} kB`
+    if (byteCount >= 1000n) 
+return `${this.formatSignificantDigits(Number(byteCount) / 1000)} kB`
 
     return `${byteCount} B`
   }
@@ -708,7 +752,8 @@ export class AppComponent implements OnDestroy {
       this.isMobileCatalogOpen.set(false)
       this.visualizationOpen.set(true)
 
-      if (this.visualizationData() && !this.visualizationStale()) return
+      if (this.visualizationData() && !this.visualizationStale()) 
+return
     }
 
     this.cancelVisualization()
@@ -742,7 +787,8 @@ export class AppComponent implements OnDestroy {
     try {
       const data = createVisualizationData(dateTicks(begin)!, dateTicks(end)!, samplePeriod, descriptors)
 
-      if (data.series.some(series => series.length < 2)) throw new Error('A line chart needs at least two samples. Extend the time range or reduce Period.')
+      if (data.series.some(series => series.length < 2)) 
+throw new Error('A line chart needs at least two samples. Extend the time range or reduce Period.')
 
       controller.signal.throwIfAborted()
 
@@ -774,7 +820,8 @@ export class AppComponent implements OnDestroy {
 
       const currentUnits = new Map(this.visualizationResources().map(resource => [resource.path, resource.unit]))
 
-      for (const series of data.series) series.unit = currentUnits.get(series.id) ?? series.unit
+      for (const series of data.series) 
+series.unit = currentUnits.get(series.id) ?? series.unit
 
       this.visualizationData.set(data)
 
@@ -800,7 +847,8 @@ export class AppComponent implements OnDestroy {
         controller.signal.throwIfAborted()
         buffers.complete()
 
-        if (this.visualizationBuffers === buffers) this.visualizationBuffers = undefined
+        if (this.visualizationBuffers === buffers) 
+this.visualizationBuffers = undefined
       } else {
         this.visualizationProgress.set(100)
       }
@@ -813,7 +861,8 @@ export class AppComponent implements OnDestroy {
       if (this.visualizationController === controller) {
         this.visualizationData.set(null)
 
-        if (!controller.signal.aborted) this.visualizationError.set(this.errorMessage(error))
+        if (!controller.signal.aborted) 
+this.visualizationError.set(this.errorMessage(error))
       }
     } finally {
       if (this.visualizationController === controller) {
@@ -849,14 +898,16 @@ export class AppComponent implements OnDestroy {
   }
 
   visualizationGpuFailed(message: string) {
-    if (!this.visualizationLoading()) return
+    if (!this.visualizationLoading()) 
+return
 
     this.cancelVisualization()
     this.visualizationError.set(message)
   }
 
   setVisualizationCache(value: number | null) {
-    if (value !== null && Number.isFinite(value) && value >= 16) this.visualizationCacheMiB.set(Math.floor(value))
+    if (value !== null && Number.isFinite(value) && value >= 16) 
+this.visualizationCacheMiB.set(Math.floor(value))
   }
 
   ngOnDestroy() {
@@ -867,7 +918,8 @@ export class AppComponent implements OnDestroy {
   }
 
   openDataSourcePipelines() {
-    if (this.isAdministrator()) this.requestCatalogNavigation(() => this.isDataSourcePipelinesOpen.set(true))
+    if (this.isAdministrator()) 
+this.requestCatalogNavigation(() => this.isDataSourcePipelinesOpen.set(true))
   }
 
   async previewSetupImportFromInput(event: Event) {
@@ -876,7 +928,8 @@ export class AppComponent implements OnDestroy {
 
     input.value = ''
 
-    if (file) await this.previewSetupImport(file)
+    if (file) 
+await this.previewSetupImport(file)
   }
 
   openSetupImportPicker() {
@@ -921,7 +974,8 @@ export class AppComponent implements OnDestroy {
 
   @HostListener('window:dragenter', ['$event'])
   onSetupDragEnter(event: DragEvent) {
-    if (!hasSetupFile(event.dataTransfer)) return
+    if (!hasSetupFile(event.dataTransfer)) 
+return
 
     event.preventDefault()
     this.setupDragDepth += 1
@@ -930,7 +984,8 @@ export class AppComponent implements OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onSetupDragOver(event: DragEvent) {
-    if (!hasSetupFile(event.dataTransfer)) return
+    if (!hasSetupFile(event.dataTransfer)) 
+return
 
     event.preventDefault()
     this.setupDragActive.set(true)
@@ -938,11 +993,13 @@ export class AppComponent implements OnDestroy {
 
   @HostListener('window:dragleave', ['$event'])
   onSetupDragLeave(event: DragEvent) {
-    if (!hasSetupFile(event.dataTransfer)) return
+    if (!hasSetupFile(event.dataTransfer)) 
+return
 
     this.setupDragDepth = Math.max(0, this.setupDragDepth - 1)
 
-    if (this.setupDragDepth === 0 || isOutsideViewport(event)) this.clearSetupDragState()
+    if (this.setupDragDepth === 0 || isOutsideViewport(event)) 
+this.clearSetupDragState()
   }
 
   @HostListener('window:dragend')
@@ -957,13 +1014,15 @@ export class AppComponent implements OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onSetupDrop(event: DragEvent) {
-    if (!hasSetupFile(event.dataTransfer)) return
+    if (!hasSetupFile(event.dataTransfer)) 
+return
 
     event.preventDefault()
     this.clearSetupDragState()
     const file = Array.from(event.dataTransfer?.files ?? []).find(isSetupFile)
 
-    if (file) await this.previewSetupImport(file)
+    if (file) 
+await this.previewSetupImport(file)
   }
 
   private clearSetupDragState() {
@@ -986,15 +1045,19 @@ export class AppComponent implements OnDestroy {
   private async applySetupImport(parsed: ParsedNexusUiSetup) {
     const exportSettings = readSetupExportSettings(parsed.setup)
 
-    if (exportSettings.begin && isValidDateString(exportSettings.begin)) this.exportBegin.set(exportSettings.begin)
+    if (exportSettings.begin && isValidDateString(exportSettings.begin)) 
+this.exportBegin.set(exportSettings.begin)
 
-    if (exportSettings.end && isValidDateString(exportSettings.end)) this.exportEnd.set(exportSettings.end)
+    if (exportSettings.end && isValidDateString(exportSettings.end)) 
+this.exportEnd.set(exportSettings.end)
 
     const writerType = exportSettings.selectedWriterType
 
-    if (writerType) this.selectedWriterType.set(writerType)
+    if (writerType) 
+this.selectedWriterType.set(writerType)
 
-    if (exportSettings.exportPrecision) this.exportPrecision.set(exportSettings.exportPrecision)
+    if (exportSettings.exportPrecision) 
+this.exportPrecision.set(exportSettings.exportPrecision)
 
     if (exportSettings.exportFilePeriod && parseFilePeriod(exportSettings.exportFilePeriod) !== null) {
       const filePeriod = parseFilePeriod(exportSettings.exportFilePeriod)!
@@ -1010,7 +1073,8 @@ export class AppComponent implements OnDestroy {
     this.configurationByWriter.set(configurationByWriter)
     this.exportConfiguration.set(configurationByWriter[this.selectedWriterType()] ?? {})
 
-    if (exportSettings.resourcePaths?.length) await this.restoreSetupResourcePaths(exportSettings.resourcePaths)
+    if (exportSettings.resourcePaths?.length) 
+await this.restoreSetupResourcePaths(exportSettings.resourcePaths)
   }
 
   private async restoreSetupResourcePaths(resourcePaths: string[]) {
@@ -1021,17 +1085,22 @@ export class AppComponent implements OnDestroy {
     for (const resourcePath of resourcePaths) {
       const parsed = parseResourcePath(resourcePath)
 
-      if (!parsed) continue
+      if (!parsed) 
+continue
 
-      if (commonPeriod === null) commonPeriod = parsed.period
-      else if (parsed.period !== commonPeriod) continue
+      if (commonPeriod === null) 
+commonPeriod = parsed.period
+      else if (parsed.period !== commonPeriod) 
+continue
 
       const reference = await this.resolveSetupResourcePath(parsed, catalogs)
 
-      if (reference) references.push(reference)
+      if (reference) 
+references.push(reference)
     }
 
-    if (commonPeriod === null) return
+    if (commonPeriod === null) 
+return
 
     const restored = hydrateSelections(references, catalogs, commonPeriod, false)
 
@@ -1087,11 +1156,14 @@ export class AppComponent implements OnDestroy {
   private describeSetupImportWarnings(parsed: ParsedNexusUiSetup) {
     const warnings: string[] = []
 
-    if (parsed.legacyUiSettings?.catalogHidePatterns?.length) warnings.push('Catalog hide patterns are preserved for compatibility, but this UI has no catalog hiding setting to apply.')
+    if (parsed.legacyUiSettings?.catalogHidePatterns?.length) 
+warnings.push('Catalog hide patterns are preserved for compatibility, but this UI has no catalog hiding setting to apply.')
 
-    if (parsed.legacyUiSettings?.chartGpuCacheBudgetMiB !== undefined) warnings.push('Chart cache budget is not part of setup export settings and will not be imported.')
+    if (parsed.legacyUiSettings?.chartGpuCacheBudgetMiB !== undefined) 
+warnings.push('Chart cache budget is not part of setup export settings and will not be imported.')
 
-    if (parsed.source === 'legacy-ui-settings') warnings.push('Legacy settings do not include time range, export period, precision, or resource paths.')
+    if (parsed.source === 'legacy-ui-settings') 
+warnings.push('Legacy settings do not include time range, export period, precision, or resource paths.')
 
     return warnings
   }
@@ -1104,7 +1176,8 @@ export class AppComponent implements OnDestroy {
     const signal = this.refreshController.signal
     const job = await this.nexus.v1.jobs.refreshDatabase(signal)
 
-    if (!job.id) throw new Error('The refresh job did not return an ID.')
+    if (!job.id) 
+throw new Error('The refresh job did not return an ID.')
 
     for (; ;) {
       await new Promise<void>((resolve, reject) => {
@@ -1113,16 +1186,20 @@ export class AppComponent implements OnDestroy {
 
         signal.addEventListener('abort', abort, { once: true })
 
-        if (signal.aborted) abort()
+        if (signal.aborted) 
+abort()
       })
 
       const status = await this.nexus.v1.jobs.getJobStatus(job.id, signal)
 
-      if (status.status === V1.TaskStatus.RanToCompletion) break
+      if (status.status === V1.TaskStatus.RanToCompletion) 
+break
 
-      if (status.status === V1.TaskStatus.Canceled) throw new Error('Database refresh was canceled.')
+      if (status.status === V1.TaskStatus.Canceled) 
+throw new Error('Database refresh was canceled.')
 
-      if (status.status === V1.TaskStatus.Faulted) throw new Error(status.exceptionMessage || 'Database refresh failed.')
+      if (status.status === V1.TaskStatus.Faulted) 
+throw new Error(status.exceptionMessage || 'Database refresh failed.')
     }
 
     this.catalogCacheGeneration++
@@ -1138,7 +1215,8 @@ export class AppComponent implements OnDestroy {
     this.loadedVisualizationKey.set('')
     await this.loadOverview()
 
-    if (this.overviewError()) throw new Error(`Database refreshed, but catalogs could not be reloaded: ${this.errorMessage(this.overviewError())}`)
+    if (this.overviewError()) 
+throw new Error(`Database refreshed, but catalogs could not be reloaded: ${this.errorMessage(this.overviewError())}`)
 
     await this.loadSelectedCatalog(this.selectedCatalogId(), this.isSelectedFake(), this.apiAvailable())
     await this.restoreSelectedResources()
@@ -1187,7 +1265,8 @@ export class AppComponent implements OnDestroy {
 
   @HostListener('window:beforeunload', ['$event'])
   onBeforeUnload(event: BeforeUnloadEvent) {
-    if (!this.resourceMatrix()?.hasUnsavedChanges()) return
+    if (!this.resourceMatrix()?.hasUnsavedChanges()) 
+return
 
     event.preventDefault()
     event.returnValue = ''
@@ -1197,8 +1276,10 @@ export class AppComponent implements OnDestroy {
     this.isMobileCatalogOpen.set(false)
     const matrix = this.resourceMatrix()
 
-    if (matrix) matrix.requestNavigation(action)
-    else action()
+    if (matrix) 
+matrix.requestNavigation(action)
+    else 
+action()
   }
 
   async loadOverview() {
@@ -1210,7 +1291,8 @@ export class AppComponent implements OnDestroy {
     try {
       const overview = await this.nexus.getSessionOverview()
 
-      if (generation !== this.catalogCacheGeneration) return
+      if (generation !== this.catalogCacheGeneration) 
+return
 
       this.overview.set(overview)
       const roots = this.overview()?.roots ?? []
@@ -1218,12 +1300,14 @@ export class AppComponent implements OnDestroy {
       this.childMap.update((current) => current.has('/') ? current : new Map(current).set('/', roots))
       await this.loadExpandedDescendants('/', roots)
     } catch (error) {
-      if (generation !== this.catalogCacheGeneration) return
+      if (generation !== this.catalogCacheGeneration) 
+return
 
       this.overviewError.set(error)
       this.nexus.apiAvailable.set(false)
     } finally {
-      if (generation === this.catalogCacheGeneration) this.overviewLoading.set(false)
+      if (generation === this.catalogCacheGeneration) 
+this.overviewLoading.set(false)
     }
   }
 
@@ -1243,12 +1327,14 @@ export class AppComponent implements OnDestroy {
   private validateInitialCatalogSelection() {
     const catalogId = this.selectedCatalogId()
 
-    if (!catalogId || catalogId === '/' || this.overviewError()) return
+    if (!catalogId || catalogId === '/' || this.overviewError()) 
+return
 
     const roots = this.rootCatalogInfos()
     const segments = getCatalogSegments(catalogId)
 
-    if (!segments.length) return
+    if (!segments.length) 
+return
 
     if (!roots.some(info => info.id && (catalogId === info.id || catalogId.startsWith(`${info.id}/`)))) {
       this.selectedCatalogId.set('')
@@ -1263,9 +1349,11 @@ export class AppComponent implements OnDestroy {
     const prepared = prepareChildCatalogs(parentId, infos)
 
     for (const node of prepared) {
-      if (generation !== this.catalogCacheGeneration) return
+      if (generation !== this.catalogCacheGeneration) 
+return
 
-      if (!node.id) continue
+      if (!node.id) 
+continue
 
       if (node.isFake) {
         if (this.expandedCatalogNodeKeys().has(node.nodeKey) && node.groupedChildren) {
@@ -1275,7 +1363,8 @@ export class AppComponent implements OnDestroy {
         if (this.expandedCatalogNodeKeys().has(node.nodeKey)) {
           await this.loadChildren(node.id)
 
-          if (generation !== this.catalogCacheGeneration) return
+          if (generation !== this.catalogCacheGeneration) 
+return
 
           const children = this.childMap().get(node.id) ?? []
 
@@ -1328,34 +1417,40 @@ export class AppComponent implements OnDestroy {
     try {
       const bundle = await this.getCatalogBundle(catalogId)
 
-      if (generation === this.catalogLoadGeneration) this.selectedBundle.set(bundle)
+      if (generation === this.catalogLoadGeneration) 
+this.selectedBundle.set(bundle)
     } catch (error) {
       if (generation === this.catalogLoadGeneration) {
         this.catalogError.set(error)
         this.selectedBundle.set(null)
       }
     } finally {
-      if (generation === this.catalogLoadGeneration) this.catalogLoading.set(false)
+      if (generation === this.catalogLoadGeneration) 
+this.catalogLoading.set(false)
     }
   }
 
   async getCatalogBundle(catalogId: string) {
     const cachedBundle = this.catalogBundleCache.get(catalogId)
 
-    if (cachedBundle) return cachedBundle
+    if (cachedBundle) 
+return cachedBundle
 
     const pendingRequest = this.catalogBundleRequests.get(catalogId)
 
-    if (pendingRequest) return pendingRequest
+    if (pendingRequest) 
+return pendingRequest
 
     const generation = this.catalogCacheGeneration
     const request = this.nexus.getCatalogBundle(catalogId)
       .then((bundle) => {
-        if (generation === this.catalogCacheGeneration) this.catalogBundleCache.set(catalogId, bundle)
+        if (generation === this.catalogCacheGeneration) 
+this.catalogBundleCache.set(catalogId, bundle)
 
         return bundle
       })
-      .finally(() => { if (this.catalogBundleRequests.get(catalogId) === request) this.catalogBundleRequests.delete(catalogId) })
+      .finally(() => { if (this.catalogBundleRequests.get(catalogId) === request) 
+this.catalogBundleRequests.delete(catalogId) })
 
     this.catalogBundleRequests.set(catalogId, request)
 
@@ -1379,7 +1474,8 @@ export class AppComponent implements OnDestroy {
     try {
       const bundle = await this.getCatalogBundle(catalogId)
 
-      if (this.selectedCatalogId() === catalogId) this.selectedBundle.set(bundle)
+      if (this.selectedCatalogId() === catalogId) 
+this.selectedBundle.set(bundle)
 
       const rows = new Map(mapResources(bundle.catalog).map(row => [row.id, row]))
 
@@ -1410,7 +1506,8 @@ export class AppComponent implements OnDestroy {
   async restoreSelectedResources() {
     const generation = this.catalogCacheGeneration
 
-    if (this.selectionRestoreGeneration === generation) return
+    if (this.selectionRestoreGeneration === generation) 
+return
 
     this.selectionRestoreGeneration = generation
     this.selectionLoading.set(true)
@@ -1425,7 +1522,8 @@ export class AppComponent implements OnDestroy {
       }
     }))
 
-    if (generation !== this.catalogCacheGeneration) return
+    if (generation !== this.catalogCacheGeneration) 
+return
 
     const restored = hydrateSelections(references, catalogs, this.samplePeriod(), this.automaticPeriod())
 
@@ -1435,7 +1533,8 @@ export class AppComponent implements OnDestroy {
     this.selectionReferences.set(restored.references)
     this.unresolvedSelections.set(restored.unresolved)
 
-    if (!restored.selections.size && !restored.unresolved.length) this.automaticPeriod.set(true)
+    if (!restored.selections.size && !restored.unresolved.length) 
+this.automaticPeriod.set(true)
 
     const activeBundle = this.catalogBundleCache.get(this.selectedCatalogId())
 
@@ -1472,8 +1571,10 @@ export class AppComponent implements OnDestroy {
       void this.loadChildren(catalogId)
     }
 
-    if (catalogId === this.selectedCatalogId()) select()
-    else this.requestCatalogNavigation(select)
+    if (catalogId === this.selectedCatalogId()) 
+select()
+    else 
+this.requestCatalogNavigation(select)
   }
 
   selectPinnedResourceCatalog(resource: ResourceSelection) {
@@ -1488,7 +1589,8 @@ export class AppComponent implements OnDestroy {
       this.isMobileCatalogOpen.set(false)
       this.expandCatalogPath(catalogId)
 
-      if (this.apiAvailable()) void this.loadCatalogPathChildren(catalogId)
+      if (this.apiAvailable()) 
+void this.loadCatalogPathChildren(catalogId)
 
       const key = selectionKey(resource, {})
 
@@ -1497,14 +1599,18 @@ export class AppComponent implements OnDestroy {
       this.revealResourceSequence.update(value => value + 1)
     }
 
-    if (catalogId === this.selectedCatalogId()) select()
-    else this.requestCatalogNavigation(select)
+    if (catalogId === this.selectedCatalogId()) 
+select()
+    else 
+this.requestCatalogNavigation(select)
   }
 
   catalogHasExpandableChildren(catalog: CatalogNode) {
-    if (catalog.isFake) return (catalog.groupedChildren?.length ?? 0) > 0
+    if (catalog.isFake) 
+return (catalog.groupedChildren?.length ?? 0) > 0
 
-    if (!catalog.id || !this.apiAvailable()) return false
+    if (!catalog.id || !this.apiAvailable()) 
+return false
 
     const children = this.childMap().get(catalog.id)
 
@@ -1512,9 +1618,11 @@ export class AppComponent implements OnDestroy {
   }
 
   catalogNodeIsExpanded(catalog: CatalogNode) {
-    if (!this.catalogSearch().trim()) return this.expandedCatalogNodeKeys().has(catalog.nodeKey)
+    if (!this.catalogSearch().trim()) 
+return this.expandedCatalogNodeKeys().has(catalog.nodeKey)
 
-    if (this.searchCollapsedCatalogNodeKeys().has(catalog.nodeKey)) return false
+    if (this.searchCollapsedCatalogNodeKeys().has(catalog.nodeKey)) 
+return false
 
     return this.filteredCatalogNodes().some((node) => node.parentId === catalog.id)
   }
@@ -1523,14 +1631,16 @@ export class AppComponent implements OnDestroy {
     if (this.catalogSearch().trim()) {
       this.searchCollapsedCatalogNodeKeys.update((current) => toggleSetValue(current, catalog.nodeKey))
 
-      if (!catalog.isFake && catalog.id) void this.loadChildren(catalog.id)
+      if (!catalog.isFake && catalog.id) 
+void this.loadChildren(catalog.id)
 
       return
     }
 
     this.expandedCatalogNodeKeys.update((current) => toggleSetValue(current, catalog.nodeKey))
 
-    if (!catalog.isFake && catalog.id) void this.loadChildren(catalog.id)
+    if (!catalog.isFake && catalog.id) 
+void this.loadChildren(catalog.id)
   }
 
   expandCatalogPath(catalogId: string) {
@@ -1547,7 +1657,8 @@ export class AppComponent implements OnDestroy {
       const prepared = prepareChildCatalogs(currentParent, currentInfos)
       const node = prepared.find(n => n.id === ancestor)
 
-      if (!node) break
+      if (!node) 
+break
 
       if (node.isFake) {
         currentInfos = node.groupedChildren ?? []
@@ -1557,7 +1668,8 @@ export class AppComponent implements OnDestroy {
 
       await this.loadChildren(ancestor)
 
-      if (generation !== this.catalogCacheGeneration) return
+      if (generation !== this.catalogCacheGeneration) 
+return
 
       currentInfos = this.childMap().get(ancestor) ?? []
       currentParent = ancestor
@@ -1565,22 +1677,27 @@ export class AppComponent implements OnDestroy {
   }
 
   async loadChildren(catalogId: string) {
-    if (!this.apiAvailable() || this.childMap().has(catalogId)) return
+    if (!this.apiAvailable() || this.childMap().has(catalogId)) 
+return
 
     const existing = this.childRequests.get(catalogId)
 
-    if (existing) return existing
+    if (existing) 
+return existing
 
     const generation = this.catalogCacheGeneration
     const request = (async () => {
       try {
         const children = await this.nexus.getCatalogChildren(catalogId)
 
-        if (generation === this.catalogCacheGeneration) this.childMap.update((current) => new Map(current).set(catalogId, children))
+        if (generation === this.catalogCacheGeneration) 
+this.childMap.update((current) => new Map(current).set(catalogId, children))
       } catch {
-        if (generation === this.catalogCacheGeneration) this.childMap.update((current) => new Map(current).set(catalogId, []))
+        if (generation === this.catalogCacheGeneration) 
+this.childMap.update((current) => new Map(current).set(catalogId, []))
       } finally {
-        if (generation === this.catalogCacheGeneration) this.childRequests.delete(catalogId)
+        if (generation === this.catalogCacheGeneration) 
+this.childRequests.delete(catalogId)
       }
     })()
 
@@ -1590,9 +1707,11 @@ export class AppComponent implements OnDestroy {
   }
 
   toggleResource(resource: RepresentationRow) {
-    if (this.selectionLoading()) return
+    if (this.selectionLoading()) 
+return
 
-    if (this.resourceSelected(resource)) this.removeResource(resource.key)
+    if (this.resourceSelected(resource)) 
+this.removeResource(resource.key)
     else {
       if (this.requiresParameters(resource)) {
         this.openParameterDialog(resource)
@@ -1615,18 +1734,21 @@ export class AppComponent implements OnDestroy {
   }
 
   removeResource(key: string) {
-    if (this.selectionLoading()) return
+    if (this.selectionLoading()) 
+return
 
     const selection = this.selectedResourceRows().get(key)
 
-    if (!selection) return
+    if (!selection) 
+return
 
     this.selectedResourceRows.update(current => {
       const next = new Map(current)
 
       next.delete(key)
 
-      if (!next.size) this.automaticPeriod.set(true)
+      if (!next.size) 
+this.automaticPeriod.set(true)
 
       return next
     })
@@ -1635,7 +1757,8 @@ export class AppComponent implements OnDestroy {
   }
 
   removeUnresolvedSelection(reference: StoredSelectionReference) {
-    if (this.selectionLoading()) return
+    if (this.selectionLoading()) 
+return
 
     const matches = (other: StoredSelectionReference) =>
       other.catalogId === reference.catalogId && other.path === reference.path
@@ -1647,7 +1770,8 @@ export class AppComponent implements OnDestroy {
   }
 
   toggleKind(selection: ResourceSelection, kind: RepresentationKind) {
-    if (this.selectionLoading()) return
+    if (this.selectionLoading()) 
+return
 
     const kinds = selection.kinds.includes(kind) ? selection.kinds.filter(value => value !== kind)
       : kindValid(kind, this.samplePeriod(), selection.basePeriod) ? [...selection.kinds, kind] : selection.kinds
@@ -1667,7 +1791,8 @@ export class AppComponent implements OnDestroy {
   }
 
   private parametersValid(resource: ResourceSelection) {
-    if (!this.requiresParameters(resource)) return Object.keys(resource.parameters).length === 0
+    if (!this.requiresParameters(resource)) 
+return Object.keys(resource.parameters).length === 0
 
     const expectedKeys = Object.keys(resource.representation.parameters ?? {}).sort()
     const actualKeys = Object.keys(resource.parameters).sort()
@@ -1687,7 +1812,8 @@ export class AppComponent implements OnDestroy {
   }
 
   onParameterDialogVisible(visible: boolean) {
-    if (!visible) this.closeParameterDialog()
+    if (!visible) 
+this.closeParameterDialog()
   }
 
   setParameterValue(key: string, value: string) {
@@ -1709,7 +1835,8 @@ export class AppComponent implements OnDestroy {
   addParameterizedResource() {
     const resource = this.parameterResource()
 
-    if (!resource || this.parameterDialogError()) return
+    if (!resource || this.parameterDialogError()) 
+return
 
     if (this.pinnedCount() === 0 && this.automaticPeriod()) {
       this.samplePeriod.set(resource.basePeriod)
@@ -1732,7 +1859,8 @@ export class AppComponent implements OnDestroy {
 
   private toParameterFields(resource: RepresentationRow | null): ParameterField[] {
     return Object.entries(resource?.representation.parameters ?? {}).flatMap<ParameterField>(([key, value]) => {
-      if (!this.isRecord(value) || typeof value['type'] !== 'string') return []
+      if (!this.isRecord(value) || typeof value['type'] !== 'string') 
+return []
 
       const label = typeof value['label'] === 'string' ? value['label'] : key
 
@@ -1764,11 +1892,13 @@ export class AppComponent implements OnDestroy {
   }
 
   requestClearPinnedResources() {
-    if (!this.selectionLoading() && this.pinnedCount() > 0) this.isClearPinnedOpen.set(true)
+    if (!this.selectionLoading() && this.pinnedCount() > 0) 
+this.isClearPinnedOpen.set(true)
   }
 
   clearPinnedResources() {
-    if (this.selectionLoading()) return
+    if (this.selectionLoading()) 
+return
 
     this.selectedResourceRows.set(new Map())
     this.selectionReferences.set([])
@@ -1797,17 +1927,20 @@ export class AppComponent implements OnDestroy {
     this.exportFilePeriodDraft.set(value)
     const period = parseFilePeriod(value)
 
-    if (period !== null && period % this.samplePeriod() === 0n) this.exportFilePeriod.set(formatPeriod(period))
+    if (period !== null && period % this.samplePeriod() === 0n) 
+this.exportFilePeriod.set(formatPeriod(period))
   }
 
   normalizeExportFilePeriod() {
-    if (!this.exportFilePeriodError()) this.exportFilePeriodDraft.set(formatFilePeriod(parsePeriod(this.exportFilePeriod()) ?? 0n))
+    if (!this.exportFilePeriodError()) 
+this.exportFilePeriodDraft.set(formatFilePeriod(parsePeriod(this.exportFilePeriod()) ?? 0n))
   }
 
   async openLicenseDialog() {
     const catalogId = this.selectedCatalogId()
 
-    if (!catalogId || this.isSelectedFake()) return
+    if (!catalogId || this.isSelectedFake()) 
+return
 
     this.isLicenseOpen.set(true)
     this.licenseLoading.set(true)
@@ -1826,7 +1959,8 @@ export class AppComponent implements OnDestroy {
   async acceptSelectedCatalogLicense() {
     const catalogId = this.selectedCatalogId()
 
-    if (!catalogId || this.licenseAccepting()) return
+    if (!catalogId || this.licenseAccepting()) 
+return
 
     this.licenseAccepting.set(true)
     this.licenseError.set('')
@@ -1856,13 +1990,15 @@ export class AppComponent implements OnDestroy {
     const catalogId = this.selectedCatalogId()
     const selectedFiles = files ? Array.from(files) : []
 
-    if (!catalogId || !this.selectedCatalogWritable() || this.catalogFilesBusy() || selectedFiles.length === 0) return
+    if (!catalogId || !this.selectedCatalogWritable() || this.catalogFilesBusy() || selectedFiles.length === 0) 
+return
 
     this.catalogFilesBusy.set(true)
     this.catalogFilesError.set('')
 
     try {
-      for (const file of selectedFiles) await this.nexus.uploadCatalogAttachment(catalogId, file.name, file)
+      for (const file of selectedFiles) 
+await this.nexus.uploadCatalogAttachment(catalogId, file.name, file)
 
       this.catalogBundleCache.delete(catalogId)
       await this.loadSelectedCatalog(catalogId, this.isSelectedFake(), this.apiAvailable())
@@ -1875,7 +2011,8 @@ export class AppComponent implements OnDestroy {
   }
 
   onCatalogFilesDragOver(event: DragEvent) {
-    if (!this.selectedCatalogWritable() || this.catalogFilesBusy()) return
+    if (!this.selectedCatalogWritable() || this.catalogFilesBusy()) 
+return
 
     event.preventDefault()
     this.catalogFilesDragActive.set(true)
@@ -1893,13 +2030,15 @@ export class AppComponent implements OnDestroy {
   }
 
   requestDeleteCatalogAttachment(attachmentId: string) {
-    if (!this.selectedCatalogWritable() || this.catalogFilesBusy() || this.deletingAttachmentId()) return
+    if (!this.selectedCatalogWritable() || this.catalogFilesBusy() || this.deletingAttachmentId()) 
+return
 
     this.pendingDeleteAttachmentId.set(attachmentId)
   }
 
   cancelDeleteCatalogAttachment() {
-    if (!this.deletingAttachmentId()) this.pendingDeleteAttachmentId.set('')
+    if (!this.deletingAttachmentId()) 
+this.pendingDeleteAttachmentId.set('')
   }
 
   async confirmDeleteCatalogAttachment() {
@@ -1909,7 +2048,8 @@ export class AppComponent implements OnDestroy {
   private async deleteCatalogAttachment(attachmentId: string) {
     const catalogId = this.selectedCatalogId()
 
-    if (!attachmentId || !catalogId || !this.selectedCatalogWritable() || this.catalogFilesBusy() || this.deletingAttachmentId()) return
+    if (!attachmentId || !catalogId || !this.selectedCatalogWritable() || this.catalogFilesBusy() || this.deletingAttachmentId()) 
+return
 
     this.deletingAttachmentId.set(attachmentId)
     this.catalogFilesError.set('')
@@ -1949,7 +2089,8 @@ export class AppComponent implements OnDestroy {
   }
 
   async createExportJob() {
-    if (this.exportBusy()) return
+    if (this.exportBusy()) 
+return
 
     if (this.exportError()) {
       this.exportStatus.set(this.exportError())
@@ -1970,13 +2111,15 @@ export class AppComponent implements OnDestroy {
     try {
       const job = await this.nexus.v2.jobs.export(parameters, controller.signal)
 
-      if (!job.id) throw new Error('The export job did not return an ID.')
+      if (!job.id) 
+throw new Error('The export job did not return an ID.')
 
       this.currentExportJobId.set(job.id)
       this.upsertJobHistory(job, parameters)
       await this.pollCurrentExportJob(job.id, parameters, controller)
     } catch (error) {
-      if (!controller.signal.aborted) this.currentExportJobError.set(this.errorMessage(error))
+      if (!controller.signal.aborted) 
+this.currentExportJobError.set(this.errorMessage(error))
     } finally {
       if (this.exportController === controller) {
         this.exportBusy.set(false)
@@ -1998,7 +2141,8 @@ export class AppComponent implements OnDestroy {
   async cancelCurrentExportJob() {
     const jobId = this.currentExportJobId()
 
-    if (!jobId) return
+    if (!jobId) 
+return
 
     this.exportController?.abort()
     this.exportBusy.set(false)
@@ -2021,7 +2165,8 @@ export class AppComponent implements OnDestroy {
     const jobId = this.currentExportJobId()
     const artifactId = this.artifactIdFromStatus(this.currentExportJobStatus() ?? undefined)
 
-    if (!jobId || !artifactId) return
+    if (!jobId || !artifactId) 
+return
 
     this.currentExportDownloading.set(true)
 
@@ -2053,7 +2198,8 @@ export class AppComponent implements OnDestroy {
 
       this.updateJobHistory(entry.id, { status, error: '' })
 
-      if (this.currentExportJobId() === entry.id) this.currentExportJobStatus.set(status)
+      if (this.currentExportJobId() === entry.id) 
+this.currentExportJobStatus.set(status)
     } catch (error) {
       this.updateJobHistory(entry.id, { error: this.errorMessage(error) })
     }
@@ -2062,7 +2208,8 @@ export class AppComponent implements OnDestroy {
   async downloadJob(entry: ExportJobHistoryEntry) {
     const artifactId = this.artifactIdFromStatus(entry.status)
 
-    if (!artifactId) return
+    if (!artifactId) 
+return
 
     this.updateJobHistory(entry.id, { downloading: true, error: '' })
 
@@ -2078,7 +2225,8 @@ export class AppComponent implements OnDestroy {
   jobProgress(status?: V1.JobStatus) {
     const progress = status?.status === V1.TaskStatus.RanToCompletion ? 1 : status?.progress
 
-    if (typeof progress !== 'number' || !Number.isFinite(progress)) return 0
+    if (typeof progress !== 'number' || !Number.isFinite(progress)) 
+return 0
 
     return Math.max(0, Math.min(100, Math.round(progress * 100)))
   }
@@ -2090,7 +2238,8 @@ export class AppComponent implements OnDestroy {
   jobStartLabel(entry: ExportJobHistoryEntry) {
     const value = entry.status?.start
 
-    if (!value) return 'Start time pending'
+    if (!value) 
+return 'Start time pending'
 
     const date = new Date(value)
 
@@ -2122,7 +2271,8 @@ export class AppComponent implements OnDestroy {
       await this.delay(1000, controller.signal)
       const status = await this.nexus.v1.jobs.getJobStatus(jobId, controller.signal)
 
-      if (this.exportController !== controller) return
+      if (this.exportController !== controller) 
+return
 
       this.currentExportJobStatus.set(status)
       this.updateJobHistory(jobId, { status, error: '' })
@@ -2130,16 +2280,19 @@ export class AppComponent implements OnDestroy {
       if (status.status === V1.TaskStatus.RanToCompletion) {
         const artifactId = this.artifactIdFromStatus(status)
 
-        if (!artifactId) throw new Error('The completed export job did not return an artifact ID.')
+        if (!artifactId) 
+throw new Error('The completed export job did not return an artifact ID.')
 
         await this.downloadArtifact(artifactId, this.exportDownloadName(parameters))
 
         return
       }
 
-      if (status.status === V1.TaskStatus.Canceled) throw new Error('The export job has been canceled.')
+      if (status.status === V1.TaskStatus.Canceled) 
+throw new Error('The export job has been canceled.')
 
-      if (status.status === V1.TaskStatus.Faulted) throw new Error(`The export job failed. Reason: ${status.exceptionMessage ?? 'unknown'}`)
+      if (status.status === V1.TaskStatus.Faulted) 
+throw new Error(`The export job failed. Reason: ${status.exceptionMessage ?? 'unknown'}`)
     }
   }
 
@@ -2163,15 +2316,18 @@ export class AppComponent implements OnDestroy {
   }
 
   private mergeJobHistory(jobs: (V1.Job | V2.Job)[]) {
-    if (!jobs.length) return
+    if (!jobs.length) 
+return
 
     this.jobHistory.update((current) => {
       const entries = new Map(current.map(entry => [entry.id, entry]))
 
       for (const job of jobs) {
-        if (!job.id) continue
+        if (!job.id) 
+continue
 
-        if (!this.isExportJob(job)) continue
+        if (!this.isExportJob(job)) 
+continue
 
         entries.set(job.id, entries.get(job.id) ?? this.createJobHistoryEntry(job))
       }
@@ -2181,7 +2337,8 @@ export class AppComponent implements OnDestroy {
   }
 
   private upsertJobHistory(job: V1.Job | V2.Job, parameters?: V2.ExportParameters) {
-    if (!job.id) return
+    if (!job.id) 
+return
 
     this.jobHistory.update((current) => {
       const existing = current.find(entry => entry.id === job.id)
@@ -2221,11 +2378,14 @@ export class AppComponent implements OnDestroy {
   }
 
   private formatJobStatus(status: V1.JobStatus) {
-    if (status.status === V1.TaskStatus.RanToCompletion) return 'Completed.'
+    if (status.status === V1.TaskStatus.RanToCompletion) 
+return 'Completed.'
 
-    if (status.status === V1.TaskStatus.Canceled) return 'Canceled.'
+    if (status.status === V1.TaskStatus.Canceled) 
+return 'Canceled.'
 
-    if (status.status === V1.TaskStatus.Faulted) return `Failed: ${status.exceptionMessage ?? 'unknown'}`
+    if (status.status === V1.TaskStatus.Faulted) 
+return `Failed: ${status.exceptionMessage ?? 'unknown'}`
 
     return `${status.status ?? 'Pending'} (${this.jobProgress(status)}%)`
   }
@@ -2241,7 +2401,8 @@ export class AppComponent implements OnDestroy {
   private async downloadArtifact(artifactId: string, downloadName: string) {
     const response = await this.nexus.v1.artifacts.download(artifactId)
 
-    if (!response.ok) throw new Error(`Download failed with HTTP ${response.status}.`)
+    if (!response.ok) 
+throw new Error(`Download failed with HTTP ${response.status}.`)
 
     const blob = await response.blob()
     const url = URL.createObjectURL(blob)
@@ -2269,14 +2430,16 @@ export class AppComponent implements OnDestroy {
 
       signal.addEventListener('abort', abort, { once: true })
 
-      if (signal.aborted) abort()
+      if (signal.aborted) 
+abort()
     })
   }
 
   copyCatalogPath() {
     const catalogId = this.selectedCatalogId()
 
-    if (!catalogId || !navigator.clipboard) return
+    if (!catalogId || !navigator.clipboard) 
+return
 
     void navigator.clipboard.writeText(catalogId).then(() => this.messageService.add({ key: 'app-status', severity: 'success', summary: 'Catalog path copied', life: 1800 }))
   }
@@ -2370,7 +2533,8 @@ function hasCollapsedSearchAncestor(node: CatalogNode, nodeById: ReadonlyMap<str
   let parent = node.parentId === '/' ? undefined : nodeById.get(node.parentId)
 
   while (parent) {
-    if (collapsedNodeKeys.has(parent.nodeKey)) return true
+    if (collapsedNodeKeys.has(parent.nodeKey)) 
+return true
 
     parent = parent.parentId === '/' ? undefined : nodeById.get(parent.parentId)
   }
@@ -2379,7 +2543,8 @@ function hasCollapsedSearchAncestor(node: CatalogNode, nodeById: ReadonlyMap<str
 }
 
 function isExportParameters(value: unknown): value is V2.ExportParameters {
-  if (!value || typeof value !== 'object') return false
+  if (!value || typeof value !== 'object') 
+return false
 
   const parameters = value as V2.ExportParameters
 
@@ -2423,22 +2588,29 @@ function getResourcePathCatalogCandidates(path: string) {
 }
 
 function readSetupExportSettings(value: unknown): Partial<StoredExportSettings> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) 
+return {}
 
   const settings = value as NexusUiSetup
   const result: Partial<StoredExportSettings> = {}
 
-  if (typeof settings.begin === 'string') result.begin = settings.begin
+  if (typeof settings.begin === 'string') 
+result.begin = settings.begin
 
-  if (typeof settings.end === 'string') result.end = settings.end
+  if (typeof settings.end === 'string') 
+result.end = settings.end
 
-  if (typeof settings.filePeriod === 'string') result.exportFilePeriod = settings.filePeriod
+  if (typeof settings.filePeriod === 'string') 
+result.exportFilePeriod = settings.filePeriod
 
-  if (typeof settings.type === 'string' && settings.type) result.selectedWriterType = settings.type
+  if (typeof settings.type === 'string' && settings.type) 
+result.selectedWriterType = settings.type
 
-  if (settings.precision === V2.Precision.Float64 || settings.precision === V2.Precision.Float32) result.exportPrecision = settings.precision
+  if (settings.precision === V2.Precision.Float64 || settings.precision === V2.Precision.Float32) 
+result.exportPrecision = settings.precision
 
-  if (Array.isArray(settings.resourcePaths)) result.resourcePaths = settings.resourcePaths.filter((path): path is string => typeof path === 'string')
+  if (Array.isArray(settings.resourcePaths)) 
+result.resourcePaths = settings.resourcePaths.filter((path): path is string => typeof path === 'string')
 
   if (settings.configuration && typeof settings.configuration === 'object' && !Array.isArray(settings.configuration) && result.selectedWriterType) {
     result.configurationByWriter = { [result.selectedWriterType]: { ...(settings.configuration as Record<string, unknown>) } }
@@ -2456,9 +2628,11 @@ function isOutsideViewport(event: DragEvent) {
 }
 
 function hasSetupFile(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return false
+  if (!dataTransfer) 
+return false
 
-  if (Array.from(dataTransfer.files).some(isSetupFile)) return true
+  if (Array.from(dataTransfer.files).some(isSetupFile)) 
+return true
 
   return Array.from(dataTransfer.items).some(item => item.kind === 'file' && (item.type === 'application/json' || item.type === ''))
 }
@@ -2490,7 +2664,8 @@ function getStoredExportSettings(storage: BrowserStorageService): StoredExportSe
     configurationByWriter: { [defaultWriterType]: { 'row-index-format': 'excel', 'significant-figures': 4 } },
   }
 
-  if (!stored || typeof stored !== 'object') return defaults
+  if (!stored || typeof stored !== 'object') 
+return defaults
 
   const value = stored as Partial<StoredExportSettings>
   const selectedWriterType = typeof value.selectedWriterType === 'string' && value.selectedWriterType
@@ -2506,7 +2681,8 @@ function getStoredExportSettings(storage: BrowserStorageService): StoredExportSe
 }
 
 function getStoredWriterConfigurations(value: unknown, fallback: Record<string, Record<string, unknown>>) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback
+  if (!value || typeof value !== 'object' || Array.isArray(value)) 
+return fallback
 
   const result: Record<string, Record<string, unknown>> = {}
 
@@ -2523,7 +2699,8 @@ function getCatalogPathNodeKeys(catalogId: string) {
   const keys = new Set<string>()
   const ancestors = getCatalogAncestorPaths(catalogId)
 
-  for (const path of ancestors) keys.add(getRealCatalogNodeKey(path))
+  for (const path of ancestors) 
+keys.add(getRealCatalogNodeKey(path))
 
   const segments = getCatalogSegments(catalogId)
 
@@ -2541,7 +2718,8 @@ function getCatalogAncestorPaths(catalogId: string) {
   const segments = getCatalogSegments(catalogId)
   const ancestors: string[] = []
 
-  for (let index = 1; index < segments.length; index += 1) ancestors.push(`/${segments.slice(0, index).join('/')}`)
+  for (let index = 1; index < segments.length; index += 1) 
+ancestors.push(`/${segments.slice(0, index).join('/')}`)
 
   return ancestors
 }
@@ -2554,12 +2732,15 @@ function writeSelectedCatalogToUrl(catalogId: string, replace = false) {
   const url = new URL(window.location.href)
   const position = window.history.state?.nexusCatalogPosition ?? 0
 
-  if (url.searchParams.get('catalog') === (catalogId || null) && window.history.state?.nexusCatalogPosition !== undefined) return position
+  if (url.searchParams.get('catalog') === (catalogId || null) && window.history.state?.nexusCatalogPosition !== undefined) 
+return position
 
   const nextPosition = replace ? position : position + 1
 
-  if (catalogId) url.searchParams.set('catalog', catalogId)
-  else url.searchParams.delete('catalog')
+  if (catalogId) 
+url.searchParams.set('catalog', catalogId)
+  else 
+url.searchParams.delete('catalog')
 
   window.history[replace ? 'replaceState' : 'pushState']({ ...window.history.state, nexusCatalogPosition: nextPosition }, '', `${url.pathname}${url.search}${url.hash}`)
 
@@ -2569,8 +2750,10 @@ function writeSelectedCatalogToUrl(catalogId: string, replace = false) {
 function toggleSetValue<T>(current: ReadonlySet<T>, value: T) {
   const next = new Set(current)
 
-  if (next.has(value)) next.delete(value)
-  else next.add(value)
+  if (next.has(value)) 
+next.delete(value)
+  else 
+next.add(value)
 
   return next
 }
@@ -2578,7 +2761,8 @@ function toggleSetValue<T>(current: ReadonlySet<T>, value: T) {
 function mergeSets<T>(current: ReadonlySet<T>, values: Iterable<T>) {
   const next = new Set(current)
 
-  for (const value of values) next.add(value)
+  for (const value of values) 
+next.add(value)
 
   return next
 }
@@ -2588,9 +2772,11 @@ function getInitials(name: string) {
 }
 
 function formatRange(timeRange: V1.CatalogTimeRange | undefined) {
-  if (!timeRange?.begin || !timeRange.end) return ''
+  if (!timeRange?.begin || !timeRange.end) 
+return ''
 
-  if (timeRange.begin.startsWith('0001-01-01') && timeRange.end.startsWith('9999-12-31')) return ''
+  if (timeRange.begin.startsWith('0001-01-01') && timeRange.end.startsWith('9999-12-31')) 
+return ''
 
   const begin = formatRangeDate(timeRange.begin)
   const end = formatRangeDate(timeRange.end)
@@ -2618,7 +2804,8 @@ function toDateTimeLocalValue(value: string) {
 }
 
 function fromDateTimeLocalValue(value: string) {
-  if (!value) return ''
+  if (!value) 
+return ''
 
   const withSeconds = value.length === 16 ? `${value}:00` : value
 
@@ -2626,11 +2813,13 @@ function fromDateTimeLocalValue(value: string) {
 }
 
 function resolveRangeEndpoint(value: string, reference: Date) {
-  if (value === 'now') return toUtcSecondString(reference)
+  if (value === 'now') 
+return toUtcSecondString(reference)
 
   const relativeDuration = /^-PT(\d+)([HM])$/.exec(value)
 
-  if (!relativeDuration) return value
+  if (!relativeDuration) 
+return value
 
   const amount = Number(relativeDuration[1])
   const unit = relativeDuration[2]
@@ -2644,7 +2833,8 @@ function toUtcSecondString(date: Date) {
 }
 
 function formatCatalogDisplayPath(path: string) {
-  if (path === '/') return ''
+  if (path === '/') 
+return ''
 
   return path.replaceAll('/', ' / ').replace(/^ \/ /, '')
 }

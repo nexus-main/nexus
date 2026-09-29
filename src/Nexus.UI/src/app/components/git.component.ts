@@ -374,7 +374,8 @@ export class GitComponent {
   onEditorInit(_editor: Monaco.editor.IDiffEditor): void {
     this.monaco = (window as unknown as { monaco?: typeof Monaco }).monaco ?? null
 
-    if (this.monaco) defineNexusMonacoThemes(this.monaco)
+    if (this.monaco) 
+defineNexusMonacoThemes(this.monaco)
 
     this.applyTheme()
   }
@@ -394,7 +395,8 @@ export class GitComponent {
       this.status.set(status)
       this.history.set(history)
 
-      if (!this.selectedCommit() && history.length) await this.selectCommit(history[0])
+      if (!this.selectedCommit() && history.length) 
+await this.selectCommit(history[0])
     } catch (error) {
       this.showError('load Git state', error)
     } finally {
@@ -403,7 +405,8 @@ export class GitComponent {
   }
 
   setMobileTab(value: string | number | undefined) {
-    if (typeof value === 'string') this.mobileTab.set(value)
+    if (typeof value === 'string') 
+this.mobileTab.set(value)
   }
 
   async selectCommit(entry: GitHistoryEntry, openDetails = false) {
@@ -411,7 +414,8 @@ export class GitComponent {
     this.confirmRestore.set(false)
     this.error.set('')
 
-    if (openDetails) this.mobileTab.set('details')
+    if (openDetails) 
+this.mobileTab.set('details')
 
     try {
       const files = await this.request<GitDiffFile[]>(`git/diff/${encodeURIComponent(entry.sha)}`)
@@ -461,7 +465,8 @@ export class GitComponent {
   }
 
   formatDate(value?: string | null) {
-    if (!value) return 'never'
+    if (!value) 
+return 'never'
 
     const date = new Date(value)
 
@@ -477,11 +482,14 @@ export class GitComponent {
   }
 
   pushStatusLabel(value: GitPushStatus) {
-    if (value === 0 || value === 'NotConfigured') return 'not pushed yet'
+    if (value === 0 || value === 'NotConfigured') 
+return 'not pushed yet'
 
-    if (value === 1 || value === 'Succeeded') return 'succeeded'
+    if (value === 1 || value === 'Succeeded') 
+return 'succeeded'
 
-    if (value === 2 || value === 'Failed') return 'failed'
+    if (value === 2 || value === 'Failed') 
+return 'failed'
 
     return String(value)
   }
@@ -489,7 +497,8 @@ export class GitComponent {
   private applyTheme(): void {
     const monaco = this.monaco
 
-    if (!monaco) return
+    if (!monaco) 
+return
 
     monaco.editor.setTheme(getNexusMonacoTheme(this.themeMode()))
   }
@@ -515,7 +524,8 @@ export class GitComponent {
       },
     })
 
-    if (!response.ok) throw new Error(await response.text() || response.statusText)
+    if (!response.ok) 
+throw new Error(await response.text() || response.statusText)
 
     return await response.json() as T
   }
