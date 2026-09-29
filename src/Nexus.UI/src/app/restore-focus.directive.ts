@@ -10,6 +10,9 @@ import {
 import { Dialog } from "primeng/dialog";
 import { Drawer } from "primeng/drawer";
 
+// PrimeNG's FocusTrap traps focus inside the overlay but does not restore focus to the
+// triggering element when the overlay closes (W3C dialog requirement 4). See:
+// https://github.com/primefaces/primeng/issues/16997
 @Directive({ selector: "[appRestoreFocus]", standalone: true })
 export class RestoreFocusDirective {
   readonly appRestoreFocus = input(true, { transform: booleanAttribute });
