@@ -25,7 +25,7 @@ import { ToggleSwitchModule } from "primeng/toggleswitch";
 import { AppTooltipDirective } from "../app-tooltip.directive";
 import { ConfirmationService, ConfirmEventType, MessageService } from "primeng/api";
 import type { DialogPassThrough } from "primeng/types/dialog";
-import { LucideCircleHelp, LucidePlus } from "@lucide/angular";
+import { LucideCircleQuestionMark, LucidePlus } from "@lucide/angular";
 import { NexusService, V1 } from "../nexus.service";
 import { RestoreFocusDirective } from "../restore-focus.directive";
 import { JsonSchemaEditorComponent } from "./json-schema-editor.component";
@@ -77,7 +77,7 @@ const mobilePipelineLayoutQuery = "(max-width: 760px)";
     AppTooltipDirective,
     RestoreFocusDirective,
     JsonSchemaEditorComponent,
-    LucideCircleHelp,
+    LucideCircleQuestionMark,
     LucidePlus,
   ],
   providers: [ConfirmationService, MessageService],

@@ -1,6 +1,6 @@
 import { Component, input } from "@angular/core";
 import {
-  LucideCircleHelp,
+  LucideCircleQuestionMark,
   LucideCodeXml,
   LucideDownload,
   LucideGitBranch,
@@ -46,7 +46,7 @@ export type AppIconName =
   selector: "app-icon",
   standalone: true,
   imports: [
-    LucideCircleHelp,
+    LucideCircleQuestionMark,
     LucideCodeXml,
     LucideDownload,
     LucideGitBranch,
@@ -78,7 +78,7 @@ export type AppIconName =
         <svg lucideGitBranch aria-hidden="true"></svg>
       }
       @case ("help") {
-        <svg lucideCircleHelp aria-hidden="true"></svg>
+        <svg lucideCircleQuestionMark aria-hidden="true"></svg>
       }
       @case ("info") {
         <svg lucideInfo aria-hidden="true"></svg>
