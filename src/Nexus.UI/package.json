@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "ng serve --host 127.0.0.1 --proxy-config proxy.conf.cjs",
     "build": "ng build",
-    "lint": "ng build --configuration development && eslint . && prettier --check .",
+    "lint": "ng build --configuration development && eslint . && npm run eslint:tests && prettier --check . \"../../tests/Nexus.UI.Tests/app/**/*.ts\"",
     "eslint": "eslint .",
     "eslint:fix": "eslint . --fix",
-    "format": "prettier --check .",
-    "format:fix": "prettier --write .",
+    "eslint:tests": "cd ../../tests/Nexus.UI.Tests && node ../../src/Nexus.UI/node_modules/eslint/bin/eslint.js --config eslint.config.js \"app/**/*.ts\"",
+    "eslint:tests:fix": "cd ../../tests/Nexus.UI.Tests && node ../../src/Nexus.UI/node_modules/eslint/bin/eslint.js --config eslint.config.js \"app/**/*.ts\" --fix",
+    "format": "prettier --check . \"../../tests/Nexus.UI.Tests/app/**/*.ts\"",
+    "format:fix": "prettier --write . \"../../tests/Nexus.UI.Tests/app/**/*.ts\"",
     "test": "tsc -p tsconfig.selection-tests.json && node --test ../../tests/Nexus.UI.Tests/app/resource-selection.test.ts ../../tests/Nexus.UI.Tests/app/resource-matrix.test.ts ../../tests/Nexus.UI.Tests/app/charts/*.test.ts ../../tests/Nexus.UI.Tests/app/json-schema.test.ts ../../tests/Nexus.UI.Tests/app/data-source-pipelines.test.ts ../../tests/Nexus.UI.Tests/app/yaml-monaco.test.ts ../../tests/Nexus.UI.Tests/app/nexus-ui-setup.test.ts"
   },
   "dependencies": {

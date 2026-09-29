@@ -1,5 +1,6 @@
 import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
+import { paddingLineBetweenStatements, noUnusedVars } from "./eslint-rules.cjs";
 
 // Prettier owns all formatting (indentation, braces, quotes, semicolons, line
 // wrapping, trailing commas). eslint-config-prettier is appended last to turn
@@ -16,18 +17,6 @@ import eslintConfigPrettier from "eslint-config-prettier";
 //     is what forbids the single-line `if (x) return;` form.
 //   - @typescript-eslint/no-unused-vars: error on unused locals, imports, and
 //     parameters. Variables/args/caught-errors prefixed with `_` are exempt.
-const paddingLineBetweenStatements = [
-  "error",
-  // blank line after a run of variable declarations
-  { blankLine: "always", prev: ["const", "let", "var"], next: "*" },
-  { blankLine: "any", prev: ["const", "let", "var"], next: ["const", "let", "var"] },
-  // blank line before/after control flow
-  { blankLine: "always", prev: "*", next: ["if", "for", "while", "switch", "try", "return"] },
-  { blankLine: "always", prev: ["if", "for", "while", "switch", "try"], next: "*" },
-  // blank line before/after multiline expressions
-  { blankLine: "always", prev: "*", next: "multiline-expression" },
-  { blankLine: "always", prev: "multiline-expression", next: "*" },
-];
 
 export default tseslint.config(
   {
@@ -45,14 +34,7 @@ export default tseslint.config(
     plugins: { "@typescript-eslint": tseslint.plugin },
     rules: {
       "padding-line-between-statements": paddingLineBetweenStatements,
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-        },
-      ],
+      "@typescript-eslint/no-unused-vars": noUnusedVars,
     },
   },
   eslintConfigPrettier,
