@@ -1,7 +1,7 @@
 import { CommonModule } from "@angular/common";
 import { Component, OnInit, computed, inject, output, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { LucideCopy, LucideRefreshCw, LucideTrash2 } from "@lucide/angular";
+import { LucideCopy, LucideRefreshCw, LucideTrash } from "@lucide/angular";
 import { MessageService } from "primeng/api";
 import { ButtonModule } from "primeng/button";
 import { CheckboxModule } from "primeng/checkbox";
@@ -37,7 +37,7 @@ type CatalogClaimDraft = {
     RestoreFocusDirective,
     LucideCopy,
     LucideRefreshCw,
-    LucideTrash2,
+    LucideTrash,
   ],
   providers: [MessageService],
   template: `
@@ -237,7 +237,7 @@ type CatalogClaimDraft = {
                   (click)="removeCatalogClaim($index)"
                   [attr.aria-label]="'Remove catalog pattern ' + ($index + 1)"
                 >
-                  <svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg>
+                  <svg lucideTrash class="h-4 w-4" aria-hidden="true"></svg>
                 </button>
               </div>
             }
@@ -323,7 +323,7 @@ type CatalogClaimDraft = {
                     (click)="confirmDelete(entry)"
                     [attr.aria-label]="'Revoke token ' + (entry.token.description || entry.id)"
                   >
-                    <svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg>
+                    <svg lucideTrash class="h-4 w-4" aria-hidden="true"></svg>
                   </button>
                 </article>
               }

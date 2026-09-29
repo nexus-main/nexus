@@ -10,7 +10,7 @@ import {
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NgClass } from "@angular/common";
-import { LucidePlus, LucideRefreshCw, LucideTrash2 } from "@lucide/angular";
+import { LucidePlus, LucideRefreshCw, LucideTrash } from "@lucide/angular";
 import { ButtonModule } from "primeng/button";
 import { DialogModule } from "primeng/dialog";
 import { InputTextModule } from "primeng/inputtext";
@@ -36,7 +36,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
     RestoreFocusDirective,
     LucidePlus,
     LucideRefreshCw,
-    LucideTrash2,
+    LucideTrash,
   ],
   template: `
     <p-dialog
@@ -171,7 +171,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
               @if (editedEntry()) {
                 @if (confirmingDelete()) {
                   <span class="flex items-center gap-2 text-xs text-rose-accent">
-                    <svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg>
+                    <svg lucideTrash class="h-4 w-4" aria-hidden="true"></svg>
                     Delete this package reference?
                   </span>
                   <div class="flex gap-2 ml-auto">
@@ -208,7 +208,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
                     (click)="confirmingDelete.set(true)"
                     aria-label="Delete package reference"
                   >
-                    <svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg>
+                    <svg lucideTrash class="h-4 w-4" aria-hidden="true"></svg>
                   </button>
                   <div class="flex gap-2 ml-auto">
                     <button
