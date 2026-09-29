@@ -8,7 +8,6 @@ using Nexus.Core;
 using Nexus.Core.V1;
 using Nexus.Services;
 using Nexus.Utilities;
-using System.Security.Claims;
 
 namespace Nexus.Controllers.V1;
 
