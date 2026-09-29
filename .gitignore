@@ -17,6 +17,9 @@ doc/api/
 # Python
 *.pyc
 
+# Libs
+src/Nexus/wwwroot/lib/
+
 # Lock files
 # src/Nexus.UI/package-lock.json is tracked (used by `npm ci` in MSBuild publish).
 # The TS test client uses --no-package-lock in CI; keep its lock file untracked.
