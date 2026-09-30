@@ -109,9 +109,6 @@ public static class Program
 
             typeScriptGenerator.Generate(typeScriptOutputFolderPath, v1Document, v2Document);
 
-            // patch relative imports to use .js extensions for Node ESM compatibility
-            TypeScriptEsmPatch(typeScriptOutputFolderPath);
-
             // save open API documents
             var openApiDocumentOutputPath = Path.Combine(solutionRoot, openApiFileName);
             var openApiV2DocumentOutputPath = Path.Combine(solutionRoot, openApiV2FileName);
@@ -123,23 +120,6 @@ public static class Program
         {
             await app.StopAsync();
             await app.DisposeAsync();
-        }
-    }
-
-    private static void TypeScriptEsmPatch(string outputFolderPath)
-    {
-        var pattern = new System.Text.RegularExpressions.Regex(
-            @"(from\s+""\.\/[^""]+?)(?<!\.js)("")");
-
-        foreach (var filePath in Directory.GetFiles(outputFolderPath, "*.ts"))
-        {
-            var content = File.ReadAllText(filePath);
-            var patched = pattern.Replace(content, "$1.js$2");
-
-            if (patched != content)
-            {
-                File.WriteAllText(filePath, patched);
-            }
         }
     }
 }
