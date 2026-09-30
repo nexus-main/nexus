@@ -107,6 +107,7 @@ public class CatalogManagerTests
             databaseService,
             extensionHive,
             pipelineService,
+            Options.Create(new GeneralOptions()),
             NullLogger<CatalogManager>.Instance
         );
 

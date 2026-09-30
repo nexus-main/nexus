@@ -52,6 +52,8 @@ internal record GeneralOptions() : NexusOptionsBase
     public string? ApplicationName { get; set; }
 
     public string? HelpLink { get; set; }
+
+    public bool DisableSampleCatalog { get; set; } = false;
 }
 
 internal record DataOptions() : NexusOptionsBase

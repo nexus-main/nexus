@@ -26,6 +26,7 @@ internal class CatalogManager(
     IDatabaseService databaseService,
     IExtensionHive<IDataSource> sourcesExtensionHive,
     IPipelineService pipelineService,
+    IOptions<GeneralOptions> generalOptions,
     ILogger<CatalogManager> logger
 ) : ICatalogManager
 {
@@ -46,6 +47,8 @@ internal class CatalogManager(
 
     private readonly IPipelineService _pipelineService = pipelineService;
 
+    private readonly IOptions<GeneralOptions> _generalOptions = generalOptions;
+
     private readonly ILogger<CatalogManager> _logger = logger;
 
     public async Task<CatalogContainer[]> GetCatalogContainersAsync(
@@ -62,20 +65,6 @@ internal class CatalogManager(
         /* special case: root */
         if (parent.Id == CatalogContainer.RootCatalogId)
         {
-            /* load builtin data source */
-            var builtinPipelines = new (Guid, DataSourcePipeline)[]
-            {
-                (Sample.PipelineId, new DataSourcePipeline(Registrations:
-                    [
-                        new(
-                            Type: typeof(Sample).FullName!,
-                            ResourceLocator: default,
-                            Configuration: JsonSerializer.SerializeToElement<object?>(default)
-                        )
-                    ]
-                ))
-            };
-
             /* load all catalog identifiers */
             var path = CatalogContainer.RootCatalogId;
             var catalogPrototypes = new List<CatalogPrototype>();
@@ -84,31 +73,48 @@ internal class CatalogManager(
 
             // TODO: Load parallel?
             /* for each pipeline */
-            foreach (var (pipelineId, pipeline) in builtinPipelines)
+            if (!_generalOptions.Value.DisableSampleCatalog)
             {
-                using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
-                var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
-
-                foreach (var registration in pipeline.Registrations)
+                /* load builtin data source */
+                var builtinPipelines = new (Guid, DataSourcePipeline)[]
                 {
-                    var packageReferenceIds = pipeline.Registrations
-                        .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
-                        .ToArray();
+                    (Sample.PipelineId, new DataSourcePipeline(Registrations:
+                        [
+                            new(
+                                Type: typeof(Sample).FullName!,
+                                ResourceLocator: default,
+                                Configuration: JsonSerializer.SerializeToElement<object?>(default)
+                            )
+                        ]
+                    ))
+                };
 
-                    foreach (var catalogRegistration in catalogRegistrations)
+                foreach (var (pipelineId, pipeline) in builtinPipelines)
+                {
+                    using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
+                    var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
+
+                    foreach (var registration in pipeline.Registrations)
                     {
-                        var metadata = LoadMetadata(catalogRegistration.Path);
+                        var packageReferenceIds = pipeline.Registrations
+                            .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
+                            .ToArray();
 
-                        var catalogPrototype = new CatalogPrototype(
-                            catalogRegistration,
-                            pipelineId,
-                            pipeline,
-                            packageReferenceIds,
-                            metadata,
-                            catalogRegistration.Path
-                        );
+                        foreach (var catalogRegistration in catalogRegistrations)
+                        {
+                            var metadata = LoadMetadata(catalogRegistration.Path);
 
-                        catalogPrototypes.Add(catalogPrototype);
+                            var catalogPrototype = new CatalogPrototype(
+                                catalogRegistration,
+                                pipelineId,
+                                pipeline,
+                                packageReferenceIds,
+                                metadata,
+                                catalogRegistration.Path
+                            );
+
+                            catalogPrototypes.Add(catalogPrototype);
+                        }
                     }
                 }
             }
