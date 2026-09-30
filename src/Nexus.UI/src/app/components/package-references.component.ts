@@ -9,7 +9,7 @@ import {
   viewChild,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { NgClass } from "@angular/common";
+
 import { LucidePlus, LucideRefreshCw, LucideTrash } from "@lucide/angular";
 import { ButtonModule } from "primeng/button";
 import { DialogModule } from "primeng/dialog";
@@ -26,7 +26,6 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
   selector: "app-package-references",
   standalone: true,
   imports: [
-    NgClass,
     FormsModule,
     ButtonModule,
     DialogModule,
@@ -76,26 +75,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
           </h2>
           <form class="space-y-3" (ngSubmit)="save()">
             <div>
-              <label id="package-provider-label" for="package-provider" class="mb-1 block text-sm"
-                >Provider</label
-              >
-              <p-select
-                inputId="package-provider"
-                ariaLabelledBy="package-provider-label"
-                name="provider"
-                class="w-full"
-                appendTo="body"
-                [options]="providers"
-                [ngModel]="provider()"
-                (ngModelChange)="setProvider($event)"
-                [disabled]="busy()"
-                size="small"
-              />
-            </div>
-            <div>
-              <label for="package-location" class="mb-1 block text-sm">{{
-                provider() === "local" ? "Path on the Nexus server" : "Repository URL"
-              }}</label>
+              <label for="package-location" class="mb-1 block text-sm">Repository URL</label>
               <input
                 pInputText
                 pSize="small"
@@ -109,9 +89,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
               />
             </div>
             <div>
-              <label for="package-version" class="mb-1 block text-sm">{{
-                provider() === "local" ? "Version folder" : "Git tag"
-              }}</label>
+              <label for="package-version" class="mb-1 block text-sm">Git tag</label>
               <p-select
                 inputId="package-version"
                 ariaLabel="Package version"
@@ -315,12 +293,7 @@ type PackageEntry = { id: string; reference: V1.PackageReference };
                     </h2>
                     <div class="mt-2 flex items-center gap-2">
                       <span
-                        class="rounded-full border px-2 py-0.5 text-xs"
-                        [ngClass]="
-                          entry.reference.provider === 'local'
-                            ? 'border-violet-core/20 text-violet-accent'
-                            : 'border-cyan-core/20 text-cyan-accent'
-                        "
+                        class="rounded-full border border-cyan-core/20 px-2 py-0.5 text-xs text-cyan-accent"
                         >{{ entry.reference.provider }}</span
                       >
                       <span
@@ -376,7 +349,6 @@ export class PackageReferencesComponent {
       },
     },
   };
-  readonly providers = ["git-tag", "local"];
   readonly entries = signal<PackageEntry[]>([]);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -385,7 +357,6 @@ export class PackageReferencesComponent {
   readonly editing = signal(false);
   readonly editedEntry = signal<PackageEntry | null>(null);
   readonly confirmingDelete = signal(false);
-  readonly provider = signal("git-tag");
   readonly location = signal("");
   readonly version = signal("");
   readonly versionOptions = signal<string[]>([]);
@@ -395,11 +366,7 @@ export class PackageReferencesComponent {
   readonly refreshStatus = signal("");
   readonly entrypoint = signal("");
   readonly valid = computed(
-    () =>
-      this.providers.includes(this.provider()) &&
-      !!this.location().trim() &&
-      !!this.version().trim() &&
-      !!this.entrypoint().trim(),
+    () => !!this.location().trim() && !!this.version().trim() && !!this.entrypoint().trim(),
   );
   readonly refreshButtonLabel = computed(() =>
     this.refreshing() ? "Refreshing database..." : "Refresh database",
@@ -438,30 +405,15 @@ export class PackageReferencesComponent {
     this.status.set("");
     this.confirmingDelete.set(false);
     this.editedEntry.set(entry);
-    this.provider.set(entry?.reference.provider ?? "git-tag");
     const config = entry?.reference.configuration;
 
-    this.location.set(config?.[this.provider() === "local" ? "path" : "repository"] ?? "");
-    this.version.set(config?.[this.provider() === "local" ? "version" : "tag"] ?? "");
+    this.location.set(config?.["repository"] ?? "");
+    this.version.set(config?.["tag"] ?? "");
     this.entrypoint.set(config?.["entrypoint"] ?? "");
     this.versionOptions.set([]);
     this.versionError.set("");
     this.editing.set(true);
     void this.loadVersions();
-  }
-
-  setProvider(provider: string) {
-    this.provider.set(provider);
-    this.versionOptions.set([]);
-    this.versionError.set("");
-
-    if (!this.editedEntry()) {
-      this.version.set("");
-    }
-
-    if (this.location().trim()) {
-      void this.loadVersions();
-    }
   }
 
   async loadVersions() {
@@ -480,8 +432,8 @@ export class PackageReferencesComponent {
 
     try {
       const reference: V1.PackageReference = {
-        provider: this.provider(),
-        configuration: { [this.provider() === "local" ? "path" : "repository"]: location },
+        provider: "git-tag",
+        configuration: { repository: location },
       };
       const versions = await this.api.getVersions(reference);
 
@@ -514,13 +466,13 @@ export class PackageReferencesComponent {
     this.busy.set(true);
     this.error.set("");
     const entry = this.editedEntry();
-    const provider = this.provider();
-    // Preserve provider-specific options that are not exposed by this form.
+    const provider = "git-tag";
+    // Preserve options that are not exposed by this form.
     const configuration =
       provider === entry?.reference.provider ? { ...entry.reference.configuration } : {};
 
-    configuration[provider === "local" ? "path" : "repository"] = this.location().trim();
-    configuration[provider === "local" ? "version" : "tag"] = this.version().trim();
+    configuration["repository"] = this.location().trim();
+    configuration["tag"] = this.version().trim();
     configuration["entrypoint"] = this.entrypoint().trim();
 
     try {
@@ -618,7 +570,7 @@ export class PackageReferencesComponent {
 
   packageName(entry: PackageEntry): string {
     const config = entry.reference.configuration;
-    const url = config?.["repository"] ?? config?.["path"] ?? entry.id;
+    const url = config?.["repository"] ?? entry.id;
 
     return url.split("/").pop() || url;
   }

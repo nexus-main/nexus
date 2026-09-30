@@ -226,12 +226,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          registry-url: "https://registry.npmjs.org"
+          registry-url: "https://www.myget.org/F/apollo3zehn-dev/npm/"
 
-      - name: npm package (npm)
-        run: npm stage publish artifacts/package/apollo3zehn-nexus-api-*.tgz --tag dev
+      - name: npm package (MyGet)
+        run: npm publish artifacts/package/apollo3zehn-nexus-api-*.tgz --tag dev
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.MYGET_API_KEY }}
 
   publish_release:
     needs: build
@@ -293,6 +293,9 @@ jobs:
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Install npm 11
+        run: npm install -g npm@11
 
       - name: npm package (npm)
         run: npm stage publish artifacts/package/apollo3zehn-nexus-api-*.tgz

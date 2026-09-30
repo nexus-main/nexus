@@ -1,4 +1,4 @@
-## v2.0.0-beta.58 - tbd
+## v2.0.0-beta.58 - 2026-09-30
 - New Angular-based UI replacing the Blazor frontend, built with Angular 21, PrimeNG, and Tailwind CSS v4.
 - WebGPU-accelerated chart rendering for high-performance time-series visualization.
 - Monaco-based YAML configuration editor with live validation.
@@ -6,6 +6,7 @@
 - Data source pipeline editor with drag-and-drop configuration.
 - Dark and light theme support with automatic system preference detection.
 - Settings import/export and improved catalog access handling with visibility-based discoverability.
+- Removed support for local package references; extension packages now use git-tag references only.
 
 ## v2.0.0-beta.57 - 2026-09-14
 - Restore the legacy `/api/v1/data` raw double stream response for compatibility with v1 clients.
