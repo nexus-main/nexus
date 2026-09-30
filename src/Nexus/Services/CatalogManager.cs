@@ -86,6 +86,15 @@ internal class CatalogManager(
                                 Configuration: JsonSerializer.SerializeToElement<object?>(default)
                             )
                         ]
+                    )),
+                    (Dev.PipelineId, new DataSourcePipeline(Registrations:
+                        [
+                            new(
+                                Type: typeof(Dev).FullName!,
+                                ResourceLocator: default,
+                                Configuration: JsonSerializer.SerializeToElement<object?>(default)
+                            )
+                        ]
                     ))
                 };
 
