@@ -1,4 +1,4 @@
-import { HttpRequestHandler } from "./_shared";
+import { HttpRequestHandler } from "./_shared.js";
 
 /**
  * Provides access to the V1 API.

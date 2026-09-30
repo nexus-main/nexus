@@ -1,10 +1,10 @@
 import { AsyncByteStream, DataType, Precision as ArrowPrecision, RecordBatchReader } from "apache-arrow";
 import type { Float32, Float64, Int32, Int64, List, Schema } from "apache-arrow";
-import { HttpRequestHandler, NexusException } from "./_shared";
-import { V1, IV1 } from "./V1";
-import { CatalogItem, TaskStatus } from "./V1";
-import { V2, IV2 } from "./V2";
-import { BatchStreamRequest, ExportParameters, Precision } from "./V2";
+import { HttpRequestHandler, NexusException } from "./_shared.js";
+import { V1, IV1 } from "./V1.js";
+import { CatalogItem, TaskStatus } from "./V1.js";
+import { V2, IV2 } from "./V2.js";
+import { BatchStreamRequest, ExportParameters, Precision } from "./V2.js";
 
 
 type StreamSchema = { resourceIndex: Int32; offset: Int64; values: List<Float32> | List<Float64> };
