@@ -1,69 +1,13 @@
-<!-- KEEP IN SYNC WITH Components/App.razor! -->
-
-<!DOCTYPE html>
-<html lang="en">
-
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-        <base href="/nexus/" />
-
-        <!-- keep this order for MudBlazor and app.css to correctly apply overrides -->
-        <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
-        <link rel="stylesheet" href="css/app.css" />
-        <link rel="stylesheet" href="Nexus.styles.css">
-        <link rel="stylesheet" href="lib/mdi/font/css/materialdesignicons.min.css">
-        <link rel="stylesheet" href="lib/highlightjs/cdn-assets/styles/stackoverflow-light.min.css">
-
-        <link rel="icon" type="image/png" href="icon.svg" />
-
-        <!--Blazor:{"type":"webassembly","key":{"locationHash":"F0D08B7EDA2582111DC0201BF7AE993F27FDC7A8:6","formattedComponentKey":""},"assembly":"Microsoft.AspNetCore.Components.Web","typeName":"Microsoft.AspNetCore.Components.Web.HeadOutlet","parameterDefinitions":"W10=","parameterValues":"W10="}-->
-    </head>
-
-    <body class="font-sans">
-        <!--Blazor:{"type":"webassembly","key":{"locationHash":"531B0D4EDBAB1F7033C2AE7ACA95EC4DA3B917DD:10","formattedComponentKey":""},"assembly":"Nexus.UI","typeName":"Nexus.UI.Routes","parameterDefinitions":"W10=","parameterValues":"W10="}-->       
-        
-        <!-- 
-            We (mis)use builder.RootComponents.Add<LoadingScreen>("#loading-screen");
-            in the WASM library to be able to show the loading screen component (see 
-            below) and to have its content replaced with nothing when the app starts.
-
-            This is required because we disabled prerendering and so we need a loading
-            screen. We disabled prerendering because it requires services like those
-            from MudBlazor to be registered server-side and wasm-side which feels
-            unclean.
-
-            Background to the .NET 8 changes:
-            https://github.com/dotnet/aspnetcore/issues/49056#issuecomment-1639105878 
-        -->
-        <div id="loading-screen">
-            <div class="bg-gradient-to-b from-white to-slate-200">
-                <div class="flex-1 sm:text-2xl">  
-                    <div class="h-2/3 flex flex-col justify-center items-center">
-                        <div class="w-full flex justify-center pb-5">
-                            <img class="w-28 sm:w-40" src="text.svg" />
-                        </div>
-            
-                        <div class="w-72 relative">
-                            <div class="bg-gray-200 h-0.5 absolute top-0 left-0" style="width: 100%"></div>
-                            <div class="bg-cyan-700 h-0.5 absolute top-0 left-0 loading-progress"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <script src="js/app.js"></script>
-        <script src="js/chart.js"></script>
-        <script src="js/chart.webgpu.shaders.js"></script>
-        <script src="js/chart.webgpu.lifecycle.js"></script>
-        <script src="js/chart.webgpu.data.js"></script>
-        <script src="js/chart.webgpu.js"></script>
-        <script src="_content/MudBlazor/MudBlazor.min.js"></script>
-        <script src="lib/marked/marked.js"></script>
-        <script src="lib/highlightjs/cdn-assets/highlight.min.js"></script>
-        <script src="_framework/blazor.webassembly.js"></script>
-    </body>
-
+<!doctype html>
+<html lang="en" data-beasties-container>
+  <head>
+    <meta charset="utf-8">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <base href="/">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus</title>
+  <style>@layer properties;@layer theme,base,primeng,components,utilities;@layer theme,base,components,utilities;@layer theme{:root{--font-sans:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";--font-mono:"JetBrains Mono", "SFMono-Regular", Consolas, monospace;--color-black:#000;--spacing:.25rem;--container-sm:24rem;--container-lg:32rem;--container-xl:36rem;--text-xs:.75rem;--text-xs--line-height:calc(1 / .75);--text-sm:.875rem;--text-sm--line-height:calc(1.25 / .875);--text-base:1rem;--text-base--line-height:1.5 ;--text-lg:1.125rem;--text-lg--line-height:calc(1.75 / 1.125);--text-xl:1.25rem;--text-xl--line-height:calc(1.75 / 1.25);--font-weight-medium:500;--font-weight-semibold:600;--tracking-widest:.1em;--leading-tight:1.25;--radius-sm:.25rem;--radius-md:.375rem;--radius-lg:.5rem;--animate-spin:spin 1s linear infinite;--blur-sm:8px;--default-transition-duration:.15s;--default-transition-timing-function:cubic-bezier(.4, 0, .2, 1);--default-font-family:var(--font-sans);--default-mono-font-family:var(--font-mono);--color-surface:var(--p-content-background);--color-surface-border:var(--p-content-border-color);--color-ink:var(--p-text-color);--color-ink-muted:var(--p-text-muted-color);--color-key:var(--p-primary-color);--color-overlay:var(--p-text-color);--color-cyan-accent:var(--nexus-cyan-text);--color-cyan-core:var(--nexus-cyan-core);--color-violet-accent:var(--nexus-violet-text);--color-violet-core:var(--nexus-violet-core);--color-lime-accent:var(--nexus-lime-text);--color-amber-accent:var(--nexus-amber-text);--color-amber-core:var(--nexus-amber-core);--color-rose-accent:var(--nexus-rose-text);--color-rose-core:var(--nexus-rose-core);--color-emerald-accent:var(--nexus-emerald-text);--color-emerald-core:var(--nexus-emerald-core)}}@layer base{*,:after,:before{box-sizing:border-box;margin:0;padding:0;border:0 solid}html{line-height:1.5;-webkit-text-size-adjust:100%;tab-size:4;font-family:var(--default-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");font-feature-settings:var(--default-font-feature-settings, normal);font-variation-settings:var(--default-font-variation-settings, normal);-webkit-tap-highlight-color:transparent}}@layer utilities{}:root{color:#f8fafc;background:#020617;color-scheme:dark;--nexus-logo-from:#3dd9ef;--nexus-logo-to:#22d3ee;--nexus-cyan-core:#67e8f9;--nexus-cyan-text:#cffafe;--nexus-violet-core:#a78bfa;--nexus-violet-text:#ddd6fe;--nexus-lime-core:#bef264;--nexus-lime-text:#ecfccb;--nexus-amber-core:#fbbf24;--nexus-amber-text:#fde68a;--nexus-rose-core:#fb7185;--nexus-rose-text:#ffe4e6;--nexus-orange-core:#fb923c;--nexus-orange-text:#ffedd5;--nexus-emerald-core:#34d399;--nexus-emerald-text:#d1fae5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}html,body,app-root{min-height:100%}app-root{display:block}*{box-sizing:border-box}body{min-width:320px;min-height:100vh;margin:0;overflow-x:hidden;overscroll-behavior-y:none;background:radial-gradient(circle at 18% 4%,rgba(0,190,255,.24),transparent 32rem),radial-gradient(circle at 86% 10%,rgba(111,66,255,.24),transparent 30rem),linear-gradient(135deg,#050712,#07111f 44%,#0b0f1d)}*{scrollbar-width:thin;scrollbar-color:var(--p-content-border-color) transparent}@property --tw-rotate-x{syntax:"*";inherits:false;}@property --tw-rotate-y{syntax:"*";inherits:false;}@property --tw-rotate-z{syntax:"*";inherits:false;}@property --tw-skew-x{syntax:"*";inherits:false;}@property --tw-skew-y{syntax:"*";inherits:false;}@property --tw-space-y-reverse{syntax:"*";inherits:false;initial-value:0;}@property --tw-divide-y-reverse{syntax:"*";inherits:false;initial-value:0;}@property --tw-border-style{syntax:"*";inherits:false;initial-value:solid;}@property --tw-leading{syntax:"*";inherits:false;}@property --tw-font-weight{syntax:"*";inherits:false;}@property --tw-tracking{syntax:"*";inherits:false;}@property --tw-ordinal{syntax:"*";inherits:false;}@property --tw-slashed-zero{syntax:"*";inherits:false;}@property --tw-numeric-figure{syntax:"*";inherits:false;}@property --tw-numeric-spacing{syntax:"*";inherits:false;}@property --tw-numeric-fraction{syntax:"*";inherits:false;}@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000;}@property --tw-shadow-color{syntax:"*";inherits:false;}@property --tw-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%;}@property --tw-inset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000;}@property --tw-inset-shadow-color{syntax:"*";inherits:false;}@property --tw-inset-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%;}@property --tw-ring-color{syntax:"*";inherits:false;}@property --tw-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000;}@property --tw-inset-ring-color{syntax:"*";inherits:false;}@property --tw-inset-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000;}@property --tw-ring-inset{syntax:"*";inherits:false;}@property --tw-ring-offset-width{syntax:"<length>";inherits:false;initial-value:0px;}@property --tw-ring-offset-color{syntax:"*";inherits:false;initial-value:#fff;}@property --tw-ring-offset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000;}@property --tw-outline-style{syntax:"*";inherits:false;initial-value:solid;}@property --tw-blur{syntax:"*";inherits:false;}@property --tw-brightness{syntax:"*";inherits:false;}@property --tw-contrast{syntax:"*";inherits:false;}@property --tw-grayscale{syntax:"*";inherits:false;}@property --tw-hue-rotate{syntax:"*";inherits:false;}@property --tw-invert{syntax:"*";inherits:false;}@property --tw-opacity{syntax:"*";inherits:false;}@property --tw-saturate{syntax:"*";inherits:false;}@property --tw-sepia{syntax:"*";inherits:false;}@property --tw-drop-shadow{syntax:"*";inherits:false;}@property --tw-drop-shadow-color{syntax:"*";inherits:false;}@property --tw-drop-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%;}@property --tw-drop-shadow-size{syntax:"*";inherits:false;}@property --tw-backdrop-blur{syntax:"*";inherits:false;}@property --tw-backdrop-brightness{syntax:"*";inherits:false;}@property --tw-backdrop-contrast{syntax:"*";inherits:false;}@property --tw-backdrop-grayscale{syntax:"*";inherits:false;}@property --tw-backdrop-hue-rotate{syntax:"*";inherits:false;}@property --tw-backdrop-invert{syntax:"*";inherits:false;}@property --tw-backdrop-opacity{syntax:"*";inherits:false;}@property --tw-backdrop-saturate{syntax:"*";inherits:false;}@property --tw-backdrop-sepia{syntax:"*";inherits:false;}@layer properties{@supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))){*,:before,:after{--tw-rotate-x:initial;--tw-rotate-y:initial;--tw-rotate-z:initial;--tw-skew-x:initial;--tw-skew-y:initial;--tw-space-y-reverse:0;--tw-divide-y-reverse:0;--tw-border-style:solid;--tw-leading:initial;--tw-font-weight:initial;--tw-tracking:initial;--tw-ordinal:initial;--tw-slashed-zero:initial;--tw-numeric-figure:initial;--tw-numeric-spacing:initial;--tw-numeric-fraction:initial;--tw-shadow:0 0 #0000;--tw-shadow-color:initial;--tw-shadow-alpha:100%;--tw-inset-shadow:0 0 #0000;--tw-inset-shadow-color:initial;--tw-inset-shadow-alpha:100%;--tw-ring-color:initial;--tw-ring-shadow:0 0 #0000;--tw-inset-ring-color:initial;--tw-inset-ring-shadow:0 0 #0000;--tw-ring-inset:initial;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-offset-shadow:0 0 #0000;--tw-outline-style:solid;--tw-blur:initial;--tw-brightness:initial;--tw-contrast:initial;--tw-grayscale:initial;--tw-hue-rotate:initial;--tw-invert:initial;--tw-opacity:initial;--tw-saturate:initial;--tw-sepia:initial;--tw-drop-shadow:initial;--tw-drop-shadow-color:initial;--tw-drop-shadow-alpha:100%;--tw-drop-shadow-size:initial;--tw-backdrop-blur:initial;--tw-backdrop-brightness:initial;--tw-backdrop-contrast:initial;--tw-backdrop-grayscale:initial;--tw-backdrop-hue-rotate:initial;--tw-backdrop-invert:initial;--tw-backdrop-opacity:initial;--tw-backdrop-saturate:initial;--tw-backdrop-sepia:initial}}}</style><link rel="stylesheet" href="styles-SLZC7XDC.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="styles-SLZC7XDC.css"></noscript></head>
+  <body>
+    <app-root></app-root>
+  <link rel="modulepreload" href="chunk-RMBEQGMZ.js"><script src="scripts-GXWEMDSI.js" defer></script><script src="main-WZFU6XKW.js" type="module"></script></body>
 </html>
