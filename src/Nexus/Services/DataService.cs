@@ -52,6 +52,7 @@ internal class DataService(
     ClaimsPrincipal user,
     IDataControllerService dataControllerService,
     IDatabaseService databaseService,
+    IAcceptedLicenseService acceptedLicenseService,
     IMemoryTracker memoryTracker,
     ILogger<DataService> logger,
     ILoggerFactory loggerFactory
@@ -64,6 +65,7 @@ internal class DataService(
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
     private readonly IDatabaseService _databaseService = databaseService;
     private readonly IDataControllerService _dataControllerService = dataControllerService;
+    private readonly IAcceptedLicenseService _acceptedLicenseService = acceptedLicenseService;
 
     public Progress<double> ReadProgress { get; } = new Progress<double>();
 
@@ -88,7 +90,12 @@ internal class DataService(
         var catalogContainer = catalogItemRequest.Container;
 
         // security check
-        if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, _user))
+        if (!await AuthUtilities.IsCatalogReadableAsync(
+            catalogContainer,
+            _user,
+            _acceptedLicenseService,
+            cancellationToken
+        ))
             throw new Exception($"The current user is not permitted to access the catalog {catalogContainer.Id}.");
 
         // controller
@@ -136,7 +143,12 @@ internal class DataService(
 
             var catalogContainer = catalogItemRequest.Container;
 
-            if (!AuthUtilities.IsCatalogReadable(catalogContainer.Id, catalogContainer.Metadata, catalogContainer.Owner, _user))
+            if (!await AuthUtilities.IsCatalogReadableAsync(
+                catalogContainer,
+                _user,
+                _acceptedLicenseService,
+                cancellationToken
+            ))
                 throw new Exception($"The current user is not permitted to access the catalog {catalogContainer.Id}.");
 
             catalogItemRequests.Add((index, resourcePath, catalogItemRequest));

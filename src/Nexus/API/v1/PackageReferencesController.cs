@@ -22,7 +22,7 @@ internal class PackageReferencesController(
     // GET      /api/packagereferences
     // POST     /api/packagereferences
     // DELETE   /api/packagereferences/{id}
-    // GET      /api/packagereferences/{id}/versions
+    // POST     /api/packagereferences/versions
 
     private readonly IPackageService _packageService = packageService;
 
@@ -82,17 +82,17 @@ internal class PackageReferencesController(
     /// <summary>
     /// Gets package versions.
     /// </summary>
-    /// <param name="id">The ID of the package reference.</param>
+    /// <param name="packageReference">The package reference to get versions for.</param>
     /// <param name="cancellationToken">A token to cancel the current operation.</param>
-    [HttpGet("{id}/versions")]
+    [HttpPost("versions")]
     public async Task<ActionResult<string[]>> GetVersionsAsync(
-        Guid id,
+        PackageReference packageReference,
         CancellationToken cancellationToken)
     {
-        var result = await _packageService.GetVersionsAsync(id, cancellationToken);
+        var result = await _packageService.GetVersionsAsync(packageReference, cancellationToken);
 
         if (result is null)
-            return NotFound($"Unable to find package reference with ID {id}.");
+            return NotFound("Unable to find package reference.");
 
         return result;
     }

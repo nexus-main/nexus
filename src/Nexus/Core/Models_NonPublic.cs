@@ -12,7 +12,8 @@ internal record InternalPersonalAccessToken(
     Guid Id,
     string Description,
     DateTime Expires,
-    IReadOnlyList<TokenClaim> Claims);
+    IReadOnlyList<TokenClaim> Claims,
+    IReadOnlyList<TokenClaim> GrantClaims);
 
 internal record struct Interval(
     DateTime Begin,
@@ -26,16 +27,13 @@ internal record ReadUnit(
 internal record CatalogItemRequest(
     CatalogItem Item,
     CatalogItem? BaseItem,
-    CatalogContainer Container);
+    CatalogContainer Container,
+    CatalogItem? SourceItem = default,
+    CatalogItem? SourceBaseItem = default);
 
 internal record CatalogState(
     CatalogContainer Root,
     CatalogCache Cache);
-
-internal record LazyCatalogInfo(
-    DateTime Begin,
-    DateTime End,
-    ResourceCatalog Catalog);
 
 internal record ExportContext(
     TimeSpan SamplePeriod,

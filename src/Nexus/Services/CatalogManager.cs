@@ -9,11 +9,7 @@ using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Sources;
 using Nexus.Utilities;
-using OpenIddict.Abstractions;
-using System.Security.Claims;
 using System.Text.Json;
-using System.Text.RegularExpressions;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Nexus.Services;
 
@@ -28,10 +24,9 @@ internal interface ICatalogManager
 internal class CatalogManager(
     IDataControllerService dataControllerService,
     IDatabaseService databaseService,
-    IServiceProvider serviceProvider,
     IExtensionHive<IDataSource> sourcesExtensionHive,
     IPipelineService pipelineService,
-    IOptions<SecurityOptions> _securityOptions,
+    IOptions<GeneralOptions> generalOptions,
     ILogger<CatalogManager> logger
 ) : ICatalogManager
 {
@@ -41,20 +36,18 @@ internal class CatalogManager(
         DataSourcePipeline Pipeline,
         Guid[] PackageReferenceIds,
         CatalogMetadata Metadata,
-        ClaimsPrincipal? Owner
+        string BackingSourceId
     );
 
     private readonly IDataControllerService _dataControllerService = dataControllerService;
 
     private readonly IDatabaseService _databaseService = databaseService;
 
-    private readonly IServiceProvider _serviceProvider = serviceProvider;
-
     private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
 
     private readonly IPipelineService _pipelineService = pipelineService;
 
-    private readonly SecurityOptions _securityOptions = _securityOptions.Value;
+    private readonly IOptions<GeneralOptions> _generalOptions = generalOptions;
 
     private readonly ILogger<CatalogManager> _logger = logger;
 
@@ -72,20 +65,6 @@ internal class CatalogManager(
         /* special case: root */
         if (parent.Id == CatalogContainer.RootCatalogId)
         {
-            /* load builtin data source */
-            var builtinPipelines = new (Guid, DataSourcePipeline)[]
-            {
-                (Sample.PipelineId, new DataSourcePipeline(Registrations:
-                    [
-                        new(
-                            Type: typeof(Sample).FullName!,
-                            ResourceLocator: default,
-                            Configuration: JsonSerializer.SerializeToElement<object?>(default)
-                        )
-                    ]
-                ))
-            };
-
             /* load all catalog identifiers */
             var path = CatalogContainer.RootCatalogId;
             var catalogPrototypes = new List<CatalogPrototype>();
@@ -94,99 +73,29 @@ internal class CatalogManager(
 
             // TODO: Load parallel?
             /* for each pipeline */
-            foreach (var (pipelineId, pipeline) in builtinPipelines)
+            if (!_generalOptions.Value.DisableSampleCatalog)
             {
-                using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
-                var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
-
-                foreach (var registration in pipeline.Registrations)
+                /* load builtin data source */
+                var builtinPipelines = new (Guid, DataSourcePipeline)[]
                 {
-                    var packageReferenceIds = pipeline.Registrations
-                        .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
-                        .ToArray();
+                    (Sample.PipelineId, new DataSourcePipeline(Registrations:
+                        [
+                            new(
+                                Type: typeof(Sample).FullName!,
+                                ResourceLocator: default,
+                                Configuration: JsonSerializer.SerializeToElement<object?>(default)
+                            )
+                        ]
+                    ))
+                };
 
-                    foreach (var catalogRegistration in catalogRegistrations)
-                    {
-                        var metadata = LoadMetadata(catalogRegistration.Path);
-
-                        var catalogPrototype = new CatalogPrototype(
-                            catalogRegistration,
-                            pipelineId,
-                            pipeline,
-                            packageReferenceIds,
-                            metadata,
-                            null
-                        );
-
-                        catalogPrototypes.Add(catalogPrototype);
-                    }
-                }
-            }
-
-            using var scope = _serviceProvider.CreateScope();
-            var dbService = scope.ServiceProvider.GetRequiredService<IDBService>();
-
-            /* => for each user with existing config */
-            var userToPipelinesMap = await _pipelineService.GetAllAsync();
-
-            foreach (var (userId, pipelines) in userToPipelinesMap)
-            {
-                // get owner
-                var user = await dbService.FindUserAsync(userId);
-
-                if (user is null)
-                    continue;
-
-                var claims = user.Claims
-                    .Select(claim => new Claim(claim.Type, claim.Value))
-                    .ToList();
-
-                claims.Add(new Claim(Claims.Subject, userId));
-
-                var owner = new ClaimsPrincipal(
-                    new ClaimsIdentity(
-                        claims,
-                        authenticationType: NexusAuthExtensions.INTERNAL_AUTH_SCHEME,
-                        nameType: Claims.Name,
-                        roleType: Claims.Role
-                    )
-                );
-
-                var userIdParts = user.Id.Split('@', count: 2);
-                var scheme = userIdParts.Length == 2 ? userIdParts[1] : default;
-
-                AuthUtilities.SetEnabledCatalogPatternClaim(owner, scheme, _securityOptions);
-
-                /* For each pipeline */
-                foreach (var (pipelineId, pipeline) in pipelines)
+                foreach (var (pipelineId, pipeline) in builtinPipelines)
                 {
-                    /* Ensure current user is allowed to use specific resource locators */
-                    var isAdmin = user.Claims.Any(claim =>
-                        claim.Type == Claims.Role &&
-                        claim.Value == nameof(NexusRoles.Administrator)
-                    );
+                    using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
+                    var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
 
-                    var canUseResourceLocatorClaims = owner.Claims
-                        .Where(x => x.Type == nameof(NexusClaims.CanUseResourceLocator))
-                        .Select(x => x.Value)
-                        .ToList();
-
-                    var isPipelineAccepted = isAdmin || pipeline.Registrations
-                        .Where(x => x.ResourceLocator is not null)
-                        .All(x => canUseResourceLocatorClaims.Any(pattern => Regex.IsMatch(x.ResourceLocator!.ToString(), pattern)));
-
-                    if (!isPipelineAccepted)
+                    foreach (var registration in pipeline.Registrations)
                     {
-                        _logger.LogWarning($"Pipeline {pipelineId} of user {userId} contains one or more source registrations, with unauthorized resource locator. Set claim '{nameof(NexusClaims.CanUseResourceLocator)}' to a proper value to avoid this. The pipeline will be ignored.");
-                        continue;
-                    }
-
-                    /* Continue */
-                    try
-                    {
-                        using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
-                        var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
-
                         var packageReferenceIds = pipeline.Registrations
                             .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
                             .ToArray();
@@ -195,22 +104,58 @@ internal class CatalogManager(
                         {
                             var metadata = LoadMetadata(catalogRegistration.Path);
 
-                            var prototype = new CatalogPrototype(
+                            var catalogPrototype = new CatalogPrototype(
                                 catalogRegistration,
                                 pipelineId,
                                 pipeline,
                                 packageReferenceIds,
                                 metadata,
-                                owner
+                                catalogRegistration.Path
                             );
 
-                            catalogPrototypes.Add(prototype);
+                            catalogPrototypes.Add(catalogPrototype);
                         }
                     }
-                    catch (Exception ex)
+                }
+            }
+
+            /* => for all configured pipelines */
+            var pipelineMap = await _pipelineService.GetAllAsync();
+
+            /* For each pipeline */
+            foreach (var (pipelineId, pipeline) in pipelineMap)
+            {
+                if (pipeline.Disabled)
+                    continue;
+
+                try
+                {
+                    using var controller = await _dataControllerService.GetDataSourceControllerAsync(pipeline, cancellationToken);
+                    var catalogRegistrations = await controller.GetCatalogRegistrationsAsync(path, cancellationToken);
+
+                    var packageReferenceIds = pipeline.Registrations
+                        .Select(registration => _sourcesExtensionHive.GetPackageReference(registration.Type).Id)
+                        .ToArray();
+
+                    foreach (var catalogRegistration in catalogRegistrations)
                     {
-                        _logger.LogWarning(ex, "Unable to get or process data source registration for user {Username}", user.Name);
+                        var metadata = LoadMetadata(catalogRegistration.Path);
+
+                        var prototype = new CatalogPrototype(
+                            catalogRegistration,
+                            pipelineId,
+                            pipeline,
+                            packageReferenceIds,
+                            metadata,
+                            catalogRegistration.Path
+                        );
+
+                        catalogPrototypes.Add(prototype);
                     }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Unable to get or process data source registration for pipeline {PipelineId}", pipelineId);
                 }
             }
 
@@ -231,12 +176,40 @@ internal class CatalogManager(
 
             try
             {
-                var catalogRegistrations = await controller
-                    .GetCatalogRegistrationsAsync(parent.Id + "/", cancellationToken);
+                /* List the children of the parent *in the source's own coordinate system*.
+                 * For the root container the source path is just the root id; for any
+                 * deeper container we append a trailing slash to request a directory
+                 * listing rather than the catalog itself. */
+                var sourcePath = parent.BackingSourceId == CatalogContainer.RootCatalogId
+                    ? CatalogContainer.RootCatalogId
+                    : parent.BackingSourceId + "/";
 
+                var catalogRegistrations = await controller
+                    .GetCatalogRegistrationsAsync(sourcePath, cancellationToken);
+
+                /* Build a CatalogPrototype per child. Each prototype carries two identities:
+                 *   - backingSourceId: the physical path inside the data source (unchanged)
+                 *   - Registration.Path: the logical path in the catalog tree
+                 * When the parent is an alias view (BackingSourceId != Id), the child's
+                 * logical path is projected under the parent's logical Id by stripping the
+                 * parent's physical prefix and re-joining the suffix onto parent.Id.
+                 * Example: parent /ALIAS (backed by /SOURCE) with child /SOURCE/foo
+                 *          -> Registration.Path = /ALIAS/foo, backingSourceId = /SOURCE/foo.
+                 * Non-alias parents keep the source path as the logical path unchanged. */
                 var prototypes = catalogRegistrations.Select(catalogRegistration =>
                 {
-                    var metadata = LoadMetadata(catalogRegistration.Path);
+                    var backingSourceId = catalogRegistration.Path;
+
+                    if (parent.BackingSourceId != parent.Id)
+                    {
+                        var suffix = parent.BackingSourceId == CatalogContainer.RootCatalogId
+                            ? catalogRegistration.Path
+                            : catalogRegistration.Path[parent.BackingSourceId.Length..];
+
+                        catalogRegistration = catalogRegistration with { Path = JoinCatalogPath(parent.Id, suffix) };
+                    }
+
+                    var metadata = LoadMetadata(backingSourceId);
 
                     return new CatalogPrototype(
                         catalogRegistration,
@@ -244,7 +217,8 @@ internal class CatalogManager(
                         parent.Pipeline,
                         parent.PackageReferenceIds,
                         metadata,
-                        parent.Owner);
+                        backingSourceId
+                    );
                 });
 
                 catalogContainers = ProcessCatalogPrototypes(prototypes.ToArray());
@@ -272,19 +246,28 @@ internal class CatalogManager(
             /* create catalog container */
             var catalogContainer = new CatalogContainer(
                 prototype.Registration,
-                prototype.Owner,
                 prototype.PipelineId,
                 prototype.Pipeline,
                 prototype.PackageReferenceIds,
                 prototype.Metadata,
                 this,
                 _databaseService,
-                _dataControllerService);
+                _dataControllerService,
+                prototype.BackingSourceId,
+                _logger);
 
             return catalogContainer;
         });
 
         return catalogContainers.ToArray();
+    }
+
+    internal static string JoinCatalogPath(string parentPath, string childPath)
+    {
+        if (string.IsNullOrEmpty(childPath))
+            return parentPath;
+
+        return parentPath.TrimEnd('/') + "/" + childPath.TrimStart('/');
     }
 
     private CatalogMetadata LoadMetadata(string catalogId)
@@ -308,7 +291,7 @@ internal class CatalogManager(
         //
         // In general, child catalogs will be loaded lazily. Therefore, for any catalog of the provided array that
         // appears to be a child catalog, it can be assumed it comes from a data source other than the one
-        // from the parent catalog. Depending on the user's rights, this method decides which one will survive.
+        // from the parent catalog.
         //
         //
         // Example:
@@ -325,16 +308,6 @@ internal class CatalogManager(
 
         foreach (var catalogPrototype in catalogPrototypes)
         {
-            var owner = catalogPrototype.Owner;
-            var ownerCanWrite = owner is null
-                || AuthUtilities.IsCatalogWritable(catalogPrototype.Registration.Path, catalogPrototype.Metadata, owner);
-
-            if (!ownerCanWrite)
-            {
-                _logger.LogWarning("User '{UserId}' has no permissions to create catalog {CatalogId}", catalogPrototype.Owner?.GetClaim(Claims.Subject), catalogPrototype.Registration.Path);
-                continue;
-            }
-
             var duplicateIndex = catalogPrototypesToKeep.FindIndex(
                 current =>
                     {
@@ -351,19 +324,10 @@ internal class CatalogManager(
                 catalogPrototypesToKeep.Add(catalogPrototype);
             }
 
-            /* duplicate found */
+            /* duplicate found - keep first */
             else
             {
-                var otherPrototype = catalogPrototypesToKeep[duplicateIndex];
-                var otherOwner = otherPrototype.Owner;
-                var otherOwnerCanWrite = otherOwner is null
-                    || AuthUtilities.IsCatalogWritable(otherPrototype.Registration.Path, catalogPrototype.Metadata, otherOwner);
-
-                if (!otherOwnerCanWrite)
-                {
-                    _logger.LogWarning("Duplicate catalog {CatalogId}", catalogPrototypesToKeep[duplicateIndex]);
-                    catalogPrototypesToKeep[duplicateIndex] = catalogPrototype;
-                }
+                _logger.LogWarning("Duplicate catalog {CatalogId}", catalogPrototypesToKeep[duplicateIndex].Registration.Path);
             }
         }
 

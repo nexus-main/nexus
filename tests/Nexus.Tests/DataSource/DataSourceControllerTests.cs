@@ -45,6 +45,7 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
     [Fact]
     internal async Task CanGetAvailability()
     {
+        // Arrange
         using var controller = new DataSourceController(
             [_fixture.DataSource1, _fixture.DataSource2],
             [_fixture.Registration1, _fixture.Registration2],
@@ -59,8 +60,11 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var catalogId = Sample.LocalCatalogId;
         var begin = new DateTime(2020, 01, 01, 00, 00, 00, DateTimeKind.Utc);
         var end = new DateTime(2020, 01, 03, 00, 00, 00, DateTimeKind.Utc);
+
+        // Act
         var actual = await controller.GetAvailabilityAsync(catalogId, begin, end, TimeSpan.FromDays(1), CancellationToken.None);
 
+        // Assert
         var expectedData = new double[]
         {
             1,
@@ -68,6 +72,65 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         };
 
         Assert.True(expectedData.SequenceEqual(actual.Data));
+    }
+
+    [Fact]
+    internal async Task GetAvailabilityIgnoresTrailingPartialBucket()
+    {
+        // Arrange
+        var dataSource = new Mock<IDataSource<object?>>();
+        var registration = new DataSourceRegistration(
+            "test",
+            new Uri("http://example.com"),
+            JsonSerializer.SerializeToElement<object?>(default),
+            default);
+
+        using var controller = new DataSourceController(
+            [dataSource.Object],
+            [registration],
+            default!,
+            default!,
+            default!,
+            default!,
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(default!, new LoggerFactory(), CancellationToken.None);
+
+        var catalogId = Sample.LocalCatalogId;
+        var begin = new DateTime(2020, 01, 01, 00, 00, 00, DateTimeKind.Utc);
+        var end = new DateTime(2020, 01, 03, 12, 00, 00, DateTimeKind.Utc);
+        var step = TimeSpan.FromDays(1);
+
+        dataSource.Setup(source => source.GetAvailabilityAsync(
+                catalogId,
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1.0);
+
+        // Act
+        var actual = await controller.GetAvailabilityAsync(catalogId, begin, end, step, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { 1.0, 1 }, actual.Data);
+
+        dataSource.Verify(source => source.GetAvailabilityAsync(
+            catalogId,
+            new DateTime(2020, 01, 01, 00, 00, 00, DateTimeKind.Utc),
+            new DateTime(2020, 01, 02, 00, 00, 00, DateTimeKind.Utc),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        dataSource.Verify(source => source.GetAvailabilityAsync(
+            catalogId,
+            new DateTime(2020, 01, 02, 00, 00, 00, DateTimeKind.Utc),
+            new DateTime(2020, 01, 03, 00, 00, 00, DateTimeKind.Utc),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        dataSource.Verify(source => source.GetAvailabilityAsync(
+            catalogId,
+            new DateTime(2020, 01, 03, 00, 00, 00, DateTimeKind.Utc),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -1050,6 +1113,272 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
                Precision.Float32,
                10,
                2), Times.Exactly(1));
+    }
+
+    [Fact]
+    public async Task CanReadOriginalAliasRangeFromSourceAndLeaveOutsideStatusInvalid()
+    {
+        // Arrange
+        var begin = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2024, 01, 05, 0, 0, 0, DateTimeKind.Utc);
+        var aliasBegin = new DateTime(2024, 01, 02, 0, 0, 0, DateTimeKind.Utc);
+        var aliasEnd = new DateTime(2024, 01, 04, 0, 0, 0, DateTimeKind.Utc);
+        var samplePeriod = TimeSpan.FromDays(1);
+        var representation = new Representation(NexusDataType.Int32, samplePeriod);
+        var resource = new ResourceBuilder("id")
+            .AddRepresentation(representation)
+            .Build();
+        var sourceCatalog = new ResourceCatalogBuilder("/SOURCE")
+            .AddResource(resource)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(pipelinePosition: 0, dataSources: Array.Empty<IDataSource>());
+        var aliasCatalog = sourceCatalog with { Id = "/ALIAS" };
+        resource = sourceCatalog.Resources![0];
+
+        var sourceItem = new CatalogItem(sourceCatalog, resource, representation, Parameters: default);
+        var aliasItem = sourceItem with { Catalog = aliasCatalog };
+        var container = new CatalogContainer(
+            new CatalogRegistration("/ALIAS", default, LinkTarget: "/SOURCE", MinBegin: aliasBegin, MaxEnd: aliasEnd),
+            default,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!);
+        var request = new CatalogItemRequest(aliasItem, default, container, sourceItem);
+        var pipe = new Pipe();
+        var dataSource = Mock.Of<IDataSource<object?>>();
+
+        Mock.Get(dataSource)
+            .Setup(dataSource => dataSource.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<ReadRequest[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                (currentBegin, currentEnd, requests, _, _, _) =>
+                {
+                    Assert.Equal(aliasBegin, currentBegin);
+                    Assert.Equal(aliasEnd, currentEnd);
+                    var readRequest = Assert.Single(requests);
+                    Assert.Equal("/SOURCE/id/1_d", readRequest.CatalogItem.ToPath());
+                    var values = MemoryMarshal.Cast<byte, int>(readRequest.Data.Span);
+                    Assert.Equal(2, values.Length);
+                    values[0] = 20;
+                    values[1] = 30;
+                    readRequest.Status.Span.Fill(1);
+                })
+            .Returns(Task.CompletedTask);
+
+        using var controller = new DataSourceController(
+            [dataSource],
+            [new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default)],
+            default!,
+            default!,
+            default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog> { [sourceCatalog.Id] = sourceCatalog }, new LoggerFactory(), CancellationToken.None);
+
+        // Act
+        await controller.ReadAsync(
+            begin,
+            end,
+            samplePeriod,
+            Precision.Float32,
+            [new CatalogItemRequestPipeWriter(request, pipe.Writer)],
+            default!,
+            new Progress<double>(),
+            CancellationToken.None);
+
+        // Assert
+        var actual = MemoryMarshal.Cast<byte, float>((await pipe.Reader.ReadAsync()).Buffer.First.Span).ToArray();
+        Assert.True(float.IsNaN(actual[0]));
+        Assert.Equal(20, actual[1]);
+        Assert.Equal(30, actual[2]);
+        Assert.True(float.IsNaN(actual[3]));
+    }
+
+    [Fact]
+    public async Task CanRoundConstrainedAliasResampledReadInward()
+    {
+        // Arrange
+        var begin = new DateTime(2024, 01, 01, 0, 0, 0, 200, DateTimeKind.Utc);
+        var end = new DateTime(2024, 01, 01, 0, 0, 3, 700, DateTimeKind.Utc);
+        var aliasBegin = new DateTime(2024, 01, 01, 0, 0, 0, 500, DateTimeKind.Utc);
+        var aliasEnd = new DateTime(2024, 01, 01, 0, 0, 3, 500, DateTimeKind.Utc);
+        var baseRepresentation = new Representation(NexusDataType.Float64, TimeSpan.FromSeconds(1));
+        var representation = new Representation(NexusDataType.Float64, TimeSpan.FromMilliseconds(100), parameters: default, RepresentationKind.Resampled);
+        var resource = new ResourceBuilder("id")
+            .AddRepresentation(baseRepresentation)
+            .Build();
+        var sourceCatalog = new ResourceCatalogBuilder("/SOURCE")
+            .AddResource(resource)
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(pipelinePosition: 0, dataSources: Array.Empty<IDataSource>());
+        var aliasCatalog = sourceCatalog with { Id = "/ALIAS" };
+        resource = sourceCatalog.Resources![0];
+
+        var sourceBaseItem = new CatalogItem(sourceCatalog, resource, baseRepresentation, Parameters: default);
+        var aliasBaseItem = sourceBaseItem with { Catalog = aliasCatalog };
+        var aliasItem = aliasBaseItem with { Representation = representation };
+        var container = new CatalogContainer(
+            new CatalogRegistration("/ALIAS", default, LinkTarget: "/SOURCE", MinBegin: aliasBegin, MaxEnd: aliasEnd),
+            default,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!,
+            default!);
+        var request = new CatalogItemRequest(aliasItem, aliasBaseItem, container, SourceBaseItem: sourceBaseItem);
+        var pipe = new Pipe();
+        var dataSource = Mock.Of<IDataSource<object?>>();
+        var processingService = Mock.Of<IProcessingService>();
+        var expectedReadBegin = new DateTime(2024, 01, 01, 0, 0, 1, DateTimeKind.Utc);
+        var expectedReadEnd = new DateTime(2024, 01, 01, 0, 0, 3, DateTimeKind.Utc);
+
+        Mock.Get(dataSource)
+            .Setup(dataSource => dataSource.ReadAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<ReadRequest[]>(),
+                It.IsAny<ReadDataHandler>(),
+                It.IsAny<IProgress<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(
+                (currentBegin, currentEnd, requests, _, _, _) =>
+                {
+                    Assert.Equal(expectedReadBegin, currentBegin);
+                    Assert.Equal(expectedReadEnd, currentEnd);
+                    Assert.Equal("/SOURCE/id/1_s", Assert.Single(requests).CatalogItem.ToPath());
+                })
+            .Returns(Task.CompletedTask);
+
+        Mock.Get(processingService)
+            .Setup(processingService => processingService.Resample(
+                It.IsAny<NexusDataType>(),
+                It.IsAny<ReadOnlyMemory<byte>>(),
+                It.IsAny<ReadOnlyMemory<byte>>(),
+                It.IsAny<Memory<byte>>(),
+                It.IsAny<Precision>(),
+                It.IsAny<int>(),
+                It.IsAny<int>()))
+            .Callback<NexusDataType, ReadOnlyMemory<byte>, ReadOnlyMemory<byte>, Memory<byte>, Precision, int, int>(
+                (dataType, data, status, target, precision, blockSize, offset) =>
+                {
+                    Assert.Equal(NexusDataType.Float64, dataType);
+                    Assert.Equal(16, data.Length);
+                    Assert.Equal(2, status.Length);
+                    Assert.Equal(80, target.Length);
+                    Assert.Equal(Precision.Float32, precision);
+                    Assert.Equal(10, blockSize);
+                    Assert.Equal(0, offset);
+                });
+
+        using var controller = new DataSourceController(
+            [dataSource],
+            [new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default)],
+            default!,
+            processingService,
+            default!,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog> { [sourceCatalog.Id] = sourceCatalog }, new LoggerFactory(), CancellationToken.None);
+
+        // Act
+        await controller.ReadAsync(
+            begin,
+            end,
+            representation.SamplePeriod,
+            Precision.Float32,
+            [new CatalogItemRequestPipeWriter(request, pipe.Writer)],
+            default!,
+            new Progress<double>(),
+            CancellationToken.None);
+
+        // Assert
+        Mock.Get(processingService)
+            .Verify(processingService => processingService.Resample(
+                It.IsAny<NexusDataType>(),
+                It.IsAny<ReadOnlyMemory<byte>>(),
+                It.IsAny<ReadOnlyMemory<byte>>(),
+                It.IsAny<Memory<byte>>(),
+                It.IsAny<Precision>(),
+                It.IsAny<int>(),
+                It.IsAny<int>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CanUseSourceCacheForAggregatedAliasRead()
+    {
+        var begin = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = begin.AddHours(2);
+        var sourceCatalog = new ResourceCatalogBuilder("/SOURCE")
+            .AddResource(new ResourceBuilder("id").AddRepresentation(new Representation(NexusDataType.Int32, TimeSpan.FromMinutes(30))).Build())
+            .Build()
+            .EnsureAndSanitizeMandatoryProperties(pipelinePosition: 0, dataSources: Array.Empty<IDataSource>());
+        var aliasCatalog = sourceCatalog with { Id = "/ALIAS" };
+        var resource = sourceCatalog.Resources![0];
+        var baseRepresentation = resource.Representations![0];
+        var representation = new Representation(NexusDataType.Int32, TimeSpan.FromHours(1), parameters: default, RepresentationKind.Mean);
+        var sourceBaseItem = new CatalogItem(sourceCatalog, resource, baseRepresentation, Parameters: default);
+        var aliasBaseItem = sourceBaseItem with { Catalog = aliasCatalog };
+        var aliasItem = aliasBaseItem with { Representation = representation };
+        var sourceItem = aliasItem with { Catalog = sourceCatalog };
+        var container = new CatalogContainer(new CatalogRegistration("/ALIAS", default, LinkTarget: "/SOURCE"), default, default!, default!, default!, default!, default!, default!);
+        var request = new CatalogItemRequest(aliasItem, aliasBaseItem, container, sourceItem, sourceBaseItem);
+        var uncachedIntervals = new List<Interval> { new(begin, end) };
+        var dataSource = Mock.Of<IDataSource<object?>>();
+        var processingService = Mock.Of<IProcessingService>();
+        var cacheService = new Mock<ICacheService>();
+        var pipe = new Pipe();
+
+        cacheService
+            .Setup(cache => cache.ReadAsync(It.IsAny<CatalogItem>(), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(uncachedIntervals);
+
+        cacheService
+            .Setup(cache => cache.UpdateAsync(It.IsAny<CatalogItem>(), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<List<Interval>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        Mock.Get(dataSource)
+            .Setup(dataSource => dataSource.ReadAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<ReadRequest[]>(), It.IsAny<ReadDataHandler>(), It.IsAny<IProgress<double>>(), It.IsAny<CancellationToken>()))
+            .Callback<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>((_, _, requests, _, _, _) =>
+            {
+                var readRequest = Assert.Single(requests);
+                Assert.Equal("/SOURCE", readRequest.CatalogItem.Catalog.Id);
+                MemoryMarshal.Cast<byte, int>(readRequest.Data.Span).Fill(1);
+                readRequest.Status.Span.Fill(1);
+            })
+            .Returns(Task.CompletedTask);
+
+        Mock.Get(processingService)
+            .Setup(processingService => processingService.Aggregate(It.IsAny<NexusDataType>(), It.IsAny<RepresentationKind>(), It.IsAny<Memory<byte>>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<Memory<double>>(), It.IsAny<int>()))
+            .Callback<NexusDataType, RepresentationKind, Memory<byte>, ReadOnlyMemory<byte>, Memory<double>, int>((_, _, _, _, targetBuffer, _) => targetBuffer.Span.Fill(1));
+
+        using var controller = new DataSourceController(
+            [dataSource],
+            [new DataSourceRegistration("a", new Uri("http://xyz"), JsonSerializer.SerializeToElement<object?>(default), default)],
+            default!,
+            processingService,
+            cacheService.Object,
+            new DataOptions(),
+            NullLogger<DataSourceController>.Instance);
+
+        await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog> { [sourceCatalog.Id] = sourceCatalog }, new LoggerFactory(), CancellationToken.None);
+
+        await controller.ReadAsync(begin, end, representation.SamplePeriod, Precision.Float32, [new CatalogItemRequestPipeWriter(request, pipe.Writer)], default!, new Progress<double>(), CancellationToken.None);
+
+        cacheService.Verify(cache => cache.ReadAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/SOURCE"), begin, It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>()), Times.Once);
+        cacheService.Verify(cache => cache.ReadAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/ALIAS"), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>()), Times.Never);
+        cacheService.Verify(cache => cache.UpdateAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/SOURCE"), begin, It.IsAny<Memory<double>>(), uncachedIntervals, It.IsAny<CancellationToken>()), Times.Once);
+        cacheService.Verify(cache => cache.UpdateAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/ALIAS"), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<List<Interval>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

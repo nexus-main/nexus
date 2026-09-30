@@ -1,0 +1,50 @@
+{
+    "name": "@apollo3zehn/nexus-api",
+    "version": "0.0.0",
+    "description": "Client for the Nexus system.",
+    "author": "Nexus",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/nexus-main/nexus.git",
+        "directory": "src/clients/typescript"
+    },
+    "homepage": "https://github.com/nexus-main/nexus",
+    "type": "module",
+    "sideEffects": false,
+    "keywords": [
+        "nexus",
+        "time-series",
+        "data-lake"
+    ],
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./V1": {
+            "types": "./dist/V1.d.ts",
+            "default": "./dist/V1.js"
+        },
+        "./V2": {
+            "types": "./dist/V2.d.ts",
+            "default": "./dist/V2.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc --project tsconfig.json",
+        "prepack": "npm run build",
+        "typecheck": "tsc --project tsconfig.json --noEmit"
+    },
+    "dependencies": {
+        "apache-arrow": "^21.2.0"
+    },
+    "devDependencies": {
+        "typescript": "^7.0.2"
+    }
+}

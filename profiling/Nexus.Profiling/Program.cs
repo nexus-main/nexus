@@ -56,10 +56,6 @@ Mock.Get(httpContextAccessor)
     .SetupGet(a => a.HttpContext)
     .Returns((HttpContext?)null);
 
-var serviceCollection = new ServiceCollection();
-serviceCollection.AddScoped<IDBService>(_ => Mock.Of<IDBService>());
-var serviceProvider = serviceCollection.BuildServiceProvider();
-
 var appState = new AppState();
 
 var dataControllerService = new DataControllerService(
@@ -75,10 +71,8 @@ var dataControllerService = new DataControllerService(
 var catalogManager = new CatalogManager(
     dataControllerService,
     databaseService,
-    serviceProvider,
     sourcesExtensionHive,
     pipelineService,
-    Options.Create(new SecurityOptions()),
     NullLogger<CatalogManager>.Instance);
 
 appState.CatalogState = new CatalogState(
@@ -99,6 +93,7 @@ var dataService = new DataService(
     user,
     dataControllerService,
     databaseService,
+    default!,
     memoryTracker,
     NullLogger<DataService>.Instance,
     NullLoggerFactory.Instance);
@@ -195,8 +190,6 @@ else
 // ============================================================================
 // Cleanup
 // ============================================================================
-
-serviceProvider.Dispose();
 
 if (Directory.Exists(tempRoot))
     Directory.Delete(tempRoot, recursive: true);

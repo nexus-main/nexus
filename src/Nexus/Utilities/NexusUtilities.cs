@@ -149,4 +149,33 @@ internal static partial class NexusUtilities
     {
         return ((ushort)dataType & 0x00FF) / 8;
     }
+
+    public static string SafePathCombine(string basePath, string relativePath)
+    {
+        var filePath = Path.GetFullPath(Path.Combine(basePath, relativePath));
+        var normalizedBasePath = Path.GetFullPath(basePath);
+
+        if (!filePath.StartsWith(normalizedBasePath, StringComparison.Ordinal))
+            throw new Exception("Invalid path.");
+
+        return filePath;
+    }
+
+    // Treats DateTimeKind.Unspecified as UTC without shifting ticks, and converts Local to UTC.
+    // This avoids the deployment-dependent behavior of DateTime.ToUniversalTime(), which assumes
+    // Unspecified values are local and shifts them by the server's timezone offset.
+    public static DateTime NormalizeToUtc(DateTime dateTime)
+    {
+        return dateTime.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+            : dateTime.ToUniversalTime();
+    }
+
+    public static DateTime? NormalizeToUtc(DateTime? dateTime)
+    {
+        if (dateTime is null)
+            return null;
+
+        return NormalizeToUtc(dateTime.Value);
+    }
 }

@@ -4,6 +4,7 @@
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Nexus.Sources;
 
@@ -83,9 +84,41 @@ internal class Sample : IDataSource<object?>
 
     public const string RemoteCatalogId = "/SAMPLE/REMOTE";
 
+    public const string LicensedCatalogId = "/DEV/LICENSED";
+
+    public const string RangeLimitedCatalogId = "/DEV/RANGE_LIMITED";
+
+    public const string AliasRangeCatalogId = "/DEV/ALIAS_RANGE";
+
+    public const string AliasToAliasCatalogId = "/DEV/ALIAS_TO_ALIAS";
+
+    public const string SourceWithChildrenCatalogId = "/DEV/SOURCE_WITH_CHILDREN";
+
+    public const string AliasWithChildrenCatalogId = "/DEV/ALIAS_WITH_CHILDREN";
+
+    public const string ChildACatalogId = "/DEV/SOURCE_WITH_CHILDREN/CHILD_A";
+
+    public const string ChildBCatalogId = "/DEV/SOURCE_WITH_CHILDREN/CHILD_B";
+
     private const string LocalCatalogTitle = "Simulates a local catalog";
 
     private const string RemoteCatalogTitle = "Simulates a remote catalog";
+
+    private const string LicensedCatalogTitle = "Simulates a licensed catalog";
+
+    private const string RangeLimitedCatalogTitle = "Simulates a catalog with a limited registration time range";
+
+    private const string AliasRangeCatalogTitle = "Simulates an alias with a limited registration time range";
+
+    private const string AliasToAliasCatalogTitle = "Simulates an alias to another alias";
+
+    private const string SourceWithChildrenCatalogTitle = "Simulates a catalog that contains child catalogs";
+
+    private const string AliasWithChildrenCatalogTitle = "Simulates an alias to a catalog that contains child catalogs";
+
+    private const string ChildACatalogTitle = "Simulates child catalog A";
+
+    private const string ChildBCatalogTitle = "Simulates child catalog B";
 
     public const string RemoteUsername = "test";
 
@@ -109,11 +142,48 @@ internal class Sample : IDataSource<object?>
     {
         if (path == "/")
         {
-            return Task.FromResult(new CatalogRegistration[]
+            var registrations = new List<CatalogRegistration>()
             {
-                new(LocalCatalogId, LocalCatalogTitle),
-                new(RemoteCatalogId, RemoteCatalogTitle)
-            });
+                new(LocalCatalogId, LocalCatalogTitle)
+            };
+
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+            {
+                registrations.Add(new(RemoteCatalogId, RemoteCatalogTitle));
+                registrations.Add(new(LicensedCatalogId, LicensedCatalogTitle));
+
+                registrations.Add(new(RangeLimitedCatalogId, RangeLimitedCatalogTitle,
+                    MinBegin: new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    MaxEnd: new DateTime(2020, 02, 01, 0, 0, 0, DateTimeKind.Utc)));
+
+                registrations.Add(new(AliasRangeCatalogId, AliasRangeCatalogTitle,
+                    LinkTarget: RangeLimitedCatalogId,
+                    MinBegin: new DateTime(2020, 01, 15, 0, 0, 0, DateTimeKind.Utc),
+                    MaxEnd: new DateTime(2020, 03, 01, 0, 0, 0, DateTimeKind.Utc)));
+
+                registrations.Add(new(AliasToAliasCatalogId, AliasToAliasCatalogTitle,
+                    LinkTarget: AliasRangeCatalogId,
+                    MinBegin: new DateTime(2020, 01, 20, 0, 0, 0, DateTimeKind.Utc),
+                    MaxEnd: new DateTime(2020, 02, 15, 0, 0, 0, DateTimeKind.Utc)));
+
+                registrations.Add(new(SourceWithChildrenCatalogId, SourceWithChildrenCatalogTitle));
+
+                registrations.Add(new(AliasWithChildrenCatalogId, AliasWithChildrenCatalogTitle,
+                    LinkTarget: SourceWithChildrenCatalogId));
+            }
+
+            return Task.FromResult(registrations.ToArray());
+        }
+
+        else if (path == SourceWithChildrenCatalogId + "/")
+        {
+            var registrations = new List<CatalogRegistration>()
+            {
+                new(ChildACatalogId, ChildACatalogTitle),
+                new(ChildBCatalogId, ChildBCatalogTitle)
+            };
+
+            return Task.FromResult(registrations.ToArray());
         }
 
         else
@@ -190,6 +260,29 @@ internal class Sample : IDataSource<object?>
                         target[i] = i * dt + beginTime;
                 }
 
+                // parameterized temperature
+                else if (resource.Id == "P1")
+                {
+                    var height = catalogItem.Parameters is not null && catalogItem.Parameters.TryGetValue("height", out var heightValue) && int.TryParse(heightValue, out var parsedHeight)
+                        ? parsedHeight
+                        : 10;
+                    var mode = catalogItem.Parameters is not null && catalogItem.Parameters.TryGetValue("mode", out var modeValue)
+                        ? modeValue
+                        : "mean";
+                    var dataLength = DATA.Length;
+                    var sourceOffset = (int)(((long)beginTime % dataLength + dataLength) % dataLength);
+                    var target = MemoryMarshal.Cast<byte, float>(data.Span);
+                    var heightOffset = 0.12f * height;
+                    var modeScale = mode == "max" ? 1.25f : 1.0f;
+                    var modeOffset = mode == "max" ? 8.0f : 0.0f;
+
+                    for (int i = 0; i < target.Length; i++)
+                    {
+                        target[i] = (DATA[sourceOffset] - heightOffset) * modeScale + modeOffset;
+                        sourceOffset = (sourceOffset + 1) % dataLength;
+                    }
+                }
+
                 // temperature or wind speed
                 else
                 {
@@ -243,30 +336,98 @@ internal class Sample : IDataSource<object?>
     internal static ResourceCatalog LoadCatalog(
         string catalogId)
     {
+        if (catalogId == SourceWithChildrenCatalogId)
+        {
+            return new ResourceCatalogBuilder(catalogId).Build();
+        }
+
+        if (catalogId == ChildACatalogId)
+        {
+            var resource = new ResourceBuilder(id: "T1")
+                .WithUnit("°C")
+                .WithDescription("Child Resource A")
+                .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
+                .Build();
+
+            return new ResourceCatalogBuilder(catalogId)
+                .AddResources([resource])
+                .Build();
+        }
+
+        if (catalogId == ChildBCatalogId)
+        {
+            var resource = new ResourceBuilder(id: "V1")
+                .WithUnit("m/s")
+                .WithDescription("Child Resource B")
+                .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
+                .Build();
+
+            return new ResourceCatalogBuilder(catalogId)
+                .AddResources([resource])
+                .Build();
+        }
+
         var resourceA = new ResourceBuilder(id: "T1")
             .WithUnit("°C")
-            .WithDescription("Test Resource A")
+            .WithDescription("Test Resource B")
             .WithGroups("Group 1")
             .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var resourceB = new ResourceBuilder(id: "V1")
             .WithUnit("m/s")
-            .WithDescription("Test Resource B")
+            .WithDescription("Test Resource C")
             .WithGroups("Group 1")
             .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
             .Build();
 
         var resourceC = new ResourceBuilder(id: "unix_time1")
-            .WithDescription("Test Resource C")
+            .WithDescription("Test Resource D")
             .WithGroups("Group 2")
             .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromMilliseconds(40)))
             .Build();
 
         var resourceD = new ResourceBuilder(id: "unix_time2")
-            .WithDescription("Test Resource D")
+            .WithDescription("Test Resource E")
             .WithGroups("Group 2")
             .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromSeconds(1)))
+            .Build();
+
+        var p1Parameters = new Dictionary<string, JsonElement>()
+        {
+            ["height"] = JsonSerializer.SerializeToElement(new
+            {
+                type = "input-integer",
+                label = "Height",
+                @default = 10,
+                minimum = 1,
+                maximum = 100
+            }),
+            ["mode"] = JsonSerializer.SerializeToElement(new
+            {
+                type = "select",
+                label = "Mode",
+                @default = "mean",
+                items = new Dictionary<string, string>()
+                {
+                    ["mean"] = "Mean",
+                    ["max"] = "Maximum"
+                }
+            })
+        };
+
+        var resourceE = new ResourceBuilder(id: "P1")
+            .WithUnit("bar")
+            .WithDescription("Test Resource A")
+            .WithGroups("Group 1")
+            .AddRepresentation(new Representation(
+                dataType: NexusDataType.Float32,
+                samplePeriod: TimeSpan.FromSeconds(1),
+                parameters: p1Parameters))
+            .AddRepresentation(new Representation(
+                dataType: NexusDataType.Float32,
+                samplePeriod: TimeSpan.FromMilliseconds(100),
+                parameters: p1Parameters))
             .Build();
 
         var catalogBuilder = new ResourceCatalogBuilder(catalogId);
@@ -276,7 +437,27 @@ internal class Sample : IDataSource<object?>
             resourceA,
             resourceB,
             resourceC,
-            resourceD
+            resourceD,
+            resourceE
+        });
+
+        catalogBuilder.WithProperty("resources", new
+        {
+            availability = new[]
+            {
+                new
+                {
+                    pattern = $"^{catalogId}/P1/1_s#base=1_s$",
+                    begin = (string?)"2020-01-01T00:00:00Z",
+                    end = (string?)null
+                },
+                new
+                {
+                    pattern = $"^{catalogId}/P1/100_ms#base=100_ms$",
+                    begin = (string?)null,
+                    end = (string?)"2020-01-01T00:00:00Z"
+                }
+            }
         });
 
         if (catalogId == RemoteCatalogId)

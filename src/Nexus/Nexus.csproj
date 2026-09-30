@@ -7,24 +7,12 @@
   <ItemGroup>
     <PackageReference Include="Apache.Arrow" />
     <PackageReference Include="Apollo3zehn.PackageManagement" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" >
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
 
     <!-- Temporary workaround for NJsonSchema: https://github.com/RicoSuter/Namotion.Reflection/pull/162 -->
     <PackageReference Include="Namotion.Reflection" />
     <PackageReference Include="NJsonSchema" />
     <PackageReference Include="NSwag.AspNetCore" />
-    <PackageReference Include="OpenIddict" />
-	  <PackageReference Include="OpenIddict.AspNetCore" />
-    <PackageReference Include="OpenIddict.EntityFrameworkCore" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Enrichers.ClientInfo" />
     <PackageReference Include="Serilog.Enrichers.CorrelationId" />
@@ -37,7 +25,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../extensibility/dotnet-extensibility/dotnet-extensibility.csproj" />
-    <ProjectReference Include="../Nexus.UI/Nexus.UI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -48,5 +35,50 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <!--
+    Build the Angular UI and copy the production bundle into wwwroot so the
+    server can serve it as static files. Runs unconditionally during publish.
+  -->
+  <Target Name="BuildAngularUI" BeforeTargets="Publish">
+    <PropertyGroup>
+      <AngularProjectDir>$(MSBuildThisFileDirectory)../Nexus.UI</AngularProjectDir>
+      <AngularDistDir>$(AngularProjectDir)/dist/nexus-ui/browser</AngularDistDir>
+      <WwwrootDir>$(MSBuildThisFileDirectory)wwwroot</WwwrootDir>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="Building Angular UI..." />
+
+    <Exec Command="npm ci" WorkingDirectory="$(AngularProjectDir)" />
+
+    <Exec Command="npm run build" WorkingDirectory="$(AngularProjectDir)" />
+
+    <ItemGroup>
+      <AngularDistFiles Include="$(AngularDistDir)/**/*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(AngularDistFiles)"
+          DestinationFiles="@(AngularDistFiles->'$(WwwrootDir)/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <!--
+    Copy Angular output to the publish output directory. This is needed because
+    MSBuild's Content globbing runs at evaluation time, before BuildAngularUI
+    creates the files in wwwroot.
+  -->
+  <Target Name="CopyAngularToPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <AngularProjectDir>$(MSBuildThisFileDirectory)../Nexus.UI</AngularProjectDir>
+      <AngularDistDir>$(AngularProjectDir)/dist/nexus-ui/browser</AngularDistDir>
+      <PublishWwwrootDir>$(PublishDir)wwwroot</PublishWwwrootDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <AngularDistFiles Include="$(AngularDistDir)/**/*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(AngularDistFiles)"
+          DestinationFiles="@(AngularDistFiles->'$(PublishWwwrootDir)/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 
 </Project>

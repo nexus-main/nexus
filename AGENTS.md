@@ -1,23 +1,22 @@
 # Agent Notes
 
 ## Repo Shape
-- This is a .NET 9 solution, not a Node workspace; `tailwind.config.js` is only for CSS generation.
-- `Nexus.sln` contains the server, Blazor UI, generated clients, extensibility contracts/analyzers, and their test projects.
+- This is a .NET 9 solution, not a Node workspace; Tailwind CSS v4 uses CSS-first config (`@theme` in `src/Nexus.UI/src/index.css`), no JS config file.
+- `Nexus.sln` contains the server, Angular UI, generated clients, extensibility contracts/analyzers, and their test projects.
 - Root MSBuild policy lives in `Directory.Build.props`: .NET target is `net9.0`, central artifacts go under `artifacts/`, code style is enforced during build, and an extra MyGet source is configured.
 - Central .NET package versions are in `Directory.Packages.props`; project files intentionally omit package versions.
 
 ## Important Paths
-- `src/Nexus/Nexus.csproj` / `src/Nexus/Program.cs`: ASP.NET Core host, REST API, auth, OpenAPI, Razor component hosting, extension package management, SQLite user DB setup, and app initialization.
+- `src/Nexus/Nexus.csproj` / `src/Nexus/Program.cs`: ASP.NET Core host, REST API, auth, OpenAPI, extension package management, SQLite user DB setup, and app initialization. Serves the Angular production bundle from `wwwroot/` as static files with SPA fallback.
 - `src/Nexus/API/v1/`: REST controllers; API surface changes here usually require regenerating clients and `openapi.json`.
 - `src/Nexus/Core/`: shared server models/options/auth/OpenAPI helpers; `Models_Public_v1.cs` affects generated client contracts.
 - `src/Nexus/Services/`: server-side application services for catalogs, data, jobs, cache, processing, tokens, packages, and upgrades.
 - `src/Nexus/Extensibility/`: server glue for runtime data source and data writer extension loading.
 - `src/Nexus/Extensions/Sources/` and `src/Nexus/Extensions/Writers/`: built-in extension implementations shipped with the server.
-- `src/Nexus/app.css` is the Tailwind input; `src/Nexus/wwwroot/css/app.css` is the generated CSS that CI compares against.
-- `src/Nexus/libman.json` restores browser libraries into `src/Nexus/wwwroot/lib/`; run LibMan before local app runs when those assets are missing.
-- `src/Nexus.UI/Nexus.UI.csproj`: Blazor WebAssembly client hosted by `src/Nexus`.
-- `src/Nexus.UI/Pages/`, `Components/`, `Controls/`, `Charts/`, `ViewModels/`: UI page/component/chart/view-model code.
-- `src/Nexus.UI/Core/` and `Services/`: UI state, constants, demo client, utilities, auth state, JS interop, and typeface services.
+- `src/Nexus.UI/`: Angular 21 + PrimeNG + Tailwind client. `Pages/`, `Components/`, `Controls/`, `Charts/`, `ViewModels/` hold UI code. `src/charts/` contains local copies of the chart renderer JS scripts; `public/js/` contains the synthetic worker.
+- `src/Nexus.UI/angular.json`: Angular CLI config; script refs point to `src/charts/chart*.js`.
+- `src/Nexus.UI/proxy.conf.cjs`: dev-server proxy, forwards `/api` to `http://localhost:5000`.
+- `eslint.config.mjs`: ESLint flat config at the repo root, covering both `src/Nexus.UI/src/**/*.{ts,js}` (Angular app TS + hand-written chart renderer JS) and `tests/Nexus.UI.Tests/app/**/*.{ts,js}`. Enables only the core `padding-line-between-statements` rule, `curly: "all"` (require braces on every `if`/`else`/`for`/`while`), and `@typescript-eslint/no-unused-vars` (`^_` prefix exempt). `eslint-config-prettier` is appended last to disable all conflicting formatting rules. Uses `createRequire` to load deps from `src/Nexus.UI/node_modules/`. ESLint v10 uses CWD as base path, so npm scripts `cd ../..` before running. Prettier config lives in the root `.prettierrc` (print width 100, trailing comma "all"; defaults otherwise, so double quotes); `.prettierignore` lives in `src/Nexus.UI/`. Repo-root `.vscode/settings.json` wires fix-on-save; `.vscode/extensions.json` recommends `dbaeumer.vscode-eslint` and `esbenp.prettier-vscode`.
 - `src/clients/dotnet/`: generated C# REST client package; `NexusClient.g.cs` is generated.
 - `src/clients/python/`: generated Python REST client package; generated module lives in `nexus_api/`, packaging metadata in `setup.py`.
 - `src/clients/matlab/`: Matlab client assets/samples are separate from generated .NET/Python clients.
@@ -26,7 +25,6 @@
 - `src/extensibility/dotnet-extensibility-analyzers/`: Roslyn analyzer for extensibility constraints.
 - `src/extensibility/python-extensibility/`: Python extension contract package, with source in `nexus_extensibility/`.
 - `tests/Nexus.Tests/`: server unit/integration tests, including controller, service, options, logging, data source, and data writer coverage.
-- `tests/Nexus.UI.Tests/`: Blazor/UI utility tests.
 - `tests/clients/dotnet-tests/` and `tests/clients/python-tests/`: generated client behavior tests.
 - `tests/extensibility/dotnet-extensibility-tests/` and `tests/extensibility/python-extensibility-tests/`: extension contract/data model tests.
 - `build/`: release/version metadata scripts used by CI and package builds (`print_solution.py`, `print_version.py`, `release.py`).
@@ -35,13 +33,13 @@
 - `openapi.json`: checked-in generated API document; CI verifies it is fresh.
 
 ## Setup And Run
-- Restore browser libraries before running the app: `(cd src/Nexus && libman restore)`.
-- Restore .NET workloads before first build/run: `dotnet workload restore`.
 - Run the app with `dotnet run --project src/Nexus/Nexus.csproj`, then open `http://localhost:5000`.
+- For UI development, run the Angular dev server: `(cd src/Nexus.UI && npm ci && npm start)`, then open `http://localhost:4200`.
 - The Docker image expects a published `app/` folder from `dotnet publish`; the Dockerfile copies `app .` and uses the .NET SDK image so runtime extension compilation works.
 
 ## Verification
 - Full CI-equivalent core checks: `dotnet test -c Release /p:BuildProjectReferences=false`, then `pyright`, then `pytest`.
+- UI lint: `(cd src/Nexus.UI && npm run eslint)` runs ESLint from the repo root against both `src/Nexus.UI/src` and `tests/Nexus.UI.Tests/app`; `npm run eslint:fix` auto-fixes. `npm run lint` runs the Angular dev build then `eslint` then `prettier --check` on both `src/` and test files. The enforced rules are `padding-line-between-statements` (blank-line padding between const/let runs, if/for/while/switch/try, return, and multiline expressions), `curly: "all"` (require braces on every `if`/`else`/`for`/`while`), and `@typescript-eslint/no-unused-vars` (`^_` prefix exempt); the first two only insert linebreaks/blank lines, so fixes are semantically inert. Prettier handles all other formatting (indentation, quotes, semicolons, line wrapping, trailing commas) via `npm run format:fix` (`prettier --write` on both `src/` and test files). Run `npm run eslint:fix && npm run format:fix` after edits that touch `src/**/*.{ts,js}` or `tests/Nexus.UI.Tests/app/**/*.ts` before committing.
 - Focus a single .NET test project with `dotnet test tests/Nexus.Tests/Nexus.Tests.csproj` or the specific project under `tests/`.
 - Python tests are discovered by `pytest.ini`: files must be `*-tests.py`, classes `*Tests`, functions `*_test`; `pythonpath` is set to both Python source packages.
 - `pytest` covers only `tests/clients/python-tests` and `tests/extensibility/python-extensibility-tests`; `src/` is intentionally excluded from recursion.
@@ -49,7 +47,7 @@
 ## Generated Artifacts
 - If API surface changes, regenerate clients and `openapi.json` with `dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi.json`.
 - CI verifies OpenAPI freshness with `dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi_new.json` followed by `diff --strip-trailing-cr openapi.json openapi_new.json`.
-- If UI utility classes change, regenerate/check CSS with `npx tailwindcss -i src/Nexus/app.css -o app_new.css` and compare against `src/Nexus/wwwroot/css/app.css`.
+- The Angular production bundle is built during `dotnet publish` via an MSBuild target in `Nexus.csproj` that runs `npm ci` + `npm run build` and copies `dist/nexus-ui/browser/` into `wwwroot/`.
 
 ## Packaging Notes
 - Python package builds rely on metadata environment variables emitted by `python build/print_solution.py` and version values from `python build/print_version.py`.
@@ -63,3 +61,11 @@
 ## Style
 - C# uses file-scoped namespaces; `IDE0161` and `IDE1006` are build errors because `EnforceCodeStyleInBuild` is enabled.
 - Private instance fields use `_camelCase`; `var` is preferred only when the type is apparent or not a built-in type.
+
+## UI Best Practices
+- **Reuse before creating**: always check for an existing component (in `src/Nexus.UI/src/app/components/`, `Controls/`, `Charts/`) before building a new one; extract a shared component when the same UI pattern appears in two or more places.
+- **PrimeNG first**: prefer PrimeNG components (`p-toast`, `p-dialog`, `p-confirmdialog`, `p-button`, `p-checkbox`, `p-inputtext`, etc.) over hand-rolled HTML/CSS equivalents so theming, accessibility, and dark-mode come for free.
+- **Tailwind for layout, PrimeNG for color**: use Tailwind utility classes for layout only (flex, grid, gap, sizing, padding, spacing). For all colors, use the custom `@theme` tokens (`bg-surface`, `text-ink`, `text-ink-muted`, `border-surface-border`, `bg-overlay`, `text-key`, `bg-key`, `text-rose-accent`, etc.) which map to PrimeNG `var(--p-*)` variables and adapt to the active theme automatically. Do not use Tailwind color classes (`text-slate-*`, `bg-slate-*`, `border-white/`, etc.) or `dark:` color variants. Never hardcode raw hex values.
+- **Theme-aware styling**: `@theme` color tokens and `var(--p-*)` variables automatically adapt to the active theme — no `dark:` color variants or `:root[data-theme='light']` override blocks needed. For accent colors without PrimeNG semantic equivalents (violet, lime, amber, rose, emerald, orange), `--nexus-*` variables are defined in `:root` (dark) and `:root[data-theme='light']` (light).
+- **Toast unification**: all app toasts use PrimeNG `p-toast` with preset styling (no headless templates). Status toasts: `key="app-status"`, `position="bottom-center"`. Confirmation toasts with actions may use a custom `pTemplate="message"` but must not hardcode `dark:` colors — use PrimeNG severities and semantic classes instead.
+- **Monaco themes**: use the shared `nexus-monaco-themes.ts` helper; do not redefine Monaco theme colors inline.

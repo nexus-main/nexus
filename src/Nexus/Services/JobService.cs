@@ -74,7 +74,8 @@ internal class JobService : IJobService
         }
 
         progress.ProgressChanged += progressHandler;
-        jobControl.Task = createTask(jobControl, cancellationTokenSource);
+
+        jobControl.Task = Task.Run(() => createTask(jobControl, cancellationTokenSource));
 
         _ = Task.Run(async () =>
         {

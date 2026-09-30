@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Nexus.Services;
+using Nexus.Utilities;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 
@@ -41,8 +42,8 @@ internal class DataController(
         CancellationToken cancellationToken)
     {
         resourcePath = WebUtility.UrlDecode(resourcePath);
-        begin = begin.ToUniversalTime();
-        end = end.ToUniversalTime();
+        begin = NexusUtilities.NormalizeToUtc(begin);
+        end = NexusUtilities.NormalizeToUtc(end);
 
         try
         {

@@ -30,17 +30,72 @@
             "problemMatcher": "$msCompile"
         },
         {
-            "label": "tailwindcss",
-            "command": "tailwindcss",
-            "type": "process",
-            "args": [
-                "-i",
-                "src/Nexus/app.css",
-                "-o",
-                "src/Nexus/wwwroot/css/app.css",
-                "--watch"
-            ],
-            "problemMatcher": "$msCompile"
+            "label": "npm: dev",
+            "type": "npm",
+            "script": "dev",
+            "path": "src/Nexus.UI",
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "nexus-ui-dev",
+                "source": "typescript",
+                "applyTo": "allDocuments",
+                "severity": "error",
+                "fileLocation": [
+                    "relative",
+                    "${workspaceFolder}/src/Nexus.UI"
+                ],
+                "pattern": {
+                    "regexp": "^\\s*(.*?):(\\d+):(\\d+)\\s*-\\s*error\\s+TS\\d+:\\s*(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "message": 4
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "Application bundle generation complete",
+                    "endsPattern": "to show help"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "group": "nexus-ui"
+            },
+            "runOptions": {
+                "instanceLimit": 1
+            }
+        },
+        {
+            "label": "npm: build",
+            "type": "npm",
+            "script": "build",
+            "path": "src/Nexus.UI",
+            "problemMatcher": {
+                "owner": "nexus-ui-build",
+                "source": "typescript",
+                "applyTo": "allDocuments",
+                "severity": "error",
+                "fileLocation": [
+                    "relative",
+                    "${workspaceFolder}/src/Nexus.UI"
+                ],
+                "pattern": {
+                    "regexp": "^\\s*(.*?):(\\d+):(\\d+)\\s*$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
         },
         {
             "label": "build-generator",

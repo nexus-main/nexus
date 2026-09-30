@@ -85,7 +85,7 @@ classdef NexusClient < handle
         end
 
         function export(self, dateTimeBegin, dateTimeEnd, filePeriod, fileFormat, ...
-                        resourcePaths, configuration, targetFolder, onProgress)
+                        resourcePaths, configuration, precision, targetFolder, onProgress)
 
             dateTimeBegin.TimeZone          = 'Z';
             dateTimeEnd.TimeZone            = 'Z';
@@ -108,6 +108,7 @@ classdef NexusClient < handle
             exportParameters.type           = fileFormat;
             exportParameters.resourcePaths  = resourcePaths;
             exportParameters.configuration  = configuration;
+            exportParameters.precision      = precision;
 
             % Start job
             job = self.jobs_export(exportParameters);
@@ -209,7 +210,7 @@ classdef NexusClient < handle
             import matlab.net.http.*
         
             requestMessage  = RequestMessage('post', [], exportParameters);
-            uri             = URI([self.BaseUrl '/api/v1/jobs/export']);
+            uri             = URI([self.BaseUrl '/api/v2/jobs/export']);
             response        = self.send(requestMessage, uri);
             job             = response.Body.Data;
         end

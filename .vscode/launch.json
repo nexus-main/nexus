@@ -10,7 +10,7 @@
             "justMyCode": true
         },
         {
-            "name": "Launch Nexus",
+            "name": "Launch backend",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
@@ -21,6 +21,14 @@
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development"
             }
+        },
+        {
+            "name": "Launch frontend",
+            "type": "node",
+            "request": "launch",
+            "preLaunchTask": "npm: dev",
+            "cwd": "${workspaceFolder}/src/Nexus.UI",
+            "env": {}
         },
         {
             /* How to debug into remote Nexus Docker container via SSH
@@ -79,6 +87,15 @@
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Launch both",
+            "configurations": [
+                "Launch backend",
+                "Launch frontend"
+            ]
         }
     ],
 }
