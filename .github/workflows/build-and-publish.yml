@@ -298,6 +298,6 @@ jobs:
         run: npm install -g npm@11
 
       - name: npm package (npm)
-        run: npm stage publish artifacts/package/apollo3zehn-nexus-api-*.tgz
+        run: npm publish artifacts/package/apollo3zehn-nexus-api-*.tgz --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
