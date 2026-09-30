@@ -4,7 +4,7 @@ from __future__ import annotations
 import enum
 import re
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, ClassVar, Optional, Pattern
 
 from ._data_model_extensions import to_unit_string
@@ -104,6 +104,15 @@ class CatalogRegistration:
 
     is_transient: bool = False
     """A boolean which indicates if the catalog and its children should be reloaded on each request."""
+
+    link_target: Optional[str] = None
+    """An optional link target (i.e. another absolute catalog path) which makes this catalog a softlink."""
+
+    min_begin: Optional[datetime] = None
+    """An optional begin date/time to limit the catalog registration."""
+
+    max_end: Optional[datetime] = None
+    """An optional end date/time to limit the catalog registration."""
 
 ################# DATA MODEL ###############
 

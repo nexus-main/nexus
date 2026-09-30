@@ -86,11 +86,39 @@ internal class Sample : IDataSource<object?>
 
     public const string LicensedCatalogId = "/DEV/LICENSED";
 
+    public const string RangeLimitedCatalogId = "/DEV/RANGE_LIMITED";
+
+    public const string AliasRangeCatalogId = "/DEV/ALIAS_RANGE";
+
+    public const string AliasToAliasCatalogId = "/DEV/ALIAS_TO_ALIAS";
+
+    public const string SourceWithChildrenCatalogId = "/DEV/SOURCE_WITH_CHILDREN";
+
+    public const string AliasWithChildrenCatalogId = "/DEV/ALIAS_WITH_CHILDREN";
+
+    public const string ChildACatalogId = "/DEV/SOURCE_WITH_CHILDREN/CHILD_A";
+
+    public const string ChildBCatalogId = "/DEV/SOURCE_WITH_CHILDREN/CHILD_B";
+
     private const string LocalCatalogTitle = "Simulates a local catalog";
 
     private const string RemoteCatalogTitle = "Simulates a remote catalog";
 
     private const string LicensedCatalogTitle = "Simulates a licensed catalog";
+
+    private const string RangeLimitedCatalogTitle = "Simulates a catalog with a limited registration time range";
+
+    private const string AliasRangeCatalogTitle = "Simulates an alias with a limited registration time range";
+
+    private const string AliasToAliasCatalogTitle = "Simulates an alias to another alias";
+
+    private const string SourceWithChildrenCatalogTitle = "Simulates a catalog that contains child catalogs";
+
+    private const string AliasWithChildrenCatalogTitle = "Simulates an alias to a catalog that contains child catalogs";
+
+    private const string ChildACatalogTitle = "Simulates child catalog A";
+
+    private const string ChildBCatalogTitle = "Simulates child catalog B";
 
     public const string RemoteUsername = "test";
 
@@ -123,7 +151,37 @@ internal class Sample : IDataSource<object?>
             {
                 registrations.Add(new(RemoteCatalogId, RemoteCatalogTitle));
                 registrations.Add(new(LicensedCatalogId, LicensedCatalogTitle));
+
+                registrations.Add(new(RangeLimitedCatalogId, RangeLimitedCatalogTitle,
+                    MinBegin: new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    MaxEnd: new DateTime(2020, 02, 01, 0, 0, 0, DateTimeKind.Utc)));
+
+                registrations.Add(new(AliasRangeCatalogId, AliasRangeCatalogTitle,
+                    LinkTarget: RangeLimitedCatalogId,
+                    MinBegin: new DateTime(2020, 01, 15, 0, 0, 0, DateTimeKind.Utc),
+                    MaxEnd: new DateTime(2020, 03, 01, 0, 0, 0, DateTimeKind.Utc)));
+
+                registrations.Add(new(AliasToAliasCatalogId, AliasToAliasCatalogTitle,
+                    LinkTarget: AliasRangeCatalogId,
+                    MinBegin: new DateTime(2020, 01, 20, 0, 0, 0, DateTimeKind.Utc),
+                    MaxEnd: new DateTime(2020, 02, 15, 0, 0, 0, DateTimeKind.Utc)));
+
+                registrations.Add(new(SourceWithChildrenCatalogId, SourceWithChildrenCatalogTitle));
+
+                registrations.Add(new(AliasWithChildrenCatalogId, AliasWithChildrenCatalogTitle,
+                    LinkTarget: SourceWithChildrenCatalogId));
             }
+
+            return Task.FromResult(registrations.ToArray());
+        }
+
+        else if (path == SourceWithChildrenCatalogId + "/")
+        {
+            var registrations = new List<CatalogRegistration>()
+            {
+                new(ChildACatalogId, ChildACatalogTitle),
+                new(ChildBCatalogId, ChildBCatalogTitle)
+            };
 
             return Task.FromResult(registrations.ToArray());
         }
@@ -278,6 +336,37 @@ internal class Sample : IDataSource<object?>
     internal static ResourceCatalog LoadCatalog(
         string catalogId)
     {
+        if (catalogId == SourceWithChildrenCatalogId)
+        {
+            return new ResourceCatalogBuilder(catalogId).Build();
+        }
+
+        if (catalogId == ChildACatalogId)
+        {
+            var resource = new ResourceBuilder(id: "T1")
+                .WithUnit("°C")
+                .WithDescription("Child Resource A")
+                .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
+                .Build();
+
+            return new ResourceCatalogBuilder(catalogId)
+                .AddResources([resource])
+                .Build();
+        }
+
+        if (catalogId == ChildBCatalogId)
+        {
+            var resource = new ResourceBuilder(id: "V1")
+                .WithUnit("m/s")
+                .WithDescription("Child Resource B")
+                .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
+                .Build();
+
+            return new ResourceCatalogBuilder(catalogId)
+                .AddResources([resource])
+                .Build();
+        }
+
         var resourceA = new ResourceBuilder(id: "T1")
             .WithUnit("°C")
             .WithDescription("Test Resource B")

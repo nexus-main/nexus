@@ -134,9 +134,14 @@ export class AvailabilityDialogComponent {
     this.nexus.v1.catalogs
       .getAvailability(catalogId, beginDate, endDate, step, this.controller.signal)
       .then((result) => {
-        this.data.set(result.data ?? []);
+        const data = result.data ?? [];
+        const effectiveEndDate = new Date(
+          Date.parse(beginDate) + data.length * stepDays * MILLISECONDS_PER_DAY,
+        ).toISOString();
+
+        this.data.set(data);
         this.beginDate.set(beginDate);
-        this.endDate.set(endDate);
+        this.endDate.set(effectiveEndDate);
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") {

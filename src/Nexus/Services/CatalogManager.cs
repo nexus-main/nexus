@@ -24,10 +24,8 @@ internal interface ICatalogManager
 internal class CatalogManager(
     IDataControllerService dataControllerService,
     IDatabaseService databaseService,
-    IServiceProvider serviceProvider,
     IExtensionHive<IDataSource> sourcesExtensionHive,
     IPipelineService pipelineService,
-    IOptions<SecurityOptions> _securityOptions,
     ILogger<CatalogManager> logger
 ) : ICatalogManager
 {
@@ -36,20 +34,17 @@ internal class CatalogManager(
         Guid PipelineId,
         DataSourcePipeline Pipeline,
         Guid[] PackageReferenceIds,
-        CatalogMetadata Metadata
+        CatalogMetadata Metadata,
+        string BackingSourceId
     );
 
     private readonly IDataControllerService _dataControllerService = dataControllerService;
 
     private readonly IDatabaseService _databaseService = databaseService;
 
-    private readonly IServiceProvider _serviceProvider = serviceProvider;
-
     private readonly IExtensionHive<IDataSource> _sourcesExtensionHive = sourcesExtensionHive;
 
     private readonly IPipelineService _pipelineService = pipelineService;
-
-    private readonly SecurityOptions _securityOptions = _securityOptions.Value;
 
     private readonly ILogger<CatalogManager> _logger = logger;
 
@@ -109,7 +104,8 @@ internal class CatalogManager(
                             pipelineId,
                             pipeline,
                             packageReferenceIds,
-                            metadata
+                            metadata,
+                            catalogRegistration.Path
                         );
 
                         catalogPrototypes.Add(catalogPrototype);
@@ -144,7 +140,8 @@ internal class CatalogManager(
                             pipelineId,
                             pipeline,
                             packageReferenceIds,
-                            metadata
+                            metadata,
+                            catalogRegistration.Path
                         );
 
                         catalogPrototypes.Add(prototype);
@@ -173,19 +170,49 @@ internal class CatalogManager(
 
             try
             {
-                var catalogRegistrations = await controller
-                    .GetCatalogRegistrationsAsync(parent.Id + "/", cancellationToken);
+                /* List the children of the parent *in the source's own coordinate system*.
+                 * For the root container the source path is just the root id; for any
+                 * deeper container we append a trailing slash to request a directory
+                 * listing rather than the catalog itself. */
+                var sourcePath = parent.BackingSourceId == CatalogContainer.RootCatalogId
+                    ? CatalogContainer.RootCatalogId
+                    : parent.BackingSourceId + "/";
 
+                var catalogRegistrations = await controller
+                    .GetCatalogRegistrationsAsync(sourcePath, cancellationToken);
+
+                /* Build a CatalogPrototype per child. Each prototype carries two identities:
+                 *   - backingSourceId: the physical path inside the data source (unchanged)
+                 *   - Registration.Path: the logical path in the catalog tree
+                 * When the parent is an alias view (BackingSourceId != Id), the child's
+                 * logical path is projected under the parent's logical Id by stripping the
+                 * parent's physical prefix and re-joining the suffix onto parent.Id.
+                 * Example: parent /ALIAS (backed by /SOURCE) with child /SOURCE/foo
+                 *          -> Registration.Path = /ALIAS/foo, backingSourceId = /SOURCE/foo.
+                 * Non-alias parents keep the source path as the logical path unchanged. */
                 var prototypes = catalogRegistrations.Select(catalogRegistration =>
                 {
-                    var metadata = LoadMetadata(catalogRegistration.Path);
+                    var backingSourceId = catalogRegistration.Path;
+
+                    if (parent.BackingSourceId != parent.Id)
+                    {
+                        var suffix = parent.BackingSourceId == CatalogContainer.RootCatalogId
+                            ? catalogRegistration.Path
+                            : catalogRegistration.Path[parent.BackingSourceId.Length..];
+
+                        catalogRegistration = catalogRegistration with { Path = JoinCatalogPath(parent.Id, suffix) };
+                    }
+
+                    var metadata = LoadMetadata(backingSourceId);
 
                     return new CatalogPrototype(
                         catalogRegistration,
                         parent.PipelineId,
                         parent.Pipeline,
                         parent.PackageReferenceIds,
-                        metadata);
+                        metadata,
+                        backingSourceId
+                    );
                 });
 
                 catalogContainers = ProcessCatalogPrototypes(prototypes.ToArray());
@@ -219,12 +246,22 @@ internal class CatalogManager(
                 prototype.Metadata,
                 this,
                 _databaseService,
-                _dataControllerService);
+                _dataControllerService,
+                prototype.BackingSourceId,
+                _logger);
 
             return catalogContainer;
         });
 
         return catalogContainers.ToArray();
+    }
+
+    internal static string JoinCatalogPath(string parentPath, string childPath)
+    {
+        if (string.IsNullOrEmpty(childPath))
+            return parentPath;
+
+        return parentPath.TrimEnd('/') + "/" + childPath.TrimStart('/');
     }
 
     private CatalogMetadata LoadMetadata(string catalogId)

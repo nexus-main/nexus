@@ -58,8 +58,8 @@ internal class JobsController(
 
         parameters = parameters with
         {
-            Begin = parameters.Begin.ToUniversalTime(),
-            End = parameters.End.ToUniversalTime()
+            Begin = NexusUtilities.NormalizeToUtc(parameters.Begin),
+            End = NexusUtilities.NormalizeToUtc(parameters.End)
         };
 
         var root = _appStateManager.AppState.CatalogState.Root;

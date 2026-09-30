@@ -75,9 +75,6 @@ public class CatalogManagerTests
                 return true;
             }));
 
-        /* serviceProvider */
-        var serviceProvider = Mock.Of<IServiceProvider>();
-
         /* extensionHive */
         var extensionHive = Mock.Of<IExtensionHive<IDataSource>>();
 
@@ -104,24 +101,19 @@ public class CatalogManagerTests
                 };
             });
 
-        /* SecurityOptions */
-        var securityOptions = Options.Create(new SecurityOptions());
-
         /* catalogManager */
         var catalogManager = new CatalogManager(
             dataControllerService,
             databaseService,
-            serviceProvider,
             extensionHive,
             pipelineService,
-            securityOptions,
             NullLogger<CatalogManager>.Instance
         );
 
         // act
         var root = CatalogContainer.CreateRoot(catalogManager, databaseService);
-        var rootCatalogContainers = (await root.GetChildCatalogContainersAsync(CancellationToken.None)).ToArray();
-        var ACatalogContainers = (await rootCatalogContainers[0].GetChildCatalogContainersAsync(CancellationToken.None)).ToArray();
+        var rootCatalogContainers = (await root.GetRegisteredChildCatalogContainersAsync(CancellationToken.None)).ToArray();
+        var ACatalogContainers = (await rootCatalogContainers[0].GetRegisteredChildCatalogContainersAsync(CancellationToken.None)).ToArray();
 
         // assert '/'
         Assert.Equal(6, rootCatalogContainers.Length);
@@ -173,9 +165,6 @@ public class CatalogManagerTests
             .WithReadme("v2")
             .Build();
 
-        /* expected time range response */
-        var expectedTimeRange = new CatalogTimeRange(new DateTime(2020, 01, 01), new DateTime(2020, 01, 02));
-
         /* data controller service */
         var dataControllerService = Mock.Of<IDataControllerService>();
 
@@ -188,10 +177,6 @@ public class CatalogManagerTests
                 Mock.Get(dataSourceController)
                     .Setup(s => s.GetCatalogAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync(expectedCatalog);
-
-                Mock.Get(dataSourceController)
-                    .Setup(s => s.GetTimeRangeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(expectedTimeRange);
 
                 return Task.FromResult(dataSourceController);
             });
@@ -226,14 +211,12 @@ public class CatalogManagerTests
             dataControllerService);
 
         // Act
-        var lazyCatalogInfo = await catalogContainer.GetLazyCatalogInfoAsync(CancellationToken.None);
+        var catalog = await catalogContainer.GetCatalogAsync(CancellationToken.None);
 
         // Assert
-        var actualJsonString = JsonSerializerHelper.SerializeIndented(lazyCatalogInfo.Catalog);
+        var actualJsonString = JsonSerializerHelper.SerializeIndented(catalog);
         var expectedJsonString = JsonSerializerHelper.SerializeIndented(expectedCatalog);
 
         Assert.Equal(actualJsonString, expectedJsonString);
-        Assert.Equal(new DateTime(2020, 01, 01), lazyCatalogInfo.Begin);
-        Assert.Equal(new DateTime(2020, 01, 02), lazyCatalogInfo.End);
     }
 }

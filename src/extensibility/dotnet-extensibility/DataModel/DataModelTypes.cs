@@ -117,7 +117,15 @@ public record CatalogItem(ResourceCatalog Catalog, Resource Resource, Representa
 /// <param name="Title">A nullable title.</param>
 /// <param name="IsTransient">An optional boolean which indicates if the catalog and its children should be reloaded on each request.</param>
 /// <param name="LinkTarget">An optional link target (i.e. another absolute catalog path) which makes this catalog a softlink.</param>
-public record CatalogRegistration(string Path, string? Title, bool IsTransient = false, string? LinkTarget = default)
+/// <param name="MinBegin">An optional begin date/time to limit the catalog registration.</param>
+/// <param name="MaxEnd">An optional end date/time to limit the catalog registration.</param>
+public record CatalogRegistration(
+    string Path,
+    string? Title,
+    bool IsTransient = false,
+    string? LinkTarget = default,
+    DateTime? MinBegin = default,
+    DateTime? MaxEnd = default)
 {
     /// <summary>
     /// Gets the absolute or relative path of the catalog.

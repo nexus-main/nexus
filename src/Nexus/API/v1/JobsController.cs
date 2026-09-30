@@ -153,8 +153,8 @@ internal class JobsController(
 
         parameters = parameters with
         {
-            Begin = parameters.Begin.ToUniversalTime(),
-            End = parameters.End.ToUniversalTime()
+            Begin = NexusUtilities.NormalizeToUtc(parameters.Begin),
+            End = NexusUtilities.NormalizeToUtc(parameters.End)
         };
 
         // map V1 export parameters (no precision) to V2 export parameters with Float64 precision
@@ -360,11 +360,14 @@ internal class JobsController(
         CancellationToken cancellationToken)
     {
         var root = _appStateManager.AppState.CatalogState.Root;
-        var catalogContainer = await root.TryFindCatalogContainerAsync(root, catalogId, cancellationToken);
+        var catalogContainer = await root.TryResolveCatalogContainerAsync(root, catalogId, cancellationToken);
 
         if (catalogContainer is not null)
         {
-            if (!AuthUtilities.IsCatalogWritable(catalogContainer.Id, catalogContainer.Metadata, User))
+            if (catalogContainer.IsAliasView)
+                return StatusCode(StatusCodes.Status403Forbidden, "Alias catalogs are read-only views and cannot be modified.");
+
+            if (!AuthUtilities.IsCatalogWritable(catalogContainer, User))
                 return StatusCode(StatusCodes.Status403Forbidden, $"The current user is not permitted to modify the catalog {catalogId}.");
 
             return await action.Invoke(catalogContainer);
