@@ -175,8 +175,10 @@ void ConfigurePipeline(WebApplication app)
     app.UseForwardedHeaders();
 
     // static files (Angular production bundle served from wwwroot)
+    // The HTML entry document must be revalidated so an authenticated document
+    // navigation reaches the reverse proxy, see SpaStaticFileOptions.
     app.UseDefaultFiles();
-    app.UseStaticFiles();
+    app.UseStaticFiles(SpaStaticFileOptions.Create());
 
     // Open API
     var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
@@ -207,7 +209,7 @@ void ConfigurePipeline(WebApplication app)
     app.MapControllers();
 
     /* SPA fallback: serve index.html for client-side routes */
-    app.MapFallbackToFile("{*path:nonfile}", "index.html");
+    app.MapFallbackToFile("{*path:nonfile}", "index.html", SpaStaticFileOptions.Create());
 
     /* Debugging (print all routes) */
     app.MapGet("/debug/routes", (IEnumerable<EndpointDataSource> endpointSources) =>
