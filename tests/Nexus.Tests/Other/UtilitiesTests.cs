@@ -165,6 +165,32 @@ public class UtilitiesTests
     }
 
     [Fact]
+    public void CanParseWellFormedTokenValue()
+    {
+        // Act
+        var actual = AuthUtilities.TokenValueToComponents("secret_userId");
+
+        // Assert
+        Assert.Equal("userId", actual.userId);
+        Assert.Equal("secret", actual.secret);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("no-separator")]
+    public void CanRejectMalformedTokenValue(string tokenValue)
+    {
+        // Act
+        var success = AuthUtilities.TryTokenValueToComponents(tokenValue, out var userId, out var secret);
+
+        // Assert
+        Assert.False(success);
+        Assert.Equal(string.Empty, userId);
+        Assert.Equal(string.Empty, secret);
+        Assert.Throws<FormatException>(() => AuthUtilities.TokenValueToComponents(tokenValue));
+    }
+
+    [Fact]
     public void CanDetermineAliasCatalogWritability()
     {
         // Arrange

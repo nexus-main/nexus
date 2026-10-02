@@ -29,6 +29,19 @@ internal class PersonalAccessTokenAuthHandler(
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        try
+        {
+            return Task.FromResult(HandleAuthenticate());
+        }
+
+        catch (Exception ex)
+        {
+            return Task.FromResult(AuthenticateResult.Fail(ex.Message));
+        }
+    }
+
+    private AuthenticateResult HandleAuthenticate()
+    {
         var headerValues = Request.Headers.Authorization;
         var principal = default(ClaimsPrincipal);
 
@@ -40,12 +53,14 @@ internal class PersonalAccessTokenAuthHandler(
             if (headerValue.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             {
                 var parts = headerValue.Split(' ', count: 2);
-                var (userId, secret) = AuthUtilities.TokenValueToComponents(parts[1]);
+
+                if (!AuthUtilities.TryTokenValueToComponents(parts[1], out var userId, out var secret))
+                    return AuthenticateResult.Fail("The bearer token is malformed.");
 
                 if (_tokenService.TryGet(userId, secret, out var token))
                 {
                     if (DateTime.UtcNow >= token.Expires)
-                        return Task.FromResult(AuthenticateResult.NoResult());
+                        return AuthenticateResult.NoResult();
 
                     /* The pat_user_ prefixed claims represent what the token creator could do. */
                     var userClaims = token.GrantClaims
@@ -105,19 +120,13 @@ internal class PersonalAccessTokenAuthHandler(
             }
         }
 
-        AuthenticateResult result;
-
         if (principal is null)
         {
-            result = AuthenticateResult.NoResult();
+            return AuthenticateResult.NoResult();
         }
 
-        else
-        {
-            var ticket = new AuthenticationTicket(principal, Scheme.Name);
-            result = AuthenticateResult.Success(ticket);
-        }
+        var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
-        return Task.FromResult(result);
+        return AuthenticateResult.Success(ticket);
     }
 }
