@@ -737,7 +737,7 @@ class UsersClient:
 
         return self.___invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
-    def create_token(self, token: PersonalAccessToken) -> str:
+    def create_token(self, token: CreateTokenRequest) -> str:
         """
         Creates a personal access token.
 
@@ -1504,7 +1504,7 @@ class UsersAsyncClient:
 
         return self.___invoke(dict[str, PersonalAccessToken], "GET", __url, "application/json", None, None)
 
-    def create_token(self, token: PersonalAccessToken) -> Awaitable[str]:
+    def create_token(self, token: CreateTokenRequest) -> Awaitable[str]:
         """
         Creates a personal access token.
 
@@ -2294,6 +2294,27 @@ class PersonalAccessToken:
 
     grant_claims: list[TokenClaim]
     """A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator."""
+
+
+@dataclass(frozen=True)
+class CreateTokenRequest:
+    """
+    A request to create a personal access token.
+
+    Args:
+        description: The token description.
+        expires: The date/time when the token expires.
+        claims: The claims that will be part of the token.
+    """
+
+    description: str
+    """The token description."""
+
+    expires: datetime
+    """The date/time when the token expires."""
+
+    claims: list[TokenClaim]
+    """The claims that will be part of the token."""
 
 
 

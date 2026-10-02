@@ -97,7 +97,7 @@ internal class UsersController(
     /// <param name="token">The personal access token to create.</param>
     [HttpPost("tokens/create")]
     public async Task<ActionResult<string>> CreateTokenAsync(
-        PersonalAccessToken token)
+        CreateTokenRequest token)
     {
         var userId = User.FindFirst(NexusClaimTypes.Subject)!.Value;
 

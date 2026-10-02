@@ -149,7 +149,7 @@ export class NexusService {
     return tokens;
   }
 
-  async createPersonalAccessToken(token: V1.PersonalAccessToken) {
+  async createPersonalAccessToken(token: V1.CreateTokenRequest) {
     const value = await this.v1.users.createToken(token);
 
     this.apiAvailable.set(true);

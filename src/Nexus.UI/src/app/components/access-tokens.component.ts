@@ -408,7 +408,6 @@ export class AccessTokensComponent implements OnInit {
           ? new Date(this.expiresInput()).toISOString()
           : neverExpires,
         claims: this.createClaims(),
-        grantClaims: [],
       });
 
       this.createdToken.set(tokenValue);
