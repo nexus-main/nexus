@@ -416,6 +416,7 @@ describe("remote viewport provider", () => {
       provider.subscribe(() =>
         states.push({ loading: provider.loading, progress: provider.progress }),
       );
+
       finish(0);
       await Promise.resolve();
       await Promise.resolve();
@@ -457,6 +458,213 @@ describe("remote viewport provider", () => {
       provider.dispose();
     }
   });
+
+  it("retains completed superseded previews without caching them or suppressing refinement", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { provider, calls, finish, view } = prefetchFixture(2);
+
+    try {
+      provider.requestViews(view(0n, 10000n), true);
+      t.mock.timers.tick(1);
+      finish(0, 1);
+      await Promise.resolve();
+      await Promise.resolve();
+      provider.requestViews(view(100n, 9900n, 1000), true);
+      t.mock.timers.tick(1);
+
+      for (let resourceIndex = 0; resourceIndex < 2; resourceIndex++) {
+        calls[1].emit({
+          kind: "data",
+          complete: true,
+          resourceIndex,
+          viewIndex: 0,
+          indices: new BigInt64Array([100n, 9899n]),
+          values: new Float32Array([8, 9]),
+        });
+      }
+
+      assert.equal(provider.pointsFor("main", 0, 100n, 9900n)?.[1], 8);
+      provider.requestViews(view(2000n, 3000n, 1000));
+      assert.equal(calls[1].signal.aborted, true);
+      calls[1].reject(new Error("aborted"));
+      await Promise.resolve();
+      await Promise.resolve();
+
+      for (let resourceIndex = 0; resourceIndex < 2; resourceIndex++) {
+        assert.equal(provider.pointsFor("main", resourceIndex, 2000n, 3000n)?.[1], 8);
+      }
+
+      // Even exact bounds of the retained view require a fresh transport.
+      provider.requestViews(view(100n, 9900n, 1000));
+      assert.equal(provider.loading, true);
+      t.mock.timers.tick(50);
+      assert.equal(calls.length, 3);
+      finish(2, 7);
+      await Promise.resolve();
+      await Promise.resolve();
+      assert.equal(provider.loading, false);
+      assert.equal(provider.pointsFor("main", 0, 100n, 9900n)?.[1], 7);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  for (const delivery of ["missing-resource", "partial-resource", "complete"] as const) {
+    it(`only retains all-resource complete previews on supersession (${delivery})`, async (t) => {
+      t.mock.timers.enable({ apis: ["setTimeout"] });
+      const { provider, calls, view } = prefetchFixture(2);
+
+      try {
+        provider.requestViews(view(0n, 10000n, 1000), true);
+        t.mock.timers.tick(1);
+
+        for (
+          let resourceIndex = 0;
+          resourceIndex < (delivery === "missing-resource" ? 1 : 2);
+          resourceIndex++
+        ) {
+          calls[0].emit({
+            kind: "data",
+            complete: delivery !== "partial-resource" || resourceIndex === 0,
+            resourceIndex,
+            viewIndex: 0,
+            indices: new BigInt64Array([0n, 9999n]),
+            values: new Float32Array([8, 9]),
+          });
+        }
+
+        provider.requestViews(view(2000n, 3000n, 1000));
+        assert.equal(calls[0].signal.aborted, true);
+
+        assert.equal(
+          provider.pointsFor("main", 0, 2000n, 3000n)?.[1],
+          delivery === "complete" ? 8 : undefined,
+        );
+
+        t.mock.timers.tick(50);
+        calls[1].reject(new Error("truncated"));
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.equal(provider.pointsFor("main", 0, 2000n, 3000n), undefined);
+      } finally {
+        provider.dispose();
+      }
+    });
+  }
+
+  it("replaces rather than accumulates retained views across repeated supersessions", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { provider, calls, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(0n, 10000n, 1000), true);
+      t.mock.timers.tick(1);
+
+      calls[0].emit({
+        kind: "data",
+        complete: true,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([0n, 9999n]),
+        values: new Float32Array([8, 9]),
+      });
+
+      provider.requestViews(view(2000n, 3000n, 1000));
+      t.mock.timers.tick(50);
+      // A second supersession with no data must not lose the previous fallback.
+      provider.requestViews(view(1900n, 3100n, 1000));
+      assert.equal(provider.pointsFor("main", 0, 1900n, 3100n)?.[1], 8);
+      t.mock.timers.tick(50);
+
+      calls[2].emit({
+        kind: "data",
+        complete: true,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([1900n, 3099n]),
+        values: new Float32Array([7, 7]),
+      });
+
+      provider.requestViews(view(2100n, 2200n, 1000));
+      assert.equal(provider.pointsFor("main", 0, 2100n, 2200n)?.[1], 7);
+      assert.equal(provider.pointsFor("main", 0, 0n, 10000n), undefined);
+
+      // Late data from an aborted request cannot replace retained coverage.
+      calls[0].emit({
+        kind: "data",
+        complete: true,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([0n, 9999n]),
+        values: new Float32Array([99, 99]),
+      });
+
+      assert.equal(provider.pointsFor("main", 0, 2100n, 2200n)?.[1], 7);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("bounds retained view payload to 262144 resource-points", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { provider, calls, view } = prefetchFixture(9);
+
+    try {
+      provider.requestViews(view(0n, 1000000n, 32768), true);
+      t.mock.timers.tick(1);
+
+      for (let resourceIndex = 0; resourceIndex < 9; resourceIndex++) {
+        calls[0].emit({
+          kind: "data",
+          complete: true,
+          resourceIndex,
+          viewIndex: 0,
+          indices: new BigInt64Array(32768),
+          values: new Float32Array(32768),
+        });
+      }
+
+      provider.requestViews(view(100n, 200n, 32768));
+      assert.equal(calls[0].signal.aborted, true);
+      assert.equal(provider.pointsFor("main", 0, 100n, 200n), undefined);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  for (const cleanup of ["cancel", "dispose", "uncovered"] as const) {
+    it(`clears retained previews on ${cleanup}`, (t) => {
+      t.mock.timers.enable({ apis: ["setTimeout"] });
+      const { provider, calls, view } = prefetchFixture();
+
+      try {
+        provider.requestViews(view(0n, 10000n, 1000), true);
+        t.mock.timers.tick(1);
+
+        calls[0].emit({
+          kind: "data",
+          complete: true,
+          resourceIndex: 0,
+          viewIndex: 0,
+          indices: new BigInt64Array([0n, 9999n]),
+          values: new Float32Array([8, 9]),
+        });
+
+        provider.requestViews(view(2000n, 3000n, 1000));
+        assert.equal(provider.pointsFor("main", 0, 2000n, 3000n)?.[1], 8);
+
+        if (cleanup === "uncovered") {
+          provider.requestViews(view(20000n, 21000n, 1000));
+        } else {
+          provider[cleanup]();
+        }
+
+        assert.equal(provider.pointsFor("main", 0, 2000n, 3000n), undefined);
+      } finally {
+        provider.dispose();
+      }
+    });
+  }
 
   it("notifies subscribers when completed prefetch coverage becomes available", async () => {
     const { provider, calls, finish, view } = prefetchFixture();
@@ -528,10 +736,12 @@ describe("remote viewport provider", () => {
       await Promise.resolve();
       await Promise.resolve();
       t.mock.timers.tick(50);
+
       assert.deepEqual(
         calls[1].request.views.map((view) => view.id),
         ["main", "detail"],
       );
+
       finish(1);
       await Promise.resolve();
       await Promise.resolve();

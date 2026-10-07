@@ -361,7 +361,8 @@ export class RemoteVisualization {
   readonly ranges = new Map<number, GpuRange>();
   private readonly listeners = new Set<() => void>();
   private readonly cache = new Map<string, CachedView>();
-  private readonly previews = new Map<number, CachedView>();
+  private readonly previews = new Map<number, CachedView & { complete: boolean }>();
+  private retainedPreview?: CachedView;
   private readonly positioned = new Map<
     string,
     { source: VisualizationPoints; begin: bigint; end: bigint; points: Float32Array }
@@ -459,6 +460,7 @@ export class RemoteVisualization {
     this.foregroundViews = [];
     this.prefetchController = undefined;
     this.previews.clear();
+    this.retainedPreview = undefined;
     this.protectedViews.clear();
     this.requestedViews = [];
     this.loading = false;
@@ -490,6 +492,15 @@ export class RemoteVisualization {
     this.viewportKey = key;
     this.requestedViews = views;
     this.error = "";
+    const retainedPreview = this.retainedPreview;
+
+    if (
+      retainedPreview &&
+      !views.some((view) => retainedPreview.begin <= view.begin && retainedPreview.end >= view.end)
+    ) {
+      this.retainedPreview = undefined;
+    }
+
     const main = views.find((view) => view.id === "main");
     const now = performance.now();
     const previousMain = this.mainView;
@@ -568,6 +579,28 @@ export class RemoteVisualization {
       );
 
     if (this.controller && !useful) {
+      // Keep one fully delivered view for display only; the aborted stream must
+      // never satisfy cachedView() or suppress boundary-correct refinement.
+      this.retainedPreview = target
+        ? [
+            ...[...this.previews.values()].filter((view) => view.complete),
+            ...(this.retainedPreview ? [this.retainedPreview] : []),
+          ]
+            .filter(
+              (view) =>
+                view.begin <= target.begin &&
+                view.end >= target.end &&
+                view.budget <= 32768 &&
+                view.points.reduce((sum, point) => sum + point.values.length, 0) <= 262144,
+            )
+            .sort(
+              (a, b) =>
+                Number(
+                  this.strideOf(a.begin, a.end, a.budget) - this.strideOf(b.begin, b.end, b.budget),
+                ) || Number(a.end - a.begin - (b.end - b.begin)),
+            )[0]
+        : undefined;
+
       this.generation++;
       this.controller.abort();
       this.controller = undefined;
@@ -587,6 +620,7 @@ export class RemoteVisualization {
     });
 
     if (!missing.length) {
+      this.retainedPreview = undefined;
       clearTimeout(this.foregroundTimer);
       this.foregroundTimer = undefined;
       this.loading = false;
@@ -957,7 +991,16 @@ export class RemoteVisualization {
             // Stream previews require coverage for every series. Cache publication
             // remains transactional until explicit stream completion.
             if (!prefetch && points.every(Boolean)) {
-              this.previews.set(frame.viewIndex, { ...view, budget: view.maxPoints, points });
+              this.previews.set(frame.viewIndex, {
+                ...view,
+                budget: view.maxPoints,
+                points,
+                complete: points.every(
+                  (point, resourceIndex) =>
+                    staged.get(`${frame.viewIndex}:${resourceIndex}`) === point,
+                ),
+              });
+
               this.notify();
             }
           } else if (!prefetch) {
@@ -1114,6 +1157,10 @@ export class RemoteVisualization {
         error: String(error),
       });
 
+      if (!prefetch && generation === this.generation) {
+        this.retainedPreview = undefined;
+      }
+
       if (
         !prefetch &&
         generation === this.generation &&
@@ -1134,6 +1181,10 @@ export class RemoteVisualization {
         } else {
           this.previews.clear();
           this.loading = !this.error && this.requestedViews.some((view) => !this.cachedView(view));
+
+          if (!this.loading) {
+            this.retainedPreview = undefined;
+          }
 
           if (this.loading) {
             this.progress = 0;
@@ -1169,7 +1220,11 @@ export class RemoteVisualization {
     );
     const compatible = (view: CachedView) =>
       this.coversBoundaries(view, requested?.begin ?? begin, requested?.end ?? end);
-    const candidates = [...this.previews.values(), ...this.cache.values()]
+    const candidates = [
+      ...this.previews.values(),
+      ...this.cache.values(),
+      ...(this.retainedPreview ? [this.retainedPreview] : []),
+    ]
       .filter((view) => view.begin <= begin && view.end >= end)
       .sort(
         (a, b) =>
@@ -1191,6 +1246,7 @@ export class RemoteVisualization {
         end: String(view.end),
         budget: view.budget,
         prefetched: view.prefetched === true,
+        retained: view === this.retainedPreview,
         compatible: compatible(view),
         stride: String(this.strideOf(view.begin, view.end, view.budget)),
       })),

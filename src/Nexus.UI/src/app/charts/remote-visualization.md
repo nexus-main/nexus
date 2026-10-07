@@ -38,7 +38,13 @@ additional configuration header is currently installed by `invoke`.
   already domain-relative indices. EOF is not completion.
 - Partial and completed streaming replacements become previews once every series
   in the view is present. Cache publication waits for successful explicit stream
-  completion. Errors/cancellation discard previews and retain completed coverage.
+  completion. A viewport supersession can retain one fully delivered view (every
+  resource marked complete) as a display-only fallback, bounded by 32768 points per
+  resource and 262144 resource-points total. It never satisfies a cache hit or
+  suppresses refinement. Incomplete previews are discarded. The fallback is cleared
+  on foreground failure, explicit cancel/disposal, loss of coverage, or when the
+  latest views are satisfied by the completed cache. Trace candidates identify it
+  with `retained: true`.
 - The cache retains one full-domain fallback and recent views, bounded by eight
   entries and 32 MiB of point payload. Repositioned arrays retain at most one view
   per target/resource. There is no raw network prefetch or automatic two-million
