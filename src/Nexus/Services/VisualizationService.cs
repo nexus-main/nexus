@@ -577,7 +577,7 @@ internal sealed class VisualizationService(
         public void Report(double value) { }
     }
 
-    private sealed class ViewPlan
+    internal sealed class ViewPlan
     {
         public long Begin { get; }
         public long End { get; }
@@ -588,8 +588,18 @@ internal sealed class VisualizationService(
             Begin = begin;
             End = end;
 
-            while (((end - 1) / Stride - begin / Stride + 1) * (Stride == 1 ? 1 : 5) > maxPoints)
-                Stride *= 4;
+            long span = end - begin;
+
+            if (span <= maxPoints)
+                return;
+
+            int capacity = maxPoints / 5;
+            // Reserve a boundary bucket so panning cannot change the stride for a fixed span.
+            // A single-summary budget must instead fit the actual absolute-lattice alignment.
+            // Query strides double atop the unchanged factor-four stored pyramid; strides
+            // at least 256 remain base-bucket multiples and only need raw view boundaries.
+            while ((capacity >= 2 ? (span - 2) / Stride + 2 : (end - 1) / Stride - begin / Stride + 1) > capacity)
+                Stride *= 2;
         }
     }
 

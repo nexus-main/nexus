@@ -27,6 +27,147 @@ namespace Services;
 
 public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper output)
 {
+    [Fact]
+    public void ViewPlanFixedSpanHasSameStrideAtEveryAlignment()
+    {
+        const long span = 819200;
+
+        foreach (long origin in new[] { 0L, DateTime.MaxValue.Ticks - span - 2048 })
+        for (int shift = 0; shift < 2048; shift++)
+        {
+            long begin = origin + shift;
+            var plan = new VisualizationService.ViewPlan(begin, begin + span, 4000);
+            Assert.Equal(2048, plan.Stride);
+        }
+    }
+
+    [Theory]
+    [InlineData(4000, 1)]
+    [InlineData(4001, 8)]
+    public void ViewPlanPreservesRawBoundary(int span, long expectedStride)
+    {
+        foreach (long begin in new[] { 0L, 1L, 4095L, DateTime.MaxValue.Ticks - span })
+        {
+            var plan = new VisualizationService.ViewPlan(begin, begin + span, 4000);
+            Assert.Equal(begin, plan.Begin);
+            Assert.Equal(begin + span, plan.End);
+            Assert.Equal(expectedStride, plan.Stride);
+        }
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(16)]
+    [InlineData(4000)]
+    [InlineData(32768)]
+    public void ViewPlanCapsPointsAndChoosesSmallestPermittedBinaryStride(int maxPoints)
+    {
+        foreach (long span in new[] { 1L, maxPoints, maxPoints + 1L, 819200L, DateTime.MaxValue.Ticks })
+        foreach (long begin in new[] { 0L, (DateTime.MaxValue.Ticks - span) / 2, DateTime.MaxValue.Ticks - span })
+        {
+            long end = begin + span;
+            var plan = new VisualizationService.ViewPlan(begin, end, maxPoints);
+            Assert.True(plan.Stride > 0 && (plan.Stride & (plan.Stride - 1)) == 0);
+            long buckets = (end - 1) / plan.Stride - begin / plan.Stride + 1;
+            Assert.InRange(buckets * (plan.Stride == 1 ? 1 : 5), 1, maxPoints);
+
+            if (span <= maxPoints)
+            {
+                Assert.Equal(1, plan.Stride);
+                continue;
+            }
+
+            int capacity = maxPoints / 5;
+            long previousStride = plan.Stride / 2;
+
+            if (capacity >= 2)
+            {
+                Assert.True((span - 2) / plan.Stride + 2 <= capacity);
+                Assert.True((span - 2) / previousStride + 2 > capacity);
+            }
+            else
+                Assert.True((end - 1) / previousStride - begin / previousStride + 1 > capacity);
+        }
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(9)]
+    public void ViewPlanSingleSummaryBudgetRetainsAlignmentException(int maxPoints)
+    {
+        Assert.Equal(16, new VisualizationService.ViewPlan(0, 10, maxPoints).Stride);
+        Assert.Equal(32, new VisualizationService.ViewPlan(15, 25, maxPoints).Stride);
+        long boundary = 1L << 61;
+        Assert.Equal(1L << 62, new VisualizationService.ViewPlan(boundary - 1, boundary + 9, maxPoints).Stride);
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(16)]
+    [InlineData(4000)]
+    [InlineData(32768)]
+    public void ViewPlanCoarseTransitionsAreAtMostTwofold(int maxPoints)
+    {
+        int capacity = maxPoints / 5;
+
+        for (long stride = 2; stride <= 1L << 40; stride *= 2)
+        {
+            long span = (capacity - 1) * stride + 1;
+
+            if (span <= maxPoints)
+                continue;
+
+            long begin = DateTime.MaxValue.Ticks - span - 1;
+            var before = new VisualizationService.ViewPlan(begin, begin + span, maxPoints);
+            var after = new VisualizationService.ViewPlan(begin, begin + span + 1, maxPoints);
+            Assert.Equal(stride, before.Stride);
+            Assert.Equal(before.Stride * 2, after.Stride);
+        }
+    }
+
+    [Theory]
+    [InlineData(400, 512, 0)]
+    [InlineData(400, 512, 1)]
+    [InlineData(100, 2048, 0)]
+    [InlineData(100, 2048, 1)]
+    [InlineData(25, 8192, 0)]
+    [InlineData(25, 8192, 1)]
+    public async Task IntermediateBinaryStridesOnlyReadRawViewBoundaries(int maxPoints, long stride, int shift)
+    {
+        using var fixture = new Fixture { Delay = TimeSpan.Zero };
+        await fixture.RunAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]));
+        int samples = fixture.Samples;
+        long origin = fixture.Begin.Ticks / TimeSpan.TicksPerSecond;
+        int begin = 8192 + (int)((256 - origin % 256) % 256) + shift;
+        int end = begin + 32768;
+        var plan = new VisualizationService.ViewPlan(origin + begin, origin + end, maxPoints);
+        Assert.Equal(stride, plan.Stride);
+        var rows = await fixture.RunAsync(fixture.Request([fixture.View("detail", begin, end, maxPoints)]));
+        Assert.Equal(2, rows.Last().Kind);
+        Assert.Equal(shift == 0 ? 0 : 2 * 256 * 2, fixture.Samples - samples);
+        var expected = new List<VisualizationPoint>();
+
+        for (long start = plan.Begin; start < plan.End;)
+        {
+            long stop = Math.Min(plan.End, (start / stride + 1) * stride);
+            var values = Enumerable.Range(0, (int)(stop - start)).Select(i => (float)((start - origin + i) % 1000)).ToArray();
+            expected.AddRange(VisualizationReduction.Project(VisualizationReduction.Summarize(values, start)));
+            start = stop;
+        }
+
+        var data = rows.Where(row => row.Kind == 0).ToArray();
+        Assert.Equal(2, data.Length);
+
+        foreach (var row in data)
+        {
+            Assert.InRange(row.Values.Length, 1, maxPoints);
+            Assert.Equal(expected.Select(point => point.Index - origin), row.Indices);
+            Assert.Equal(expected.Select(point => point.Value), row.Values);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
