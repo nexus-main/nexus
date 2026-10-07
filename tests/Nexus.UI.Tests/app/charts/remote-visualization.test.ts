@@ -1048,14 +1048,43 @@ describe("remote viewport provider", () => {
       }
 
       await delay(280);
-      assert.equal(calls.length, 9);
-      finish(8);
-      await delay(10);
-      // Full visited cache rejects speculation and stops the remaining queue.
-      assert.equal(calls.length, 9);
+      // Full visited cache suppresses speculation before any network request.
+      assert.equal(calls.length, 8);
       provider.requestViews(view(0n, 100n), true);
       await delay(5);
-      assert.equal(calls.length, 9);
+      assert.equal(calls.length, 8);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("replaces unvisited speculative entries without evicting a full visited history", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      for (let i = 0; i < 7; i++) {
+        provider.requestViews(view(BigInt(i) * 1000000n, BigInt(i) * 1000000n + 500000n), true);
+        await delay(5);
+        finish(i);
+        await delay(5);
+      }
+
+      await delay(280);
+
+      // Seven visited entries leave one slot; subsequent predictions can replace
+      // the unvisited prediction in that slot instead of downloading and dropping.
+      for (let i = 7; i < 11; i++) {
+        assert.equal(calls.length, i + 1);
+        finish(i);
+        await delay(5);
+      }
+
+      for (let i = 0; i < 7; i++) {
+        provider.requestViews(view(BigInt(i) * 1000000n, BigInt(i) * 1000000n + 500000n), true);
+        assert.equal(provider.loading, false);
+        await delay(5);
+        assert.equal(calls.length, 11);
+      }
     } finally {
       provider.dispose();
     }
