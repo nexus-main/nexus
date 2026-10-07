@@ -45,6 +45,8 @@ import { provideSeriesChunk, uploadSeries } from "./chart-upload";
 import { LegendNameDirective } from "./legend-name.directive";
 import { formatLegendValue } from "./legend-text";
 import { AppTooltipDirective } from "../app-tooltip.directive";
+import { ButtonModule } from "primeng/button";
+import { ProgressBarModule } from "primeng/progressbar";
 
 let nextChartId = 0;
 
@@ -60,7 +62,7 @@ interface SeriesState {
 @Component({
   selector: "nexus-visualization-chart",
   standalone: true,
-  imports: [LegendNameDirective, AppTooltipDirective],
+  imports: [LegendNameDirective, AppTooltipDirective, ButtonModule, ProgressBarModule],
   templateUrl: "./visualization-chart.component.html",
   styleUrl: "./visualization-chart.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -91,7 +93,12 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   private pollTimer: ReturnType<typeof setTimeout> | undefined;
   private resizeObserver?: ResizeObserver;
   private dprQuery?: MediaQueryList;
-  private readonly onResize = (): void => this.scheduleDraw();
+  private unsubscribeRemote?: () => void;
+  private cursorPosition?: { x: number; y: number };
+  private readonly onResize = (): void => {
+    this.requestRemoteViews();
+    this.scheduleDraw();
+  };
   private readonly onDprChange = (): void => {
     this.watchDpr();
     this.scheduleDraw();
@@ -156,6 +163,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     }
 
     if (this.data !== this.activeData) {
+      this.unsubscribeRemote?.();
       this.cancelSession();
       this.api?.chart.clearAuxiliary(this.chartId);
       this.api?.chart.dispose(this.chartId);
@@ -165,8 +173,26 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       this.activeData = this.data;
       this.states.clear();
       this.hidden.clear();
-      this.viewport = { ...FULL_VIEWPORT };
+      this.viewport = { ...(this.data?.navigation?.viewport ?? FULL_VIEWPORT) };
+
+      for (const id of this.data?.navigation?.hidden ?? []) {
+        this.hidden.add(id);
+      }
+
+      this.saveNavigation();
       this.errorTitle = null;
+
+      this.unsubscribeRemote = this.data?.remote?.subscribe(() => {
+        this.rebuildAxes();
+        this.changeDetector.markForCheck();
+        this.scheduleDraw();
+
+        if (this.cursorPosition) {
+          this.drawAuxiliary(this.cursorPosition.x, this.cursorPosition.y);
+        }
+      });
+
+      this.requestRemoteViews(true);
     }
 
     // A same-reference input update is also used for settings and stream progress.
@@ -285,6 +311,10 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   private cancelSession(): void {
+    this.activeData?.remote?.cursor?.cancel();
+    this.cursorPosition = undefined;
+    this.activeData?.remote?.cancel();
+
     this.controller.abort(
       Object.assign(new Error("Chart data or GPU session was superseded."), {
         webGpuCancelled: true,
@@ -314,6 +344,10 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   private ensureUploads(): void {
+    if (this.data?.remote) {
+      return;
+    }
+
     if (!this.api || !this.data || this.errorTitle) {
       return;
     }
@@ -381,7 +415,11 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
       const ranges = this.series
         .filter((item) => item.unit === series.unit)
-        .map((item) => this.states.get(item.id)?.range)
+        .map(
+          (item) =>
+            this.data?.remote?.ranges.get(this.series.indexOf(item)) ??
+            this.states.get(item.id)?.range,
+        )
         .filter((range): range is GpuRange => !!range?.hasValue);
 
       this.axes.set(
@@ -403,6 +441,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     }
 
     this.api?.chart.clearAuxiliary(this.chartId);
+    this.saveNavigation();
     this.scheduleDraw();
   }
 
@@ -440,11 +479,31 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       return;
     }
 
+    const horizontalChanged =
+      next.left !== this.viewport.left || next.right !== this.viewport.right;
+
     this.viewport = next;
+    this.saveNavigation();
+
+    if (horizontalChanged) {
+      this.requestRemoteViews();
+    }
+
     this.rebuildAxes();
     // Keep the readout visible until the post-zoom pointer refresh replaces it.
     this.changeDetector.markForCheck();
     this.scheduleDraw();
+  }
+
+  private saveNavigation(): void {
+    if (this.data) {
+      this.data.navigation = { viewport: { ...this.viewport }, hidden: new Set(this.hidden) };
+    }
+  }
+
+  cursorLeave(): void {
+    this.cursorPosition = undefined;
+    this.data?.remote?.cursor?.cancel();
   }
 
   private drawAuxiliary(x: number, y: number): void {
@@ -453,16 +512,28 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     }
 
     const time = this.zoomedBegin + scaleTicks(this.zoomedEnd - this.zoomedBegin, x);
+
+    this.cursorPosition = { x, y };
+    const cursor = this.data.remote?.cursor;
+    const period = this.series[0]?.samplePeriod;
+
+    if (cursor && period) {
+      cursor.request((time - this.data.begin + period / 2n) / period);
+    }
+
     const updates = this.series.map((series) => {
       const axis = this.axes.get(series.unit)!;
-      const step = Number(series.samplePeriod) / Number(this.duration);
-      const width = this.viewport.right - this.viewport.left;
-      const index = roundAway((this.viewport.left + x * width) / step);
-      const value =
-        index >= 0 && index < series.availableLength
+      const index = Number(
+        (time - this.data!.begin + series.samplePeriod / 2n) / series.samplePeriod,
+      );
+      const value = cursor
+        ? cursor.value(this.series.indexOf(series), BigInt(index))
+        : index >= 0 && index < series.availableLength
           ? series.chunks[Math.floor(index / CHUNK_LENGTH)]?.[index % CHUNK_LENGTH]
           : undefined;
-      const pointX = (index * step - this.viewport.left) / width;
+      const pointX =
+        Number(this.data!.begin + BigInt(index) * series.samplePeriod - this.zoomedBegin) /
+        Number(this.zoomedEnd - this.zoomedBegin);
       const pointY = value === undefined ? NaN : (value - axis.min) / (axis.max - axis.min);
       const visible =
         !this.hidden.has(series.id) &&
@@ -473,7 +544,14 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         pointY >= 0 &&
         pointY <= 1;
       const digits = clamp(-roundAway(Math.log10(axis.max - axis.min)) + 2, 0, 100);
-      const text = visible ? formatLegendValue(value!, digits) : "--";
+      const text =
+        this.data?.remote && value === undefined
+          ? cursor?.error
+            ? "Exact value unavailable"
+            : "Exact value pending"
+          : visible
+            ? formatLegendValue(value!, digits)
+            : "--";
 
       return { id: series.id, visible, x: pointX, y: 1 - pointY, text };
     });
@@ -503,6 +581,56 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         this.fail("Chart rendering failed", String(error));
       }
     });
+  }
+
+  requestRemoteViews(immediate = false): void {
+    const data = this.data;
+
+    if (!data?.remote) {
+      return;
+    }
+
+    const width = this.chartElement?.nativeElement.clientWidth ?? 1000;
+    // Limit the point payload across three views to approximately 4 MiB.
+    const budget = Math.max(
+      16,
+      Math.min(
+        32768,
+        Math.ceil(width * 4),
+        Math.floor((4 * 1024 * 1024) / (12 * 3 * data.series.length)),
+      ),
+    );
+    const views = [
+      { id: "overview", begin: data.begin, end: data.end, maxPoints: budget },
+      { id: "main", begin: this.zoomedBegin, end: this.zoomedEnd, maxPoints: budget },
+    ];
+
+    if (this.detail.visible) {
+      views.push({
+        id: "detail",
+        begin: toTime(data.begin, data.end, this.detail.left),
+        end: toTime(data.begin, data.end, this.detail.right),
+        maxPoints: budget,
+      });
+    }
+
+    const period = data.remote.samplePeriod;
+    const length = (data.end - data.begin) / period;
+
+    data.remote.requestViews(
+      views.map((view) => {
+        // Include a sample halo and align requests, not the user's viewport.
+        const first = (view.begin - data.begin) / period;
+        const last = (view.end - data.begin + period - 1n) / period;
+
+        return {
+          ...view,
+          begin: data.begin + (first > 0n ? first - 1n : 0n) * period,
+          end: data.begin + (last < length ? last + 1n : length) * period,
+        };
+      }),
+      immediate,
+    );
   }
 
   private draw(): void {
@@ -643,17 +771,53 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
           dataVersion: state?.version ?? source.version,
           length: source.length,
           sampleStep: this.duration > 0n ? Number(source.samplePeriod) / Number(this.duration) : 0,
+          pointBudget: Math.max(
+            16,
+            Math.min(
+              32768,
+              Math.ceil(this.chartElement.nativeElement.clientWidth * 4),
+              Math.floor((4 * 1024 * 1024) / (12 * 3 * this.series.length)),
+            ),
+          ),
         },
       ];
     });
     const gpu = this.api!.chartWebGpu;
+    const remoteSeries = (target: string, begin: bigint, end: bigint): SeriesPayload[] => {
+      if (!this.data?.remote) {
+        return series.map((item) => {
+          const source = this.series.find((source) => source.id === item.id)!;
+          const first = Number((begin - this.data!.begin) / source.samplePeriod);
+          const last = Number(
+            (end - this.data!.begin + source.samplePeriod - 1n) / source.samplePeriod,
+          );
+
+          return {
+            ...item,
+            viewFirst: Math.max(0, first - 1),
+            viewEnd: Math.min(source.length, last + 1),
+          };
+        });
+      }
+
+      return series.flatMap((item) => {
+        const points = this.data!.remote!.pointsFor(
+          target,
+          this.series.findIndex((source) => source.id === item.id),
+          begin,
+          end,
+        );
+
+        return points ? [{ ...item, remotePoints: points }] : [];
+      });
+    };
 
     gpu.renderSeries(this.chartId, {
       plot,
       zoom: this.viewport,
       lineWidth: 0.7,
       fillOpacity: 0.1,
-      series,
+      series: remoteSeries("main", this.zoomedBegin, this.zoomedEnd),
     });
 
     gpu.renderSeries(this.chartId, {
@@ -663,7 +827,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       zoom: { left: 0, right: 1 },
       lineWidth: 0.65,
       fillOpacity: 0.08,
-      series,
+      series: remoteSeries("overview", this.data?.begin ?? 0n, this.data?.end ?? 1n),
     });
 
     if (this.detail.visible) {
@@ -674,7 +838,11 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         zoom: this.detail,
         lineWidth: 0.65,
         fillOpacity: 0.08,
-        series,
+        series: remoteSeries(
+          "detail",
+          toTime(this.data!.begin, this.data!.end, this.detail.left),
+          toTime(this.data!.begin, this.data!.end, this.detail.right),
+        ),
       });
     } else {
       gpu.releaseTarget(this.chartId, "navigator-detail-series");
@@ -683,6 +851,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
   ngOnDestroy(): void {
     this.disposed = true;
+    this.unsubscribeRemote?.();
+    this.data?.remote?.cancel();
     this.cancelSession();
     cancelAnimationFrame(this.frame);
     this.resizeObserver?.disconnect();

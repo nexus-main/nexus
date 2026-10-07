@@ -28,6 +28,10 @@ interface AuxiliaryUpdate {
   text: string;
 }
 export interface SeriesPayload {
+  remotePoints?: Float32Array;
+  pointBudget?: number;
+  viewFirst?: number;
+  viewEnd?: number;
   id: string;
   show: boolean;
   color: { red: number; green: number; blue: number; alpha: number };
@@ -79,6 +83,8 @@ export interface ChartInterop {
       seriesId: string,
       version: number,
       length: number,
+      origin?: bigint,
+      readRange?: (offset: number, count: number) => Promise<Float32Array>,
     ): Promise<number>;
     appendChunkedSeries(
       id: string,

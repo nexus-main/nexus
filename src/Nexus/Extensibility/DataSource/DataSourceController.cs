@@ -60,7 +60,8 @@ internal class DataSourceController(
     IProcessingService processingService,
     ICacheService cacheService,
     DataOptions dataOptions,
-    ILogger<DataSourceController> logger
+    ILogger<DataSourceController> logger,
+    bool strictReads = false
 ) : IDataSourceController
 {
     private static readonly JsonSerializerOptions _sourceConfigurationJsonOptions = new(JsonSerializerOptions.Web)
@@ -363,6 +364,11 @@ internal class DataSourceController(
 
         readingTasks.Add(originalTask);
 
+        // Independent visualization workers own separate instances. Within an instance,
+        // original and derived reads must never overlap, including different resources.
+        if (strictReads)
+            await originalTask.ConfigureAwait(false);
+
         /* 'Processing' branch
             *  - Read cached data into readUnit.DataWriter
             *  - Read remaining data into readUnit.ReadRequest
@@ -416,6 +422,9 @@ internal class DataSourceController(
                     cancellationToken);
 
             readingTasks.Add(processingTask);
+
+            if (strictReads)
+                await processingTask.ConfigureAwait(false);
         }
 
         /* wait for tasks to finish */
@@ -668,7 +677,7 @@ internal class DataSourceController(
 
             List<Interval> uncachedIntervals;
 
-            var disableCache = _dataOptions.CachePattern is not null && !Regex.IsMatch(cacheItem.Catalog.Id, _dataOptions.CachePattern);
+            var disableCache = strictReads || (_dataOptions.CachePattern is not null && !Regex.IsMatch(cacheItem.Catalog.Id, _dataOptions.CachePattern));
 
             if (disableCache)
             {
@@ -761,29 +770,38 @@ internal class DataSourceController(
         {
             _logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
 
+            if (strictReads)
+                throw;
+
             targetBuffer.Span.Fill(double.NaN);
         }
         finally
         {
             /* convert double buffer to Float32 pipe bytes if needed */
-            if (readUnit.Precision == Precision.Float32)
+            try
             {
-                var buffer = readUnit.DataWriter
-                    .GetMemory(targetByteCount)[..targetByteCount];
+                if (readUnit.Precision == Precision.Float32)
+                {
+                    var buffer = readUnit.DataWriter
+                        .GetMemory(targetByteCount)[..targetByteCount];
 
-                var sourceSpan = targetBuffer.Span;
-                var targetSpan = MemoryMarshal.Cast<byte, float>(buffer.Span);
+                    var sourceSpan = targetBuffer.Span;
+                    var targetSpan = MemoryMarshal.Cast<byte, float>(buffer.Span);
 
-                for (int i = 0; i < targetElementCount; i++)
-                    targetSpan[i] = (float)sourceSpan[i];
+                    for (int i = 0; i < targetElementCount; i++)
+                        targetSpan[i] = (float)sourceSpan[i];
+                }
+
+                /* update progress */
+                _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+                readUnit.DataWriter.Advance(targetByteCount);
+                await readUnit.DataWriter.FlushAsync(cancellationToken);
+            }
+            finally
+            {
+                poolBuffer?.Dispose();
             }
 
-            /* update progress */
-            _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
-            readUnit.DataWriter.Advance(targetByteCount);
-            await readUnit.DataWriter.FlushAsync(cancellationToken);
-
-            poolBuffer?.Dispose();
         }
     }
 
@@ -842,6 +860,12 @@ internal class DataSourceController(
             samplePeriod,
             out containedRange))
         {
+            if (strictReads)
+            {
+                readUnit.DataWriter.Advance(targetByteCount);
+                await readUnit.DataWriter.FlushAsync(cancellationToken);
+            }
+
             return;
         }
 
@@ -854,7 +878,15 @@ internal class DataSourceController(
             : containedRange.End.RoundDown(baseSamplePeriod);
 
         if (roundedBegin >= roundedEnd)
+        {
+            if (strictReads)
+            {
+                readUnit.DataWriter.Advance(targetByteCount);
+                await readUnit.DataWriter.FlushAsync(cancellationToken);
+            }
+
             return;
+        }
 
         var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
 
@@ -913,6 +945,9 @@ internal class DataSourceController(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
+
+            if (strictReads)
+                throw;
 
             FillNaN(targetBuffer, readUnit.Precision);
         }

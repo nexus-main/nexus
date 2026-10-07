@@ -50,6 +50,28 @@ public class DataControllerTests
         Assert.Equal("invalid", result.Value);
     }
 
+    [Theory]
+    [InlineData(422, "invalid")]
+    [InlineData(404, "Could not find resource path /missing.")]
+    [InlineData(403, "The current user is not permitted to access the catalog /private.")]
+    public async Task VisualizationErrorsDoNotNegotiateArrow(int status, string message)
+    {
+        var request = new VisualizationRequest(default, default, [], []);
+        var visualization = new Mock<IVisualizationService>();
+        var error = status == 422 ? new ValidationException(message) : new Exception(message);
+        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(error);
+        var controller = CreateController(Mock.Of<IDataService>());
+        controller.Request.Headers.Accept = "application/vnd.apache.arrow.stream";
+
+        var actual = await controller.GetVisualizationAsync(request, visualization.Object, CancellationToken.None);
+        var result = Assert.IsType<ContentResult>(actual);
+
+        Assert.Equal(status, result.StatusCode);
+        Assert.Equal("text/plain", result.ContentType);
+        Assert.Equal(message, result.Content);
+    }
+
     private static DataController CreateController(IDataService service)
     {
         return new DataController(service)

@@ -1,4 +1,55 @@
 <div class="chart-container" [class.webgpu-unavailable]="errorTitle">
+  @if (data?.remote; as remote) {
+    <div
+      class="flex flex-wrap items-center gap-2 px-3 text-xs text-ink-muted"
+      role="status"
+      aria-live="polite"
+    >
+      @if (remote.loading) {
+        <span>Refining server view {{ (remote.progress * 100).toFixed(0) }}%</span>
+        <p-progressbar
+          class="w-24"
+          [value]="remote.progress * 100"
+          [showValue]="false"
+          ariaLabel="Server visualization progress"
+        />
+        <button
+          pButton
+          type="button"
+          size="small"
+          severity="secondary"
+          [text]="true"
+          (click)="remote.cancel()"
+        >
+          Cancel
+        </button>
+      } @else if (remote.error) {
+        <span>{{ remote.error }}</span>
+        <button
+          pButton
+          type="button"
+          size="small"
+          severity="secondary"
+          [text]="true"
+          (click)="requestRemoteViews(true)"
+        >
+          Retry
+        </button>
+      } @else {
+        <span>Server-reduced view. Cursor values are read exactly on demand.</span>
+        <button
+          pButton
+          type="button"
+          size="small"
+          severity="secondary"
+          [text]="true"
+          (click)="requestRemoteViews(true)"
+        >
+          Refine
+        </button>
+      }
+    </div>
+  }
   <div #chartElement [id]="'chart_' + chartId" class="chart">
     <canvas [id]="'series_' + chartId" class="series-layer" aria-hidden="true"></canvas>
     <canvas #axisCanvas class="axis-layer" aria-hidden="true"></canvas>
@@ -19,6 +70,7 @@
       [attr.data-zoom-bottom]="viewport.bottom"
       [attr.data-minimum-horizontal-zoom]="minimumHorizontalZoom"
       (dblclick)="resetZoom($event)"
+      (mouseleave)="cursorLeave()"
       aria-label="Time series plot. Drag to zoom; middle-button or modifier-drag to pan; wheel to zoom time; Shift-wheel to zoom values; double-click to reset."
     >
       <div [id]="'crosshairs-x_' + chartId" class="crosshairs-x" style="display: none"></div>

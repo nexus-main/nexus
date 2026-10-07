@@ -1,0 +1,157 @@
+# Backend visualization
+
+`POST /api/v2/data/visualization` is separate from the exact `POST /api/v2/data`
+endpoint. It requires the same catalog authorization, including on cache hits.
+
+```json
+{
+  "begin": "2020-01-01T00:00:00Z",
+  "end": "2020-01-02T00:00:00Z",
+  "resourcePaths": ["/SAMPLE/LOCAL/T1/1_s"],
+  "views": [
+    {
+      "id": "main",
+      "begin": "2020-01-01T00:00:00Z",
+      "end": "2020-01-02T00:00:00Z",
+      "maxPoints": 1000
+    }
+  ]
+}
+```
+
+Ranges are half-open, contained in the domain, and aligned to the common
+representation sample period. There must be 1-100 unique resource paths and 1-3
+unique nonblank view IDs. Each point budget is 5-32768, including endpoints; a
+separate aggregate budget applies across resources and views. Float32 normalization
+precedes reduction. Nonfinite samples are gaps; multigap buckets are conservatively
+suppressed by the shared visualization kernel rather than connected across gaps.
+
+## Arrow contract
+
+Content type: `application/vnd.apache.arrow.stream`. Schema metadata:
+`visualizationVersion=1`. All columns and list elements are nonnullable.
+
+| Column        | Type          | Meaning                                                             |
+| ------------- | ------------- | ------------------------------------------------------------------- |
+| kind          | int32         | 0 data, 1 progress/range, 2 complete, 3 error                       |
+| resourceIndex | int32         | Request array index, or -1                                          |
+| viewIndex     | int32         | Request array index, or -1                                          |
+| offset        | int64         | View start relative to domain begin; completion uses domain length  |
+| indices       | list<int64>   | Ordered sample indices relative to domain begin                     |
+| values        | list<float32> | Drawing values, NaN for gaps                                        |
+| progress      | float64       | Completed slice fraction, 1 on success, NaN on error                |
+| minimum       | float32       | Finite minimum over the entire domain when known, else NaN          |
+| maximum       | float32       | Finite maximum over the entire domain when known, else NaN          |
+| message       | utf8          | Empty for pending progress, `complete` for final data/range/success |
+
+Each batch currently contains one row. Nondrawing rows have empty lists. Pending
+progress has offset zero and does not claim contiguous coverage. Progress is
+flushed every 250 ms while waiting, including before the first slice completes.
+One final, complete replacement is sent for each requested resource/view. No
+partial data is exposed, so incomplete/out-of-order slices cannot create phantom
+connections. Global range rows precede the corresponding view rows. Errors after
+the header produce kind 3 with a generic message; details are logged server-side.
+Kind 2 is emitted only on success. EOF without kind 2 is not success.
+
+Invalid inputs or busy admission return 422 before the Arrow header; missing
+resources return 404 and denied catalogs return 403. Disconnect/cancellation drains
+workers before releasing permits and disposing plugin controllers.
+
+## Execution and limits
+
+Normal configuration binding uses `Data:Visualization`, including environment
+variables such as `NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREADS`.
+
+| Setting               | Default                                     |
+| --------------------- | ------------------------------------------- |
+| MaxConcurrentReads    | 4                                           |
+| MaxComputeWorkers     | 2                                           |
+| MaxConcurrentRequests | 4                                           |
+| TargetReadBytes       | 4194304                                     |
+| MaxAggregatePoints    | 262144                                      |
+| MaxSamples            | 1000000000 (domain samples times resources) |
+| MaxDatasetBytes       | 67108864                                    |
+| MemoryLimitBytes      | 268435456                                   |
+| DiskLimitBytes        | 2147483648                                  |
+| CacheTtl              | 00:10:00                                    |
+
+Read/compute permits are process-global, not per-request. Each worker creates and
+initializes its own pipeline controllers, reuses them across slices, and batches
+original resources sharing a pipeline. Strict visualization controllers serialize
+original/derived branches within each instance, propagate failures, and bypass the
+older derived cache. No plugin concurrency opt-in is required. Recursive reads
+reauthorize, create independent strict controllers, serialize sibling callbacks,
+and stay inside the owning worker permit to avoid recursive semaphore deadlocks.
+Dependencies are capped at depth eight and checked against the read-byte budget.
+
+Slices align to the absolute sample lattice and base stride 256. Byte estimates
+include native/status buffers, normalization, slice copies, and resampling halos.
+All requested views share the cold scan; raw detail needed for those views is
+retained during that scan. Base summaries and factor-four ancestors are retained.
+Compute permits cover base reduction, ancestor construction, and view projection.
+
+`MemoryLimitBytes` limits resident cached summaries, not the entire process. Active
+requests additionally retain at most `MaxDatasetBytes` of summaries and that same
+limit of raw viewport samples, plus bounded worker buffers and Arrow output.
+`MaxConcurrentRequests` bounds these active allocations. Plugin-internal allocations
+cannot be controlled by the host. Actual managed allocation overhead is additional.
+Large domains that exceed the configured summary budget receive 422; tune limits
+for the deployment rather than assuming multi-gigabyte cold scans are free.
+
+## Cache and limitations
+
+The cache is dataset-scoped: domain, ordered resource set, resolved/source/base
+catalog items, effective catalog ranges, pipeline configuration/IDs, package IDs,
+catalog metadata, user claims, captured request configuration, normalization version,
+and catalog/process generations all enter the key. Views do not. Summary arrays
+are stored together under `Paths:Cache/visualization-v1`, with memory/disk quotas
+and fixed expiry. Disk writes use temporary files and atomic rename. Quotas and
+expiry are maintained on access. The raw binary cache is process-generation scoped;
+it intentionally does not survive restart as a reusable cache.
+
+Warm overview/intermediate zoom uses summaries; partial base boundaries and fine
+zoom read only the visible base buckets, coalesced into byte-budgeted slices.
+There is no cross-request raw hot cache. Overlapping
+domains or different ordered resource sets do not share cached summaries. A cold
+main-only request still scans its whole domain to establish the global range and
+reusable pyramid. No provisional drawing frames are emitted during that scan.
+
+Scans invoking plugin `readData` callbacks are not cached: arbitrary dynamic
+dependencies are not represented by the outer cache key, and every subsequent
+request must reauthorize and resolve those dependencies. Built-in aggregation and
+resampling without such callbacks still use the visualization summary cache.
+
+Concurrent identical builds share their work and completed results. Cancellation
+of one consumer does not cancel work still required by another. The owner scope
+remains alive until shared work drains; the last consumer's cancellation stops
+the scan. Unversioned sources use TTL freshness,
+not snapshot guarantees. Warm raw fragments can reflect newer source data than
+the cached pyramid until expiry. Kernel and synthetic pipeline measurements are
+recorded in `benchmarks/Nexus.Benchmarks/VisualizationReduction.md` and
+`tests/Nexus.Tests/Services/VisualizationReview.md`; these are not NVMe benchmarks.
+
+## Large-server example
+
+The conservative default summary limit rejects some multi-gigabyte domains.
+For approximately 10 GiB of Float32 samples across the selected resources,
+the following is a starting configuration, not a measured optimum:
+
+```json
+{
+  "Data": {
+    "Visualization": {
+      "MaxConcurrentReads": 8,
+      "MaxComputeWorkers": 8,
+      "TargetReadBytes": 33554432,
+      "MaxSamples": 4000000000,
+      "MaxDatasetBytes": 1073741824,
+      "MemoryLimitBytes": 2147483648,
+      "DiskLimitBytes": 17179869184
+    }
+  }
+}
+```
+
+Budget active requests in addition to the resident cache. Tune concurrency using
+the actual plugin and RAID layout, including cold storage reads, rather than
+extrapolating the synthetic in-memory benchmark.

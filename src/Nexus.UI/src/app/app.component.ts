@@ -37,6 +37,7 @@ import { ToastModule } from "primeng/toast";
 import { AppTooltipDirective } from "./app-tooltip.directive";
 import { DrawerPassThrough } from "primeng/types/drawer";
 import { BrowserStorageService } from "./services/browser-storage.service";
+import { RemoteVisualization } from "./charts/remote-visualization";
 import { VisualizationChartComponent } from "./charts/visualization-chart.component";
 import {
   VisualizationBuffers,
@@ -303,6 +304,9 @@ export class AppComponent implements OnDestroy {
   readonly visualizationProgress = signal(0);
   readonly visualizationError = signal("");
   readonly visualizationBeginAtZero = signal(false);
+  readonly visualizationServerReduction = signal(
+    this.storage.getJson<unknown>("nexus.visualizationServerReduction", false) === true,
+  );
   readonly visualizationCacheMiB = signal(2048);
   private visualizationController?: AbortController;
   private visualizationBuffers?: VisualizationBuffers;
@@ -1117,8 +1121,42 @@ export class AppComponent implements OnDestroy {
 
       controller.signal.throwIfAborted();
 
+      if (
+        existing &&
+        existing.begin === data.begin &&
+        existing.end === data.end &&
+        existing.series.length === data.series.length &&
+        existing.series.every(
+          (series, i) =>
+            series.id === data.series[i].id && series.samplePeriod === data.series[i].samplePeriod,
+        )
+      ) {
+        data.navigation = existing.navigation;
+      }
+
+      if (this.visualizationServerReduction()) {
+        releaseVisualizationData(existing);
+
+        data.remote = new RemoteVisualization(
+          data.begin,
+          data.end,
+          samplePeriod,
+          descriptors.map((item) => item.id),
+          (request, signal, onFrame) =>
+            this.nexus.loadVisualization(request, BigInt(data.series[0].length), signal, onFrame),
+          (begin, end, paths, count, signal) =>
+            this.nexus.loadCursor(begin, end, paths, count, signal),
+        );
+
+        this.visualizationData.set(data);
+        this.loadedVisualizationKey.set(key);
+
+        return;
+      }
+
       const canIncremental =
         !!existing &&
+        !existing.remote &&
         existing.begin === data.begin &&
         existing.end === data.end &&
         existing.series[0]?.samplePeriod === samplePeriod;
@@ -1246,6 +1284,12 @@ export class AppComponent implements OnDestroy {
 
     this.cancelVisualization();
     this.visualizationError.set(message);
+  }
+
+  setVisualizationServerReduction(value: boolean): void {
+    this.visualizationServerReduction.set(value);
+    this.storage.setJson("nexus.visualizationServerReduction", value);
+    void this.visualize(false);
   }
 
   setVisualizationCache(value: number | null) {

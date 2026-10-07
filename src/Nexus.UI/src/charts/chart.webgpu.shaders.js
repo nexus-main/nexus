@@ -11,7 +11,7 @@
   const maxRangeWorkgroups = 1024;
   const defaultCacheBudget = 512 * 1024 * 1024;
   const overviewBucketSize = 256;
-  const reducedPointsPerBucket = 3;
+  const reducedPointsPerBucket = 5;
   const streamChunkLength = 4 * 1024 * 1024;
   const rawChunkLength = 1024 * 1024;
 
@@ -196,6 +196,50 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
 }
 `;
 
+  // One projection for all GPU reductions: sorted, index-deduplicated endpoints,
+  // earliest extrema and first gap. Fixed-size GPU slots repeat the last point.
+  function projectionShader(pointSource) {
+    return `
+fn projectBucket(start: u32, end: u32, minIndex: u32, maxIndex: u32,
+    gapIndex: u32, hasFinite: u32, gapRuns: u32, outIndex: u32, origin: u32, scale: f32) {
+    // Keep NaN construction at runtime; WGSL constant evaluation rejects NaNs.
+    let nan = bitcast<f32>(0x7fc00000u | (start & 1u));
+    var indices = array<u32, 5>(start, end - 1u, minIndex, maxIndex, gapIndex);
+    var count = select(4u, 5u, gapRuns != 0u);
+    if (hasFinite == 0u || gapRuns >= 2u) {
+        indices[0] = gapIndex;
+        count = 1u;
+    }
+    for (var i = 1u; i < count; i++) {
+        let index = indices[i];
+        var j = i;
+        while (j > 0u) {
+            if (indices[j - 1u] <= index) { break; }
+            indices[j] = indices[j - 1u];
+            j--;
+        }
+        indices[j] = index;
+    }
+    var written = 0u;
+    var previous = 0xffffffffu;
+    var point = vec2f(0.0, nan);
+    for (var i = 0u; i < count; i++) {
+        let index = indices[i];
+        if (index == previous) { continue; }
+        previous = index;
+        ${pointSource ? "point = source[index];" : "point = vec2f(f32(index - origin) * scale, source[index]);"}
+        if (isNonFinite(point.y) || hasFinite == 0u || gapRuns >= 2u) { point.y = nan; }
+        output[outIndex + written] = point;
+        written++;
+    }
+    while (written < ${reducedPointsPerBucket}u) {
+        output[outIndex + written] = point;
+        written++;
+    }
+}
+`;
+  }
+
   const overviewShader = `
 struct Params {
     globalOffset: u32,
@@ -221,6 +265,8 @@ fn isNonFinite(x: f32) -> bool {
     let bits = bitcast<u32>(x);
     return (bits & 0x7f800000u) == 0x7f800000u;
 }
+
+${projectionShader(false)}
 
 @compute @workgroup_size(${overviewBucketSize})
 fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
@@ -255,11 +301,13 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
         if (lane < stride) {
             let other = lane + stride;
             if (valid[other] != 0u) {
-                if (valid[lane] == 0u || minimums[other] < minimums[lane]) {
+                if (valid[lane] == 0u || minimums[other] < minimums[lane] ||
+                    (minimums[other] == minimums[lane] && minimumIndices[other] < minimumIndices[lane])) {
                     minimums[lane] = minimums[other];
                     minimumIndices[lane] = minimumIndices[other];
                 }
-                if (valid[lane] == 0u || maximums[other] > maximums[lane]) {
+                if (valid[lane] == 0u || maximums[other] > maximums[lane] ||
+                    (maximums[other] == maximums[lane] && maximumIndices[other] < maximumIndices[lane])) {
                     maximums[lane] = maximums[other];
                     maximumIndices[lane] = maximumIndices[other];
                 }
@@ -277,38 +325,12 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
 
     if (lane == 0u) {
         let outputIndex = (params.outputBucket + groupId.x) * ${reducedPointsPerBucket}u;
-        if (valid[0] == 0u || nanRunCounts[0] >= 2u) {
-            let nan = source[nanIndices[0]];
-            let point = vec2f(f32(params.globalOffset + nanIndices[0]) / ${overviewBucketSize}.0, nan);
-            output[outputIndex] = point;
-            output[outputIndex + 1u] = point;
-            output[outputIndex + 2u] = point;
-        } else {
-            var firstIndex = minimumIndices[0];
-            var secondIndex = maximumIndices[0];
-            var firstPoint = vec2f(f32(params.globalOffset + firstIndex) / ${overviewBucketSize}.0, minimums[0]);
-            var secondPoint = vec2f(f32(params.globalOffset + secondIndex) / ${overviewBucketSize}.0, maximums[0]);
-            if (secondIndex < firstIndex) {
-                let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
-                let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
-            }
-            var thirdIndex = secondIndex;
-            var thirdPoint = secondPoint;
-            if (nanSeen[0] != 0u) {
-                thirdIndex = nanIndices[0];
-                thirdPoint = vec2f(f32(params.globalOffset + thirdIndex) / ${overviewBucketSize}.0, source[thirdIndex]);
-                if (thirdIndex < secondIndex) {
-                    let swapIndex = secondIndex; secondIndex = thirdIndex; thirdIndex = swapIndex;
-                    let swapPoint = secondPoint; secondPoint = thirdPoint; thirdPoint = swapPoint;
-                }
-                if (secondIndex < firstIndex) {
-                    let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
-                    let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
-                }
-            }
-            output[outputIndex] = firstPoint;
-            output[outputIndex + 1u] = secondPoint;
-            output[outputIndex + 2u] = thirdPoint;
+        let start = groupId.x * ${overviewBucketSize}u;
+        projectBucket(start, min(start + ${overviewBucketSize}u, params.sourceLength),
+            minimumIndices[0], maximumIndices[0], nanIndices[0], valid[0], nanRunCounts[0],
+            outputIndex, 0u, 1.0 / ${overviewBucketSize}.0);
+        for (var i = 0u; i < ${reducedPointsPerBucket}u; i++) {
+            output[outputIndex + i].x += f32(params.globalOffset) / ${overviewBucketSize}.0;
         }
     }
 }
@@ -333,6 +355,7 @@ var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanRunCounts: array<u32, ${decimationWorkgroupSize}>;
 fn isNonFinite(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u; }
+${projectionShader(true)}
 @compute @workgroup_size(${decimationWorkgroupSize})
 fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
     let bucket = groupId.x;
@@ -374,8 +397,8 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
         if (lane < stride) {
             let other = lane + stride;
             if (valid[other] != 0u) {
-                if (valid[lane] == 0u || minimums[other].y < minimums[lane].y) { minimums[lane] = minimums[other]; minimumIndices[lane] = minimumIndices[other]; }
-                if (valid[lane] == 0u || maximums[other].y > maximums[lane].y) { maximums[lane] = maximums[other]; maximumIndices[lane] = maximumIndices[other]; }
+                if (valid[lane] == 0u || minimums[other].y < minimums[lane].y || (minimums[other].y == minimums[lane].y && minimumIndices[other] < minimumIndices[lane])) { minimums[lane] = minimums[other]; minimumIndices[lane] = minimumIndices[other]; }
+                if (valid[lane] == 0u || maximums[other].y > maximums[lane].y || (maximums[other].y == maximums[lane].y && maximumIndices[other] < maximumIndices[lane])) { maximums[lane] = maximums[other]; maximumIndices[lane] = maximumIndices[other]; }
                 valid[lane] = 1u;
             }
             if (nanSeen[other] != 0u && (nanSeen[lane] == 0u || nanIndices[other] < nanIndices[lane])) { nanIndices[lane] = nanIndices[other]; }
@@ -385,33 +408,8 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
         workgroupBarrier(); stride /= 2u;
     }
     if (lane == 0u) {
-        let outIndex = bucket * ${reducedPointsPerBucket}u + 1u;
-        if (bucket == 0u) { output[0] = source[params.first]; }
-        if (valid[0] == 0u || nanRunCounts[0] >= 2u) {
-            let point = source[nanIndices[0]];
-            output[outIndex] = point; output[outIndex + 1u] = point; output[outIndex + 2u] = point;
-        } else {
-            var firstIndex = minimumIndices[0]; var secondIndex = maximumIndices[0];
-            var firstPoint = minimums[0]; var secondPoint = maximums[0];
-            if (secondIndex < firstIndex) {
-                let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
-                let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
-            }
-            var thirdIndex = secondIndex; var thirdPoint = secondPoint;
-            if (nanSeen[0] != 0u) {
-                thirdIndex = nanIndices[0]; thirdPoint = source[thirdIndex];
-                if (thirdIndex < secondIndex) {
-                    let swapIndex = secondIndex; secondIndex = thirdIndex; thirdIndex = swapIndex;
-                    let swapPoint = secondPoint; secondPoint = thirdPoint; thirdPoint = swapPoint;
-                }
-                if (secondIndex < firstIndex) {
-                    let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
-                    let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
-                }
-            }
-            output[outIndex] = firstPoint; output[outIndex + 1u] = secondPoint; output[outIndex + 2u] = thirdPoint;
-        }
-        if (bucket + 1u == params.bucketCount) { output[outIndex + 3u] = source[params.first + params.visibleLength - 1u]; }
+        projectBucket(start, end, minimumIndices[0], maximumIndices[0], nanIndices[0],
+            valid[0], nanRunCounts[0], bucket * ${reducedPointsPerBucket}u, 0u, 1.0);
     }
 }
 `;
@@ -441,6 +439,8 @@ fn isNonFinite(x: f32) -> bool {
     let bits = bitcast<u32>(x);
     return (bits & 0x7f800000u) == 0x7f800000u;
 }
+
+${projectionShader(false)}
 
 @compute @workgroup_size(${decimationWorkgroupSize})
 fn decimate(
@@ -545,47 +545,8 @@ fn decimate(
     }
 
     if (lane == 0u) {
-        let outputIndex = bucket * ${reducedPointsPerBucket}u + 1u;
-
-        if (bucket == 0u) {
-            output[0] = vec2f(0.0, source[params.first]);
-        }
-
-        if (valid[0] == 0u || nanRunCounts[0] >= 2u) {
-            let nan = source[nanIndices[0]];
-            let point = vec2f(f32(nanIndices[0] - params.first), nan);
-            output[outputIndex] = point;
-            output[outputIndex + 1u] = point;
-            output[outputIndex + 2u] = point;
-        } else {
-            var firstIndex = minimumIndices[0]; var secondIndex = maximumIndices[0];
-            var firstPoint = vec2f(f32(firstIndex - params.first), minimums[0]);
-            var secondPoint = vec2f(f32(secondIndex - params.first), maximums[0]);
-            if (secondIndex < firstIndex) {
-                let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
-                let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
-            }
-            var thirdIndex = secondIndex; var thirdPoint = secondPoint;
-            if (nanSeen[0] != 0u) {
-                thirdIndex = nanIndices[0]; thirdPoint = vec2f(f32(thirdIndex - params.first), source[thirdIndex]);
-                if (thirdIndex < secondIndex) {
-                    let swapIndex = secondIndex; secondIndex = thirdIndex; thirdIndex = swapIndex;
-                    let swapPoint = secondPoint; secondPoint = thirdPoint; thirdPoint = swapPoint;
-                }
-                if (secondIndex < firstIndex) {
-                    let swapIndex = firstIndex; firstIndex = secondIndex; secondIndex = swapIndex;
-                    let swapPoint = firstPoint; firstPoint = secondPoint; secondPoint = swapPoint;
-                }
-            }
-            output[outputIndex] = firstPoint;
-            output[outputIndex + 1u] = secondPoint;
-            output[outputIndex + 2u] = thirdPoint;
-        }
-
-        if (bucket + 1u == params.bucketCount) {
-            let last = params.first + params.visibleLength - 1u;
-            output[outputIndex + 3u] = vec2f(f32(params.visibleLength - 1u), source[last]);
-        }
+        projectBucket(start, end, minimumIndices[0], maximumIndices[0], nanIndices[0],
+            valid[0], nanRunCounts[0], bucket * ${reducedPointsPerBucket}u, params.first, 1.0);
     }
 }
 `;

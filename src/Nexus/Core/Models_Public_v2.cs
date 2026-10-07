@@ -6,6 +6,20 @@ using Nexus.DataModel;
 
 namespace Nexus.Core.V2;
 
+/// <summary>A Float32 visualization request over a common, half-open sample domain.</summary>
+/// <param name="Begin">The domain start.</param>
+/// <param name="End">The exclusive domain end.</param>
+/// <param name="ResourcePaths">The resources, all with the same sample period.</param>
+/// <param name="Views">The requested replacement views.</param>
+public record VisualizationRequest(DateTime Begin, DateTime End, string[] ResourcePaths, VisualizationView[] Views);
+
+/// <summary>A half-open viewport with a hard output point budget, including endpoints.</summary>
+/// <param name="Id">The unique view identifier.</param>
+/// <param name="Begin">The viewport start.</param>
+/// <param name="End">The exclusive viewport end.</param>
+/// <param name="MaxPoints">The maximum number of points (5 through 32768).</param>
+public record VisualizationView(string Id, DateTime Begin, DateTime End, int MaxPoints);
+
 /// <summary>
 /// A request to stream multiple resources.
 /// </summary>

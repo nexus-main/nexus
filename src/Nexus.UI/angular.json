@@ -35,6 +35,7 @@
               "src/charts/chart.webgpu.shaders.js",
               "src/charts/chart.webgpu.lifecycle.js",
               "src/charts/chart.webgpu.data.js",
+              "src/charts/chart.webgpu.pyramid.js",
               "src/charts/chart.webgpu.js"
             ],
             "styles": ["src/index.css"]
