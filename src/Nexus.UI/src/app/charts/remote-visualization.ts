@@ -12,11 +12,13 @@ export interface VisualizationView {
   maxPoints: number;
 }
 
-export function visualizationPointBudget(width: number, resourceCount: number): number {
-  // Reserve all three views within the server's default aggregate limit.
+export function visualizationPointBudget(width: number, resourceCount: number, dpr = 1): number {
+  // Four buckets per physical pixel allow twofold LOD rounding while retaining
+  // two buckets per pixel. Reserve five slots per bucket plus boundary capacity.
+  // Server per-view and three-view aggregate limits still take precedence.
   return Math.max(
     16,
-    Math.min(32768, Math.ceil(width * 4), Math.floor(262144 / (3 * resourceCount))),
+    Math.min(32768, 5 * (Math.ceil(width * dpr * 4) + 1), Math.floor(262144 / (3 * resourceCount))),
   );
 }
 
@@ -285,6 +287,14 @@ interface CachedView {
   end: bigint;
   budget: number;
   points: VisualizationPoints[];
+  prefetched?: boolean;
+}
+
+interface RequestedView {
+  id: string;
+  begin: bigint;
+  end: bigint;
+  maxPoints: number;
 }
 
 export function positionVisualizationPoints(
@@ -324,6 +334,10 @@ export class RemoteVisualization {
   private timer?: ReturnType<typeof setTimeout>;
   private generation = 0;
   private viewportKey = "";
+  private mainView?: RequestedView;
+  private requestedViews: RequestedView[] = [];
+  private zoomAnchor = 500000n;
+  private readonly protectedViews = new Set<CachedView>();
   readonly begin: bigint;
   readonly end: bigint;
   readonly samplePeriod: bigint;
@@ -371,6 +385,8 @@ export class RemoteVisualization {
     this.controller?.abort();
     this.controller = undefined;
     this.previews.clear();
+    this.protectedViews.clear();
+    this.requestedViews = [];
     this.loading = false;
     this.viewportKey = "";
     this.notify();
@@ -384,10 +400,7 @@ export class RemoteVisualization {
     this.positioned.clear();
   }
 
-  requestViews(
-    views: { id: string; begin: bigint; end: bigint; maxPoints: number }[],
-    immediate = false,
-  ): void {
+  requestViews(views: RequestedView[], immediate = false): void {
     const keyOf = (view: (typeof views)[number]) => `${view.begin}:${view.end}:${view.maxPoints}`;
     const key = views.map(keyOf).join("|");
 
@@ -397,33 +410,222 @@ export class RemoteVisualization {
 
     this.cancel();
     this.viewportKey = key;
+    this.requestedViews = views;
     this.error = "";
-    const missing = views.filter((view) => !this.cache.has(keyOf(view)));
+    const main = views.find((view) => view.id === "main");
+
+    if (main && this.mainView) {
+      const difference = this.mainView.end - this.mainView.begin - (main.end - main.begin);
+
+      // Infer the stationary zoom anchor using integer ticks, not absolute floats.
+      this.zoomAnchor =
+        difference === 0n ? 500000n : ((main.begin - this.mainView.begin) * 1000000n) / difference;
+
+      this.zoomAnchor =
+        this.zoomAnchor < 0n ? 0n : this.zoomAnchor > 1000000n ? 1000000n : this.zoomAnchor;
+    }
+
+    this.mainView = main;
+    this.protectedViews.clear();
+    const missing = views.filter((view) => {
+      const cached = this.cachedView(view);
+
+      // Protect current fallback coverage too while speculative entries are added.
+      const fallback =
+        cached ??
+        [...this.cache.values()]
+          .filter((entry) => entry.begin <= view.begin && entry.end >= view.end)
+          .sort((a, b) =>
+            Number(
+              this.strideOf(a.begin, a.end, a.budget) - this.strideOf(b.begin, b.end, b.budget),
+            ),
+          )[0];
+
+      if (fallback) {
+        this.protectedViews.add(fallback);
+      }
+
+      if (cached) {
+        cached.prefetched = false;
+        const cacheKey = `${cached.begin}:${cached.end}:${cached.budget}`;
+
+        this.cache.delete(cacheKey);
+        this.cache.set(cacheKey, cached);
+      }
+
+      return !cached;
+    });
+    const generation = this.generation;
 
     if (!missing.length) {
       this.notify();
+      this.schedulePrefetch(main, generation);
 
       return;
     }
 
     this.loading = true;
     this.progress = 0;
-    const generation = this.generation;
 
     this.notify();
 
     this.timer = setTimeout(
       () => {
-        void this.load(missing, generation);
+        void this.load(missing, generation).then((success) => {
+          if (success) {
+            this.schedulePrefetch(main, generation);
+          }
+        });
       },
       immediate ? 0 : 150,
     );
   }
 
+  private strideOf(begin: bigint, end: bigint, budget: number): bigint {
+    // Compare actual canonical LOD, not nominal points per tick: rounding can
+    // put two similarly budgeted views on opposite sides of a stride boundary.
+    const from = begin / this.samplePeriod;
+    const to = end / this.samplePeriod;
+    let stride = 1n;
+
+    if (to - from > BigInt(budget)) {
+      const capacity = BigInt(Math.floor(budget / 5));
+
+      while (
+        (capacity >= 2n
+          ? (to - from - 2n) / stride + 2n
+          : (to - 1n) / stride - from / stride + 1n) > capacity
+      ) {
+        stride *= 2n;
+      }
+    }
+
+    return stride;
+  }
+
+  private cachedView(view: RequestedView): CachedView | undefined {
+    const stride = this.strideOf(view.begin, view.end, view.maxPoints);
+
+    return [...this.cache.values()].find((entry) => {
+      const cachedStride = this.strideOf(entry.begin, entry.end, entry.budget);
+
+      return cachedStride <= stride && this.coversBoundaries(entry, view.begin, view.end);
+    });
+  }
+
+  private coversBoundaries(entry: CachedView, begin: bigint, end: bigint): boolean {
+    const stride = this.strideOf(entry.begin, entry.end, entry.budget);
+
+    // Clipped reduced buckets require fresh boundary summaries, especially
+    // when a containing multi-gap bucket hid otherwise finite samples.
+    return (
+      entry.begin <= begin &&
+      entry.end >= end &&
+      (entry.begin === begin || (begin / this.samplePeriod) % stride === 0n) &&
+      (entry.end === end || (end / this.samplePeriod) % stride === 0n)
+    );
+  }
+
+  private schedulePrefetch(main: RequestedView | undefined, generation: number): void {
+    if (!main || generation !== this.generation) {
+      return;
+    }
+
+    const period = this.samplePeriod;
+    const length = (this.end - this.begin) / period;
+    const span = (main.end - main.begin) / period;
+
+    // Keep speculative queries above base-summary resolution; only the small
+    // boundary fragments may require raw reads, never a whole fine-detail view.
+    if (span <= (BigInt(main.maxPoints) * 256n) / 5n) {
+      return;
+    }
+
+    const anchor = (main.begin - this.begin) / period + (span * this.zoomAnchor) / 1000000n;
+    let remainingPoints = Math.floor(262144 / this.resourcePaths.length);
+    const predictions: RequestedView[] = [];
+
+    // Two zoom levels in each direction, plus 10% coverage on each side to
+    // absorb rounding and slightly different pointer positions.
+    for (const [numerator, denominator] of [
+      [1n, 2n],
+      [1n, 4n],
+      [2n, 1n],
+      [4n, 1n],
+    ]) {
+      const width = (span * numerator) / denominator;
+      const padding = (width + 9n) / 10n + 1n;
+      let first = anchor - (width * this.zoomAnchor) / 1000000n - padding;
+      let last = first + width + 2n * padding;
+
+      if (first < 0n) {
+        last -= first;
+        first = 0n;
+      }
+
+      if (last > length) {
+        first = first > last - length ? first - (last - length) : 0n;
+        last = length;
+      }
+
+      const targetStride = this.strideOf(0n, width * period, main.maxPoints);
+      const budget = Math.max(main.maxPoints, 5 * Number((last - first - 2n) / targetStride + 2n));
+
+      // Preserve the intended resolution despite padding. Skip rather than
+      // fetching an unusably coarse prediction when request/cycle caps bind.
+      if (
+        budget > 32768 ||
+        budget > remainingPoints ||
+        (first === 0n &&
+          last === length &&
+          [...this.cache.values()].some(
+            (entry) => entry.begin === this.begin && entry.end === this.end,
+          ))
+      ) {
+        continue;
+      }
+
+      const view = {
+        id: "prefetch",
+        begin: this.begin + first * period,
+        end: this.begin + last * period,
+        maxPoints: budget,
+      };
+
+      if (
+        last - first <= (BigInt(budget) * 256n) / 5n ||
+        this.cachedView(view) ||
+        predictions.some((other) => other.begin === view.begin && other.end === view.end)
+      ) {
+        continue;
+      }
+
+      predictions.push(view);
+      remainingPoints -= budget;
+    }
+
+    this.timer = setTimeout(() => {
+      void (async () => {
+        for (const view of predictions) {
+          if (generation !== this.generation) {
+            break;
+          }
+
+          if (!this.cachedView(view)) {
+            if (!(await this.load([view], generation, true)) || !this.cachedView(view)) {
+              break;
+            }
+          }
+        }
+      })();
+    }, 250);
+  }
+
   private async load(
-    views: { id: string; begin: bigint; end: bigint; maxPoints: number }[],
+    views: RequestedView[],
     generation: number,
-  ): Promise<void> {
+    prefetch = false,
+  ): Promise<boolean> {
     const controller = new AbortController();
 
     this.controller = controller;
@@ -459,11 +661,11 @@ export class RemoteVisualization {
 
             // Stream previews require coverage for every series. Cache publication
             // remains transactional until explicit stream completion.
-            if (points.every(Boolean)) {
+            if (!prefetch && points.every(Boolean)) {
               this.previews.set(frame.viewIndex, { ...view, budget: view.maxPoints, points });
               this.notify();
             }
-          } else {
+          } else if (!prefetch) {
             this.progress = Math.max(this.progress, frame.progress);
 
             if (frame.resourceIndex >= 0 && frame.range) {
@@ -476,7 +678,7 @@ export class RemoteVisualization {
       );
 
       if (generation !== this.generation || controller.signal.aborted) {
-        return;
+        return false;
       }
 
       const completed = views.map((view, viewIndex) => {
@@ -488,7 +690,7 @@ export class RemoteVisualization {
           throw new Error("Missing completed visualization view.");
         }
 
-        return { ...view, budget: view.maxPoints, points };
+        return { ...view, budget: view.maxPoints, points, prefetched: prefetch };
       });
 
       for (const view of completed) {
@@ -523,6 +725,10 @@ export class RemoteVisualization {
         }
 
         this.cache.set(`${view.begin}:${view.end}:${view.budget}`, view);
+
+        if (!prefetch) {
+          this.protectedViews.add(view);
+        }
       }
 
       // Keep the full-domain fallback; bound recent detail by count and bytes.
@@ -536,12 +742,16 @@ export class RemoteVisualization {
         0,
       );
 
-      for (const [key, view] of this.cache) {
+      // Speculation must not evict the visible view or displace useful history.
+      const priority = (view: CachedView) => (view.prefetched ? 0 : 1);
+      const evictionOrder = [...this.cache].sort((a, b) => priority(a[1]) - priority(b[1]));
+
+      for (const [key, view] of evictionOrder) {
         if (this.cache.size <= 8 && bytes <= 32 * 1024 * 1024) {
           break;
         }
 
-        if (view.begin === this.begin && view.end === this.end) {
+        if ((view.begin === this.begin && view.end === this.end) || this.protectedViews.has(view)) {
           continue;
         }
 
@@ -553,12 +763,18 @@ export class RemoteVisualization {
         );
       }
 
-      this.progress = 1;
+      if (!prefetch) {
+        this.progress = 1;
+      }
+
+      return true;
     } catch (error) {
-      if (generation === this.generation && !controller.signal.aborted) {
+      if (!prefetch && generation === this.generation && !controller.signal.aborted) {
         this.error = String(error);
         this.viewportKey = "";
       }
+
+      return false;
     } finally {
       if (generation === this.generation) {
         this.previews.clear();
@@ -575,9 +791,23 @@ export class RemoteVisualization {
     begin: bigint,
     end: bigint,
   ): Float32Array | undefined {
+    // Use requested sample-aligned halo bounds when selecting completed coverage,
+    // not the fractional viewport bounds used only for positioning the points.
+    const requested = this.requestedViews.find(
+      (view) => view.id === target && view.begin <= begin && view.end >= end,
+    );
+    const compatible = (view: CachedView) =>
+      this.coversBoundaries(view, requested?.begin ?? begin, requested?.end ?? end);
     const candidates = [...this.previews.values(), ...this.cache.values()]
       .filter((view) => view.begin <= begin && view.end >= end)
-      .sort((a, b) => Number(a.end - a.begin) / a.budget - Number(b.end - b.begin) / b.budget);
+      .sort(
+        (a, b) =>
+          Number(compatible(b)) - Number(compatible(a)) ||
+          Number(
+            this.strideOf(a.begin, a.end, a.budget) - this.strideOf(b.begin, b.end, b.budget),
+          ) ||
+          Number(a.end - a.begin - (b.end - b.begin)),
+      );
     const source = candidates[0]?.points[resourceIndex];
 
     if (!source) {

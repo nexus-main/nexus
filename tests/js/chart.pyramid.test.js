@@ -89,4 +89,51 @@ test('merge preserves boundary gap runs, earliest signed-zero ties and hidden ex
     }
 });
 
+test('query LOD is independent of panning alignment and uses intermediate binary strides', () => {
+    for (const origin of [0n, 1n, 255n, 1023n, 9007199254740993123n]) {
+        const length = 1000000;
+        const { levels } = pyramidLayout(origin, length);
+        for (const begin of [0, 1, 255, 1024]) {
+            const plan = planQuery(origin, length, begin, begin + 819200, 4000, levels);
+            assert.equal(plan.stride, 2048n);
+            assert.ok(plan.jobs.length / 2 * plan.slots <= 4000);
+            assert.ok(plan.rawCount <= 510);
+        }
+    }
+});
+
+test('query output respects small budgets, raw thresholds and twofold coarse LOD steps', () => {
+    for (const origin of [0n, 1n, 1023n, 9007199254740993123n]) {
+        const length = 1000000;
+        const { levels } = pyramidLayout(origin, length);
+        for (const budget of [5, 9, 10, 16, 4000, 32768]) {
+            for (const span of [budget, budget + 1, 819199, 819200, 819201]) {
+                const plan = planQuery(origin, length, 0, span, budget, levels);
+                assert.ok(plan.jobs.length / 2 * plan.slots <= budget);
+                assert.equal(plan.stride === 1n, span <= budget);
+            }
+        }
+        let previous;
+        for (const span of [817152, 817153, 818176, 818177, 819200, 819201]) {
+            const plan = planQuery(origin, length, 0, span, 4000, levels);
+            if (previous) assert.ok(plan.stride >= previous && plan.stride <= previous * 2n);
+            previous = plan.stride;
+        }
+    }
+});
+
+test('dense periodic signals retain at least two extrema buckets per physical pixel before caps', () => {
+    for (const pixels of [320, 1000, 2000]) {
+        const budget = 5 * (Math.ceil(pixels * 4) + 1);
+        for (const length of [999999, 1000000, 1048576, 2000001]) {
+            const { levels } = pyramidLayout(0n, length);
+            const plan = planQuery(0n, length, 0, length, budget, levels);
+            // A period-32 sine has both extrema in every full bucket at these strides.
+            // Subpixel bucket spacing prevents the previous multi-pixel comb spacing.
+            assert.ok(Number(plan.stride) * pixels / length <= 0.5);
+            assert.ok(plan.jobs.length / 2 * plan.slots <= budget);
+        }
+    }
+});
+
 module.exports = { summarize, merge, project };

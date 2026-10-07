@@ -108,6 +108,7 @@ function createEnvironment(options = {}) {
         },
     };
     const context = {
+        devicePixelRatio: options.dpr ?? 1,
         console: { error() {}, log() {}, warn() {} },
         Promise,
         Map,
@@ -136,7 +137,7 @@ function createEnvironment(options = {}) {
                     canvases.set(id, options.nullCanvasContext
                         ? { getContext() { return null; } }
                         : {
-                            clientWidth: 100,
+                            clientWidth: options.width ?? 100,
                             clientHeight: 100,
                             getContext() {
                                 return {
@@ -613,6 +614,34 @@ test('production local renderer queries summary levels and uploads only boundary
     assert.equal(instance.rawRequests.size, 0);
     environment.api.dispose('chart');
     assert.equal(instance.ownedGpuBytes, 0);
+});
+
+test('local density uses physical target pixels without a server point budget', async () => {
+    for (const dpr of [1, 1.25, 2, 3]) {
+        const environment = createEnvironment({ width: 1000, dpr });
+        environment.api.initialize('chart', environment.helper('chart'));
+        await settle();
+        const length = 1000000;
+        const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length, 0n,
+            async (_offset, count) => new Float32Array(count));
+        environment.api.appendChunkedSeries('chart', token, 0, new Float32Array(length));
+        await environment.api.processChunkedSeriesUpload('chart', token, 0, length);
+        await environment.api.completeChunkedSeries('chart', token);
+        const instance = environment.hooks.instances.get('chart');
+        const source = instance.seriesBuffers.get(`series:0:${length}`);
+        for (const plotWidth of [1, 0.5]) {
+            await environment.hooks.scheduleRender('chart', {
+                plot: { left: 0, top: 0, right: plotWidth, bottom: 1 },
+                series: [{ id: 'series', length, sampleStep: 1 / length, axisMin: 0, axisMax: 1 }],
+            });
+            const view = source.decimations.get('series');
+            const budget = 5 * (Math.min(8192, Math.ceil(1000 * dpr * plotWidth * 4)) + 1);
+            assert.equal(view.key, `0:${length}:${budget}`);
+            assert.ok(view.outputBuffer.size / (5 * 8) >= Math.min(8192, 1000 * dpr * plotWidth * 4) / 2);
+        }
+        environment.api.dispose('chart');
+        assert.equal(instance.ownedGpuBytes, 0);
+    }
 });
 
 test('releasing a pyramid target during a boundary read does not recreate its buffers', async () => {

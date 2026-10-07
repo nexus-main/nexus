@@ -149,11 +149,18 @@ fn query(@builtin(global_invocation_id) invocation: vec3u) {
     const to = origin + BigInt(end);
     let stride = 1n;
 
-    while (
-      ((to - 1n) / stride - from / stride + 1n) * (stride === 1n ? 1n : 5n) >
-      BigInt(maxPoints)
-    ) {
-      stride *= 4n;
+    if (to - from > BigInt(maxPoints)) {
+      const capacity = BigInt(Math.floor(maxPoints / 5));
+
+      // Reserve boundary capacity independently of alignment. Binary query strides
+      // merge the existing factor-four levels without adding persistent storage.
+      while (
+        (capacity >= 2n
+          ? (to - from - 2n) / stride + 2n
+          : (to - 1n) / stride - from / stride + 1n) > capacity
+      ) {
+        stride *= 2n;
+      }
     }
 
     const parts = [];
@@ -550,7 +557,9 @@ fn query(@builtin(global_invocation_id) invocation: vec3u) {
       Math.min(source.length, Math.ceil(window.indexLeft + window.indexRange) + 1);
     const budget =
       ns.valueOf(series, "PointBudget") ??
-      Math.min(32768, Math.max(16, Math.ceil(plot.plotWidth * 4)));
+      // Five slots per bucket, with twofold LOD headroom and a boundary bucket.
+      // Local rendering is not constrained by the server's aggregate request cap.
+      5 * (Math.min(8192, Math.max(2, Math.ceil(plot.plotWidth * 4))) + 1);
     const key = `${begin}:${end}:${budget}`;
     let view = source.decimations.get(target);
 

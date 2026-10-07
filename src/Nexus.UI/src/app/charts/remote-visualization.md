@@ -15,7 +15,10 @@ additional configuration header is currently installed by `invoke`.
 
 - Domain timestamps remain fixed. Main, overview, and visible precision navigator
   views use sample-aligned bounds with a one-sample halo. Budgets include all
-  points, cap each view at 32768, and target at most 4 MiB of point data per request.
+  points and target four extrema buckets per physical pixel, with five slots per
+  bucket and one boundary bucket. Twofold LOD rounding retains at least two buckets
+  per pixel before caps. Server limits take precedence: 32768 points per view and
+  262144 across resources and three views (the default server aggregate limit).
 - Horizontal gestures debounce for 150 ms. Vertical-only changes do not schedule
   requests. A new request immediately aborts the previous one and advances a
   generation, guarding progress, previews, errors, and cache publication.
@@ -41,6 +44,38 @@ additional configuration header is currently installed by `invoke`.
   directly, without a reduction pass or raw-data callbacks. Progress/cancel/retry
   controls never cover the plot.
 
+## Zoom Prefetch
+
+After the foreground views complete (or are already cached), a 250 ms idle delay
+starts a bounded speculative queue for the main chart. It predicts half/quarter
+and double/quadruple spans around the anchor inferred from consecutive horizontal
+viewports, using the center when there is no zoom history or the gesture is a pan.
+Predictions include 10% padding on each side, align to samples, and shift/clamp to
+the dataset domain. Only one speculative request runs at a time; any new viewport,
+cancel, or disposal aborts it and invalidates late results. This is client-side
+scheduling priority, not a server priority queue.
+
+Each prediction receives enough points to preserve its intended canonical stride
+despite padding. The 32768-point view cap and a total 262144 resource-points per
+prefetch cycle still apply; predictions that cannot fit are skipped. Fine views
+that would require scanning raw detail are not prefetched. Coarse queries may
+still read small unresolved boundary fragments. The dataset-wide summary pyramid
+already exists after the foreground load, subject to normal server cache eviction.
+
+Prefetch never changes foreground progress or publishes incomplete previews/errors.
+Successfully completed results share the eight-entry/32 MiB cache. Speculative
+entries are evicted before visited history; current coverage and the full-domain
+fallback remain protected. A full history cache can therefore suppress prefetch.
+The queue stops on failure or when its result cannot be retained, without retrying
+until another viewport change.
+
+Rendering chooses the finest canonical cached stride, not nominal points per
+tick. Prefetched coverage is available immediately during a later gesture. Exact
+bounds, raw coverage, and compatible bucket boundaries can avoid a new request;
+clipped reduced boundary buckets still trigger foreground refinement so gap
+summaries cannot permanently hide finite boundary samples. This improves warm
+navigation but does not guarantee request-free or latency-free continuous zoom.
+
 ## Canonical Semantics And Deviations
 
 The production local GPU pyramid uses the same summary and projection rules as
@@ -56,8 +91,13 @@ earliest source index.
 are reduced in 256-thread workgroups using adjacent ordered merges; split upload
 buckets merge with their preceding fragment. Parents merge four aligned children
 on the GPU. The CPU plans coordinates only, using bigint absolute sample origins.
-It selects the same smallest power-of-four stride satisfying the server's
-worst-case point budget, descends retained levels for partial boundaries, and
+It selects the same smallest power-of-two query stride satisfying the server's
+worst-case point budget, reserving boundary capacity independently of absolute
+alignment so a pan cannot coarsen LOD. Budgets fitting only one summary must use
+actual alignment instead. Raw samples are emitted when they fit the point budget.
+Local budgets use each target's physical plot width, not the main canvas CSS width
+or the server aggregate cap, targeting four buckets per pixel capped at 8192
+buckets plus one boundary bucket. Query planning descends retained levels for partial boundaries and
 uploads only unresolved raw fragments from existing local CPU chunks. Coarse
 queries need at most 510 raw boundary samples; fine queries remain point-budget
 bounded. No production parent or viewport summary is built from drawing points.

@@ -12,16 +12,28 @@ import {
   type VisualizationTransport,
 } from "../../../../src/Nexus.UI/src/app/charts/remote-visualization.ts";
 import { requestError } from "../../../../src/Nexus.UI/src/app/request-error.ts";
+import { dateTicks } from "../../../../src/Nexus.UI/src/app/resource-selection.ts";
 
 it("keeps all views within the default server aggregate point budget", () => {
   for (let resources = 1; resources <= 100; resources++) {
     for (const width of [320, 1920, 3840, 8192]) {
-      const budget = visualizationPointBudget(width, resources);
+      for (const dpr of [1, 1.25, 2, 3]) {
+        const budget = visualizationPointBudget(width, resources, dpr);
 
-      assert.ok(budget >= 5 && budget <= 32768);
-      assert.ok(budget * resources * 3 <= 262144);
+        assert.ok(budget >= 5 && budget <= 32768);
+        assert.ok(budget * resources * 3 <= 262144);
+      }
     }
   }
+});
+
+it("budgets extrema buckets rather than points per physical pixel", () => {
+  for (const dpr of [1, 1.25, 2, 3]) {
+    assert.equal(visualizationPointBudget(320, 1, dpr), 5 * (Math.ceil(320 * dpr * 4) + 1));
+  }
+
+  assert.equal(visualizationPointBudget(1000, 1), 20005);
+  assert.equal(visualizationPointBudget(1000, 1, 2), 32768);
 });
 
 it("shows the backend validation explanation instead of only HTTP 422", async () => {
@@ -250,6 +262,316 @@ describe("visualization Arrow protocol", () => {
 });
 
 describe("remote viewport provider", () => {
+  function prefetchFixture(resources = 1, origin = 0n, period = 1n) {
+    const calls: {
+      request: VisualizationRequest;
+      signal: AbortSignal;
+      emit: (frame: VisualizationFrame) => void;
+      resolve: () => void;
+      reject: (error: Error) => void;
+    }[] = [];
+    const provider = new RemoteVisualization(
+      origin,
+      origin + 10000000n * period,
+      period,
+      Array.from({ length: resources }, (_, i) => `/r${i}`),
+      (request, signal, emit) =>
+        new Promise<void>((resolve, reject) => {
+          calls.push({ request, signal, emit, resolve, reject });
+        }),
+    );
+    const finish = (index: number, value = index + 1) => {
+      const call = calls[index];
+
+      call.request.views.forEach((view, viewIndex) => {
+        for (let resourceIndex = 0; resourceIndex < resources; resourceIndex++) {
+          call.emit({
+            kind: "data",
+            complete: true,
+            resourceIndex,
+            viewIndex,
+            indices: new BigInt64Array([
+              (dateTicks(view.begin)! - origin) / period,
+              (dateTicks(view.end)! - origin) / period - 1n,
+            ]),
+            values: new Float32Array([value, value]),
+          });
+        }
+      });
+
+      call.resolve();
+    };
+    const view = (begin = 4000000n, end = 5000000n, maxPoints = 100) => [
+      { id: "main", begin: origin + begin * period, end: origin + end * period, maxPoints },
+    ];
+
+    return { provider, calls, finish, view };
+  }
+
+  it("prefetches four bounded aligned zoom levels sequentially only after foreground completion", async () => {
+    const origin = 90071992547409930n;
+    const period = 10n;
+    const { provider, calls, finish, view } = prefetchFixture(100, origin, period);
+
+    try {
+      provider.requestViews(view(), true);
+      await delay(280);
+      assert.equal(calls.length, 1);
+      finish(0);
+      await delay(10);
+      assert.equal(calls.length, 1);
+      await delay(270);
+
+      for (let i = 1; i <= 4; i++) {
+        assert.equal(calls.length, i + 1);
+        assert.equal(provider.loading, false);
+        assert.equal(provider.progress, 1);
+        const prediction = calls[i].request.views[0];
+        const begin = dateTicks(prediction.begin)!;
+        const end = dateTicks(prediction.end)!;
+
+        assert.equal(calls[i].request.views.length, 1);
+        assert.equal((begin - origin) % period, 0n);
+        assert.equal((end - origin) % period, 0n);
+        assert.ok(begin >= origin && end <= provider.end && end > begin);
+        assert.ok(prediction.maxPoints <= 32768);
+        finish(i);
+        await delay(5);
+      }
+
+      assert.ok(
+        calls.slice(1).reduce((sum, call) => sum + call.request.views[0].maxPoints * 100, 0) <=
+          262144,
+      );
+
+      assert.equal(calls.length, 5);
+      // Exact prefetched bounds are reusable without another foreground request.
+      const prediction = calls[1].request.views[0];
+
+      provider.requestViews(
+        [
+          {
+            ...prediction,
+            id: "main",
+            begin: dateTicks(prediction.begin)!,
+            end: dateTicks(prediction.end)!,
+          },
+        ],
+        true,
+      );
+
+      await delay(5);
+      assert.equal(calls.length, 5);
+      assert.equal(provider.loading, false);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("cancels speculative work for foreground gestures and ignores late frames and errors", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(), true);
+      await delay(5);
+      finish(0);
+      await delay(280);
+      assert.equal(calls.length, 2);
+      calls[1].emit({ kind: "progress", progress: 0.1, resourceIndex: -1 });
+      assert.equal(provider.progress, 1);
+      provider.requestViews(view(7000000n, 7100000n), true);
+      assert.equal(calls[1].signal.aborted, true);
+      await delay(5);
+      assert.equal(calls.length, 3);
+      finish(1, 99);
+      await delay(5);
+      assert.equal(provider.loading, true);
+      finish(2);
+      await delay(5);
+      assert.equal(provider.error, "");
+      assert.equal(provider.pointsFor("main", 0, 7000000n, 7100000n)?.[1], 3);
+      provider.cancel();
+      await delay(280);
+      assert.equal(calls.length, 3);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("infers edge zoom anchors and clamps all speculative coverage to the domain", async () => {
+    for (const rightEdge of [false, true]) {
+      const { provider, calls, finish, view } = prefetchFixture();
+
+      try {
+        provider.requestViews(rightEdge ? view(8000000n, 10000000n) : view(0n, 2000000n), true);
+        await delay(5);
+        finish(0);
+        await delay(5);
+        provider.requestViews(rightEdge ? view(9000000n, 10000000n) : view(0n, 1000000n), true);
+        await delay(5);
+        finish(1);
+        await delay(280);
+        const prediction = calls[2].request.views[0];
+
+        assert.equal(
+          dateTicks(rightEdge ? prediction.end : prediction.begin),
+          rightEdge ? 10000000n : 0n,
+        );
+
+        assert.ok(dateTicks(prediction.begin)! >= provider.begin);
+        assert.ok(dateTicks(prediction.end)! <= provider.end);
+        provider.dispose();
+        assert.equal(calls[2].signal.aborted, true);
+        finish(2);
+        await delay(5);
+        assert.equal(calls.length, 3);
+      } finally {
+        provider.dispose();
+      }
+    }
+  });
+
+  it("provides immediate prefetched coverage while refining changed boundary buckets", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(), true);
+      await delay(5);
+      finish(0);
+      await delay(280);
+      finish(1, 8);
+      await delay(5);
+      const prediction = calls[1].request.views[0];
+      const begin = dateTicks(prediction.begin)! + 1n;
+      const end = dateTicks(prediction.end)! - 1n;
+
+      provider.requestViews([{ id: "main", begin, end, maxPoints: prediction.maxPoints }], true);
+      assert.equal(provider.pointsFor("main", 0, begin, end)?.[1], 8);
+      assert.equal(provider.loading, true);
+      assert.equal(calls[2].signal.aborted, true);
+      await delay(5);
+      finish(3, 9);
+      await delay(5);
+      assert.equal(provider.pointsFor("main", 0, begin, end)?.[1], 9);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("keeps failed speculative replacements out of the cache and out of foreground status", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(), true);
+      await delay(5);
+      finish(0);
+      await delay(280);
+
+      calls[1].emit({
+        kind: "data",
+        complete: true,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([4200000n]),
+        values: new Float32Array([99]),
+      });
+
+      calls[1].reject(new Error("prefetch failed"));
+      await delay(10);
+      assert.equal(provider.error, "");
+      assert.equal(provider.loading, false);
+      assert.equal(provider.progress, 1);
+      assert.equal(provider.pointsFor("main", 0, 4200000n, 4800000n)?.[1], 1);
+      assert.equal(calls.length, 2);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("does not prefetch fine raw views or sacrifice visited history for speculation", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(0n, 100n), true);
+      await delay(5);
+      finish(0);
+      await delay(280);
+      assert.equal(calls.length, 1);
+
+      for (let i = 1; i < 8; i++) {
+        provider.requestViews(view(BigInt(i) * 1000000n, BigInt(i) * 1000000n + 500000n), true);
+        await delay(5);
+        finish(i);
+        await delay(5);
+      }
+
+      await delay(280);
+      assert.equal(calls.length, 9);
+      finish(8);
+      await delay(10);
+      // Full visited cache rejects speculation and stops the remaining queue.
+      assert.equal(calls.length, 9);
+      provider.requestViews(view(0n, 100n), true);
+      await delay(5);
+      assert.equal(calls.length, 9);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("refines clipped boundary buckets and renders the finest canonical cached LOD", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(0n, 100n, 24), true);
+      await delay(5);
+      finish(0, 1);
+      await delay(5);
+      provider.requestViews(view(5n, 95n, 20), true);
+      await delay(5);
+      finish(1, 2);
+      await delay(5);
+      assert.equal(provider.pointsFor("main", 0, 5n, 95n)?.[1], 2);
+      provider.requestViews(view(10n, 90n, 20), true);
+      await delay(5);
+      assert.equal(calls.length, 3);
+      assert.equal(provider.loading, true);
+      finish(2, 3);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("prefers boundary-correct halo results over finer incompatible cached points", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(0n, 100n, 24), true);
+      await delay(5);
+
+      calls[0].emit({
+        kind: "data",
+        complete: true,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([0n, 99n]),
+        values: new Float32Array([NaN, 1]),
+      });
+
+      calls[0].resolve();
+      await delay(5);
+      provider.requestViews(view(10n, 90n, 10), true);
+      await delay(5);
+      finish(1, 8);
+      await delay(5);
+      assert.equal(provider.pointsFor("main", 0, 10n, 90n)?.[1], 8);
+      // The drawing viewport excludes its request's one-sample halo.
+      assert.equal(provider.pointsFor("main", 0, 11n, 89n)?.[1], 8);
+    } finally {
+      provider.dispose();
+    }
+  });
+
   it("shows streamed partial replacements and restores completed coverage on stream failure", async () => {
     let emit!: (frame: VisualizationFrame) => void;
     let fail!: (error: Error) => void;

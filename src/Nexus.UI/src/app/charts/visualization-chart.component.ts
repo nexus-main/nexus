@@ -102,6 +102,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   };
   private readonly onDprChange = (): void => {
     this.watchDpr();
+    this.requestRemoteViews();
     this.scheduleDraw();
   };
 
@@ -592,7 +593,11 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     }
 
     const width = this.chartElement?.nativeElement.clientWidth ?? 1000;
-    const budget = visualizationPointBudget(width, data.series.length);
+    const budget = visualizationPointBudget(
+      width,
+      data.series.length,
+      window.devicePixelRatio || 1,
+    );
     const views = [
       { id: "overview", begin: data.begin, end: data.end, maxPoints: budget },
       { id: "main", begin: this.zoomedBegin, end: this.zoomedEnd, maxPoints: budget },
@@ -764,10 +769,6 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
           dataVersion: state?.version ?? source.version,
           length: source.length,
           sampleStep: this.duration > 0n ? Number(source.samplePeriod) / Number(this.duration) : 0,
-          pointBudget: visualizationPointBudget(
-            this.chartElement.nativeElement.clientWidth,
-            this.series.length,
-          ),
         },
       ];
     });
