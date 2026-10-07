@@ -331,12 +331,16 @@ export class RemoteVisualization {
     { source: VisualizationPoints; begin: bigint; end: bigint; points: Float32Array }
   >();
   private controller?: AbortController;
-  private timer?: ReturnType<typeof setTimeout>;
+  private foregroundTimer?: ReturnType<typeof setTimeout>;
+  private prefetchTimer?: ReturnType<typeof setTimeout>;
+  private prefetchController?: AbortController;
   private generation = 0;
   private viewportKey = "";
   private mainView?: RequestedView;
+  private mainViewRequestedAt = 0;
   private requestedViews: RequestedView[] = [];
   private zoomAnchor = 500000n;
+  private zoomVelocity = 0;
   private readonly protectedViews = new Set<CachedView>();
   readonly begin: bigint;
   readonly end: bigint;
@@ -381,9 +385,12 @@ export class RemoteVisualization {
 
   cancel(): void {
     this.generation++;
-    clearTimeout(this.timer);
+    clearTimeout(this.foregroundTimer);
+    clearTimeout(this.prefetchTimer);
     this.controller?.abort();
+    this.prefetchController?.abort();
     this.controller = undefined;
+    this.prefetchController = undefined;
     this.previews.clear();
     this.protectedViews.clear();
     this.requestedViews = [];
@@ -413,19 +420,30 @@ export class RemoteVisualization {
     this.requestedViews = views;
     this.error = "";
     const main = views.find((view) => view.id === "main");
+    const now = performance.now();
+    const previousMain = this.mainView;
 
-    if (main && this.mainView) {
-      const difference = this.mainView.end - this.mainView.begin - (main.end - main.begin);
+    if (main && previousMain) {
+      const previousSpan = previousMain.end - previousMain.begin;
+      const span = main.end - main.begin;
+      const difference = previousSpan - span;
 
       // Infer the stationary zoom anchor using integer ticks, not absolute floats.
       this.zoomAnchor =
-        difference === 0n ? 500000n : ((main.begin - this.mainView.begin) * 1000000n) / difference;
+        difference === 0n ? 500000n : ((main.begin - previousMain.begin) * 1000000n) / difference;
 
       this.zoomAnchor =
         this.zoomAnchor < 0n ? 0n : this.zoomAnchor > 1000000n ? 1000000n : this.zoomAnchor;
+
+      const elapsed = Math.max(1, now - this.mainViewRequestedAt);
+      const ratio = Number(previousSpan) / Number(span);
+      const velocity = Math.log2(ratio) / elapsed;
+
+      this.zoomVelocity = Number.isFinite(velocity) ? velocity : 0;
     }
 
     this.mainView = main;
+    this.mainViewRequestedAt = now;
     this.protectedViews.clear();
     const missing = views.filter((view) => {
       const cached = this.cachedView(view);
@@ -469,9 +487,26 @@ export class RemoteVisualization {
 
     this.notify();
 
-    this.timer = setTimeout(
+    if (!immediate && previousMain) {
+      this.schedulePrefetch(main, generation, true);
+    }
+
+    this.foregroundTimer = setTimeout(
       () => {
-        void this.load(missing, generation).then((success) => {
+        const stillMissing = missing.filter((view) => !this.cachedView(view));
+
+        if (!stillMissing.length) {
+          if (generation === this.generation) {
+            this.loading = false;
+            this.progress = 1;
+            this.notify();
+            this.schedulePrefetch(main, generation);
+          }
+
+          return;
+        }
+
+        void this.load(stillMissing, generation).then((success) => {
           if (success) {
             this.schedulePrefetch(main, generation);
           }
@@ -526,7 +561,11 @@ export class RemoteVisualization {
     );
   }
 
-  private schedulePrefetch(main: RequestedView | undefined, generation: number): void {
+  private schedulePrefetch(
+    main: RequestedView | undefined,
+    generation: number,
+    activeGesture = false,
+  ): void {
     if (!main || generation !== this.generation) {
       return;
     }
@@ -544,15 +583,9 @@ export class RemoteVisualization {
     const anchor = (main.begin - this.begin) / period + (span * this.zoomAnchor) / 1000000n;
     let remainingPoints = Math.floor(262144 / this.resourcePaths.length);
     const predictions: RequestedView[] = [];
+    const scales = activeGesture ? this.activePrefetchScales() : this.idlePrefetchScales();
 
-    // Two zoom levels in each direction, plus 10% coverage on each side to
-    // absorb rounding and slightly different pointer positions.
-    for (const [numerator, denominator] of [
-      [1n, 2n],
-      [1n, 4n],
-      [2n, 1n],
-      [4n, 1n],
-    ]) {
+    for (const [numerator, denominator] of scales) {
       const width = (span * numerator) / denominator;
       const padding = (width + 9n) / 10n + 1n;
       let first = anchor - (width * this.zoomAnchor) / 1000000n - padding;
@@ -604,21 +637,84 @@ export class RemoteVisualization {
       remainingPoints -= budget;
     }
 
-    this.timer = setTimeout(() => {
-      void (async () => {
-        for (const view of predictions) {
-          if (generation !== this.generation) {
-            break;
-          }
+    if (!predictions.length) {
+      return;
+    }
 
-          if (!this.cachedView(view)) {
-            if (!(await this.load([view], generation, true)) || !this.cachedView(view)) {
+    clearTimeout(this.prefetchTimer);
+
+    this.prefetchTimer = setTimeout(
+      () => {
+        void (async () => {
+          for (const view of predictions) {
+            if (generation !== this.generation) {
               break;
             }
+
+            if (!this.cachedView(view)) {
+              if (!(await this.load([view], generation, true)) || !this.cachedView(view)) {
+                break;
+              }
+            }
           }
-        }
-      })();
-    }, 250);
+        })();
+      },
+      activeGesture ? 70 : 250,
+    );
+  }
+
+  private idlePrefetchScales(): [bigint, bigint][] {
+    return [
+      [1n, 2n],
+      [1n, 4n],
+      [2n, 1n],
+      [4n, 1n],
+    ];
+  }
+
+  private activePrefetchScales(): [bigint, bigint][] {
+    const speed = Math.abs(this.zoomVelocity);
+
+    if (this.zoomVelocity > 0.008) {
+      return [
+        [1n, 4n],
+        [1n, 8n],
+        [1n, 2n],
+      ];
+    }
+
+    if (this.zoomVelocity > 0.003) {
+      return [
+        [1n, 2n],
+        [1n, 4n],
+        [1n, 8n],
+      ];
+    }
+
+    if (this.zoomVelocity < -0.008) {
+      return [
+        [4n, 1n],
+        [8n, 1n],
+        [2n, 1n],
+      ];
+    }
+
+    if (this.zoomVelocity < -0.003) {
+      return [
+        [2n, 1n],
+        [4n, 1n],
+        [8n, 1n],
+      ];
+    }
+
+    return speed < 0.0005
+      ? [
+          [1n, 2n],
+          [2n, 1n],
+        ]
+      : this.zoomVelocity > 0
+        ? [[1n, 2n]]
+        : [[2n, 1n]];
   }
 
   private async load(
@@ -628,7 +724,15 @@ export class RemoteVisualization {
   ): Promise<boolean> {
     const controller = new AbortController();
 
-    this.controller = controller;
+    if (prefetch) {
+      this.prefetchController?.abort();
+      this.prefetchController = controller;
+    } else {
+      this.prefetchController?.abort();
+      this.prefetchController = undefined;
+      this.controller = controller;
+    }
+
     const staged = new Map<string, VisualizationPoints>();
     const published = new Map<string, VisualizationPoints>();
     const iso = (ticks: bigint) => formatTime(ticks, "yyyy-MM-ddTHH:mm:ss.fffffff") + "Z";
@@ -777,10 +881,16 @@ export class RemoteVisualization {
       return false;
     } finally {
       if (generation === this.generation) {
-        this.previews.clear();
-        this.loading = false;
-        this.controller = undefined;
-        this.notify();
+        if (prefetch) {
+          if (this.prefetchController === controller) {
+            this.prefetchController = undefined;
+          }
+        } else {
+          this.previews.clear();
+          this.loading = false;
+          this.controller = undefined;
+          this.notify();
+        }
       }
     }
   }
