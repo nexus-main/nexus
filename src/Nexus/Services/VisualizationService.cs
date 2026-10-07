@@ -205,7 +205,7 @@ internal sealed class VisualizationService(
                     for (int viewIndex = 0; viewIndex < views.Length; viewIndex++)
                     {
                         var view = views[viewIndex];
-                        var points = new List<VisualizationPoint>();
+                        var points = new List<VisualizationPoint>(view.Stride == 1 ? (int)(view.End - view.Begin) : 0);
                         using (var wait = timing?.Measure("projection-compute-wait", token, aggregate: true))
                         {
                             await cache.Compute.WaitAsync(token);
@@ -215,13 +215,35 @@ internal sealed class VisualizationService(
                         try
                         {
                             using var compute = timing?.Measure("projection-compute", token, aggregate: true);
-                            for (long start = view.Begin; start < view.End;)
+                            if (view.Stride == 1)
                             {
-                                token.ThrowIfCancellationRequested();
-                                long stop = Math.Min(view.End, (start / view.Stride + 1) * view.Stride);
-                                var summary = Query(dataset, raw, resource, start, stop);
-                                points.AddRange(VisualizationReduction.Project(summary).Select(point => point with { Index = point.Index - begin }));
-                                start = stop;
+                                for (long start = view.Begin; start < view.End;)
+                                {
+                                    token.ThrowIfCancellationRequested();
+                                    long bucket = start / 256;
+                                    long bucketStart = Math.Max(begin, bucket * 256);
+                                    long stop = Math.Min(view.End, (bucket + 1) * 256);
+                                    var values = raw[bucket][resource];
+
+                                    for (long index = start; index < stop; index++)
+                                    {
+                                        float value = values[(int)(index - bucketStart)];
+                                        points.Add(new VisualizationPoint(index - begin, float.IsFinite(value) ? value : float.NaN));
+                                    }
+
+                                    start = stop;
+                                }
+                            }
+                            else
+                            {
+                                for (long start = view.Begin; start < view.End;)
+                                {
+                                    token.ThrowIfCancellationRequested();
+                                    long stop = Math.Min(view.End, (start / view.Stride + 1) * view.Stride);
+                                    var summary = Query(dataset, raw, resource, start, stop);
+                                    points.AddRange(VisualizationReduction.Project(summary).Select(point => point with { Index = point.Index - begin }));
+                                    start = stop;
+                                }
                             }
                             compute?.Complete();
                         }

@@ -149,7 +149,7 @@ level, which the normal console configuration already includes. No separate
 server configuration switch is needed. For a local run, capture the console:
 
 ```sh
-dotnet run --project src/Nexus/Nexus.csproj 2>&1 | tee /tmp/nexus-console.log
+dotnet run -c Release --project src/Nexus/Nexus.csproj 2>&1 | tee /tmp/nexus-console.log
 ```
 
 For a deployed service, collect its usual container stdout or service journal.
@@ -161,6 +161,18 @@ endpoint entry, not browser timestamps. Worker IDs are request-local; `-1` denot
 request-level work. Timing entries never include configuration, claims, resource
 paths, cache keys, view IDs, payloads, or exception messages. Existing service/plugin
 error logging is separate from these sanitized timing entries.
+
+Measure latency without an attached debugger. Rapid zooms intentionally cancel
+superseded requests; debugger first-chance exception notifications can delay other
+requests as those cancellations unwind. Expected request aborts are handled after
+worker cleanup rather than logged as HTTP 500 failures: an unstarted response is
+marked 499 and the HTTP request is aborted, including already-started Arrow streams.
+This does not suppress debugger first-chance exception notifications.
+
+These durations measure wall time, not CPU time. They include scheduling and GC
+pauses and can include synchronous logging overhead. Compare tracing enabled and
+disabled if console output is slow; do not treat a long read or compute phase as
+proof that the underlying I/O or computation alone caused the delay.
 
 Phases cover preparation (including failures), immediate admission, `join-build`,
 initial progress flush, build-gate wait, cache get/put, cold/detail scans, compute

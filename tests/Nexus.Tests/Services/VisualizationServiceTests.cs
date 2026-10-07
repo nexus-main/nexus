@@ -141,7 +141,8 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             fixture.ReleaseCancelledReads.TrySetResult();
         }
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.IsType<Microsoft.AspNetCore.Mvc.EmptyResult>(await running.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(StatusCodes.Status499ClientClosedRequest, context.Response.StatusCode);
         var entries = logs.Entries.ToArray();
         int requested = System.Array.FindIndex(entries, entry => entry.Phase == "cancellation-requested");
         int drained = System.Array.FindIndex(entries, entry => entry.Phase == "cancellation-drain" && entry.Outcome == "drained");
@@ -515,6 +516,59 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         Assert.Equal(11, fixture.Calls - calls); // 768 samples per read, not 32 individual buckets.
     }
 
+    [Theory]
+    [InlineData(13, 1307)]
+    [InlineData(29, 817)]
+    public async Task RawProjectionPreservesCanonicalBitsAcrossClippedBucketsColdAndWarm(int viewBegin, int viewEnd)
+    {
+        float[] values = [0f, -0f, 1.25f, -7.5f, float.Epsilon, -float.Epsilon, float.MaxValue,
+            float.MinValue, float.PositiveInfinity, float.NegativeInfinity,
+            BitConverter.Int32BitsToSingle(0x7fc12345), BitConverter.Int32BitsToSingle(unchecked((int)0xffc54321)), 42f];
+        using var fixture = new Fixture { Delay = TimeSpan.Zero, SampleValue = index => values[index % values.Length] };
+        long origin = fixture.Begin.Ticks / TimeSpan.TicksPerSecond;
+        int alignment = (int)((256 - origin % 256) % 256);
+        int domainBegin = alignment + 13;
+        viewBegin += alignment;
+        viewEnd += alignment;
+        var request = fixture.Request([fixture.View("raw", viewBegin, viewEnd, viewEnd - viewBegin)]) with
+        {
+            Begin = fixture.Begin.AddSeconds(domainBegin),
+            End = fixture.Begin.AddSeconds(alignment + 1307)
+        };
+        var expected = Enumerable.Range(viewBegin, viewEnd - viewBegin)
+            .SelectMany(index => VisualizationReduction.Project(
+                VisualizationReduction.Summarize([values[index % values.Length]], origin + index)))
+            .ToArray();
+        using var logs = new VisualizationTimingLogger();
+        Row[]? cold = null;
+
+        foreach (string cacheOutcome in new[] { "miss", "hit" })
+        {
+            var timing = new VisualizationTiming(logs.CreateLogger(VisualizationTiming.Category), Guid.NewGuid());
+            var rows = await fixture.RunAsync(request, timing);
+            Assert.Equal(2, rows.Last().Kind);
+            Assert.Equal(cacheOutcome, logs.Entries.Last(entry => entry.Phase == "cache-get" && entry.Milestone == "end").Outcome);
+            var data = rows.Where(row => row.Kind == 0).ToArray();
+            Assert.Equal(2, data.Length);
+
+            foreach (var row in data)
+            {
+                Assert.Equal(expected.Select(point => point.Index - origin - domainBegin), row.Indices);
+                Assert.Equal(expected.Select(point => BitConverter.SingleToInt32Bits(point.Value)),
+                    row.Values.Select(BitConverter.SingleToInt32Bits));
+
+                if (cold is not null)
+                {
+                    Assert.Equal(cold[row.Resource].Indices, row.Indices);
+                    Assert.Equal(cold[row.Resource].Values.Select(BitConverter.SingleToInt32Bits),
+                        row.Values.Select(BitConverter.SingleToInt32Bits));
+                }
+            }
+
+            cold = data;
+        }
+    }
+
     [Fact]
     public async Task SyntheticSourceThroughputBenchmark()
     {
@@ -869,6 +923,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         public bool SiblingDependencies;
         public bool CyclicDependencies;
         public bool HoldCancelledReads;
+        public Func<long, float>? SampleValue;
         public TimeSpan Delay = TimeSpan.FromMilliseconds(5);
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReadCancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -958,7 +1013,8 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
                                         for (int i = 0; i < values.Length; i++)
                                         {
                                             long index = (long)(from - Begin).TotalSeconds + i;
-                                            values[i] = index is >= 500 and < 510 ? float.PositiveInfinity : index % 1000;
+                                            values[i] = SampleValue is not null ? SampleValue(index)
+                                                : index is >= 500 and < 510 ? float.PositiveInfinity : index % 1000;
                                         }
 
                                         request.Status.Span.Fill(1);
