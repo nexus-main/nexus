@@ -936,6 +936,37 @@ export class RemoteVisualization {
           }
 
           if (!this.cachedView(view)) {
+            // Reserve the worst-case payload without displacing visited history,
+            // current coverage, or the full-domain fallback. Recheck each load:
+            // earlier predictions may have consumed the remaining cache capacity.
+            const retained = [...this.cache.values()].filter(
+              (entry) =>
+                !entry.prefetched ||
+                this.protectedViews.has(entry) ||
+                (entry.begin === this.begin && entry.end === this.end),
+            );
+            const retainedBytes = retained.reduce(
+              (sum, entry) =>
+                sum +
+                entry.points.reduce(
+                  (bytes, point) => bytes + point.indices.byteLength + point.values.byteLength,
+                  0,
+                ),
+              0,
+            );
+            const reservedBytes = view.maxPoints * this.resourcePaths.length * 12;
+
+            if (retained.length >= 8 || retainedBytes + reservedBytes > 32 * 1024 * 1024) {
+              this.trace("prefetch-stop-capacity", {
+                generation,
+                retainedEntries: retained.length,
+                retainedBytes,
+                reservedBytes,
+              });
+
+              break;
+            }
+
             this.trace("prefetch-load", {
               generation,
               view: traceViews([view])[0],

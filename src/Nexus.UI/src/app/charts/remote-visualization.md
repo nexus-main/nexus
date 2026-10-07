@@ -100,7 +100,10 @@ already exists after the foreground load, subject to normal server cache evictio
 Prefetch never changes foreground progress or publishes incomplete previews/errors.
 Successfully completed results notify chart subscribers and share the eight-entry/32 MiB cache. Speculative
 entries are evicted before visited history; current coverage and the full-domain
-fallback remain protected. A full history cache can therefore suppress prefetch.
+fallback remain protected. Before each speculative request, capacity is checked
+using its worst-case point payload, excluding replaceable unvisited speculative
+entries. A full history cache therefore suppresses prefetch before network dispatch
+(`prefetch-stop-capacity`), rather than downloading a result only to evict it.
 The queue stops on failure or when its result cannot be retained, without retrying
 until another viewport change.
 
