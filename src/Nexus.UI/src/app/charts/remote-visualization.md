@@ -13,6 +13,24 @@ additional configuration header is currently installed by `invoke`.
 
 ## Transport And Scheduling
 
+Set `localStorage.setItem("nexus.visualizationTrace", "true")` to enable diagnostics
+for subsequent loads; remove that key to disable them. Each traced load gets a
+fresh UUID (`requestId` in `load-start`) sent as `X-Nexus-Visualization-Trace`.
+The server echoes it and writes correlated Information-level phase logs under
+`Nexus.Visualization.Timing`; see `notes/visualization.md` for collection and phases.
+Untraced requests send no diagnostic header and produce no server timing logs.
+
+Browser `transport-start`, `transport-headers`, `decoder-first-bytes`,
+`decoder-open`, `decoder-first-batch`, `decoder-first-data`, and `decoder-end`
+events carry the same request ID, load ID, generation, foreground/prefetch kind,
+and `loadElapsedMs`. Header timing is recorded even for HTTP errors. Decoder end
+includes delivered byte/chunk/batch counts and completion/error/cancellation outcome.
+First bytes means the first nonempty body chunk delivered to JavaScript, not wire
+TTFB. Decoder wall durations include I/O and frame callbacks, not just CPU time.
+Browser/server monotonic clocks have separate origins: correlate IDs and compare
+phase durations, not absolute clock values. Collect server logs as well as the
+browser trace, including canceled requests that may still be draining workers.
+
 - Domain timestamps remain fixed. Main, overview, and visible precision navigator
   views use sample-aligned bounds with a one-sample halo. Budgets include all
   points and target four extrema buckets per physical pixel, with five slots per

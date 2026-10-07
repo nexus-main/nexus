@@ -1142,8 +1142,14 @@ export class AppComponent implements OnDestroy {
           data.end,
           samplePeriod,
           descriptors.map((item) => item.id),
-          (request, signal, onFrame) =>
-            this.nexus.loadVisualization(request, BigInt(data.series[0].length), signal, onFrame),
+          (request, signal, onFrame, trace) =>
+            this.nexus.loadVisualization(
+              request,
+              BigInt(data.series[0].length),
+              signal,
+              onFrame,
+              trace,
+            ),
           (begin, end, paths, count, signal) =>
             this.nexus.loadCursor(begin, end, paths, count, signal),
         );

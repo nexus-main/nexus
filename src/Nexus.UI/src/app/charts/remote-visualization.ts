@@ -40,6 +40,13 @@ export type VisualizationFrame =
   | ({ kind: "data"; complete: boolean } & VisualizationPoints)
   | { kind: "progress"; progress: number; resourceIndex: number; range?: GpuRange };
 
+export interface VisualizationLoadTrace {
+  requestId: string;
+  event: (event: string, details?: object) => void;
+}
+
+export const visualizationTraceHeader = "X-Nexus-Visualization-Trace";
+
 const columns = [
   ["kind", "Int32"],
   ["resourceIndex", "Int32"],
@@ -110,15 +117,27 @@ export async function decodeVisualization(
   sampleCount: bigint,
   signal: AbortSignal,
   onFrame: (frame: VisualizationFrame) => void,
+  trace?: VisualizationLoadTrace,
 ): Promise<void> {
+  const startedAt = trace ? performance.now() : 0;
   const stream = response.body?.getReader();
 
   if (!stream) {
+    trace?.event("decoder-end", {
+      outcome: "missing-body",
+      durationMs: performance.now() - startedAt,
+    });
+
     throw new Error("The visualization response has no body.");
   }
 
   let reader: RecordBatchReader | undefined;
   let complete = false;
+  let outcome = "error";
+  let byteCount = 0;
+  let chunks = 0;
+  let batches = 0;
+  let firstData = false;
   const completedViews = new Set<string>();
   const cancel = () => {
     void stream.cancel(signal.reason).catch(() => {});
@@ -175,6 +194,15 @@ export async function decodeVisualization(
           return;
         }
 
+        if (trace && result.value.byteLength > 0) {
+          if (byteCount === 0) {
+            trace.event("decoder-first-bytes", { bytes: result.value.byteLength });
+          }
+
+          byteCount += result.value.byteLength;
+          chunks++;
+        }
+
         yield result.value;
       }
     }
@@ -183,9 +211,14 @@ export async function decodeVisualization(
     await reader.open({ autoDestroy: false });
     signal.throwIfAborted();
     validateSchema(reader.schema);
+    trace?.event("decoder-open", { durationMs: performance.now() - startedAt });
 
     for await (const batch of reader) {
       validateSchema(batch.schema);
+
+      if (trace && batches++ === 0) {
+        trace.event("decoder-first-batch");
+      }
 
       for (let row = 0; row < batch.numRows; row++) {
         signal.throwIfAborted();
@@ -281,6 +314,11 @@ export async function decodeVisualization(
             completedViews.add(key);
           }
 
+          if (trace && !firstData) {
+            firstData = true;
+            trace.event("decoder-first-data", { resourceIndex, viewIndex });
+          }
+
           onFrame({
             kind: "data",
             complete: message === "complete",
@@ -300,6 +338,8 @@ export async function decodeVisualization(
     if (!complete || completedViews.size !== request.resourcePaths.length * request.views.length) {
       throw new Error("Visualization stream ended before explicit completion of all views.");
     }
+
+    outcome = "complete";
   } finally {
     signal.removeEventListener("abort", cancel);
     cancel();
@@ -308,6 +348,14 @@ export async function decodeVisualization(
       await reader?.cancel();
     } finally {
       stream.releaseLock();
+
+      trace?.event("decoder-end", {
+        outcome: signal.aborted ? "cancelled" : outcome,
+        durationMs: performance.now() - startedAt,
+        bytes: byteCount,
+        chunks,
+        batches,
+      });
     }
   }
 }
@@ -316,6 +364,7 @@ export type VisualizationTransport = (
   request: VisualizationRequest,
   signal: AbortSignal,
   onFrame: (frame: VisualizationFrame) => void,
+  trace?: VisualizationLoadTrace,
 ) => Promise<void>;
 
 interface CachedView {
@@ -408,7 +457,7 @@ export class RemoteVisualization {
       end: String(end),
       samplePeriod: String(samplePeriod),
       resources: resourcePaths.length,
-      enableWith: `localStorage.${visualizationTraceKey} = "true"`,
+      enableWith: `localStorage.setItem("${visualizationTraceKey}", "true")`,
     });
 
     if (cursorTransport) {
@@ -921,8 +970,38 @@ export class RemoteVisualization {
     const startedAt = performance.now();
     const kind = prefetch ? "prefetch" : "foreground";
     const requested = this.requestedViews;
+    let trace: VisualizationLoadTrace | undefined;
 
-    this.trace("load-start", { loadId, kind, generation, views: traceViews(views) });
+    if (visualizationTraceEnabled()) {
+      // getRandomValues also works on HTTP deployments, unlike randomUUID.
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const requestId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+
+      trace = {
+        requestId,
+        event: (event, details) =>
+          this.trace(event, {
+            ...details,
+            requestId,
+            loadId,
+            kind,
+            generation,
+            loadElapsedMs: performance.now() - startedAt,
+          }),
+      };
+    }
+
+    this.trace("load-start", {
+      loadId,
+      kind,
+      generation,
+      requestId: trace?.requestId,
+      views: traceViews(views),
+    });
 
     if (prefetch) {
       if (this.prefetchController) {
@@ -1020,6 +1099,7 @@ export class RemoteVisualization {
             this.notify();
           }
         },
+        trace,
       );
 
       if (generation !== this.generation || controller.signal.aborted) {
