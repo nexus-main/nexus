@@ -17,7 +17,8 @@ namespace Nexus.Controllers.V2;
 [ApiVersion("2.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class DataController(
-    IDataService dataService) : ControllerBase
+    IDataService dataService,
+    ILoggerFactory loggerFactory) : ControllerBase
 {
     private readonly IDataService _dataService = dataService;
 
@@ -37,25 +38,59 @@ internal class DataController(
         [FromServices] IVisualizationService visualization,
         CancellationToken cancellationToken)
     {
+        VisualizationTiming? timing = null;
+        var header = Request.Headers[VisualizationTiming.Header];
+
+        if (header.Count == 1 && header[0] is { Length: 36 } value && Guid.TryParseExact(value, "D", out var id) &&
+            string.Equals(value, id.ToString("D"), StringComparison.OrdinalIgnoreCase))
+        {
+            timing = new VisualizationTiming(loggerFactory.CreateLogger(VisualizationTiming.Category), id);
+            Response.Headers[VisualizationTiming.Header] = timing.RequestId;
+        }
+
         try
         {
-            var write = await visualization.PrepareAsync(request, cancellationToken);
+            Func<Stream, CancellationToken, Task> write;
+
+            using (var prepare = timing?.Measure("prepare", cancellationToken))
+            {
+                write = await visualization.PrepareAsync(request, cancellationToken, timing);
+                prepare?.Complete();
+            }
+
             Response.ContentType = "application/vnd.apache.arrow.stream";
             Response.Headers.CacheControl = "no-store";
             await write(Response.Body, cancellationToken);
+            if (timing is not null && timing.Outcome == "error")
+                timing.Outcome = "success";
             return new EmptyResult();
         }
         catch (ValidationException ex) when (!Response.HasStarted)
         {
+            if (timing is not null)
+                timing.Outcome = "rejected";
             return new ContentResult { StatusCode = StatusCodes.Status422UnprocessableEntity, ContentType = "text/plain", Content = ex.Message };
         }
         catch (Exception ex) when (!Response.HasStarted && ex.Message.StartsWith("Could not find resource path"))
         {
+            if (timing is not null)
+                timing.Outcome = "not-found";
             return new ContentResult { StatusCode = StatusCodes.Status404NotFound, ContentType = "text/plain", Content = ex.Message };
         }
         catch (Exception ex) when (!Response.HasStarted && ex.Message.StartsWith("The current user is not permitted to access the catalog"))
         {
+            if (timing is not null)
+                timing.Outcome = "forbidden";
             return new ContentResult { StatusCode = StatusCodes.Status403Forbidden, ContentType = "text/plain", Content = ex.Message };
+        }
+        finally
+        {
+            if (timing is not null)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    timing.Outcome = "cancelled";
+                timing.EndRequest();
+            }
         }
     }
 

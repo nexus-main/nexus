@@ -130,6 +130,72 @@ the cached pyramid until expiry. Kernel and synthetic pipeline measurements are
 recorded in `benchmarks/Nexus.Benchmarks/VisualizationReduction.md` and
 `tests/Nexus.Tests/Services/VisualizationReview.md`; these are not NVMe benchmarks.
 
+## Opt-in server timings
+
+Enable `localStorage.setItem("nexus.visualizationTrace", "true")` in the browser
+console. Subsequent HTTP loads, including retries and viewport reloads, create a
+fresh random UUID and send it as `X-Nexus-Visualization-Trace`. UUIDs use
+`crypto.getRandomValues` so tracing also works on HTTP deployments. Remove the
+localStorage key to disable tracing. The server enables timings
+only for a single canonical GUID-D value (36 characters with hyphens, validated
+with `Guid.TryParseExact(..., "D", ...)`). Uppercase hex is accepted and normalized
+to lowercase in the same response header. Missing, malformed, whitespace-padded,
+or multiple values do not enable timings and are not echoed. This is only a
+diagnostic header; request JSON, OpenAPI models, generated clients and Arrow
+schemas are unchanged.
+
+Timings use the fixed logger category `Nexus.Visualization.Timing` at Information
+level, which the normal console configuration already includes. No separate
+server configuration switch is needed. For a local run, capture the console:
+
+```sh
+dotnet run --project src/Nexus/Nexus.csproj 2>&1 | tee /tmp/nexus-console.log
+```
+
+For a deployed service, collect its usual container stdout or service journal.
+Search for the echoed request UUID to correlate server entries with that one
+browser load. The rendered message includes `request`, `phase`, `milestone`,
+`elapsedMs`, `durationMs`, `outcome`, `worker`, and `count`; these are also structured
+log properties. Times use a monotonic stopwatch, relative to trace creation at
+endpoint entry, not browser timestamps. Worker IDs are request-local; `-1` denotes
+request-level work. Timing entries never include configuration, claims, resource
+paths, cache keys, view IDs, payloads, or exception messages. Existing service/plugin
+error logging is separate from these sanitized timing entries.
+
+Phases cover preparation (including failures), immediate admission, `join-build`,
+initial progress flush, build-gate wait, cache get/put, cold/detail scans, compute
+wait/work, worker read-permit waits, source initialization, inclusive controller
+reads, disposal, first data flush, completion flush, cancellation requested/drain,
+resources released, and endpoint request end. Cache get/put and join-build durations
+include monitor acquisition; cache durations also include quota/pruning and disk
+I/O inside the call. Get outcomes distinguish `hit`, `shared` (completed shared
+build without a cache lease), and `miss`; memory and disk hits are not separated.
+Cache-put `success` means the call completed, not that the dataset was retained:
+cache quotas can prevent retention without failing the request.
+
+Repeated initialization, reads, slice computation and disposal are aggregated per
+worker; projection computation is aggregated per request. Each aggregate includes
+the attempted operation count and summed durations, including failed/cancelled
+attempts. Only the first operation in each aggregate emits start/end milestones;
+final totals are emitted when that worker/request releases resources. There are
+no per-bucket logs and output is bounded by worker/phase counts, not domain size.
+Start/end entries describe the same work as the aggregate and must not be added
+to it. A later stalled read is not individually identified until the aggregate
+finishes; a process crash can prevent final aggregates and request-end entries.
+
+`controller-read-inclusive` measures `ReadSliceAsync`, **not device I/O**: it includes
+controller/plugin work, recursive dependency initialization/reads/disposal,
+normalization, pipe handling and copies inside that boundary. Top-level source
+initialization and disposal have separate worker aggregates; recursive operations
+are not separately instrumented. Overlapping worker durations can exceed request
+wall time. Shared work stays correlated to its owner's request even when that
+owner cancels and another consumer still needs the build; the owner's drain can
+therefore be long. Cancellation milestones do not alter that lifetime. Flush
+completion is server-side only, not proof of browser receipt/rendering. Request
+end is endpoint exit after service cleanup, not transport teardown or MVC error
+body serialization. Requests rejected by middleware/model binding before endpoint
+entry have no visualization timings.
+
 ## Large-server example
 
 The conservative default summary limit rejects some multi-gigabyte domains.

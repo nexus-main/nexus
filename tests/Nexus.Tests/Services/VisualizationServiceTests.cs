@@ -20,6 +20,7 @@ using Nexus.Core.V2;
 using Nexus.DataModel;
 using Nexus.Extensibility;
 using Nexus.Services;
+using Nexus.Tests;
 using Nexus.Utilities;
 using Xunit;
 
@@ -27,6 +28,192 @@ namespace Services;
 
 public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper output)
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EndpointTimingIsOptInCorrelatedAndBounded(bool enabled)
+    {
+        using var fixture = new Fixture { Delay = TimeSpan.Zero };
+        fixture.Configuration = new Dictionary<string, JsonElement> { ["secret-key"] = JsonSerializer.SerializeToElement("secret-value") };
+        using var logs = new VisualizationTimingLogger();
+        var request = fixture.Request([fixture.View("secret-view", 0, 65536, 100)]);
+
+        foreach (string cacheOutcome in new[] { "miss", "hit" })
+        {
+            using var stream = new MemoryStream();
+            var context = new DefaultHttpContext();
+            context.Response.Body = stream;
+            string id = Guid.NewGuid().ToString("D");
+
+            if (enabled)
+                context.Request.Headers[VisualizationTiming.Header] = id;
+
+            var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
+            {
+                ControllerContext = new ControllerContext { HttpContext = context }
+            };
+            Assert.IsType<EmptyResult>(await controller.GetVisualizationAsync(request, fixture.Service, CancellationToken.None));
+
+            if (!enabled)
+            {
+                Assert.Empty(logs.Entries);
+                continue;
+            }
+
+            var entries = logs.Entries.Where(entry => Equals(entry.Fields["RequestId"], id)).ToArray();
+            Assert.Equal(id, context.Response.Headers[VisualizationTiming.Header]);
+            Assert.Equal(cacheOutcome, Assert.Single(entries, entry => entry.Phase == "cache-get" && entry.Milestone == "end").Outcome);
+            Assert.Equal("request", entries.Last().Phase);
+            Assert.Equal("success", entries.Last().Outcome);
+            Assert.All(entries, entry =>
+            {
+                Assert.Equal(VisualizationTiming.Category, entry.Category);
+                Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Information, entry.Level);
+                Assert.Null(entry.Exception);
+                Assert.Contains(id, entry.Message);
+                Assert.Contains(entry.Phase, entry.Message);
+                Assert.Contains(entry.Outcome, entry.Message);
+                Assert.DoesNotContain("secret", entry.Message);
+                Assert.DoesNotContain("/A/B/C", entry.Message);
+                Assert.DoesNotContain("Administrator", entry.Message);
+                Assert.InRange((double)entry.Fields["DurationMs"]!, 0, (double)entry.Fields["ElapsedMs"]!);
+            });
+
+            foreach (string phase in new[] { "prepare", "request-admission", "join-build", "initial-progress-flush",
+                "build-gate-wait", "first-data-flush", "completion-flush", "resources-released" })
+                Assert.Contains(entries, entry => entry.Phase == phase && entry.Outcome != "pending");
+
+            if (cacheOutcome == "miss")
+            {
+                Assert.Contains(entries, entry => entry.Phase == "cache-put" && entry.Outcome == "success");
+                var reads = entries.Where(entry => entry.Phase == "controller-read-inclusive" && entry.Milestone == "aggregate").ToArray();
+                Assert.Equal(fixture.Calls, reads.Sum(entry => (long)entry.Fields["Count"]!));
+                Assert.Equal(fixture.Instances, reads.Length);
+                Assert.Equal(reads.Length, reads.Select(entry => entry.Fields["WorkerId"]).Distinct().Count());
+                Assert.InRange(entries.Length, 1, 120); // Independent of the hundreds of source reads.
+
+                foreach (var read in reads)
+                {
+                    int worker = (int)read.Fields["WorkerId"]!;
+                    foreach (string phase in new[] { "read-permit-wait", "source-initialize", "controller-read-inclusive",
+                        "slice-compute-wait", "slice-compute", "source-dispose" })
+                    {
+                        Assert.Single(entries, entry => Equals(entry.Fields["WorkerId"], worker) && entry.Phase == phase && entry.Milestone == "start");
+                        Assert.Single(entries, entry => Equals(entry.Fields["WorkerId"], worker) && entry.Phase == phase && entry.Milestone == "end");
+                    }
+                }
+            }
+            else
+                Assert.DoesNotContain(entries, entry => entry.Phase == "controller-read-inclusive");
+        }
+    }
+
+    [Fact]
+    public async Task TimingRecordsCancellationBeforeDrainAndResourceRelease()
+    {
+        using var fixture = new Fixture { Delay = TimeSpan.FromSeconds(30), HoldCancelledReads = true };
+        using var logs = new VisualizationTimingLogger();
+        using var cancellation = new CancellationTokenSource();
+        using var stream = new MemoryStream();
+        var context = new DefaultHttpContext();
+        context.Request.Headers[VisualizationTiming.Header] = Guid.NewGuid().ToString("D");
+        context.Response.Body = stream;
+        var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
+        {
+            ControllerContext = new ControllerContext { HttpContext = context }
+        };
+        var running = controller.GetVisualizationAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]), fixture.Service, cancellation.Token);
+        await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            await cancellation.CancelAsync();
+            await fixture.ReadCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Contains(logs.Entries, entry => entry.Phase == "cancellation-requested");
+            Assert.DoesNotContain(logs.Entries, entry => entry.Phase == "resources-released" || entry.Phase == "request");
+            Assert.False(running.IsCompleted);
+            Assert.True(fixture.Active > 0);
+            Assert.True(fixture.Cache.Reads.CurrentCount < 3);
+            Assert.Equal(3, fixture.Cache.Requests.CurrentCount);
+        }
+        finally
+        {
+            fixture.ReleaseCancelledReads.TrySetResult();
+        }
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running.WaitAsync(TimeSpan.FromSeconds(5)));
+        var entries = logs.Entries.ToArray();
+        int requested = System.Array.FindIndex(entries, entry => entry.Phase == "cancellation-requested");
+        int drained = System.Array.FindIndex(entries, entry => entry.Phase == "cancellation-drain" && entry.Outcome == "drained");
+        int released = System.Array.FindIndex(entries, entry => entry.Phase == "resources-released");
+        Assert.True(requested < drained && drained < released && released < entries.Length - 1);
+        Assert.Equal("request", entries.Last().Phase);
+        Assert.Equal("cancelled", entries.Last().Outcome);
+        Assert.Contains(entries, entry => entry.Phase == "controller-read-inclusive" && entry.Outcome == "cancelled");
+        Assert.DoesNotContain(entries, entry => entry.Phase == "first-data-flush" || entry.Phase == "completion-flush");
+        Assert.Equal(0, fixture.Active);
+        Assert.Equal(fixture.Instances, fixture.Disposed);
+        Assert.Equal(3, fixture.Cache.Reads.CurrentCount);
+        Assert.Equal(4, fixture.Cache.Requests.CurrentCount);
+    }
+
+    [Fact]
+    public async Task TimingReportsStreamFailureRatherThanSuccess()
+    {
+        using var fixture = new Fixture { Fail = true, Delay = TimeSpan.Zero };
+        using var logs = new VisualizationTimingLogger();
+        using var stream = new MemoryStream();
+        var context = new DefaultHttpContext();
+        context.Request.Headers[VisualizationTiming.Header] = Guid.NewGuid().ToString("D");
+        context.Response.Body = stream;
+        var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
+        {
+            ControllerContext = new ControllerContext { HttpContext = context }
+        };
+        await controller.GetVisualizationAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]), fixture.Service, CancellationToken.None);
+        Assert.Equal("stream-error", logs.Entries.Last().Outcome);
+        Assert.Contains(logs.Entries, entry => entry.Phase == "controller-read-inclusive" && entry.Outcome == "error");
+        Assert.All(logs.Entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            Assert.DoesNotContain("source failed", entry.Message);
+        });
+    }
+
+    [Fact]
+    public async Task TimingRecordsBusyAdmissionWithoutStartingWork()
+    {
+        using var fixture = new Fixture();
+        using var logs = new VisualizationTimingLogger();
+        using var stream = new MemoryStream();
+        var context = new DefaultHttpContext();
+        context.Request.Headers[VisualizationTiming.Header] = Guid.NewGuid().ToString("D");
+        context.Response.Body = stream;
+        var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
+        {
+            ControllerContext = new ControllerContext { HttpContext = context }
+        };
+
+        for (int i = 0; i < 4; i++)
+            await fixture.Cache.Requests.WaitAsync();
+
+        try
+        {
+            var result = await controller.GetVisualizationAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]), fixture.Service, CancellationToken.None);
+            Assert.Equal(422, Assert.IsType<ContentResult>(result).StatusCode);
+            Assert.Contains(logs.Entries, entry => entry.Phase == "request-admission" && entry.Outcome == "busy");
+            Assert.Equal("rejected", logs.Entries.Last().Outcome);
+            Assert.DoesNotContain(logs.Entries, entry => entry.Phase == "join-build" || entry.Phase == "resources-released");
+            Assert.Equal(0, fixture.Instances);
+            Assert.Equal(0, fixture.Cache.Requests.CurrentCount);
+            Assert.Equal(0, stream.Length);
+        }
+        finally
+        {
+            fixture.Cache.Requests.Release(4);
+        }
+    }
+
     [Fact]
     public void ViewPlanFixedSpanHasSameStrideAtEveryAlignment()
     {
@@ -174,6 +361,8 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     public async Task CancellingBuildOwnerDoesNotRestartOtherConsumersScan(bool disableCache)
     {
         using var fixture = new Fixture(memoryLimit: disableCache ? 0 : 16 * 1024 * 1024) { Delay = TimeSpan.FromMilliseconds(10) };
+        using var logs = new VisualizationTimingLogger();
+        var timing = new VisualizationTiming(logs.CreateLogger(VisualizationTiming.Category), Guid.NewGuid());
 
         if (disableCache)
             fixture.Cache.Options.DiskLimitBytes = 0;
@@ -184,13 +373,17 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         using var stream = new MemoryStream();
         var owner = write(stream, cancellation.Token);
         await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var waiter = fixture.RunAsync(request);
+        var waiter = fixture.RunAsync(request, timing);
         Assert.Equal(2, fixture.Cache.Requests.CurrentCount);
         await cancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => owner.WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(2, (await waiter).Last().Kind);
         Assert.Equal(65536 * 2, fixture.Samples);
         Assert.Equal(fixture.Instances, fixture.Disposed);
+        Assert.Equal(disableCache ? "shared" : "hit",
+            Assert.Single(logs.Entries, entry => entry.Phase == "cache-get" && entry.Milestone == "end").Outcome);
+        Assert.Contains(logs.Entries, entry => entry.Phase == "build-gate-wait" && entry.Milestone == "end");
+        Assert.DoesNotContain(logs.Entries, entry => entry.Phase == "controller-read-inclusive");
     }
 
     [Fact]
@@ -621,7 +814,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         using var fixture = new Fixture();
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
-        var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>())
+        var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), NullLoggerFactory.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };
@@ -675,8 +868,11 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         public bool DynamicDependencies;
         public bool SiblingDependencies;
         public bool CyclicDependencies;
+        public bool HoldCancelledReads;
         public TimeSpan Delay = TimeSpan.FromMilliseconds(5);
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReadCancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseCancelledReads { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IReadOnlyDictionary<string, JsonElement>? Configuration;
         private readonly Mock<IDataControllerService> _controllers = new();
         private readonly AppState _state;
@@ -731,7 +927,13 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
                                     }
 
                                     Started.TrySetResult();
-                                    await Task.Delay(Delay, ct);
+                                    try { await Task.Delay(Delay, ct); }
+                                    catch (OperationCanceledException) when (HoldCancelledReads)
+                                    {
+                                        ReadCancelled.TrySetResult();
+                                        await ReleaseCancelledReads.Task;
+                                        throw;
+                                    }
 
                                     if (Fail)
                                         throw new InvalidOperationException("source failed");
@@ -790,9 +992,9 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         public VisualizationView View(string id, int begin, int end, int points) => new(id, Begin.AddSeconds(begin), Begin.AddSeconds(end), points);
         public VisualizationRequest Request(VisualizationView[] views) => new(Begin, Begin.AddSeconds(65536), ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"], views);
 
-        public async Task<List<Row>> RunAsync(VisualizationRequest request)
+        public async Task<List<Row>> RunAsync(VisualizationRequest request, VisualizationTiming? timing = null)
         {
-            var write = await Service.PrepareAsync(request, CancellationToken.None);
+            var write = await Service.PrepareAsync(request, CancellationToken.None, timing);
             using var stream = new MemoryStream();
             await write(stream, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(15));
             stream.Position = 0;
