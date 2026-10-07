@@ -367,6 +367,7 @@ export class RemoteVisualization {
     { source: VisualizationPoints; begin: bigint; end: bigint; points: Float32Array }
   >();
   private controller?: AbortController;
+  private foregroundViews: RequestedView[] = [];
   private foregroundTimer?: ReturnType<typeof setTimeout>;
   private prefetchTimer?: ReturnType<typeof setTimeout>;
   private prefetchController?: AbortController;
@@ -450,10 +451,12 @@ export class RemoteVisualization {
 
     this.generation++;
     clearTimeout(this.foregroundTimer);
+    this.foregroundTimer = undefined;
     clearTimeout(this.prefetchTimer);
     this.controller?.abort();
     this.prefetchController?.abort();
     this.controller = undefined;
+    this.foregroundViews = [];
     this.prefetchController = undefined;
     this.previews.clear();
     this.protectedViews.clear();
@@ -481,7 +484,9 @@ export class RemoteVisualization {
       return;
     }
 
-    this.cancel();
+    clearTimeout(this.prefetchTimer);
+    this.prefetchController?.abort();
+    this.prefetchController = undefined;
     this.viewportKey = key;
     this.requestedViews = views;
     this.error = "";
@@ -548,6 +553,28 @@ export class RemoteVisualization {
 
       return !cached;
     });
+    // Retain useful coverage during small zoom steps, even if boundary buckets
+    // still need refinement. A jump beyond one LOD or outside coverage replaces it.
+    const target = missing.find((view) => view.id === "main") ?? missing[0];
+    const useful =
+      target &&
+      this.foregroundViews.some(
+        (view) =>
+          view.id === target.id &&
+          view.begin <= target.begin &&
+          view.end >= target.end &&
+          this.strideOf(view.begin, view.end, view.maxPoints) <=
+            2n * this.strideOf(target.begin, target.end, target.maxPoints),
+      );
+
+    if (this.controller && !useful) {
+      this.generation++;
+      this.controller.abort();
+      this.controller = undefined;
+      this.foregroundViews = [];
+      this.previews.clear();
+    }
+
     const generation = this.generation;
 
     this.trace("request", {
@@ -560,6 +587,10 @@ export class RemoteVisualization {
     });
 
     if (!missing.length) {
+      clearTimeout(this.foregroundTimer);
+      this.foregroundTimer = undefined;
+      this.loading = false;
+      this.progress = 1;
       this.trace("request-cache-hit", { generation });
       this.notify();
       this.schedulePrefetch(main, generation);
@@ -568,21 +599,42 @@ export class RemoteVisualization {
     }
 
     this.loading = true;
-    this.progress = 0;
+
+    if (!this.controller) {
+      this.progress = 0;
+    }
 
     this.notify();
 
-    if (!immediate && previousMain) {
-      this.schedulePrefetch(main, generation, true);
+    this.scheduleForeground(immediate);
+  }
+
+  private scheduleForeground(immediate = false): void {
+    if (this.controller) {
+      this.trace("foreground-retained", { views: traceViews(this.foregroundViews) });
+
+      return;
+    }
+
+    if (immediate) {
+      clearTimeout(this.foregroundTimer);
+      this.foregroundTimer = undefined;
+    }
+
+    if (this.foregroundTimer !== undefined) {
+      return;
     }
 
     this.foregroundTimer = setTimeout(
       () => {
-        const stillMissing = missing.filter((view) => !this.cachedView(view));
+        this.foregroundTimer = undefined;
+        const generation = this.generation;
+        const requested = this.requestedViews;
+        const stillMissing = this.requestedViews.filter((view) => !this.cachedView(view));
 
-        this.trace("foreground-debounce-fired", {
+        this.trace("foreground-coalesce-fired", {
           generation,
-          requested: traceViews(missing),
+          requested: traceViews(this.requestedViews),
           stillMissing: traceViews(stillMissing),
         });
 
@@ -591,19 +643,32 @@ export class RemoteVisualization {
             this.loading = false;
             this.progress = 1;
             this.notify();
-            this.schedulePrefetch(main, generation);
+            this.schedulePrefetch(this.mainView, generation);
           }
 
           return;
         }
 
+        this.loading = true;
+        this.progress = 0;
+        this.foregroundViews = stillMissing;
+
         void this.load(stillMissing, generation).then((success) => {
-          if (success) {
-            this.schedulePrefetch(main, generation);
+          if (generation === this.generation && (success || requested !== this.requestedViews)) {
+            const missing = this.requestedViews.some((view) => !this.cachedView(view));
+
+            if (missing) {
+              this.error = "";
+              this.loading = true;
+              this.notify();
+              this.scheduleForeground();
+            } else {
+              this.schedulePrefetch(this.mainView, generation);
+            }
           }
         });
       },
-      immediate ? 0 : 150,
+      immediate ? 0 : 50,
     );
   }
 
@@ -652,16 +717,11 @@ export class RemoteVisualization {
     );
   }
 
-  private schedulePrefetch(
-    main: RequestedView | undefined,
-    generation: number,
-    activeGesture = false,
-  ): void {
-    if (!main || generation !== this.generation) {
+  private schedulePrefetch(main: RequestedView | undefined, generation: number): void {
+    if (!main || generation !== this.generation || this.loading) {
       this.trace("prefetch-skip-stale", {
         generation,
         currentGeneration: this.generation,
-        activeGesture,
       });
 
       return;
@@ -676,7 +736,6 @@ export class RemoteVisualization {
     if (span <= (BigInt(main.maxPoints) * 256n) / 5n) {
       this.trace("prefetch-skip-fine", {
         generation,
-        activeGesture,
         span: String(span),
         maxPoints: main.maxPoints,
       });
@@ -687,7 +746,12 @@ export class RemoteVisualization {
     const anchor = (main.begin - this.begin) / period + (span * this.zoomAnchor) / 1000000n;
     let remainingPoints = Math.floor(262144 / this.resourcePaths.length);
     const predictions: RequestedView[] = [];
-    const scales = activeGesture ? this.activePrefetchScales() : this.idlePrefetchScales();
+    const scales: [bigint, bigint][] = [
+      [1n, 2n],
+      [1n, 4n],
+      [2n, 1n],
+      [4n, 1n],
+    ];
 
     for (const [numerator, denominator] of scales) {
       const width = (span * numerator) / denominator;
@@ -721,7 +785,6 @@ export class RemoteVisualization {
       ) {
         this.trace("prefetch-candidate-skip", {
           generation,
-          activeGesture,
           numerator: String(numerator),
           denominator: String(denominator),
           first: String(first),
@@ -748,7 +811,6 @@ export class RemoteVisualization {
       ) {
         this.trace("prefetch-candidate-covered", {
           generation,
-          activeGesture,
           view: traceViews([view])[0],
         });
 
@@ -760,120 +822,59 @@ export class RemoteVisualization {
     }
 
     if (!predictions.length) {
-      this.trace("prefetch-skip-empty", { generation, activeGesture });
+      this.trace("prefetch-skip-empty", { generation });
 
       return;
     }
 
     clearTimeout(this.prefetchTimer);
+    const viewportKey = this.viewportKey;
 
     this.trace("prefetch-scheduled", {
       generation,
-      activeGesture,
-      delay: activeGesture ? 70 : 250,
+      delay: 250,
       velocity: this.zoomVelocity,
       anchor: String(this.zoomAnchor),
       predictions: traceViews(predictions),
     });
 
-    this.prefetchTimer = setTimeout(
-      () => {
-        this.trace("prefetch-fired", { generation, activeGesture });
+    this.prefetchTimer = setTimeout(() => {
+      this.trace("prefetch-fired", { generation });
 
-        void (async () => {
-          for (const view of predictions) {
-            if (generation !== this.generation) {
-              this.trace("prefetch-stop-stale", {
+      void (async () => {
+        for (const view of predictions) {
+          if (generation !== this.generation || viewportKey !== this.viewportKey || this.loading) {
+            this.trace("prefetch-stop-stale", {
+              generation,
+              currentGeneration: this.generation,
+            });
+
+            break;
+          }
+
+          if (!this.cachedView(view)) {
+            this.trace("prefetch-load", {
+              generation,
+              view: traceViews([view])[0],
+            });
+
+            if (!(await this.load([view], generation, true)) || !this.cachedView(view)) {
+              this.trace("prefetch-stop-unretained", {
                 generation,
-                currentGeneration: this.generation,
-                activeGesture,
+                view: traceViews([view])[0],
               });
 
               break;
             }
-
-            if (!this.cachedView(view)) {
-              this.trace("prefetch-load", {
-                generation,
-                activeGesture,
-                view: traceViews([view])[0],
-              });
-
-              if (!(await this.load([view], generation, true)) || !this.cachedView(view)) {
-                this.trace("prefetch-stop-unretained", {
-                  generation,
-                  activeGesture,
-                  view: traceViews([view])[0],
-                });
-
-                break;
-              }
-            } else {
-              this.trace("prefetch-skip-cached", {
-                generation,
-                activeGesture,
-                view: traceViews([view])[0],
-              });
-            }
+          } else {
+            this.trace("prefetch-skip-cached", {
+              generation,
+              view: traceViews([view])[0],
+            });
           }
-        })();
-      },
-      activeGesture ? 70 : 250,
-    );
-  }
-
-  private idlePrefetchScales(): [bigint, bigint][] {
-    return [
-      [1n, 2n],
-      [1n, 4n],
-      [2n, 1n],
-      [4n, 1n],
-    ];
-  }
-
-  private activePrefetchScales(): [bigint, bigint][] {
-    const speed = Math.abs(this.zoomVelocity);
-
-    if (this.zoomVelocity > 0.008) {
-      return [
-        [1n, 4n],
-        [1n, 8n],
-        [1n, 2n],
-      ];
-    }
-
-    if (this.zoomVelocity > 0.003) {
-      return [
-        [1n, 2n],
-        [1n, 4n],
-        [1n, 8n],
-      ];
-    }
-
-    if (this.zoomVelocity < -0.008) {
-      return [
-        [4n, 1n],
-        [8n, 1n],
-        [2n, 1n],
-      ];
-    }
-
-    if (this.zoomVelocity < -0.003) {
-      return [
-        [2n, 1n],
-        [4n, 1n],
-        [8n, 1n],
-      ];
-    }
-
-    return speed < 0.0005
-      ? [
-          [1n, 2n],
-          [2n, 1n],
-        ]
-      : this.zoomVelocity > 0
-        ? [[1n, 2n]]
-        : [[2n, 1n]];
+        }
+      })();
+    }, 250);
   }
 
   private async load(
@@ -885,6 +886,7 @@ export class RemoteVisualization {
     const loadId = ++this.loadSequence;
     const startedAt = performance.now();
     const kind = prefetch ? "prefetch" : "foreground";
+    const requested = this.requestedViews;
 
     this.trace("load-start", { loadId, kind, generation, views: traceViews(views) });
 
@@ -1088,6 +1090,8 @@ export class RemoteVisualization {
 
       if (!prefetch) {
         this.progress = 1;
+      } else {
+        this.notify();
       }
 
       this.trace("load-complete", {
@@ -1110,7 +1114,12 @@ export class RemoteVisualization {
         error: String(error),
       });
 
-      if (!prefetch && generation === this.generation && !controller.signal.aborted) {
+      if (
+        !prefetch &&
+        generation === this.generation &&
+        !controller.signal.aborted &&
+        requested === this.requestedViews
+      ) {
         this.error = String(error);
         this.viewportKey = "";
       }
@@ -1124,8 +1133,14 @@ export class RemoteVisualization {
           }
         } else {
           this.previews.clear();
-          this.loading = false;
+          this.loading = !this.error && this.requestedViews.some((view) => !this.cachedView(view));
+
+          if (this.loading) {
+            this.progress = 0;
+          }
+
           this.controller = undefined;
+          this.foregroundViews = [];
           this.notify();
         }
       }

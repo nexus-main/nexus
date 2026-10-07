@@ -19,9 +19,19 @@ additional configuration header is currently installed by `invoke`.
   bucket and one boundary bucket. Twofold LOD rounding retains at least two buckets
   per pixel before caps. Server limits take precedence: 32768 points per view and
   262144 across resources and three views (the default server aggregate limit).
-- Horizontal gestures debounce for 150 ms. Vertical-only changes do not schedule
-  requests. A new request immediately aborts the previous one and advances a
-  generation, guarding progress, previews, errors, and cache publication.
+- Horizontal gestures coalesce for 50 ms without restarting the timer on each
+  update; each dispatch uses the latest viewport. Vertical-only changes do not
+  schedule requests. One foreground request runs at a time. A running request is
+  retained if it contains the missing main view (or first missing auxiliary view)
+  at no more than twice its canonical stride. Larger resolution changes, uncovered
+  views, explicit cancel, and disposal abort it and advance a generation guarding
+  progress, previews, errors, and cache publication. Immediate requests bypass the
+  coalescing delay but still reuse useful running work.
+- Retained results may provide temporary coverage with clipped boundary buckets;
+  completion rechecks the latest views and schedules any remaining refinement.
+  Boundary-correct cache-hit rules are unchanged. Failed unchanged requests do not
+  retry automatically; if the viewport changed while a retained request ran, its
+  latest missing views receive their own attempt.
 - Arrow schema/types, optional version metadata, identities, list sizes/nulls,
   ordered domain/view coordinates, progress, errors, and explicit completion are
   validated. `offset` is validated as a domain sample offset, not added to the
@@ -46,13 +56,10 @@ additional configuration header is currently installed by `invoke`.
 
 ## Zoom Prefetch
 
-After the foreground views complete (or are already cached), a 250 ms idle delay
-starts a bounded speculative queue for the main chart. During debounced horizontal
-gestures with prior zoom history, a 70 ms active delay can start the same bounded
-queue before the 150 ms foreground debounce. Zoom speed and direction choose the
-first spans: fast zoom-in jumps to quarter/eighth spans before half, zoom-out
-prioritizes double/quadruple/eightfold spans, and slow movement stays shallow. The
-queue predicts around the anchor inferred from consecutive horizontal viewports,
+After the latest foreground views complete (or are already cached), a 250 ms idle
+delay starts a bounded speculative queue for the main chart. There is no active
+prefetch lane competing with missing foreground views. The queue predicts half,
+quarter, double, and quadruple spans around the anchor inferred from consecutive horizontal viewports,
 using the center when there is no zoom history or the gesture is a pan. Predictions
 include 10% padding on each side, align to samples, and shift/clamp to the dataset
 domain. Only one speculative request runs at a time; any new viewport, foreground
@@ -67,7 +74,7 @@ still read small unresolved boundary fragments. The dataset-wide summary pyramid
 already exists after the foreground load, subject to normal server cache eviction.
 
 Prefetch never changes foreground progress or publishes incomplete previews/errors.
-Successfully completed results share the eight-entry/32 MiB cache. Speculative
+Successfully completed results notify chart subscribers and share the eight-entry/32 MiB cache. Speculative
 entries are evicted before visited history; current coverage and the full-domain
 fallback remain protected. A full history cache can therefore suppress prefetch.
 The queue stops on failure or when its result cannot be retained, without retrying

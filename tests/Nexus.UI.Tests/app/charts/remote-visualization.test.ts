@@ -368,80 +368,208 @@ describe("remote viewport provider", () => {
     }
   });
 
-  it("starts zoom-in active prefetch before the foreground debounce and keeps foreground state", async () => {
+  it("starts foreground for the latest view without waiting for a gesture to stop", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, finish, view } = prefetchFixture();
 
     try {
-      provider.requestViews(view(3000000n, 7000000n), true);
-      await delay(5);
-      finish(0);
-      await delay(10);
-
-      provider.requestViews(view(3500000n, 4500000n));
-      await delay(90);
-
-      assert.equal(calls.length, 2);
-      assert.equal(calls[1].request.views[0].id, "prefetch");
-
-      assert.ok(
-        dateTicks(calls[1].request.views[0].end)! - dateTicks(calls[1].request.views[0].begin)! <
-          500000n,
-      );
-
-      assert.equal(provider.loading, true);
-      assert.equal(provider.progress, 0);
-
-      finish(1, 8);
-      await delay(10);
-      assert.equal(provider.loading, true);
-      assert.equal(provider.progress, 0);
-      assert.equal(calls.length, 3);
-      assert.equal(calls[1].signal.aborted, false);
-      assert.equal(calls[2].request.views[0].id, "prefetch");
-
-      await delay(70);
-      assert.equal(calls.length, 4);
-      assert.equal(calls[2].signal.aborted, true);
-      finish(3, 9);
-      await delay(5);
+      // Fine views cannot be speculatively prefetched.
+      provider.requestViews(view(0n, 100n));
+      t.mock.timers.tick(20);
+      provider.requestViews(view(1n, 99n));
+      t.mock.timers.tick(20);
+      provider.requestViews(view(2n, 98n));
+      assert.equal(calls.length, 0);
+      t.mock.timers.tick(10);
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].request.views[0].id, "main");
+      assert.equal(dateTicks(calls[0].request.views[0].begin), 2n);
+      provider.requestViews(view(3n, 97n));
+      assert.equal(calls[0].signal.aborted, false);
+      finish(0, 8);
+      await Promise.resolve();
+      await Promise.resolve();
       assert.equal(provider.loading, false);
       assert.equal(provider.progress, 1);
+      assert.equal(provider.pointsFor("main", 0, 3n, 97n)?.[1], 8);
+      t.mock.timers.tick(300);
+      assert.equal(calls.length, 1);
     } finally {
       provider.dispose();
     }
   });
 
-  it("prioritizes wider active prefetches while zooming out and aborts them for foreground", async () => {
+  it("retains nearby reduced foreground work and then refines the latest boundaries", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, finish, view } = prefetchFixture();
 
     try {
-      provider.requestViews(view(4500000n, 5500000n), true);
+      provider.requestViews(view(0n, 10000n), true);
+      t.mock.timers.tick(1);
+      provider.requestViews(view(100n, 9900n));
+      assert.equal(calls[0].signal.aborted, false);
+      // No speculative request may compete with the retained foreground load.
+      t.mock.timers.tick(300);
+      assert.equal(calls.length, 1);
+      const states: { loading: boolean; progress: number }[] = [];
+
+      provider.subscribe(() =>
+        states.push({ loading: provider.loading, progress: provider.progress }),
+      );
+      finish(0);
+      await Promise.resolve();
+      await Promise.resolve();
+      assert.equal(provider.loading, true);
+      assert.ok(states.every((state) => state.loading && state.progress === 0));
+      assert.equal(provider.pointsFor("main", 0, 100n, 9900n)?.[1], 1);
+      t.mock.timers.tick(50);
+      assert.equal(calls.length, 2);
+      assert.equal(dateTicks(calls[1].request.views[0].begin), 100n);
+      finish(1, 7);
+      await Promise.resolve();
+      await Promise.resolve();
+      assert.equal(provider.loading, false);
+      assert.equal(provider.pointsFor("main", 0, 100n, 9900n)?.[1], 7);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("replaces foreground work that no longer covers the view or is too coarse", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { provider, calls, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(0n, 10000n), true);
+      t.mock.timers.tick(1);
+      provider.requestViews(view(4000n, 4100n));
+      assert.equal(calls[0].signal.aborted, true);
+      t.mock.timers.tick(50);
+      provider.requestViews(view(3900n, 4200n));
+      assert.equal(calls[1].signal.aborted, true);
+      t.mock.timers.tick(50);
+      assert.equal(calls.length, 3);
+      provider.cancel();
+      assert.equal(calls[2].signal.aborted, true);
+      t.mock.timers.tick(500);
+      assert.equal(calls.length, 3);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("notifies subscribers when completed prefetch coverage becomes available", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(), true);
       await delay(5);
       finish(0);
-      await delay(10);
+      await delay(280);
+      let notifications = 0;
 
-      provider.requestViews(view(3000000n, 7000000n));
-      await delay(90);
-
-      assert.equal(calls.length, 2);
-      assert.equal(calls[1].request.views[0].id, "prefetch");
-
-      assert.ok(
-        dateTicks(calls[1].request.views[0].end)! - dateTicks(calls[1].request.views[0].begin)! >
-          4000000n,
-      );
-
-      assert.equal(calls[1].signal.aborted, false);
-
-      await delay(80);
-      assert.equal(calls.length, 3);
-      assert.equal(calls[1].signal.aborted, true);
-      assert.equal(provider.loading, true);
-      finish(2, 7);
+      provider.subscribe(() => notifications++);
+      finish(1);
       await delay(5);
+      assert.equal(notifications, 1);
+      assert.equal(provider.loading, false);
+      assert.equal(provider.progress, 1);
+      assert.equal(calls.length, 3);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("retries only the latest changed viewport after retained foreground failure", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { provider, calls, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(0n, 10000n), true);
+      t.mock.timers.tick(1);
+      provider.requestViews(view(1n, 9999n));
+      calls[0].reject(new Error("old view failed"));
+      await Promise.resolve();
+      await Promise.resolve();
+      assert.equal(provider.error, "");
+      assert.equal(provider.loading, true);
+      assert.equal(provider.progress, 0);
+      t.mock.timers.tick(50);
+      assert.equal(calls.length, 2);
+      assert.equal(dateTicks(calls[1].request.views[0].begin), 1n);
+      calls[1].reject(new Error("latest view failed"));
+      await Promise.resolve();
+      await Promise.resolve();
+      assert.match(provider.error, /latest view failed/);
+      assert.equal(provider.loading, false);
+      t.mock.timers.tick(1000);
+      assert.equal(calls.length, 2);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("retains one-level-coarser main coverage and follows up missing detail", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      // Canonical strides: 512 for the running view, 256 for the latest main.
+      provider.requestViews(view(0n, 9000n), true);
+      t.mock.timers.tick(1);
+
+      provider.requestViews([
+        ...view(2000n, 6000n),
+        { id: "detail", begin: 1000n, end: 7000n, maxPoints: 100 },
+      ]);
+
+      assert.equal(calls[0].signal.aborted, false);
+      finish(0);
+      await Promise.resolve();
+      await Promise.resolve();
+      t.mock.timers.tick(50);
+      assert.deepEqual(
+        calls[1].request.views.map((view) => view.id),
+        ["main", "detail"],
+      );
+      finish(1);
+      await Promise.resolve();
+      await Promise.resolve();
       assert.equal(provider.loading, false);
     } finally {
       provider.dispose();
+    }
+  });
+
+  it("clears pending refinement on cancel, disposal, or navigation to cached coverage", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    for (const action of ["cancel", "dispose", "cached"]) {
+      const { provider, calls, finish, view } = prefetchFixture();
+
+      try {
+        provider.requestViews(view(0n, 1000n), true);
+        t.mock.timers.tick(1);
+        provider.requestViews(view(1n, 999n));
+        finish(0);
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.equal(provider.loading, true);
+
+        if (action === "cached") {
+          provider.requestViews(view(0n, 1000n));
+        } else if (action === "cancel") {
+          provider.cancel();
+        } else {
+          provider.dispose();
+        }
+
+        t.mock.timers.tick(1000);
+        assert.equal(calls.length, 1);
+        assert.equal(provider.loading, false);
+      } finally {
+        provider.dispose();
+      }
     }
   });
 
