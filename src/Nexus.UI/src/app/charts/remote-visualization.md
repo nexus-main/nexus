@@ -47,13 +47,17 @@ additional configuration header is currently installed by `invoke`.
 ## Zoom Prefetch
 
 After the foreground views complete (or are already cached), a 250 ms idle delay
-starts a bounded speculative queue for the main chart. It predicts half/quarter
-and double/quadruple spans around the anchor inferred from consecutive horizontal
-viewports, using the center when there is no zoom history or the gesture is a pan.
-Predictions include 10% padding on each side, align to samples, and shift/clamp to
-the dataset domain. Only one speculative request runs at a time; any new viewport,
-cancel, or disposal aborts it and invalidates late results. This is client-side
-scheduling priority, not a server priority queue.
+starts a bounded speculative queue for the main chart. During debounced horizontal
+gestures with prior zoom history, a 70 ms active delay can start the same bounded
+queue before the 150 ms foreground debounce. Zoom speed and direction choose the
+first spans: fast zoom-in jumps to quarter/eighth spans before half, zoom-out
+prioritizes double/quadruple/eightfold spans, and slow movement stays shallow. The
+queue predicts around the anchor inferred from consecutive horizontal viewports,
+using the center when there is no zoom history or the gesture is a pan. Predictions
+include 10% padding on each side, align to samples, and shift/clamp to the dataset
+domain. Only one speculative request runs at a time; any new viewport, foreground
+request, cancel, or disposal aborts it and invalidates late results. This is
+client-side scheduling priority, not a server priority queue.
 
 Each prediction receives enough points to preserve its intended canonical stride
 despite padding. The 32768-point view cap and a total 262144 resource-points per

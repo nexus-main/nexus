@@ -368,6 +368,79 @@ describe("remote viewport provider", () => {
     }
   });
 
+  it("starts zoom-in active prefetch before the foreground debounce and keeps foreground state", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(3000000n, 7000000n), true);
+      await delay(5);
+      finish(0);
+      await delay(10);
+
+      provider.requestViews(view(3500000n, 4500000n));
+      await delay(90);
+
+      assert.equal(calls.length, 2);
+      assert.equal(calls[1].request.views[0].id, "prefetch");
+      assert.ok(
+        dateTicks(calls[1].request.views[0].end)! - dateTicks(calls[1].request.views[0].begin)! <
+          500000n,
+      );
+      assert.equal(provider.loading, true);
+      assert.equal(provider.progress, 0);
+
+      finish(1, 8);
+      await delay(10);
+      assert.equal(provider.loading, true);
+      assert.equal(provider.progress, 0);
+      assert.equal(calls.length, 3);
+      assert.equal(calls[1].signal.aborted, false);
+      assert.equal(calls[2].request.views[0].id, "prefetch");
+
+      await delay(70);
+      assert.equal(calls.length, 4);
+      assert.equal(calls[2].signal.aborted, true);
+      finish(3, 9);
+      await delay(5);
+      assert.equal(provider.loading, false);
+      assert.equal(provider.progress, 1);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("prioritizes wider active prefetches while zooming out and aborts them for foreground", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      provider.requestViews(view(4500000n, 5500000n), true);
+      await delay(5);
+      finish(0);
+      await delay(10);
+
+      provider.requestViews(view(3000000n, 7000000n));
+      await delay(90);
+
+      assert.equal(calls.length, 2);
+      assert.equal(calls[1].request.views[0].id, "prefetch");
+      assert.ok(
+        dateTicks(calls[1].request.views[0].end)! - dateTicks(calls[1].request.views[0].begin)! >
+          4000000n,
+      );
+      assert.equal(calls[1].signal.aborted, false);
+
+      await delay(80);
+      assert.equal(calls.length, 3);
+      assert.equal(calls[1].signal.aborted, true);
+      assert.equal(provider.loading, true);
+      finish(2, 7);
+      await delay(5);
+      assert.equal(provider.loading, false);
+    } finally {
+      provider.dispose();
+    }
+  });
+
   it("cancels speculative work for foreground gestures and ignores late frames and errors", async () => {
     const { provider, calls, finish, view } = prefetchFixture();
 
