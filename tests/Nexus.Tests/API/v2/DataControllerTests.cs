@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -176,6 +177,73 @@ public class DataControllerTests
             Assert.DoesNotContain("secret", entry.Message);
             Assert.Equal(id, entry.Fields["RequestId"]);
         });
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public async Task CancelledVisualizationAbortsWithoutServerError(bool duringPreparation, bool responseStarted)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var logs = new VisualizationTimingLogger();
+        var context = new DefaultHttpContext();
+        var response = new Mock<IHttpResponseFeature>();
+        response.SetupProperty(feature => feature.StatusCode, StatusCodes.Status200OK);
+        response.SetupGet(feature => feature.Headers).Returns(new HeaderDictionary());
+        response.SetupGet(feature => feature.HasStarted).Returns(responseStarted);
+        context.Features.Set(response.Object);
+        var lifetime = new Mock<IHttpRequestLifetimeFeature>();
+        lifetime.SetupGet(feature => feature.RequestAborted).Returns(cancellation.Token);
+        context.Features.Set(lifetime.Object);
+        var controller = new DataController(Mock.Of<IDataService>(), logs)
+        {
+            ControllerContext = new ControllerContext { HttpContext = context }
+        };
+        controller.Request.Headers[VisualizationTiming.Header] = Guid.NewGuid().ToString("D");
+        var request = new VisualizationRequest(default, default, [], []);
+        var visualization = new Mock<IVisualizationService>();
+        visualization.Setup(service => service.PrepareAsync(request, cancellation.Token, It.IsAny<VisualizationTiming?>()))
+            .Returns<VisualizationRequest, CancellationToken, VisualizationTiming?>((_, token, _) =>
+            {
+                if (duringPreparation)
+                {
+                    cancellation.Cancel();
+                    return Task.FromCanceled<Func<Stream, CancellationToken, Task>>(token);
+                }
+
+                return Task.FromResult<Func<Stream, CancellationToken, Task>>((_, streamToken) =>
+                {
+                    cancellation.Cancel();
+                    return Task.FromCanceled(streamToken);
+                });
+            });
+
+        Assert.IsType<EmptyResult>(await controller.GetVisualizationAsync(request, visualization.Object, cancellation.Token));
+        Assert.Equal(responseStarted ? StatusCodes.Status200OK : StatusCodes.Status499ClientClosedRequest, controller.Response.StatusCode);
+        lifetime.Verify(feature => feature.Abort(), Times.Once);
+        if (responseStarted)
+            response.VerifySet(feature => feature.StatusCode = It.IsAny<int>(), Times.Never);
+        Assert.Equal("cancelled", logs.Entries.Last().Outcome);
+        Assert.Equal("request", logs.Entries.Last().Phase);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task VisualizationDoesNotSwallowUnrequestedCancellation(bool duringPreparation)
+    {
+        var request = new VisualizationRequest(default, default, [], []);
+        var visualization = new Mock<IVisualizationService>();
+        var error = new OperationCanceledException();
+        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), It.IsAny<VisualizationTiming?>()))
+            .Returns(() => duringPreparation
+                ? Task.FromException<Func<Stream, CancellationToken, Task>>(error)
+                : Task.FromResult<Func<Stream, CancellationToken, Task>>((_, _) => Task.FromException(error)));
+        var controller = CreateController(Mock.Of<IDataService>());
+
+        Assert.Same(error, await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            controller.GetVisualizationAsync(request, visualization.Object, CancellationToken.None)));
     }
 
     private static DataController CreateController(IDataService service)

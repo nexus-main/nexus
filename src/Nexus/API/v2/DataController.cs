@@ -65,6 +65,15 @@ internal class DataController(
                 timing.Outcome = "success";
             return new EmptyResult();
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Superseded zooms are expected client aborts, not server failures.
+            // Abort started Arrow responses rather than completing a truncated stream.
+            if (!Response.HasStarted)
+                Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+            HttpContext.Abort();
+            return new EmptyResult();
+        }
         catch (ValidationException ex) when (!Response.HasStarted)
         {
             if (timing is not null)
