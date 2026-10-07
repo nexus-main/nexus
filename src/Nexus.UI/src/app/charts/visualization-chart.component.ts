@@ -47,6 +47,7 @@ import { formatLegendValue } from "./legend-text";
 import { AppTooltipDirective } from "../app-tooltip.directive";
 import { ButtonModule } from "primeng/button";
 import { ProgressBarModule } from "primeng/progressbar";
+import { visualizationPointBudget } from "./remote-visualization";
 
 let nextChartId = 0;
 
@@ -591,15 +592,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     }
 
     const width = this.chartElement?.nativeElement.clientWidth ?? 1000;
-    // Limit the point payload across three views to approximately 4 MiB.
-    const budget = Math.max(
-      16,
-      Math.min(
-        32768,
-        Math.ceil(width * 4),
-        Math.floor((4 * 1024 * 1024) / (12 * 3 * data.series.length)),
-      ),
-    );
+    const budget = visualizationPointBudget(width, data.series.length);
     const views = [
       { id: "overview", begin: data.begin, end: data.end, maxPoints: budget },
       { id: "main", begin: this.zoomedBegin, end: this.zoomedEnd, maxPoints: budget },
@@ -771,13 +764,9 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
           dataVersion: state?.version ?? source.version,
           length: source.length,
           sampleStep: this.duration > 0n ? Number(source.samplePeriod) / Number(this.duration) : 0,
-          pointBudget: Math.max(
-            16,
-            Math.min(
-              32768,
-              Math.ceil(this.chartElement.nativeElement.clientWidth * 4),
-              Math.floor((4 * 1024 * 1024) / (12 * 3 * this.series.length)),
-            ),
+          pointBudget: visualizationPointBudget(
+            this.chartElement.nativeElement.clientWidth,
+            this.series.length,
           ),
         },
       ];

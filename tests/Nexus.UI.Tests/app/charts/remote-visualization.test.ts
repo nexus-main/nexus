@@ -6,10 +6,49 @@ import {
   decodeVisualization,
   positionVisualizationPoints,
   RemoteVisualization,
+  visualizationPointBudget,
   type VisualizationFrame,
   type VisualizationRequest,
   type VisualizationTransport,
 } from "../../../../src/Nexus.UI/src/app/charts/remote-visualization.ts";
+import { requestError } from "../../../../src/Nexus.UI/src/app/request-error.ts";
+
+it("keeps all views within the default server aggregate point budget", () => {
+  for (let resources = 1; resources <= 100; resources++) {
+    for (const width of [320, 1920, 3840, 8192]) {
+      const budget = visualizationPointBudget(width, resources);
+
+      assert.ok(budget >= 5 && budget <= 32768);
+      assert.ok(budget * resources * 3 <= 262144);
+    }
+  }
+});
+
+it("shows the backend validation explanation instead of only HTTP 422", async () => {
+  const response = new Response(
+    "The visualization domain exceeds the configured summary-memory limit.",
+    {
+      status: 422,
+      statusText: "Unprocessable Entity",
+    },
+  );
+  const error = await requestError(response);
+
+  assert.match(error.message, /422 Unprocessable Entity/);
+  assert.match(error.message, /summary-memory limit/);
+});
+
+it("reads problem details and preserves status for empty error bodies", async () => {
+  const error = await requestError(
+    new Response(JSON.stringify({ title: "Invalid", detail: "Bad range" }), {
+      status: 422,
+      headers: { "Content-Type": "application/problem+json" },
+    }),
+  );
+
+  assert.match(error.message, /Bad range/);
+  assert.match((await requestError(new Response(null, { status: 503 }))).message, /503/);
+});
 
 const require = createRequire(new URL("../../../../src/Nexus.UI/package.json", import.meta.url));
 const arrow: typeof import("../../../../src/Nexus.UI/node_modules/apache-arrow/Arrow.node") = require("apache-arrow");

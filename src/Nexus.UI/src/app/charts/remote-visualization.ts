@@ -12,6 +12,14 @@ export interface VisualizationView {
   maxPoints: number;
 }
 
+export function visualizationPointBudget(width: number, resourceCount: number): number {
+  // Reserve all three views within the server's default aggregate limit.
+  return Math.max(
+    16,
+    Math.min(32768, Math.ceil(width * 4), Math.floor(262144 / (3 * resourceCount))),
+  );
+}
+
 export interface VisualizationRequest {
   begin: string;
   end: string;

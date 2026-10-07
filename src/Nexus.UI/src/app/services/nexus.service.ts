@@ -3,6 +3,7 @@ import { NexusClient, type BufferProvider } from "@nexus-api/_client";
 import * as V1 from "@nexus-api/V1";
 import * as V2 from "@nexus-api/V2";
 import { decodeCursor } from "../charts/exact-cursor";
+import { requestError } from "../request-error";
 import {
   decodeVisualization,
   type VisualizationRequest,
@@ -275,7 +276,7 @@ export class NexusService {
     const response = await fetch(`${this.endpoint}${url}`, { method, headers, body, signal });
 
     if (!response.ok) {
-      throw new Error(`Nexus request failed: ${response.status} ${response.statusText}`);
+      throw await requestError(response);
     }
 
     if (accept === "application/octet-stream" || accept === "application/vnd.apache.arrow.stream") {
