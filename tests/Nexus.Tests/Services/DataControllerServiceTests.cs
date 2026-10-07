@@ -22,6 +22,45 @@ namespace Services;
 
 public class DataControllerServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedVisualizationConstructionDisposesEveryCreatedSourceEvenIfDisposeThrows(bool initialization)
+    {
+        DisposalSource.Disposals = 0;
+        var hive = new Mock<IExtensionHive<IDataSource>>();
+        hive.Setup(current => current.GetExtensionType("source")).Returns(typeof(DisposalSource));
+        hive.Setup(current => current.GetExtensionType("failure")).Throws(new InvalidOperationException("construction failed"));
+        var service = new DataControllerService(new AppState(), default!, hive.Object, default!, default!, default!,
+            Options.Create(new DataOptions()), NullLoggerFactory.Instance);
+        var types = initialization ? new[] { "source", "source" } : new[] { "source", "source", "failure" };
+        var pipeline = new DataSourcePipeline(types.Select(type =>
+            new DataSourceRegistration(type, null, JsonSerializer.SerializeToElement<object?>(null))).ToArray());
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.GetVisualizationDataSourceControllerAsync(pipeline, null, [], CancellationToken.None));
+        Assert.Equal(initialization ? "initialization failed" : "construction failed", error.Message);
+        Assert.Equal(2, DisposalSource.Disposals);
+    }
+
+    public sealed class DisposalSource : SimpleDataSource<object?>, IDataSource<object?>, IDisposable
+    {
+        public static int Disposals;
+        Task IDataSource<object?>.SetContextAsync(DataSourceContext<object?> context, ILogger logger, CancellationToken cancellationToken)
+            => Task.FromException(new InvalidOperationException("initialization failed"));
+        public void Dispose()
+        {
+            Interlocked.Increment(ref Disposals);
+            throw new InvalidOperationException("dispose failed");
+        }
+
+        public override Task<CatalogRegistration[]> GetCatalogRegistrationsAsync(string path, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+        public override Task<ResourceCatalog> EnrichCatalogAsync(ResourceCatalog catalog, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+        public override Task ReadAsync(DateTime begin, DateTime end, ReadRequest[] requests, ReadDataHandler readData,
+            IProgress<double> progress, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
     [Fact]
     public async Task CanCreateAndInitializeDataSourceController()
     {
@@ -98,6 +137,16 @@ public class DataControllerServiceTests
         var actualConfig = JsonSerializer.Serialize(((DataSourceController)actual)._requestConfiguration);
 
         Assert.Equal(expectedConfig, actualConfig);
+
+        // Visualization workers use the captured request, not the ambient header,
+        // and each factory call creates a separately initialized pipeline.
+        var captured = dataControllerService.CaptureRequestConfiguration();
+        httpContext.Request.Headers.Remove(DataControllerService.NexusConfigurationHeaderKey);
+        using var worker1 = await dataControllerService.GetVisualizationDataSourceControllerAsync(pipeline, captured, [actualCatalog], CancellationToken.None);
+        using var worker2 = await dataControllerService.GetVisualizationDataSourceControllerAsync(pipeline, captured, [actualCatalog], CancellationToken.None);
+        Assert.NotSame(worker1, worker2);
+        Assert.Equal(expectedConfig, JsonSerializer.Serialize(((DataSourceController)worker1)._requestConfiguration));
+        Assert.Equal(expectedConfig, JsonSerializer.Serialize(((DataSourceController)worker2)._requestConfiguration));
     }
 
     [Fact]

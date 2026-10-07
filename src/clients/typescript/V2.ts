@@ -30,6 +30,13 @@ export class V2 implements IV2 {
  */
 export interface IDataClient {
     /**
+     * Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+     * @param request The domain, resources and up to three views.
+     * @param signal The signal to cancel the current operation.
+     */
+    getVisualization(request: VisualizationRequest, signal?: AbortSignal): Promise<Response>;
+
+    /**
      * Streams multiple resources in an Apache Arrow IPC response.
      * @param request The batch stream request.
      * @param signal The signal to cancel the current operation.
@@ -46,6 +53,17 @@ export class DataClient implements IDataClient {
 
     constructor(invoke: HttpRequestHandler) {
         this._invoke = invoke;
+    }
+
+    /**
+     * Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+     * @param request The domain, resources and up to three views.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getVisualization(request: VisualizationRequest, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v2/data/visualization";
+
+        return this._invoke<Response>("POST", __url, "application/octet-stream", "application/json", JSON.stringify(request), signal);
     }
 
     /**
@@ -95,6 +113,36 @@ export class JobsClient implements IJobsClient {
         return this._invoke<Job>("POST", __url, "application/json", "application/json", JSON.stringify(parameters), signal);
     }
 
+}
+
+
+/**
+ * A Float32 visualization request over a common, half-open sample domain.
+ */
+export interface VisualizationRequest {
+    /** The domain start. */
+    begin?: string | undefined;
+    /** The exclusive domain end. */
+    end?: string | undefined;
+    /** The resources, all with the same sample period. */
+    resourcePaths?: string[] | undefined;
+    /** The requested replacement views. */
+    views?: VisualizationView[] | undefined;
+}
+
+
+/**
+ * A half-open viewport with a hard output point budget, including endpoints.
+ */
+export interface VisualizationView {
+    /** The unique view identifier. */
+    id?: string | undefined;
+    /** The viewport start. */
+    begin?: string | undefined;
+    /** The exclusive viewport end. */
+    end?: string | undefined;
+    /** The maximum number of points (5 through 32768). */
+    maxPoints?: number | undefined;
 }
 
 

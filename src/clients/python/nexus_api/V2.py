@@ -55,6 +55,17 @@ class DataClient:
     def __init__(self, invoke: HttpRequestHandler):
         self.___invoke = invoke
 
+    def get_visualization(self, request: VisualizationRequest) -> Response:
+        """
+        Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+
+        Args:
+        """
+
+        __url = "/api/v2/data/visualization"
+
+        return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
     def get_stream(self, request: BatchStreamRequest) -> Response:
         """
         Streams multiple resources in an Apache Arrow IPC response.
@@ -127,6 +138,17 @@ class DataAsyncClient:
     def __init__(self, invoke: HttpRequestHandlerAsync):
         self.___invoke = invoke
 
+    def get_visualization(self, request: VisualizationRequest) -> Awaitable[Response]:
+        """
+        Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+
+        Args:
+        """
+
+        __url = "/api/v2/data/visualization"
+
+        return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
     def get_stream(self, request: BatchStreamRequest) -> Awaitable[Response]:
         """
         Streams multiple resources in an Apache Arrow IPC response.
@@ -158,6 +180,56 @@ class JobsAsyncClient:
 
         return self.___invoke(Job, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(parameters, _json_encoder_options)))
 
+
+
+@dataclass(frozen=True)
+class VisualizationRequest:
+    """
+    A Float32 visualization request over a common, half-open sample domain.
+
+    Args:
+        begin: The domain start.
+        end: The exclusive domain end.
+        resource_paths: The resources, all with the same sample period.
+        views: The requested replacement views.
+    """
+
+    begin: datetime
+    """The domain start."""
+
+    end: datetime
+    """The exclusive domain end."""
+
+    resource_paths: list[str]
+    """The resources, all with the same sample period."""
+
+    views: list[VisualizationView]
+    """The requested replacement views."""
+
+
+@dataclass(frozen=True)
+class VisualizationView:
+    """
+    A half-open viewport with a hard output point budget, including endpoints.
+
+    Args:
+        id: The unique view identifier.
+        begin: The viewport start.
+        end: The exclusive viewport end.
+        max_points: The maximum number of points (5 through 32768).
+    """
+
+    id: str
+    """The unique view identifier."""
+
+    begin: datetime
+    """The viewport start."""
+
+    end: datetime
+    """The exclusive viewport end."""
+
+    max_points: int
+    """The maximum number of points (5 through 32768)."""
 
 
 @dataclass(frozen=True)

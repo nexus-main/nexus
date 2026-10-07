@@ -18,6 +18,12 @@
   }
 
   function destroySeriesBuffer(instance, cached) {
+    for (const page of cached.pages ?? []) {
+      if (page.buffer !== cached.buffer) {
+        ns.destroyTrackedBuffer(instance, page.buffer);
+      }
+    }
+
     ns.destroyTrackedBuffer(instance, cached.buffer);
 
     if (cached.pointBuffer !== cached.buffer) {
@@ -141,6 +147,12 @@
   }
 
   function destroyChunkedUpload(instance, upload) {
+    for (const page of upload.pages ?? []) {
+      if (page.buffer !== upload.overviewBuffer) {
+        ns.destroyTrackedBuffer(instance, page.buffer);
+      }
+    }
+
     ns.destroyTrackedBuffer(instance, upload.transientBuffer);
     ns.destroyTrackedBuffer(instance, upload.overviewBuffer);
     ns.destroyTrackedBuffer(instance, upload.paramsBuffer);
@@ -406,7 +418,13 @@
       );
     }
 
-    instance.device.queue.writeBuffer(upload.transientBuffer, 0, values);
+    if (upload.pages) {
+      // The pyramid streams subranges through its device-sized transient buffer.
+      // Retain the caller's view only until processChunkedSeriesUpload completes.
+      upload.pendingValues = values;
+    } else {
+      instance.device.queue.writeBuffer(upload.transientBuffer, 0, values);
+    }
   }
 
   async function processChunkedSeriesUploadAsync(chartId, token, offset, count) {

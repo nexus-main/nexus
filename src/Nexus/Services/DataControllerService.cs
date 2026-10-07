@@ -15,6 +15,14 @@ namespace Nexus.Services;
 
 internal interface IDataControllerService
 {
+    IReadOnlyDictionary<string, JsonElement>? CaptureRequestConfiguration();
+
+    Task<IDataSourceController> GetVisualizationDataSourceControllerAsync(
+        DataSourcePipeline pipeline,
+        IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
+        ResourceCatalog[] catalogs,
+        CancellationToken cancellationToken);
+
     Task<IDataSourceController> GetDataSourceControllerAsync(
         DataSourcePipeline pipeline,
         CancellationToken cancellationToken);
@@ -45,6 +53,44 @@ internal class DataControllerService(
     private readonly IProcessingService _processingService = processingService;
     private readonly ICacheService _cacheService = cacheService;
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
+
+    public IReadOnlyDictionary<string, JsonElement>? CaptureRequestConfiguration() => GetRequestConfiguration();
+
+    public async Task<IDataSourceController> GetVisualizationDataSourceControllerAsync(
+        DataSourcePipeline pipeline,
+        IReadOnlyDictionary<string, JsonElement>? requestConfiguration,
+        ResourceCatalog[] catalogs,
+        CancellationToken cancellationToken)
+    {
+        var sources = new List<IDataSource>();
+
+        try
+        {
+            foreach (var registration in pipeline.Registrations)
+                sources.Add((IDataSource)Activator.CreateInstance(_sourcesExtensionHive.GetExtensionType(registration.Type))!);
+
+            var controller = new DataSourceController(sources.ToArray(), pipeline.Registrations,
+                requestConfiguration, _processingService, _cacheService, _dataOptions,
+                _loggerFactory.CreateLogger<DataSourceController>(), strictReads: true);
+            var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>();
+
+            foreach (var catalog in catalogs)
+                catalogCache[catalog.Id] = catalog;
+
+            await controller.InitializeAsync(catalogCache, _loggerFactory, cancellationToken);
+            return controller;
+        }
+        catch
+        {
+            foreach (var source in sources.OfType<IDisposable>())
+            {
+                try { source.Dispose(); }
+                catch (Exception ex) { _loggerFactory.CreateLogger<DataControllerService>().LogWarning(ex, "Disposing failed visualization source failed"); }
+            }
+
+            throw;
+        }
+    }
 
     public async Task<IDataSourceController> GetDataSourceControllerAsync(
         DataSourcePipeline pipeline,

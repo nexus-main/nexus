@@ -12,6 +12,71 @@
     }
   ],
   "paths": {
+    "/api/v2/data/visualization": {
+      "post": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Streams bounded Float32 visualization points and progress in a versioned Arrow contract.",
+        "operationId": "Data_GetVisualization",
+        "requestBody": {
+          "x-name": "request",
+          "description": "The domain, resources and up to three views.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisualizationRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "The visualization Arrow stream.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/data": {
       "post": {
         "tags": [
@@ -114,6 +179,63 @@
   },
   "components": {
     "schemas": {
+      "VisualizationRequest": {
+        "type": "object",
+        "description": "A Float32 visualization request over a common, half-open sample domain.",
+        "additionalProperties": false,
+        "properties": {
+          "begin": {
+            "type": "string",
+            "description": "The domain start.",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "description": "The exclusive domain end.",
+            "format": "date-time"
+          },
+          "resourcePaths": {
+            "type": "array",
+            "description": "The resources, all with the same sample period.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "views": {
+            "type": "array",
+            "description": "The requested replacement views.",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationView"
+            }
+          }
+        }
+      },
+      "VisualizationView": {
+        "type": "object",
+        "description": "A half-open viewport with a hard output point budget, including endpoints.",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique view identifier."
+          },
+          "begin": {
+            "type": "string",
+            "description": "The viewport start.",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "description": "The exclusive viewport end.",
+            "format": "date-time"
+          },
+          "maxPoints": {
+            "type": "integer",
+            "description": "The maximum number of points (5 through 32768).",
+            "format": "int32"
+          }
+        }
+      },
       "BatchStreamRequest": {
         "type": "object",
         "description": "A request to stream multiple resources.",

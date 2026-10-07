@@ -8,6 +8,7 @@ const scriptNames = [
     'chart.webgpu.shaders.js',
     'chart.webgpu.lifecycle.js',
     'chart.webgpu.data.js',
+    'chart.webgpu.pyramid.js',
     'chart.webgpu.js',
 ];
 const scripts = scriptNames.map(name => ({
@@ -206,6 +207,58 @@ test('charts share one WebGPU device and pipelines', async () => {
     environment.api.dispose('third');
 });
 
+test('remote points use the existing drawing pipeline without reduction or raw requests', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    const plot = { plotLeft: 10, plotWidth: 100 };
+    const points = new Float32Array([0, 1, 0.2, NaN, 1, 3]);
+    const series = { id: 'remote', remotePoints: points };
+    const item = environment.hooks.getRemoteRenderItem(instance, series, 'series', plot);
+    assert.equal(item.seriesBuffer.dataMode, 1);
+    assert.equal(item.zoomInfo.segmentCount, 2);
+    assert.equal(item.zoomInfo.dx, 100);
+    assert.equal(item.zoomInfo.zoomedLeft, 10);
+    assert.equal(instance.rawRequests.size, 0);
+    assert.equal(item.seriesBuffer.decimations, undefined);
+    assert.equal(environment.hooks.getRemoteRenderItem(instance, series, 'series', plot).seriesBuffer, item.seriesBuffer);
+
+    let computePasses = 0;
+    const createEncoder = instance.device.createCommandEncoder.bind(instance.device);
+    instance.device.createCommandEncoder = () => {
+        const encoder = createEncoder();
+        const beginCompute = encoder.beginComputePass.bind(encoder);
+        encoder.beginComputePass = () => { computePasses++; return beginCompute(); };
+        return encoder;
+    };
+    await environment.hooks.scheduleRender('chart', {
+        plot: { left: 0, top: 0, right: 1, bottom: 1 },
+        zoom: { left: 0.2, right: 0.3 },
+        series: [{ ...series, axisMin: 0, axisMax: 10, length: 1e12, sampleStep: 1e-12 }],
+    });
+    assert.equal(computePasses, 0);
+    assert.equal(instance.rawRequests.size, 0);
+    assert.ok(instance.device.submissions > 0);
+
+    const next = environment.hooks.getRemoteRenderItem(instance, { ...series, remotePoints: new Float32Array([0, 4, 1, 5]) }, 'series', plot);
+    assert.equal(item.seriesBuffer.buffer.destroyed, true);
+    assert.equal(next.seriesBuffer.buffer.destroyed, false);
+    assert.throws(() => environment.hooks.getRemoteRenderItem(instance, { ...series, remotePoints: new Float32Array([NaN, 1]) }, 'series', plot), /coordinates/);
+    environment.api.releaseTarget('chart', 'series');
+    assert.equal(next.seriesBuffer.buffer.destroyed, true);
+    environment.api.dispose('chart');
+});
+
+test('canonical GPU projection is shared and all tree extrema ties select the earliest index', () => {
+    const source = scripts.find(script => script.name === 'chart.webgpu.shaders.js').source;
+    assert.equal((source.match(/minimumIndices\[other\] < minimumIndices\[lane\]/g) ?? []).length, 3);
+    assert.equal((source.match(/maximumIndices\[other\] < maximumIndices\[lane\]/g) ?? []).length, 3);
+    assert.match(source, /array<u32, 5>\(start, end - 1u, minIndex, maxIndex, gapIndex\)/);
+    assert.match(source, /if \(index == previous\) \{ continue; \}/);
+    assert.match(source, /f32\(index - origin\)/);
+});
+
 test('device loss fails every chart using the shared device', async () => {
     const environment = createEnvironment();
     environment.api.initialize('first', environment.helper('first'));
@@ -279,7 +332,7 @@ test('terminal upload failures invalidate the instance and notify the chart', as
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
 
-    await assert.rejects(environment.api.beginChunkedSeries('chart', 'series', 1, 3), /exceeding the GPU storage buffer limit/);
+    await assert.rejects(environment.api.beginChunkedSeries('chart', 'series', 1, 3), /GPU storage buffer limit of 8 bytes/);
     await settle();
 
     assert.equal(environment.hooks.instances.has('chart'), false);
@@ -427,16 +480,17 @@ test('fill shader multiplies fill opacity by series alpha', () => {
     assert.match(shaderSource, /uniforms\.color\.a \* uniforms\.fillOpacity/);
 });
 
-test('gap-preserving reduction reserves three points per bucket plus endpoints', () => {
+test('gap-preserving reduction reserves five points per bucket including endpoints', () => {
     const environment = createEnvironment();
 
-    assert.equal(environment.hooks.reducedPointsPerBucket, 3);
-    assert.equal(environment.hooks.getReducedOutputLength(8), 26);
+    assert.equal(environment.hooks.reducedPointsPerBucket, 5);
+    assert.equal(environment.hooks.getReducedOutputLength(8), 40);
 });
 
 test('every reduction shader blanks buckets containing multiple NaN runs', () => {
     const shaderSource = scripts.find(script => script.name === 'chart.webgpu.shaders.js').source;
-    assert.equal((shaderSource.match(/nanRunCounts\[0\] >= 2u/g) ?? []).length, 3);
+    assert.match(shaderSource, /gapRuns >= 2u/);
+    assert.equal((shaderSource.match(/\$\{projectionShader\(/g) ?? []).length, 3);
 });
 
 test('tracked buffers enforce the total chart budget and release exactly once', async () => {
@@ -515,12 +569,12 @@ test('disposing an initialized chart removes its lifecycle epoch', async () => {
     assert.equal(environment.hooks.lifecycleEpochs.has('chart'), false);
 });
 
-test('chunked series keeps only its overview resident', async () => {
+test('chunked series keeps only mergeable summary levels resident', async () => {
     const environment = createEnvironment();
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
     const length = 1024;
-    const overviewBytes = Math.ceil(length / 256) * 3 * 2 * Float32Array.BYTES_PER_ELEMENT;
+    const overviewBytes = (4 + 1) * 48;
     const values = new Float32Array(length);
 
     const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length);
@@ -530,9 +584,140 @@ test('chunked series keeps only its overview resident', async () => {
 
     const instance = environment.hooks.instances.get('chart');
     const source = instance.seriesBuffers.get(`series:0:${length}`);
-    assert.equal(source.chunked, true);
+    assert.equal(source.pyramid, true);
     assert.equal(source.buffer.size, overviewBytes);
     assert.equal(instance.ownedGpuBytes, overviewBytes);
+});
+
+test('production local renderer queries summary levels and uploads only boundary fragments', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const length = 32768;
+    const reads = [];
+    const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length, 123n, async (offset, count) => {
+        reads.push({ offset, count });
+        return new Float32Array(count);
+    });
+    environment.api.appendChunkedSeries('chart', token, 0, new Float32Array(length));
+    await environment.api.processChunkedSeriesUpload('chart', token, 0, length);
+    await environment.api.completeChunkedSeries('chart', token);
+    const payload = { plot: { left: 0, top: 0, right: 1, bottom: 1 }, zoom: { left: 0.1, right: 0.9 }, series: [{ id: 'series', dataVersion: 0, length, sampleStep: 1 / length, pointBudget: 100, axisMin: 0, axisMax: 1 }] };
+    await environment.hooks.scheduleRender('chart', payload);
+    assert.ok(reads.reduce((sum, read) => sum + read.count, 0) <= 510);
+    assert.ok(reads.length > 0);
+    const count = reads.length;
+    await environment.hooks.scheduleRender('chart', payload);
+    assert.equal(reads.length, count);
+    const instance = environment.hooks.instances.get('chart');
+    assert.equal(instance.rawRequests.size, 0);
+    environment.api.dispose('chart');
+    assert.equal(instance.ownedGpuBytes, 0);
+});
+
+test('releasing a pyramid target during a boundary read does not recreate its buffers', async () => {
+    const environment = createEnvironment();
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const length = 1024;
+    const read = deferred();
+    const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length, 0n, () => read.promise);
+    environment.api.appendChunkedSeries('chart', token, 0, new Float32Array(length));
+    await environment.api.processChunkedSeriesUpload('chart', token, 0, length);
+    await environment.api.completeChunkedSeries('chart', token);
+    const instance = environment.hooks.instances.get('chart');
+    const source = instance.seriesBuffers.get(`series:0:${length}`);
+    const resident = instance.ownedGpuBytes;
+    const target = 'navigator-detail-series';
+    const render = environment.hooks.scheduleRender('chart', {
+        target,
+        zoom: { left: 0, right: 10 / length },
+        series: [{ id: 'series', length, sampleStep: 1 / length, viewFirst: 0, viewEnd: 10, pointBudget: 16 }],
+    });
+    await settle();
+    environment.api.releaseTarget('chart', target);
+    read.resolve(new Float32Array(10));
+    await render;
+    assert.equal(source.decimations.size, 0);
+    assert.equal(instance.ownedGpuBytes, resident);
+    assert.equal(instance.targetResources.has(target), false);
+    assert.equal(environment.hooks.renderStates.size, 0);
+    environment.api.dispose('chart');
+    assert.equal(instance.ownedGpuBytes, 0);
+});
+
+test('a 10 GiB series allocates paged summaries below 128/256/512 MiB binding caps', async () => {
+  for (const limit of [128, 256, 512].map(value => value * 1024 * 1024)) {
+    const length = 10 * 1024 ** 3 / 4;
+    const environment = createEnvironment({ maxStorageBufferBindingSize: limit });
+    environment.api.setCacheBudget('chart', 2 * 1024 ** 3);
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length);
+    const instance = environment.hooks.instances.get('chart');
+    const upload = instance.chunkedUploadSessions.get(token);
+    assert.ok(upload.pages.length > 1);
+    assert.ok(upload.bytes >= 640 * 1024 ** 2 && upload.bytes < 641 * 1024 ** 2);
+    assert.ok(environment.devices[0].buffers.every(buffer => buffer.size <= limit));
+    assert.ok(instance.ownedGpuBytes < 2 * 1024 ** 3);
+    // No 10 GiB host allocation: exercise parent planning/dispatch with mocked GPU storage.
+    upload.writtenLength = length;
+    await environment.api.completeChunkedSeries('chart', token);
+    assert.equal(instance.ownedGpuBytes, upload.bytes);
+    assert.ok(environment.devices[0].buffers.every(buffer => buffer.size <= limit));
+    environment.api.synchronizeSeries('chart', []);
+    assert.equal(instance.ownedGpuBytes, 0);
+    assert.ok(environment.devices[0].buffers.every(buffer => buffer.destroyed));
+    environment.api.dispose('chart');
+  }
+});
+
+test('partial multi-page allocation failure releases every page within the tracked budget', async () => {
+    const environment = createEnvironment({ maxStorageBufferBindingSize: 512 * 1024 ** 2 });
+    environment.api.setCacheBudget('chart', 40 * 1024 ** 2);
+    environment.api.initialize('chart', environment.helper('chart'));
+    await settle();
+    const instance = environment.hooks.instances.get('chart');
+    await assert.rejects(environment.api.beginChunkedSeries('chart', 's', 0, 10 * 1024 ** 3 / 4), /budget/);
+    assert.equal(instance.ownedGpuBytes, 0);
+    assert.ok(environment.devices[0].buffers.length >= 2);
+    assert.ok(environment.devices[0].buffers.every(buffer => buffer.destroyed));
+    environment.api.dispose('chart');
+});
+
+test('repeated local and remote chart replacement releases completed pyramids and pending uploads', async () => {
+    const environment = createEnvironment();
+    for (let cycle = 0; cycle < 3; cycle++) {
+        environment.api.initialize('chart', environment.helper('chart'));
+        await settle();
+        const length = 1024;
+        const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length, 0n, async (_, count) => new Float32Array(count));
+        environment.api.appendChunkedSeries('chart', token, 0, new Float32Array(length));
+        await environment.api.processChunkedSeriesUpload('chart', token, 0, length);
+        await environment.api.completeChunkedSeries('chart', token);
+        await environment.hooks.scheduleRender('chart', {
+            zoom: { left: 0, right: 1 },
+            series: [{ id: 'series', length, sampleStep: 1 / length, pointBudget: 16, axisMin: 0, axisMax: 1 }],
+        });
+        await environment.api.beginChunkedSeries('chart', 'pending', 0, length);
+        const local = environment.hooks.instances.get('chart');
+        assert.ok(local.ownedGpuBytes > 0);
+        environment.api.dispose('chart');
+        assert.equal(local.ownedGpuBytes, 0);
+        assert.ok(local.device.buffers.every(buffer => buffer.destroyed));
+
+        environment.api.initialize('chart', environment.helper('chart'));
+        await settle();
+        await environment.hooks.scheduleRender('chart', {
+            series: [{ id: 'series', remotePoints: new Float32Array([0, 1, 1, 2]), axisMin: 0, axisMax: 3 }],
+        });
+        const remote = environment.hooks.instances.get('chart');
+        assert.ok(remote.ownedGpuBytes > 0);
+        environment.api.dispose('chart');
+        assert.equal(remote.ownedGpuBytes, 0);
+        assert.ok(remote.device.buffers.every(buffer => buffer.destroyed));
+        assert.equal(environment.hooks.renderStates.size, 0);
+    }
 });
 
 test('chunked series accepts source-generated MemoryView spans synchronously', async () => {
