@@ -52,6 +52,42 @@ const columns = [
   ["maximum", "Float32"],
   ["message", "Utf8"],
 ];
+const visualizationTraceKey = "nexus.visualizationTrace";
+let nextTraceId = 0;
+
+function visualizationTraceEnabled(): boolean {
+  try {
+    const value = globalThis.localStorage?.getItem(visualizationTraceKey);
+
+    return value === "1" || value === "true";
+  } catch {
+    return false;
+  }
+}
+
+function viewSpan(view: { begin: bigint; end: bigint }): string {
+  return `${view.end - view.begin}`;
+}
+
+function traceViews(
+  views: {
+    id?: string;
+    begin: bigint;
+    end: bigint;
+    maxPoints?: number;
+    budget?: number;
+    prefetched?: boolean;
+  }[],
+): object[] {
+  return views.map((view) => ({
+    id: view.id,
+    begin: String(view.begin),
+    end: String(view.end),
+    span: viewSpan(view),
+    maxPoints: view.maxPoints ?? view.budget,
+    prefetched: view.prefetched,
+  }));
+}
 
 function validateSchema(schema: Schema): void {
   if (
@@ -341,6 +377,9 @@ export class RemoteVisualization {
   private requestedViews: RequestedView[] = [];
   private zoomAnchor = 500000n;
   private zoomVelocity = 0;
+  private loadSequence = 0;
+  private readonly traceId = ++nextTraceId;
+  private readonly traceStartedAt = performance.now();
   private readonly protectedViews = new Set<CachedView>();
   readonly begin: bigint;
   readonly end: bigint;
@@ -361,6 +400,14 @@ export class RemoteVisualization {
     this.samplePeriod = samplePeriod;
     this.resourcePaths = resourcePaths;
     this.transport = transport;
+
+    this.trace("create", {
+      begin: String(begin),
+      end: String(end),
+      samplePeriod: String(samplePeriod),
+      resources: resourcePaths.length,
+      enableWith: `localStorage.${visualizationTraceKey} = "true"`,
+    });
 
     if (cursorTransport) {
       this.cursor = new ExactCursor(begin, end, samplePeriod, resourcePaths, cursorTransport, () =>
@@ -383,7 +430,24 @@ export class RemoteVisualization {
     }
   }
 
+  private trace(event: string, details?: object): void {
+    if (!visualizationTraceEnabled()) {
+      return;
+    }
+
+    const elapsed = (performance.now() - this.traceStartedAt).toFixed(1);
+
+    console.debug(`[visualization ${this.traceId} +${elapsed}ms] ${event}`, details ?? {});
+  }
+
   cancel(): void {
+    this.trace("cancel", {
+      generation: this.generation,
+      loading: this.loading,
+      foregroundActive: !!this.controller,
+      prefetchActive: !!this.prefetchController,
+    });
+
     this.generation++;
     clearTimeout(this.foregroundTimer);
     clearTimeout(this.prefetchTimer);
@@ -412,6 +476,8 @@ export class RemoteVisualization {
     const key = views.map(keyOf).join("|");
 
     if (key === this.viewportKey) {
+      this.trace("request-skip-same-viewport", { immediate, views: traceViews(views) });
+
       return;
     }
 
@@ -440,6 +506,15 @@ export class RemoteVisualization {
       const velocity = Math.log2(ratio) / elapsed;
 
       this.zoomVelocity = Number.isFinite(velocity) ? velocity : 0;
+
+      this.trace("zoom-velocity", {
+        elapsed,
+        previousSpan: String(previousSpan),
+        span: String(span),
+        ratio,
+        velocity: this.zoomVelocity,
+        anchor: String(this.zoomAnchor),
+      });
     }
 
     this.mainView = main;
@@ -475,7 +550,17 @@ export class RemoteVisualization {
     });
     const generation = this.generation;
 
+    this.trace("request", {
+      generation,
+      immediate,
+      views: traceViews(views),
+      missing: traceViews(missing),
+      cacheEntries: this.cache.size,
+      protectedEntries: this.protectedViews.size,
+    });
+
     if (!missing.length) {
+      this.trace("request-cache-hit", { generation });
       this.notify();
       this.schedulePrefetch(main, generation);
 
@@ -494,6 +579,12 @@ export class RemoteVisualization {
     this.foregroundTimer = setTimeout(
       () => {
         const stillMissing = missing.filter((view) => !this.cachedView(view));
+
+        this.trace("foreground-debounce-fired", {
+          generation,
+          requested: traceViews(missing),
+          stillMissing: traceViews(stillMissing),
+        });
 
         if (!stillMissing.length) {
           if (generation === this.generation) {
@@ -567,6 +658,12 @@ export class RemoteVisualization {
     activeGesture = false,
   ): void {
     if (!main || generation !== this.generation) {
+      this.trace("prefetch-skip-stale", {
+        generation,
+        currentGeneration: this.generation,
+        activeGesture,
+      });
+
       return;
     }
 
@@ -577,6 +674,13 @@ export class RemoteVisualization {
     // Keep speculative queries above base-summary resolution; only the small
     // boundary fragments may require raw reads, never a whole fine-detail view.
     if (span <= (BigInt(main.maxPoints) * 256n) / 5n) {
+      this.trace("prefetch-skip-fine", {
+        generation,
+        activeGesture,
+        span: String(span),
+        maxPoints: main.maxPoints,
+      });
+
       return;
     }
 
@@ -615,6 +719,18 @@ export class RemoteVisualization {
             (entry) => entry.begin === this.begin && entry.end === this.end,
           ))
       ) {
+        this.trace("prefetch-candidate-skip", {
+          generation,
+          activeGesture,
+          numerator: String(numerator),
+          denominator: String(denominator),
+          first: String(first),
+          last: String(last),
+          width: String(width),
+          budget,
+          remainingPoints,
+        });
+
         continue;
       }
 
@@ -630,6 +746,12 @@ export class RemoteVisualization {
         this.cachedView(view) ||
         predictions.some((other) => other.begin === view.begin && other.end === view.end)
       ) {
+        this.trace("prefetch-candidate-covered", {
+          generation,
+          activeGesture,
+          view: traceViews([view])[0],
+        });
+
         continue;
       }
 
@@ -638,23 +760,60 @@ export class RemoteVisualization {
     }
 
     if (!predictions.length) {
+      this.trace("prefetch-skip-empty", { generation, activeGesture });
+
       return;
     }
 
     clearTimeout(this.prefetchTimer);
 
+    this.trace("prefetch-scheduled", {
+      generation,
+      activeGesture,
+      delay: activeGesture ? 70 : 250,
+      velocity: this.zoomVelocity,
+      anchor: String(this.zoomAnchor),
+      predictions: traceViews(predictions),
+    });
+
     this.prefetchTimer = setTimeout(
       () => {
+        this.trace("prefetch-fired", { generation, activeGesture });
+
         void (async () => {
           for (const view of predictions) {
             if (generation !== this.generation) {
+              this.trace("prefetch-stop-stale", {
+                generation,
+                currentGeneration: this.generation,
+                activeGesture,
+              });
+
               break;
             }
 
             if (!this.cachedView(view)) {
+              this.trace("prefetch-load", {
+                generation,
+                activeGesture,
+                view: traceViews([view])[0],
+              });
+
               if (!(await this.load([view], generation, true)) || !this.cachedView(view)) {
+                this.trace("prefetch-stop-unretained", {
+                  generation,
+                  activeGesture,
+                  view: traceViews([view])[0],
+                });
+
                 break;
               }
+            } else {
+              this.trace("prefetch-skip-cached", {
+                generation,
+                activeGesture,
+                view: traceViews([view])[0],
+              });
             }
           }
         })();
@@ -723,12 +882,25 @@ export class RemoteVisualization {
     prefetch = false,
   ): Promise<boolean> {
     const controller = new AbortController();
+    const loadId = ++this.loadSequence;
+    const startedAt = performance.now();
+    const kind = prefetch ? "prefetch" : "foreground";
+
+    this.trace("load-start", { loadId, kind, generation, views: traceViews(views) });
 
     if (prefetch) {
-      this.prefetchController?.abort();
+      if (this.prefetchController) {
+        this.trace("load-abort-previous-prefetch", { loadId, generation });
+        this.prefetchController.abort();
+      }
+
       this.prefetchController = controller;
     } else {
-      this.prefetchController?.abort();
+      if (this.prefetchController) {
+        this.trace("load-abort-prefetch-for-foreground", { loadId, generation });
+        this.prefetchController.abort();
+      }
+
       this.prefetchController = undefined;
       this.controller = controller;
     }
@@ -748,10 +920,27 @@ export class RemoteVisualization {
         controller.signal,
         (frame) => {
           if (generation !== this.generation || controller.signal.aborted) {
+            this.trace("load-frame-ignored", {
+              loadId,
+              kind,
+              generation,
+              currentGeneration: this.generation,
+              aborted: controller.signal.aborted,
+            });
+
             return;
           }
 
           if (frame.kind === "data") {
+            this.trace("load-data", {
+              loadId,
+              kind,
+              viewIndex: frame.viewIndex,
+              resourceIndex: frame.resourceIndex,
+              complete: frame.complete,
+              points: frame.values.length,
+            });
+
             published.set(`${frame.viewIndex}:${frame.resourceIndex}`, frame);
 
             if (frame.complete) {
@@ -772,6 +961,13 @@ export class RemoteVisualization {
           } else if (!prefetch) {
             this.progress = Math.max(this.progress, frame.progress);
 
+            this.trace("load-progress", {
+              loadId,
+              progress: this.progress,
+              resourceIndex: frame.resourceIndex,
+              range: frame.range,
+            });
+
             if (frame.resourceIndex >= 0 && frame.range) {
               this.ranges.set(frame.resourceIndex, frame.range);
             }
@@ -782,6 +978,15 @@ export class RemoteVisualization {
       );
 
       if (generation !== this.generation || controller.signal.aborted) {
+        this.trace("load-discarded", {
+          loadId,
+          kind,
+          generation,
+          currentGeneration: this.generation,
+          aborted: controller.signal.aborted,
+          durationMs: performance.now() - startedAt,
+        });
+
         return false;
       }
 
@@ -830,6 +1035,13 @@ export class RemoteVisualization {
 
         this.cache.set(`${view.begin}:${view.end}:${view.budget}`, view);
 
+        this.trace("cache-store", {
+          loadId,
+          kind,
+          view: traceViews([view])[0],
+          cacheEntries: this.cache.size,
+        });
+
         if (!prefetch) {
           this.protectedViews.add(view);
         }
@@ -861,6 +1073,13 @@ export class RemoteVisualization {
 
         this.cache.delete(key);
 
+        this.trace("cache-evict", {
+          loadId,
+          kind,
+          view: traceViews([view])[0],
+          cacheEntries: this.cache.size,
+        });
+
         bytes -= view.points.reduce(
           (n, point) => n + point.indices.byteLength + point.values.byteLength,
           0,
@@ -871,8 +1090,26 @@ export class RemoteVisualization {
         this.progress = 1;
       }
 
+      this.trace("load-complete", {
+        loadId,
+        kind,
+        generation,
+        durationMs: performance.now() - startedAt,
+        cacheEntries: this.cache.size,
+        cacheBytes: bytes,
+      });
+
       return true;
     } catch (error) {
+      this.trace("load-error", {
+        loadId,
+        kind,
+        generation,
+        aborted: controller.signal.aborted,
+        durationMs: performance.now() - startedAt,
+        error: String(error),
+      });
+
       if (!prefetch && generation === this.generation && !controller.signal.aborted) {
         this.error = String(error);
         this.viewportKey = "";
@@ -892,6 +1129,15 @@ export class RemoteVisualization {
           this.notify();
         }
       }
+
+      this.trace("load-finally", {
+        loadId,
+        kind,
+        generation,
+        currentGeneration: this.generation,
+        aborted: controller.signal.aborted,
+        loading: this.loading,
+      });
     }
   }
 
@@ -919,6 +1165,31 @@ export class RemoteVisualization {
           Number(a.end - a.begin - (b.end - b.begin)),
       );
     const source = candidates[0]?.points[resourceIndex];
+
+    this.trace("points-for", {
+      target,
+      resourceIndex,
+      begin: String(begin),
+      end: String(end),
+      candidates: candidates.map((view) => ({
+        begin: String(view.begin),
+        end: String(view.end),
+        budget: view.budget,
+        prefetched: view.prefetched === true,
+        compatible: compatible(view),
+        stride: String(this.strideOf(view.begin, view.end, view.budget)),
+      })),
+      selected: source
+        ? {
+            points: source.values.length,
+            first: source.indices[0] === undefined ? undefined : String(source.indices[0]),
+            last:
+              source.indices[source.indices.length - 1] === undefined
+                ? undefined
+                : String(source.indices[source.indices.length - 1]),
+          }
+        : undefined,
+    });
 
     if (!source) {
       return undefined;

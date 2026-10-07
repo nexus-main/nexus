@@ -382,10 +382,12 @@ describe("remote viewport provider", () => {
 
       assert.equal(calls.length, 2);
       assert.equal(calls[1].request.views[0].id, "prefetch");
+
       assert.ok(
         dateTicks(calls[1].request.views[0].end)! - dateTicks(calls[1].request.views[0].begin)! <
           500000n,
       );
+
       assert.equal(provider.loading, true);
       assert.equal(provider.progress, 0);
 
@@ -423,10 +425,12 @@ describe("remote viewport provider", () => {
 
       assert.equal(calls.length, 2);
       assert.equal(calls[1].request.views[0].id, "prefetch");
+
       assert.ok(
         dateTicks(calls[1].request.views[0].end)! - dateTicks(calls[1].request.views[0].begin)! >
           4000000n,
       );
+
       assert.equal(calls[1].signal.aborted, false);
 
       await delay(80);
