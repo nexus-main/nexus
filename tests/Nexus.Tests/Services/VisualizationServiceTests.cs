@@ -365,9 +365,6 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         using var logs = new VisualizationTimingLogger();
         var timing = new VisualizationTiming(logs.CreateLogger(VisualizationTiming.Category), Guid.NewGuid());
 
-        if (disableCache)
-            fixture.Cache.Options.DiskLimitBytes = 0;
-
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         using var cancellation = new CancellationTokenSource();
         var write = await fixture.Service.PrepareAsync(request, cancellation.Token);
@@ -411,7 +408,6 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         dataset.AllocateBase();
         dataset.BuildParents(CancellationToken.None);
         using var fixture = new Fixture(memoryLimit: dataset.Bytes);
-        fixture.Cache.Options.DiskLimitBytes = 0;
         using var first = fixture.Cache.Put("first", dataset);
         using var hit = fixture.Cache.Get("first");
         Assert.NotNull(hit);
@@ -427,34 +423,38 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         Assert.Equal(dataset.Bytes, fixture.Cache.ResidentBytes);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(16)]
-    [InlineData(20)]
-    [InlineData(24)]
-    [InlineData(40)]
-    [InlineData(-1)]
-    public async Task MalformedSnapshotsAreDiscardedAndRebuilt(int offset)
+    [Fact]
+    public void CacheEvictsLeastRecentlyUsedUnpinnedDataset()
     {
-        using var fixture = new Fixture(memoryLimit: 0) { Delay = TimeSpan.Zero };
-        var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
-        await fixture.RunAsync(request);
-        string path = Assert.Single(Directory.GetFiles(Path.Combine(fixture.Directory, "visualization-v1")));
-        using (var file = File.Open(path, FileMode.Open, FileAccess.ReadWrite))
-        {
-            if (offset < 0)
-                file.SetLength(25);
-            else
-            {
-                file.Position = offset;
-                int value = file.ReadByte();
-                file.Position = offset;
-                file.WriteByte((byte)(value ^ 1));
-            }
-        }
+        var dataset = new VisualizationDataset(0, 65536, 1);
+        dataset.AllocateBase();
+        dataset.BuildParents(CancellationToken.None);
+        using var fixture = new Fixture(memoryLimit: dataset.Bytes * 2);
+        fixture.Cache.Put("first", dataset).Dispose();
+        fixture.Cache.Put("second", dataset).Dispose();
+        fixture.Cache.Get("first")!.Dispose();
+        using var third = fixture.Cache.Put("third", dataset);
+        using var first = fixture.Cache.Get("first");
+        Assert.NotNull(first);
+        Assert.Null(fixture.Cache.Get("second"));
+        Assert.Equal(dataset.Bytes * 2, fixture.Cache.ResidentBytes);
+    }
 
-        Assert.Equal(2, (await fixture.RunAsync(request)).Last().Kind);
-        Assert.Equal(65536 * 4, fixture.Samples);
+    [Fact]
+    public async Task ExpiredPinnedCacheEntriesRemainAccountedUntilReleased()
+    {
+        var dataset = new VisualizationDataset(0, 65536, 1);
+        dataset.AllocateBase();
+        dataset.BuildParents(CancellationToken.None);
+        using var fixture = new Fixture(memoryLimit: dataset.Bytes);
+        fixture.Cache.Options.CacheTtl = TimeSpan.FromMilliseconds(20);
+        using var lease = fixture.Cache.Put("first", dataset);
+        await Task.Delay(100);
+        Assert.Null(fixture.Cache.Get("first"));
+        Assert.Equal(dataset.Bytes, fixture.Cache.ResidentBytes);
+        lease.Dispose();
+        Assert.Null(fixture.Cache.Get("first"));
+        Assert.Equal(0, fixture.Cache.ResidentBytes);
     }
 
     [Fact]
@@ -467,43 +467,83 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         Assert.Throws<ArgumentOutOfRangeException>(() => VisualizationService.Query(dataset, [], 0, 1, 1001));
     }
 
+    [Theory]
+    [InlineData(0, 65536, 1)]
+    [InlineData(13, 65539, 2)]
+    public void SummaryEstimateMatchesAllocationAndEnforcesExactBudget(long begin, long end, int resources)
+    {
+        var dataset = new VisualizationDataset(begin, end, resources);
+        dataset.AllocateBase();
+        dataset.BuildParents(CancellationToken.None);
+        Assert.Equal(dataset.Bytes, VisualizationDataset.EstimateBytes(begin, end, resources, dataset.Bytes));
+        var exception = Assert.Throws<ValidationException>(() =>
+            VisualizationDataset.EstimateBytes(begin, end, resources, dataset.Bytes - 1));
+        Assert.Contains("Data:Visualization:MaxDatasetBytes", exception.Message);
+    }
+
     [Fact]
-    public async Task AuthenticationSchemeIsPartOfCacheIdentity()
+    public async Task LargeDomainPreparationUsesConfigurableSummaryBudgetNotSampleLimit()
+    {
+        using var fixture = new Fixture();
+        Assert.Equal(1L << 30, fixture.Cache.Options.MaxDatasetBytes);
+        Assert.Equal(1L << 30, new VisualizationOptions().MemoryLimitBytes);
+        const int count = 600_000_000;
+        var request = fixture.Request([fixture.View("main", 0, count, 100)]) with { End = fixture.Begin.AddSeconds(count) };
+
+        Assert.NotNull(await fixture.Service.PrepareAsync(request, CancellationToken.None));
+        fixture.Cache.Options.MaxDatasetBytes = 65536;
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.PrepareAsync(request, CancellationToken.None));
+        Assert.Contains("Data:Visualization:MaxDatasetBytes", exception.Message);
+        fixture.Cache.Options.MaxDatasetBytes = 20L * 1024 * 1024 * 1024;
+        Assert.NotNull(await fixture.Service.PrepareAsync(request, CancellationToken.None));
+        Assert.Equal(0, fixture.Calls);
+    }
+
+    [Fact]
+    public async Task UserIdentitiesAreIsolatedButShareOneCacheQuota()
     {
         using var fixture = new Fixture { Delay = TimeSpan.Zero };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         await fixture.RunAsync(request);
+        long bytes = fixture.Cache.ResidentBytes;
+        fixture.Cache.Options.MemoryLimitBytes = bytes;
         var other = fixture.CreateService(new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.Role, nameof(NexusRoles.Administrator))], "other")));
         var write = await other.PrepareAsync(request, CancellationToken.None);
         using var stream = new MemoryStream();
         await write(stream, CancellationToken.None);
         Assert.Equal(65536 * 4, fixture.Samples);
+        Assert.Equal(bytes, fixture.Cache.ResidentBytes);
+        await fixture.RunAsync(request);
+        Assert.Equal(65536 * 6, fixture.Samples);
+        Assert.Equal(bytes, fixture.Cache.ResidentBytes);
     }
 
     [Fact]
-    public async Task UnavailableDiskCacheDoesNotFailSourceRead()
-    {
-        using var fixture = new Fixture { Delay = TimeSpan.Zero };
-        Directory.CreateDirectory(fixture.Directory);
-        using (File.Create(Path.Combine(fixture.Directory, "visualization-v1"))) { }
-        Assert.Equal(2, (await fixture.RunAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]))).Last().Kind);
-    }
-
-    [Fact]
-    public async Task SnapshotFromAnotherIdentityCannotBeReusedUnderDifferentKey()
+    public async Task DisabledMemoryCacheDoesNotPersistCompletedDatasets()
     {
         using var fixture = new Fixture(memoryLimit: 0) { Delay = TimeSpan.Zero };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
-        await fixture.RunAsync(request);
-        string directory = Path.Combine(fixture.Directory, "visualization-v1");
-        string first = Assert.Single(Directory.GetFiles(directory));
-        fixture.Configuration = new Dictionary<string, JsonElement> { ["tenant"] = JsonSerializer.SerializeToElement("other") };
-        await fixture.RunAsync(request);
-        string second = Assert.Single(Directory.GetFiles(directory), path => path != first);
-        File.Copy(first, second, overwrite: true);
         Assert.Equal(2, (await fixture.RunAsync(request)).Last().Kind);
-        Assert.Equal(65536 * 6, fixture.Samples);
+        Assert.Equal(2, (await fixture.RunAsync(request)).Last().Kind);
+        Assert.Equal(65536 * 4, fixture.Samples);
+        Assert.Equal(0, fixture.Cache.ResidentBytes);
+        Assert.False(Directory.Exists(fixture.Directory));
+    }
+
+    [Fact]
+    public void CacheDoesNotPersistAcrossInstances()
+    {
+        var options = Options.Create(new DataOptions());
+        var dataset = new VisualizationDataset(0, 65536, 1);
+        dataset.AllocateBase();
+        dataset.BuildParents(CancellationToken.None);
+        using (var cache = new VisualizationCache(options))
+            cache.Put("same-key", dataset).Dispose();
+
+        using var restarted = new VisualizationCache(options);
+        Assert.Null(restarted.Get("same-key"));
+        Assert.Equal(0, restarted.ResidentBytes);
     }
 
     [Fact]
@@ -590,7 +630,6 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
                 {
                     Delay = TimeSpan.FromMilliseconds(delay)
                 };
-                fixture.Cache.Options.DiskLimitBytes = 0;
                 const int count = 4 * 1024 * 1024;
                 var request = fixture.Request([fixture.View("main", 0, count, 1000)]) with { End = fixture.Begin.AddSeconds(count) };
                 var watch = Stopwatch.StartNew();
@@ -786,9 +825,9 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     }
 
     [Fact]
-    public async Task UsesDiskCacheAndExpiresAndIsolatesRequestConfiguration()
+    public async Task UsesSharedMemoryCacheAndIsolatesRequestConfiguration()
     {
-        using var fixture = new Fixture(memoryLimit: 0);
+        using var fixture = new Fixture();
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         await fixture.RunAsync(request);
         int samples = fixture.Samples;
@@ -799,11 +838,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         await fixture.RunAsync(request);
         Assert.Equal(samples * 2, fixture.Samples);
 
-        foreach (string path in Directory.GetFiles(Path.Combine(fixture.Directory, "visualization-v1")))
-            File.SetLastWriteTimeUtc(path, DateTime.UtcNow - TimeSpan.FromHours(1));
-
-        await fixture.RunAsync(request);
-        Assert.Equal(samples * 3, fixture.Samples);
+        Assert.False(Directory.Exists(fixture.Directory));
     }
 
     [Fact]
@@ -953,7 +988,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
                 Visualization = new VisualizationOptions { TargetReadBytes = targetReadBytes, MaxConcurrentReads = readWorkers,
                     MaxComputeWorkers = computeWorkers, MemoryLimitBytes = memoryLimit }
             };
-            Cache = new VisualizationCache(Options.Create(options), Options.Create(new PathsOptions { Cache = Directory }));
+            Cache = new VisualizationCache(Options.Create(options));
             var pipeline = new DataSourcePipeline([new DataSourceRegistration("test", null, JsonSerializer.SerializeToElement<object?>(null))]);
             var representation = new Representation(NexusDataType.Float32, TimeSpan.FromSeconds(1));
             var coarseRepresentation = new Representation(NexusDataType.Float32, TimeSpan.FromSeconds(2));

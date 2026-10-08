@@ -1,5 +1,8 @@
 # Server Visualization
 
+See the [visualization overview](../../../../../notes/visualization.md) for the
+existing shared backend/GPU algorithm and server execution, memory, and cache limits.
+
 The persisted `nexus.visualizationServerReduction` checkbox selects the remote
 provider when constructing a dataset. Local mode still downloads raw Float32
 chunks and uses GPU reduction. Switching modes constructs a new dataset; viewport
@@ -17,7 +20,8 @@ Set `localStorage.setItem("nexus.visualizationTrace", "true")` to enable diagnos
 for subsequent loads; remove that key to disable them. Each traced load gets a
 fresh UUID (`requestId` in `load-start`) sent as `X-Nexus-Visualization-Trace`.
 The server echoes it and writes correlated Information-level phase logs under
-`Nexus.Visualization.Timing`; see `notes/visualization.md` for collection and phases.
+`Nexus.Visualization.Timing`; see the [overview's timing guide](../../../../../notes/visualization.md#opt-in-server-timings)
+for collection and phases.
 Untraced requests send no diagnostic header and produce no server timing logs.
 
 Browser `transport-start`, `transport-headers`, `decoder-first-bytes`,
