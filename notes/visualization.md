@@ -64,7 +64,7 @@ variables such as `NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREADS`.
 
 | Setting               | Default                                     |
 | --------------------- | ------------------------------------------- |
-| MaxConcurrentReads    | 4                                           |
+| MaxConcurrentReads    | 8                                           |
 | MaxComputeWorkers     | 2                                           |
 | MaxConcurrentRequests | 4                                           |
 | TargetReadBytes       | 4194304                                     |
