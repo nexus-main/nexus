@@ -513,7 +513,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         await fixture.RunAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]));
         int calls = fixture.Calls;
         Assert.Equal(2, (await fixture.RunAsync(fixture.Request([fixture.View("detail", 8192, 16384, 32768)]))).Last().Kind);
-        Assert.Equal(11, fixture.Calls - calls); // 768 samples per read, not 32 individual buckets.
+        Assert.Equal(1, fixture.Calls - calls); // One output-budgeted slice, not 32 individual buckets.
     }
 
     [Theory]
@@ -902,6 +902,19 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         var denied = fixture.CreateService(new ClaimsPrincipal(new ClaimsIdentity([], "test")));
         var exception = await Assert.ThrowsAsync<Exception>(() => denied.PrepareAsync(request, CancellationToken.None));
         Assert.StartsWith("The current user is not permitted", exception.Message);
+    }
+
+    [Fact]
+    public async Task SliceSizingUsesOutputBytesInsteadOfWorkingMemoryEstimate()
+    {
+        using var fixture = new Fixture(readWorkers: 1, targetReadBytes: 65536) { Delay = TimeSpan.Zero };
+        var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
+        int expectedSliceSamples = 65536 / (sizeof(float) * request.ResourcePaths.Length) / 256 * 256;
+        int expectedCalls = (65536 + expectedSliceSamples - 1) / expectedSliceSamples;
+
+        await fixture.RunAsync(request);
+
+        Assert.Equal(expectedCalls, fixture.Calls);
     }
 
     private sealed record Row(int Kind, int Resource, int View, long[] Indices, float[] Values, float Minimum, float Maximum, string Message);

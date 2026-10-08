@@ -66,13 +66,18 @@ internal sealed class VisualizationService(
             throw new ValidationException("The visualization domain exceeds the configured work or summary-memory limit.");
 
         VisualizationDataset.EstimateBytes(begin, end, items.Length, cache.Options.MaxDatasetBytes);
-        long bytesPerSample;
+        long workingBytesPerSample;
+        long outputBytesPerSample;
 
-        try { bytesPerSample = items.Sum(EstimateBytesPerSample); }
+        try
+        {
+            workingBytesPerSample = items.Sum(EstimateBytesPerSample);
+            outputBytesPerSample = items.Sum(EstimateOutputBytesPerSample);
+        }
         catch (OverflowException ex) { throw new ValidationException("The representations exceed the visualization read budget.", ex); }
-        int sliceSamples = (int)Math.Min(1_048_576, cache.Options.TargetReadBytes / bytesPerSample / 256 * 256);
+        int sliceSamples = (int)Math.Min(1_048_576, cache.Options.TargetReadBytes / outputBytesPerSample / 256 * 256);
 
-        if (sliceSamples < 256)
+        if (sliceSamples < 256 || cache.Options.TargetReadBytes / workingBytesPerSample < 256)
             throw new ValidationException("The representations require more memory than the configured visualization read budget.");
 
         var views = request.Views.Select(view => new ViewPlan(
@@ -558,16 +563,42 @@ internal sealed class VisualizationService(
 
                 // Recursive reads run inside the owning worker's permit, never acquire
                 // another global read slot (which would deadlock at saturation).
-                if (depth >= 8 || buffer.Length * 8L > cache.Options.TargetReadBytes)
+                if (depth >= 8)
                     throw new ValidationException("Visualization dependency exceeds the recursion or memory budget.");
 
                 var item = await ResolveAsync(path, ct);
                 var dependencyPeriod = item.Item.Representation.SamplePeriod;
                 DataSourceController.ValidateParameters(from, to, dependencyPeriod);
 
-                if ((to - from).Ticks / dependencyPeriod.Ticks != buffer.Length ||
-                    buffer.Length > cache.Options.TargetReadBytes / EstimateBytesPerSample(item))
+                long workingBytesPerSample;
+
+                try { workingBytesPerSample = EstimateBytesPerSample(item); }
+                catch (OverflowException ex) { throw new ValidationException("Visualization dependency exceeds the memory budget.", ex); }
+
+                if ((to - from).Ticks / dependencyPeriod.Ticks != buffer.Length)
                     throw new ValidationException("Visualization dependency exceeds the memory budget.");
+
+                long maxDependencySamples = Math.Min(cache.Options.TargetReadBytes / sizeof(double),
+                    cache.Options.TargetReadBytes / workingBytesPerSample);
+
+                if (maxDependencySamples < 1)
+                    throw new ValidationException("Visualization dependency exceeds the memory budget.");
+
+                if (buffer.Length > maxDependencySamples)
+                {
+                    int offset = 0;
+
+                    while (offset < buffer.Length)
+                    {
+                        int count = (int)Math.Min(maxDependencySamples, buffer.Length - offset);
+                        var chunkFrom = from.AddTicks((long)offset * dependencyPeriod.Ticks);
+                        var chunkTo = chunkFrom.AddTicks((long)count * dependencyPeriod.Ticks);
+                        await ReadDependencyAsync(path, chunkFrom, chunkTo, buffer.Slice(offset, count), depth, ct);
+                        offset += count;
+                    }
+
+                    return;
+                }
 
                 using var controller = await controllers.GetVisualizationDataSourceControllerAsync(item.Container.Pipeline, configuration, Catalogs(item), ct);
                 using var dependencies = new SemaphoreSlim(1);
@@ -611,6 +642,8 @@ internal sealed class VisualizationService(
         // Include native/status, normalization, pipe, retained slice and resampling halos.
         return checked((ratio * (source.ElementSize + 1L) + 32) * 2);
     }
+
+    private static long EstimateOutputBytesPerSample(CatalogItemRequest _) => (long)Precision.Float32;
 
     private static ResourceCatalog[] Catalogs(CatalogItemRequest item) =>
         new[] { item.SourceItem?.Catalog, item.SourceBaseItem?.Catalog, item.Item.Catalog, item.BaseItem?.Catalog }

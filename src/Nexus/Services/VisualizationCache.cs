@@ -165,7 +165,7 @@ internal sealed class VisualizationCache : IDisposable
     {
         Options = options.Value.Visualization;
 
-        if (Options.MaxConcurrentReads < 1 || Options.MaxConcurrentReads > 64 ||
+        if (Options.MaxConcurrentReads < 1 ||
             Options.MaxComputeWorkers < 1 || Options.MaxComputeWorkers > 64 ||
             Options.MaxConcurrentRequests < 1 || Options.MaxConcurrentRequests > 64 ||
             Options.TargetReadBytes < 65536 || Options.TargetReadBytes > 64 * 1024 * 1024 ||
