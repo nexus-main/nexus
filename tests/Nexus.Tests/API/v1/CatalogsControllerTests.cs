@@ -205,6 +205,27 @@ public class CatalogsControllerTests
         Assert.False(catalogInfo.IsWritable);
     }
 
+    [Fact]
+    public async Task GetMetadataInheritsFromResolvedAliasSource()
+    {
+        // Arrange
+        var begin = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2024, 01, 05, 0, 0, 0, DateTimeKind.Utc);
+        var sourceMetadata = new CatalogMetadata("contact", ["group"], default);
+        var (_, _, controller) = CreateController(
+            CreateUser("^/ALIAS$"),
+            begin,
+            end,
+            TimeSpan.FromDays(1),
+            sourceMetadata: sourceMetadata);
+
+        // Act
+        var actual = await controller.GetMetadataAsync("/ALIAS", CancellationToken.None);
+
+        // Assert
+        Assert.Same(sourceMetadata, actual.Value);
+    }
+
     private static ClaimsPrincipal CreateUser(string catalogPattern, string? writableCatalogPattern = default)
     {
         var claims = new List<Claim>
@@ -227,7 +248,8 @@ public class CatalogsControllerTests
         DateTime end,
         TimeSpan step,
         DateTime? aliasBegin = default,
-        DateTime? aliasEnd = default)
+        DateTime? aliasEnd = default,
+        CatalogMetadata? sourceMetadata = default)
     {
         var catalogManager = new Mock<ICatalogManager>();
         var databaseService = new Mock<IDatabaseService>();
@@ -247,7 +269,7 @@ public class CatalogsControllerTests
             Guid.NewGuid(),
             pipeline,
             Array.Empty<Guid>(),
-            new CatalogMetadata(default, default, default),
+            sourceMetadata ?? new CatalogMetadata(default, default, default),
             catalogManager.Object,
             databaseService.Object,
             dataControllerService.Object);

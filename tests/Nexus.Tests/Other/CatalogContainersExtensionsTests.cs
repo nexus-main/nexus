@@ -533,4 +533,99 @@ public class CatalogContainersExtensionsTests
         Assert.Equal("/ALIAS/A", CatalogManager.JoinCatalogPath("/ALIAS", "/A"));
         Assert.Equal("/ALIAS/A", CatalogManager.JoinCatalogPath("/ALIAS", "A"));
     }
+
+    [Fact]
+    public void CanInheritMetadataFromResolvedLinkTarget()
+    {
+        // Arrange
+        var sourceMetadata = new CatalogMetadata(
+            "contact",
+            ["group"],
+            default);
+
+        var target = new CatalogContainer(
+            new CatalogRegistration("/SOURCE", default),
+            default,
+            default!,
+            default!,
+            sourceMetadata,
+            default!,
+            default!,
+            default!);
+
+        var alias = new CatalogContainer(
+            new CatalogRegistration("/ALIAS", default, LinkTarget: "/SOURCE"),
+            default,
+            default!,
+            default!,
+            new CatalogMetadata(default, default, default),
+            default!,
+            default!,
+            default!);
+
+        // Act
+        alias.ResolveLinkTarget(target);
+
+        // Assert
+        Assert.Same(sourceMetadata, alias.Metadata);
+    }
+
+    [Fact]
+    public async Task CanApplyInheritedTargetOverridesToAliasCatalog()
+    {
+        // Arrange
+        var dataControllerService = new Mock<IDataControllerService>();
+        var dataSourceController = new Mock<IDataSourceController>();
+
+        var backingCatalog = new ResourceCatalogBuilder("/SOURCE")
+            .AddResource(new ResourceBuilder("T1")
+                .AddRepresentation(new Representation(NexusDataType.Float64, TimeSpan.FromSeconds(1)))
+                .Build())
+            .Build();
+
+        dataSourceController
+            .Setup(controller => controller.GetCatalogAsync("/SOURCE", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(backingCatalog);
+
+        dataControllerService
+            .Setup(service => service.GetDataSourceControllerAsync(
+                It.IsAny<DataSourcePipeline>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dataSourceController.Object);
+
+        var overrides = new ResourceCatalogBuilder("/SOURCE")
+            .AddResource(new ResourceBuilder("T1")
+                .WithUnit("°C")
+                .Build())
+            .Build();
+
+        var target = new CatalogContainer(
+            new CatalogRegistration("/SOURCE", default),
+            default,
+            default!,
+            default!,
+            new CatalogMetadata(default, default, overrides),
+            default!,
+            default!,
+            dataControllerService.Object);
+
+        var alias = new CatalogContainer(
+            new CatalogRegistration("/ALIAS", default, LinkTarget: "/SOURCE"),
+            default,
+            default!,
+            default!,
+            new CatalogMetadata(default, default, default),
+            default!,
+            default!,
+            dataControllerService.Object);
+
+        alias.ResolveLinkTarget(target);
+
+        // Act
+        var catalog = await alias.GetCatalogAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal("/ALIAS", catalog.Id);
+        Assert.Equal("°C", Assert.Single(catalog.Resources!).Properties?.GetStringValue(DataModelExtensions.UnitKey));
+    }
 }

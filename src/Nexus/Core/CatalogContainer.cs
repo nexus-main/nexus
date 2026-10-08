@@ -45,6 +45,8 @@ internal class CatalogContainer
 
     private readonly Guid[] _packageReferenceIds;
 
+    private CatalogMetadata? _metadata;
+
     private readonly ICatalogManager _catalogManager;
 
     private readonly IDatabaseService _databaseService;
@@ -75,7 +77,7 @@ internal class CatalogContainer
         _pipelineId = pipelineId;
         _pipeline = pipeline;
         _packageReferenceIds = packageReferenceIds;
-        Metadata = metadata;
+        _metadata = metadata;
 
         if (_minBegin > _maxEnd)
         {
@@ -163,13 +165,18 @@ internal class CatalogContainer
 
     public string PhysicalName => Id.TrimStart('/').Replace('/', '_');
 
+    // Catalog aliases pass the following members through from their resolved link target, so
+    // pipeline configuration, package references and catalog metadata (contact information, group
+    // memberships and catalog overrides) always stay in sync with the transitive source catalog.
+    // The fallback values are for regular catalogs only; alias link targets are resolved before
+    // these members are read.
     public Guid PipelineId => _resolvedLinkTarget?.PipelineId ?? _pipelineId;
 
     public DataSourcePipeline Pipeline => _resolvedLinkTarget?.Pipeline ?? _pipeline;
 
     public Guid[] PackageReferenceIds => _resolvedLinkTarget?.PackageReferenceIds ?? _packageReferenceIds;
 
-    public CatalogMetadata Metadata { get; internal set; }
+    public CatalogMetadata Metadata => _resolvedLinkTarget?.Metadata ?? _metadata!;
 
     internal bool ShouldResolveLinkTarget =>
         LinkTarget is not null &&
@@ -372,7 +379,7 @@ internal class CatalogContainer
             await JsonSerializerHelper.SerializeIndentedAsync(stream, metadata);
 
             // assign
-            Metadata = metadata;
+            _metadata = metadata;
 
             // trigger merging of catalog and catalog overrides
             _catalog = default;
@@ -394,7 +401,16 @@ internal class CatalogContainer
                 catalog = catalog with { Id = Id };
 
             if (Metadata?.Overrides is not null)
-                catalog = catalog.Merge(Metadata.Overrides);
+            {
+                // Alias views are renamed to their public id, while inherited overrides are
+                // stored against the backing source id, so the override id must be adapted
+                // before merging.
+                var overrides = Metadata.Overrides.Id == catalog.Id
+                    ? Metadata.Overrides
+                    : Metadata.Overrides with { Id = catalog.Id };
+
+                catalog = catalog.Merge(overrides);
+            }
 
             _catalog = catalog;
         }
