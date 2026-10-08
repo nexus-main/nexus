@@ -76,10 +76,8 @@ internal record VisualizationOptions
     public int MaxConcurrentRequests { get; set; } = 4;
     public int TargetReadBytes { get; set; } = 4 * 1024 * 1024;
     public int MaxAggregatePoints { get; set; } = 262144;
-    public long MaxSamples { get; set; } = 1_000_000_000;
-    public long MaxDatasetBytes { get; set; } = 64 * 1024 * 1024;
-    public long MemoryLimitBytes { get; set; } = 256 * 1024 * 1024;
-    public long DiskLimitBytes { get; set; } = 2L * 1024 * 1024 * 1024;
+    public long MaxDatasetBytes { get; set; } = 1L * 1024 * 1024 * 1024;
+    public long MemoryLimitBytes { get; set; } = 1L * 1024 * 1024 * 1024;
     public TimeSpan CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
 }
 

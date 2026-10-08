@@ -62,9 +62,6 @@ internal sealed class VisualizationService(
         long begin = request.Begin.Ticks / period.Ticks;
         long end = request.End.Ticks / period.Ticks;
         long baseCount = (end - 1) / 256 - begin / 256 + 1;
-        if (end - begin > cache.Options.MaxSamples / items.Length)
-            throw new ValidationException("The visualization domain exceeds the configured work or summary-memory limit.");
-
         VisualizationDataset.EstimateBytes(begin, end, items.Length, cache.Options.MaxDatasetBytes);
         long workingBytesPerSample;
         long outputBytesPerSample;
@@ -105,8 +102,8 @@ internal sealed class VisualizationService(
             throw new ValidationException("The requested detail views exceed the visualization memory budget.");
 
         // Views deliberately do not enter the key: zooms reuse the domain pyramid.
-        // A process epoch also prevents reuse after extension reload/restart with an
-        // unversioned binary format; catalog/configuration and user claims isolate data.
+        // Catalog/configuration and user claims isolate data; generations prevent
+        // reuse after extension reload or across cache instances.
         string key = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
             cache.Epoch,
@@ -332,15 +329,8 @@ internal sealed class VisualizationService(
                 {
                     using (var get = timing?.Measure("cache-get", ct))
                     {
-                        try
-                        {
-                            datasetLease = cache.Get(key);
-                            get?.Complete(datasetLease is not null ? "hit" : buildInterest.Dataset is not null ? "shared" : "miss");
-                        }
-                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                        {
-                            logger.LogWarning(ex, "Could not load visualization summaries");
-                        }
+                        datasetLease = cache.Get(key);
+                        get?.Complete(datasetLease is not null ? "hit" : buildInterest.Dataset is not null ? "shared" : "miss");
                     }
                     dataset = datasetLease?.Dataset ?? buildInterest.Dataset;
 
@@ -369,15 +359,8 @@ internal sealed class VisualizationService(
                         {
                             buildInterest.Dataset = dataset;
                             using var put = timing?.Measure("cache-put", buildToken);
-                            try
-                            {
-                                datasetLease = cache.Put(key, dataset);
-                                put?.Complete();
-                            }
-                            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                            {
-                                logger.LogWarning(ex, "Could not persist visualization summaries");
-                            }
+                            datasetLease = cache.Put(key, dataset);
+                            put?.Complete();
                         }
                         else
                             timing?.Mark("cache-put", "skipped-dynamic-dependencies");

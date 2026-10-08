@@ -1,4 +1,36 @@
-# Backend visualization
+# Visualization overview
+
+The backend and local GPU already share the summary, merge, and projection
+algorithm described below. See the [frontend visualization guide](../src/Nexus.UI/src/app/charts/remote-visualization.md)
+for rendering and scheduling details, and the [reduction benchmarks](../benchmarks/Nexus.Benchmarks/VisualizationReduction.md)
+for backend kernel implementation and measurements.
+
+## Shared backend/GPU algorithm
+
+- Each aligned 256-sample base bucket retains its first/last samples, finite
+  minimum/maximum with the earliest index on ties (including signed zero), first
+  nonfinite gap, and gap-run count saturated at two. NaN and infinities are gaps.
+- Parents merge four adjacent summaries in source order, preserving extrema,
+  endpoints, and gaps. Coarser levels are never built from projected drawing points.
+- Projection emits up to five index-sorted, deduplicated points: endpoints, finite
+  extrema, and the first gap. Nonfinite values become NaN; all-invalid or multigap
+  buckets emit only a NaN, avoiding invented continuity across gaps.
+- Queries return raw samples when they fit the point budget. Otherwise they choose
+  the smallest power-of-two stride that fits the worst-case five points per bucket,
+  reserving boundary capacity independently of alignment (except when only one
+  bucket fits). Queries merge retained factor-four levels and resolve partial base
+  boundaries from raw samples.
+
+The backend uses Int64 sample indices and CPU summary storage; the GPU uses
+48-byte summaries in device-limited pages (at most 16 MiB), u32 local indices,
+and bigint absolute origins for CPU coordinate planning. GPU local domains are
+limited to 4,294,966,784 samples and available device storage. Coordinates become
+Float32 only after subtracting a local integer origin. GPU projection pads each
+reduced bucket to five slots by repeating its last point; the server emits only
+unique points. Server-reduced points go directly to the GPU line/fill renderer,
+bypassing GPU decimation.
+
+## Backend endpoint
 
 `POST /api/v2/data/visualization` is separate from the exact `POST /api/v2/data`
 endpoint. It requires the same catalog authorization, including on cache hits.
@@ -62,18 +94,16 @@ workers before releasing permits and disposing plugin controllers.
 Normal configuration binding uses `Data:Visualization`, including environment
 variables such as `NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREADS`.
 
-| Setting               | Default                                     |
-| --------------------- | ------------------------------------------- |
-| MaxConcurrentReads    | 8                                           |
-| MaxComputeWorkers     | 2                                           |
-| MaxConcurrentRequests | 4                                           |
-| TargetReadBytes       | 4194304                                     |
-| MaxAggregatePoints    | 262144                                      |
-| MaxSamples            | 1000000000 (domain samples times resources) |
-| MaxDatasetBytes       | 67108864                                    |
-| MemoryLimitBytes      | 268435456                                   |
-| DiskLimitBytes        | 2147483648                                  |
-| CacheTtl              | 00:10:00                                    |
+| Setting               | Default            |
+| --------------------- | ------------------ |
+| MaxConcurrentReads    | 8                  |
+| MaxComputeWorkers     | 2                  |
+| MaxConcurrentRequests | 4                  |
+| TargetReadBytes       | 4194304 (4 MiB)     |
+| MaxAggregatePoints    | 262144             |
+| MaxDatasetBytes       | 1073741824 (1 GiB)  |
+| MemoryLimitBytes      | 1073741824 (1 GiB)  |
+| CacheTtl              | 00:10:00           |
 
 Read/compute permits are process-global, not per-request. Each worker creates and
 initializes its own pipeline controllers, reuses them across slices, and batches
@@ -82,19 +112,25 @@ original/derived branches within each instance, propagate failures, and bypass t
 older derived cache. No plugin concurrency opt-in is required. Recursive reads
 reauthorize, create independent strict controllers, serialize sibling callbacks,
 and stay inside the owning worker permit to avoid recursive semaphore deadlocks.
-Dependencies are capped at depth eight and checked against the read-byte budget.
+Dependencies are capped at depth eight and their working memory is estimated
+separately from output sizing.
 
-Slices align to the absolute sample lattice and base stride 256. Byte estimates
-include native/status buffers, normalization, slice copies, and resampling halos.
+Slices align to the absolute sample lattice and base stride 256. `TargetReadBytes`
+targets the output slice size, not a hard worker memory cap. Working-memory
+estimates also include native/status buffers, normalization, slice copies,
+resampling halos, and dependency reads; these can exceed the output slice size.
 All requested views share the cold scan; raw detail needed for those views is
 retained during that scan. Base summaries and factor-four ancestors are retained.
 Compute permits cover base reduction, ancestor construction, and view projection.
 
-`MemoryLimitBytes` limits resident cached summaries, not the entire process. Active
-requests additionally retain at most `MaxDatasetBytes` of summaries and that same
-limit of raw viewport samples, plus bounded worker buffers and Arrow output.
-`MaxConcurrentRequests` bounds these active allocations. Plugin-internal allocations
-cannot be controlled by the host. Actual managed allocation overhead is additional.
+`MaxDatasetBytes` limits a dataset's summary payload and separately its retained
+raw viewport payload. `MemoryLimitBytes` is a **process-global** resident-summary
+cache quota shared by all users and requests in one server process, not a per-user
+or per-request allowance. Both default to 1 GiB. Active requests additionally hold
+summaries (including uncached leases), raw viewport samples, worker buffers, and
+Arrow output. `MaxConcurrentRequests` limits active request concurrency, not total
+memory. Managed overhead, pool retention, and plugin-internal allocations are
+additional; these settings are not a hard process memory or RSS cap.
 Large domains that exceed the configured summary budget receive 422; tune limits
 for the deployment rather than assuming multi-gigabyte cold scans are free.
 
@@ -103,11 +139,14 @@ for the deployment rather than assuming multi-gigabyte cold scans are free.
 The cache is dataset-scoped: domain, ordered resource set, resolved/source/base
 catalog items, effective catalog ranges, pipeline configuration/IDs, package IDs,
 catalog metadata, user claims, captured request configuration, normalization version,
-and catalog/process generations all enter the key. Views do not. Summary arrays
-are stored together under `Paths:Cache/visualization-v1`, with memory/disk quotas
-and fixed expiry. Disk writes use temporary files and atomic rename. Quotas and
-expiry are maintained on access. The raw binary cache is process-generation scoped;
-it intentionally does not survive restart as a reusable cache.
+and catalog/process generations all enter the key. Views do not. The summary cache
+is memory-only, with fixed TTL (hits do not extend expiry) and LRU eviction of
+unpinned entries. Leases pin entries through output completion; pinned arrays
+remain accounted for until released. If a dataset exceeds the cache quota or
+pinned entries prevent admission, the caller receives an uncached lease instead
+of exceeding the resident quota. Its active allocation is additional to the cache
+quota. Restart discards the cache. No disk snapshots are read, written, or deleted,
+including old snapshots left by earlier versions.
 
 Warm overview/intermediate zoom uses summaries; partial base boundaries and fine
 zoom read only the visible base buckets, coalesced into byte-budgeted slices.
@@ -127,8 +166,9 @@ remains alive until shared work drains; the last consumer's cancellation stops
 the scan. Unversioned sources use TTL freshness,
 not snapshot guarantees. Warm raw fragments can reflect newer source data than
 the cached pyramid until expiry. Kernel and synthetic pipeline measurements are
-recorded in `benchmarks/Nexus.Benchmarks/VisualizationReduction.md` and
-`tests/Nexus.Tests/Services/VisualizationReview.md`; these are not NVMe benchmarks.
+recorded in the [reduction benchmarks](../benchmarks/Nexus.Benchmarks/VisualizationReduction.md)
+and [historical service review](../tests/Nexus.Tests/Services/VisualizationReview.md);
+these are not NVMe benchmarks.
 
 ## Opt-in server timings
 
@@ -179,9 +219,9 @@ initial progress flush, build-gate wait, cache get/put, cold/detail scans, compu
 wait/work, worker read-permit waits, source initialization, inclusive controller
 reads, disposal, first data flush, completion flush, cancellation requested/drain,
 resources released, and endpoint request end. Cache get/put and join-build durations
-include monitor acquisition; cache durations also include quota/pruning and disk
-I/O inside the call. Get outcomes distinguish `hit`, `shared` (completed shared
-build without a cache lease), and `miss`; memory and disk hits are not separated.
+include monitor acquisition; cache durations also include in-memory quota/pruning
+work inside the call. Get outcomes distinguish `hit`, `shared` (completed shared
+build without a cache lease), and `miss`.
 Cache-put `success` means the call completed, not that the dataset was retained:
 cache quotas can prevent retention without failing the request.
 
@@ -208,23 +248,23 @@ end is endpoint exit after service cleanup, not transport teardown or MVC error
 body serialization. Requests rejected by middleware/model binding before endpoint
 entry have no visualization timings.
 
-## Large-server example
+## Development example
 
-The conservative default summary limit rejects some multi-gigabyte domains.
-For approximately 10 GiB of Float32 samples across the selected resources,
-the following is a starting configuration, not a measured optimum:
+This high-memory development configuration raises read concurrency to 64 and both
+payload quotas to 20 GiB, retaining two compute workers, four concurrent requests,
+and a 4 MiB output slice target. It is not a measured optimum or a process memory
+limit:
 
 ```json
 {
   "Data": {
     "Visualization": {
-      "MaxConcurrentReads": 8,
-      "MaxComputeWorkers": 8,
-      "TargetReadBytes": 33554432,
-      "MaxSamples": 4000000000,
-      "MaxDatasetBytes": 1073741824,
-      "MemoryLimitBytes": 2147483648,
-      "DiskLimitBytes": 17179869184
+      "MaxConcurrentReads": 64,
+      "MaxComputeWorkers": 2,
+      "MaxConcurrentRequests": 4,
+      "TargetReadBytes": 4194304,
+      "MaxDatasetBytes": 21474836480,
+      "MemoryLimitBytes": 21474836480
     }
   }
 }

@@ -3,8 +3,6 @@
 
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Utilities;
@@ -30,7 +28,7 @@ internal sealed class VisualizationDataset(long begin, long end, int resources)
             long count = last - first + 1;
 
             if (count > int.MaxValue || count > (limit - bytes) / elementBytes)
-                throw new System.ComponentModel.DataAnnotations.ValidationException("The visualization domain exceeds the configured summary-memory limit.");
+                throw new System.ComponentModel.DataAnnotations.ValidationException("The visualization domain exceeds Data:Visualization:MaxDatasetBytes or the supported summary array size.");
 
             bytes += count * elementBytes;
 
@@ -82,8 +80,8 @@ internal sealed class VisualizationCache : IDisposable
     private readonly object _gate = new();
     private readonly Dictionary<string, Entry> _memory = [];
     private readonly Dictionary<string, BuildInterest> _interests = [];
-    private readonly string _directory;
     private long _bytes;
+    private long _access;
     private readonly ConditionalWeakTable<CatalogState, CatalogEpoch> _catalogEpochs = new();
     public VisualizationOptions Options { get; }
     public SemaphoreSlim Reads { get; }
@@ -97,6 +95,7 @@ internal sealed class VisualizationCache : IDisposable
     {
         public VisualizationDataset Dataset { get; } = dataset;
         public DateTime Expires { get; } = expires;
+        public long LastAccess;
         public int Pins;
     }
 
@@ -161,7 +160,7 @@ internal sealed class VisualizationCache : IDisposable
         public string Value { get; } = Guid.NewGuid().ToString("N");
     }
 
-    public VisualizationCache(IOptions<DataOptions> options, IOptions<PathsOptions> paths)
+    public VisualizationCache(IOptions<DataOptions> options)
     {
         Options = options.Value.Visualization;
 
@@ -169,15 +168,14 @@ internal sealed class VisualizationCache : IDisposable
             Options.MaxComputeWorkers < 1 || Options.MaxComputeWorkers > 64 ||
             Options.MaxConcurrentRequests < 1 || Options.MaxConcurrentRequests > 64 ||
             Options.TargetReadBytes < 65536 || Options.TargetReadBytes > 64 * 1024 * 1024 ||
-            Options.MaxDatasetBytes < 65536 || Options.MemoryLimitBytes < 0 || Options.DiskLimitBytes < 0 ||
+            Options.MaxDatasetBytes < 65536 || Options.MemoryLimitBytes < 0 ||
             Options.CacheTtl <= TimeSpan.Zero || Options.CacheTtl > TimeSpan.FromDays(365) ||
-            Options.MaxSamples < 1 || Options.MaxAggregatePoints < 5)
+            Options.MaxAggregatePoints < 5)
             throw new InvalidOperationException("Invalid Data:Visualization limits.");
 
         Reads = new(Options.MaxConcurrentReads);
         Compute = new(Options.MaxComputeWorkers);
         Requests = new(Options.MaxConcurrentRequests);
-        _directory = Path.Combine(paths.Value.Cache, "visualization-v1");
     }
 
     public Lease? Get(string key)
@@ -189,72 +187,7 @@ internal sealed class VisualizationCache : IDisposable
             if (_memory.TryGetValue(key, out var entry) && entry.Expires > DateTime.UtcNow)
                 return Pin(entry);
 
-            string path = Path.Combine(_directory, key);
-
-            if (!File.Exists(path))
-                return null;
-
-            try
-            {
-                using var reader = new BinaryReader(File.OpenRead(path));
-                long begin = reader.ReadInt64();
-                long end = reader.ReadInt64();
-                int resources = reader.ReadInt32();
-                int levels = reader.ReadInt32();
-
-                if (begin < 0 || end <= begin || resources is < 1 or > 100 || levels is < 1 or > 32)
-                    throw new InvalidDataException("Invalid visualization cache header.");
-
-                var dataset = new VisualizationDataset(begin, end, resources);
-                long expectedBytes = VisualizationDataset.EstimateBytes(begin, end, resources, Options.MaxDatasetBytes);
-
-                if (reader.BaseStream.Length != 24 + levels * 4L + expectedBytes + 32)
-                    throw new InvalidDataException("Invalid visualization cache length.");
-
-                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-                hash.AppendData(Encoding.UTF8.GetBytes(key));
-                hash.AppendData(BitConverter.GetBytes(begin));
-                hash.AppendData(BitConverter.GetBytes(end));
-                hash.AppendData(BitConverter.GetBytes(resources));
-                hash.AppendData(BitConverter.GetBytes(levels));
-                long bytes = 0;
-                long first = begin / 256;
-                long last = (end - 1) / 256;
-
-                for (int level = 0; level < levels; level++)
-                {
-                    int count = reader.ReadInt32();
-                    hash.AppendData(BitConverter.GetBytes(count));
-                    bytes = checked(bytes + (long)count * resources * Marshal.SizeOf<VisualizationSummary>());
-
-                    if (count != last - first + 1 || bytes > Options.MaxDatasetBytes ||
-                        (level == levels - 1) != (first == last))
-                        throw new InvalidDataException("Invalid visualization cache size.");
-
-                    var arrays = new VisualizationSummary[resources][];
-
-                    for (int resource = 0; resource < resources; resource++)
-                    {
-                        arrays[resource] = new VisualizationSummary[count];
-                        reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(arrays[resource].AsSpan()));
-                        hash.AppendData(MemoryMarshal.AsBytes(arrays[resource].AsSpan()));
-                    }
-
-                    dataset.Levels.Add(arrays);
-                    first /= 4;
-                    last /= 4;
-                }
-
-                if (!hash.GetHashAndReset().AsSpan().SequenceEqual(reader.ReadBytes(32)))
-                    throw new InvalidDataException("Invalid visualization cache checksum.");
-
-                return Remember(key, dataset, File.GetLastWriteTimeUtc(path) + Options.CacheTtl);
-            }
-            catch (Exception ex) when (ex is IOException or InvalidDataException or OverflowException or System.ComponentModel.DataAnnotations.ValidationException or ArgumentOutOfRangeException)
-            {
-                File.Delete(path);
-                return null;
-            }
+            return null;
         }
     }
 
@@ -263,68 +196,13 @@ internal sealed class VisualizationCache : IDisposable
         lock (_gate)
         {
             Prune();
-            if (dataset.Bytes + 1024 > Options.DiskLimitBytes)
-                return Remember(key, dataset, DateTime.UtcNow + Options.CacheTtl);
-
-            Directory.CreateDirectory(_directory);
-            var files = new DirectoryInfo(_directory).GetFiles().OrderBy(file => file.LastWriteTimeUtc).ToList();
-            long bytes = files.Sum(file => file.Length);
-
-            foreach (var file in files)
-            {
-                if (bytes + dataset.Bytes + 1024 <= Options.DiskLimitBytes)
-                    break;
-
-                bytes -= file.Length;
-                file.Delete();
-            }
-
-            string path = Path.Combine(_directory, key);
-            string temporary = path + ".tmp";
-
-            try
-            {
-                using (var writer = new BinaryWriter(File.Create(temporary)))
-                {
-                    using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-                    hash.AppendData(Encoding.UTF8.GetBytes(key));
-                    writer.Write(dataset.Begin);
-                    writer.Write(dataset.End);
-                    writer.Write(dataset.Levels[0].Length);
-                    writer.Write(dataset.Levels.Count);
-                    hash.AppendData(BitConverter.GetBytes(dataset.Begin));
-                    hash.AppendData(BitConverter.GetBytes(dataset.End));
-                    hash.AppendData(BitConverter.GetBytes(dataset.Levels[0].Length));
-                    hash.AppendData(BitConverter.GetBytes(dataset.Levels.Count));
-
-                    foreach (var level in dataset.Levels)
-                    {
-                        writer.Write(level[0].Length);
-                        hash.AppendData(BitConverter.GetBytes(level[0].Length));
-
-                        foreach (var resource in level)
-                        {
-                            writer.Write(MemoryMarshal.AsBytes(resource.AsSpan()));
-                            hash.AppendData(MemoryMarshal.AsBytes(resource.AsSpan()));
-                        }
-                    }
-
-                    writer.Write(hash.GetHashAndReset());
-                }
-
-                File.Move(temporary, path, overwrite: true);
-            }
-            finally
-            {
-                File.Delete(temporary);
-            }
-
             return Remember(key, dataset, DateTime.UtcNow + Options.CacheTtl);
         }
     }
 
     private Lease Pin(Entry entry)
     {
+        entry.LastAccess = ++_access;
         entry.Pins++;
         return new Lease(entry.Dataset, () => { lock (_gate) { entry.Pins--; } });
     }
@@ -338,7 +216,7 @@ internal sealed class VisualizationCache : IDisposable
 
         while (dataset.Bytes > Options.MemoryLimitBytes - _bytes && _memory.Count > 0)
         {
-            string? oldest = _memory.Where(pair => pair.Value.Pins == 0).OrderBy(pair => pair.Value.Expires).Select(pair => pair.Key).FirstOrDefault();
+            string? oldest = _memory.Where(pair => pair.Value.Pins == 0).OrderBy(pair => pair.Value.LastAccess).Select(pair => pair.Key).FirstOrDefault();
 
             if (oldest is null)
                 return new Lease(dataset, () => { });
@@ -360,15 +238,6 @@ internal sealed class VisualizationCache : IDisposable
         {
             _bytes -= _memory[key].Dataset.Bytes;
             _memory.Remove(key);
-        }
-
-        if (Directory.Exists(_directory))
-        {
-            foreach (var file in new DirectoryInfo(_directory).GetFiles())
-            {
-                if (file.LastWriteTimeUtc + Options.CacheTtl <= now)
-                    file.Delete();
-            }
         }
     }
 
