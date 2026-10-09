@@ -62,6 +62,19 @@
 - C# uses file-scoped namespaces; `IDE0161` and `IDE1006` are build errors because `EnforceCodeStyleInBuild` is enabled.
 - Private instance fields use `_camelCase`; `var` is preferred only when the type is apparent or not a built-in type.
 
+## Local Backend Iteration (Development Container)
+- The local dev backend runs as rootful Podman container `nexus-local-dev` on `127.0.0.1:5000` (image `localhost/nexus-local-dev:feature-server-side-decimation`, build context `artifacts/nexus-local-dev-image/`). It is separate from the production `nexus` container — never stop, remove, or modify the production container.
+- Sudo password is stored at `/home/wilvin/.nexus-dev/sudo-password` (never echo it into logs or repo files). Authorize per command with:
+  `printf "%s\n" "$(cat /home/wilvin/.nexus-dev/sudo-password)" | sudo -S -p '' podman <cmd>`
+- Rebuild/restart loop after server code changes:
+  1. `dotnet build src/Nexus/Nexus.csproj -c Release --no-restore`
+  2. Sync build output from `artifacts/bin/Nexus/release/` into `artifacts/nexus-local-dev-image/app/`
+  3. `sudo podman build -t localhost/nexus-local-dev:feature-server-side-decimation artifacts/nexus-local-dev-image`
+  4. `sudo podman rm -f nexus-local-dev && sudo podman run -d --name nexus-local-dev ...` (keep existing port/env/mount flags)
+  5. Read logs with `sudo podman logs nexus-local-dev`; smoke-test with `curl http://127.0.0.1:5000/api/v1/system`.
+- The temp Dockerfile must keep the `RUN mkdir -p` lines creating both static-webassets ContentRoots (see `Nexus.staticwebassets.runtime.json`), or startup crashes in Development.
+- Container mounts share production settings (`/mnt/data/nexus`, read-write): never run destructive operations (user management, package installs) and never modify measurement data (`/mnt/data/shared/read` is mounted read-only).
+
 ## UI Best Practices
 - **Reuse before creating**: always check for an existing component (in `src/Nexus.UI/src/app/components/`, `Controls/`, `Charts/`) before building a new one; extract a shared component when the same UI pattern appears in two or more places.
 - **PrimeNG first**: prefer PrimeNG components (`p-toast`, `p-dialog`, `p-confirmdialog`, `p-button`, `p-checkbox`, `p-inputtext`, etc.) over hand-rolled HTML/CSS equivalents so theming, accessibility, and dark-mode come for free.

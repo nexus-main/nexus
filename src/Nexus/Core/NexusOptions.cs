@@ -65,6 +65,20 @@ internal record DataOptions() : NexusOptionsBase
     public long TotalBufferMemoryConsumption { get; set; } = 1 * 1024 * 1024 * 1024; // 1 GB
 
     public double AggregationNaNThreshold { get; set; } = 0.99;
+
+    public VisualizationOptions Visualization { get; set; } = new();
+}
+
+internal record VisualizationOptions
+{
+    public int MaxConcurrentReads { get; set; } = 8;
+    public int MaxComputeWorkers { get; set; } = 2;
+    public int MaxConcurrentRequests { get; set; } = 4;
+    public int TargetReadBytes { get; set; } = 4 * 1024 * 1024;
+    public int MaxAggregatePoints { get; set; } = 262144;
+    public long MaxDatasetBytes { get; set; } = 1L * 1024 * 1024 * 1024;
+    public long MemoryLimitBytes { get; set; } = 1L * 1024 * 1024 * 1024;
+    public TimeSpan CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
 }
 
 internal record GitOptions() : NexusOptionsBase

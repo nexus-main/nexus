@@ -3447,6 +3447,19 @@ public class V2 : IV2
 public interface IDataClient
 {
     /// <summary>
+    /// Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+    /// </summary>
+    /// <param name="request">The domain, resources and up to three views.</param>
+    HttpResponseMessage GetVisualization(VisualizationRequest request);
+
+    /// <summary>
+    /// Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+    /// </summary>
+    /// <param name="request">The domain, resources and up to three views.</param>
+    /// <param name="cancellationToken">The token to cancel the current operation.</param>
+    Task<HttpResponseMessage> GetVisualizationAsync(VisualizationRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Streams multiple resources in an Apache Arrow IPC response.
     /// </summary>
     /// <param name="request">The batch stream request.</param>
@@ -3469,6 +3482,26 @@ public class DataClient : IDataClient
     internal DataClient(NexusClient client)
     {
         ___client = client;
+    }
+
+    /// <inheritdoc />
+    public HttpResponseMessage GetVisualization(VisualizationRequest request)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/data/visualization");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public Task<HttpResponseMessage> GetVisualizationAsync(VisualizationRequest request, CancellationToken cancellationToken = default)
+    {
+        var __urlBuilder = new StringBuilder();
+        __urlBuilder.Append("/api/v2/data/visualization");
+
+        var __url = __urlBuilder.ToString();
+        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -3546,6 +3579,24 @@ public class JobsClient : IJobsClient
 }
 
 
+
+/// <summary>
+/// A Float32 visualization request over a common, half-open sample domain.
+/// </summary>
+/// <param name="Begin">The domain start.</param>
+/// <param name="End">The exclusive domain end.</param>
+/// <param name="ResourcePaths">The resources, all with the same sample period.</param>
+/// <param name="Views">The requested replacement views.</param>
+public record VisualizationRequest(DateTime Begin, DateTime End, IReadOnlyList<string> ResourcePaths, IReadOnlyList<VisualizationView> Views);
+
+/// <summary>
+/// A half-open viewport with a hard output point budget, including endpoints.
+/// </summary>
+/// <param name="Id">The unique view identifier.</param>
+/// <param name="Begin">The viewport start.</param>
+/// <param name="End">The exclusive viewport end.</param>
+/// <param name="MaxPoints">The maximum number of points (5 through 32768).</param>
+public record VisualizationView(string Id, DateTime Begin, DateTime End, int MaxPoints);
 
 /// <summary>
 /// A request to stream multiple resources.

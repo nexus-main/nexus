@@ -88,7 +88,7 @@
   }
 
   function getReducedOutputLength(bucketCount) {
-    return bucketCount * reducedPointsPerBucket + 2;
+    return bucketCount * reducedPointsPerBucket;
   }
 
   function destroyTrackedBuffer(instance, buffer) {
@@ -282,6 +282,7 @@
           requiredLimits: {
             maxBufferSize: adapter.limits.maxBufferSize,
             maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+            maxStorageBuffersPerShaderStage: 5,
           },
         });
         let bundle;

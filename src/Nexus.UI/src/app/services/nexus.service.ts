@@ -2,6 +2,15 @@ import { Injectable, isDevMode, signal } from "@angular/core";
 import { NexusClient, type BufferProvider } from "@nexus-api/_client";
 import * as V1 from "@nexus-api/V1";
 import * as V2 from "@nexus-api/V2";
+import { decodeCursor } from "../charts/exact-cursor";
+import { requestError } from "../request-error";
+import {
+  decodeVisualization,
+  visualizationTraceHeader,
+  type VisualizationLoadTrace,
+  type VisualizationRequest,
+  type VisualizationFrame,
+} from "../charts/remote-visualization";
 
 export type CatalogNode = V1.CatalogInfo & {
   nodeKey: string;
@@ -200,6 +209,52 @@ export class NexusService {
     return result;
   }
 
+  async loadVisualization(
+    request: VisualizationRequest,
+    sampleCount: bigint,
+    signal: AbortSignal,
+    onFrame: (frame: VisualizationFrame) => void,
+    trace?: VisualizationLoadTrace,
+  ): Promise<void> {
+    const response = await this.invoke<Response>(
+      "POST",
+      "/api/v2/data/visualization",
+      "application/vnd.apache.arrow.stream",
+      "application/json",
+      JSON.stringify(request),
+      signal,
+      trace,
+    );
+
+    await decodeVisualization(response, request, sampleCount, signal, onFrame, trace);
+    this.apiAvailable.set(true);
+  }
+
+  async loadCursor(
+    begin: string,
+    end: string,
+    resourcePaths: string[],
+    count: number,
+    signal: AbortSignal,
+  ): Promise<Float32Array[]> {
+    if (
+      !Number.isInteger(count) ||
+      count < 1 ||
+      count > 32 ||
+      resourcePaths.length < 1 ||
+      resourcePaths.length > 100
+    ) {
+      throw new Error("Cursor request exceeds its sample budget.");
+    }
+
+    const response = await this.v2.data.getStream(
+      { begin, end, resourcePaths, precision: V2.Precision.Float32 },
+      signal,
+    );
+
+    return decodeCursor(response, resourcePaths.length, count, signal);
+  }
+
   private async invoke<T>(
     method: string,
     url: string,
@@ -207,6 +262,7 @@ export class NexusService {
     contentType?: string,
     body?: BodyInit | null,
     signal?: AbortSignal,
+    visualizationTrace?: VisualizationLoadTrace,
   ): Promise<T> {
     const headers = new Headers();
 
@@ -222,10 +278,21 @@ export class NexusService {
       headers.set(devAuthRoleHeader, this.devAuthMode());
     }
 
+    if (visualizationTrace) {
+      headers.set(visualizationTraceHeader, visualizationTrace.requestId);
+      visualizationTrace.event("transport-start");
+    }
+
     const response = await fetch(`${this.endpoint}${url}`, { method, headers, body, signal });
 
+    visualizationTrace?.event("transport-headers", {
+      status: response.status,
+      serverRequestId: response.headers.get(visualizationTraceHeader),
+      contentType: response.headers.get("Content-Type"),
+    });
+
     if (!response.ok) {
-      throw new Error(`Nexus request failed: ${response.status} ${response.statusText}`);
+      throw await requestError(response);
     }
 
     if (accept === "application/octet-stream" || accept === "application/vnd.apache.arrow.stream") {

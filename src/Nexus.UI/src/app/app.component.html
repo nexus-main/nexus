@@ -409,6 +409,14 @@
 <ng-template #visualizationContent let-breakout>
   <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 pt-3 sm:pt-4">
     <div class="flex flex-wrap items-center gap-3 px-3 text-xs sm:px-4">
+      <label class="flex items-center gap-2">
+        <p-checkbox
+          [binary]="true"
+          [ngModel]="visualizationServerReduction()"
+          (ngModelChange)="setVisualizationServerReduction($event)"
+          ariaLabel="Reduce visualization data on the server"
+        />Server reduction
+      </label>
       <label class="flex items-center gap-2"
         ><p-checkbox
           [binary]="true"
