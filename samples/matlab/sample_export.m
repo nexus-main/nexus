@@ -39,7 +39,7 @@ configuration('significant-figures') = '4';
 configuration('row-index-format') = 'iso-8601';
 
 % Use 8 for Float64 or 4 for Float32.
-precision = 8;
+precision = 4;
 
 client.export(...
     dateTimeBegin, ...
