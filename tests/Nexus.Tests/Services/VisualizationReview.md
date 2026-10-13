@@ -98,14 +98,14 @@ cache quota, shared by all users and requests per server process. `MaxDatasetByt
 also defaults to 1 GiB and limits each dataset's summaries and separately its raw
 detail payload. Active summaries (including uncached leases), raw detail, worker
 buffers, and Arrow output must be budgeted in addition to the cache. Shared arrays
-need not be allocated twice. `TargetReadBytes` sizes output slices, not worker
-working memory: estimates also include native/status buffers, normalization,
-copies, resampling halos, and dependencies. Recursive reads retain ancestor
-buffers; depth is capped at eight, with sibling callbacks serialized and no
-additional global read permit acquired. Managed overhead, pipe pool retention,
-and plugin-owned allocations are additional. Neither these quotas nor request
-concurrency promise a whole-process memory or RSS bound. Disconnected owners retain
-their admission until shared work drains, avoiding unbounded detached builds.
+need not be allocated twice. Visualization read slices use the shared data memory
+tracker and estimate native/status buffers, normalization, copies, resampling halos,
+output buffers, and dependencies. Recursive reads retain ancestor buffers; depth is
+capped at eight, with sibling callbacks serialized and no additional global read
+permit acquired. Managed overhead, pipe pool retention, and plugin-owned allocations
+are additional. Neither these quotas nor request concurrency promise a whole-process
+memory or RSS bound. Disconnected owners retain their admission until shared work
+drains, avoiding unbounded detached builds.
 
 Cross-request raw hot caching and provisional drawing are not implemented. Cached
 summaries and later raw detail can still reflect different source revisions within

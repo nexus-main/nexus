@@ -549,11 +549,11 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     [Fact]
     public async Task WarmDetailCoalescesAdjacentBucketsIntoBudgetedSlices()
     {
-        using var fixture = new Fixture(targetReadBytes: 131072) { Delay = TimeSpan.Zero };
+        using var fixture = new Fixture(memoryGrantBytes: 2 * 1024 * 1024) { Delay = TimeSpan.Zero };
         await fixture.RunAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]));
         int calls = fixture.Calls;
         Assert.Equal(2, (await fixture.RunAsync(fixture.Request([fixture.View("detail", 8192, 16384, 32768)]))).Last().Kind);
-        Assert.Equal(1, fixture.Calls - calls); // One output-budgeted slice, not 32 individual buckets.
+        Assert.Equal(1, fixture.Calls - calls); // One memory-tracked slice, not 32 individual buckets.
     }
 
     [Theory]
@@ -626,7 +626,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
 
             for (int iteration = 0; iteration < 3; iteration++)
             {
-                using var fixture = new Fixture(readWorkers: reads, computeWorkers: compute, targetReadBytes: 1024 * 1024)
+                using var fixture = new Fixture(readWorkers: reads, computeWorkers: compute, memoryGrantBytes: 1024 * 1024)
                 {
                     Delay = TimeSpan.FromMilliseconds(delay)
                 };
@@ -940,11 +940,12 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     }
 
     [Fact]
-    public async Task SliceSizingUsesOutputBytesInsteadOfWorkingMemoryEstimate()
+    public async Task SliceSizingUsesMemoryTrackerGrant()
     {
-        using var fixture = new Fixture(readWorkers: 1, targetReadBytes: 65536) { Delay = TimeSpan.Zero };
+        using var fixture = new Fixture(readWorkers: 1, memoryGrantBytes: 65536) { Delay = TimeSpan.Zero };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
-        int expectedSliceSamples = 65536 / (sizeof(float) * request.ResourcePaths.Length) / 256 * 256;
+        int bytesPerSample = ((sizeof(float) + 1 + 32) * 2 + sizeof(float)) * request.ResourcePaths.Length;
+        int expectedSliceSamples = 65536 / bytesPerSample / 256 * 256;
         int expectedCalls = (65536 + expectedSliceSamples - 1) / expectedSliceSamples;
 
         await fixture.RunAsync(request);
@@ -978,17 +979,21 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         public TaskCompletionSource ReleaseCancelledReads { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IReadOnlyDictionary<string, JsonElement>? Configuration;
         private readonly Mock<IDataControllerService> _controllers = new();
+        private readonly Mock<IMemoryTracker> _memoryTracker = new();
         private readonly AppState _state;
 
         public Fixture(long memoryLimit = 16 * 1024 * 1024, bool restrictRange = false,
-            int readWorkers = 3, int computeWorkers = 2, int targetReadBytes = 65536)
+            int readWorkers = 3, int computeWorkers = 2, int memoryGrantBytes = 65536)
         {
             var options = new DataOptions
             {
-                Visualization = new VisualizationOptions { TargetReadBytes = targetReadBytes, MaxConcurrentReads = readWorkers,
+                Visualization = new VisualizationOptions { MaxConcurrentReads = readWorkers,
                     MaxComputeWorkers = computeWorkers, MemoryLimitBytes = memoryLimit }
             };
             Cache = new VisualizationCache(Options.Create(options));
+            _memoryTracker.Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minimum, maximum, _) =>
+                    new AllocationRegistration(_memoryTracker.Object, Math.Max(minimum, Math.Min(memoryGrantBytes, maximum))));
             var pipeline = new DataSourcePipeline([new DataSourceRegistration("test", null, JsonSerializer.SerializeToElement<object?>(null))]);
             var representation = new Representation(NexusDataType.Float32, TimeSpan.FromSeconds(1));
             var coarseRepresentation = new Representation(NexusDataType.Float32, TimeSpan.FromSeconds(2));
@@ -1091,7 +1096,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         }
 
         public VisualizationService CreateService(ClaimsPrincipal user) => new(_state, user, _controllers.Object,
-            Mock.Of<IAcceptedLicenseService>(), Cache, NullLogger<VisualizationService>.Instance);
+            Mock.Of<IAcceptedLicenseService>(), Cache, _memoryTracker.Object, NullLogger<VisualizationService>.Instance);
 
         public VisualizationView View(string id, int begin, int end, int points) => new(id, Begin.AddSeconds(begin), Begin.AddSeconds(end), points);
         public VisualizationRequest Request(VisualizationView[] views) => new(Begin, Begin.AddSeconds(65536), ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"], views);

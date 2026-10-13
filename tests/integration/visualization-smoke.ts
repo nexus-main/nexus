@@ -38,7 +38,6 @@ async function main() {
     ASPNETCORE_ENVIRONMENT: "Development",
     ASPNETCORE_URLS: "http://127.0.0.1:0",
     NEXUS_PATHS__SETTINGS: join(root, "settings.json"),
-    NEXUS_Data__Visualization__TargetReadBytes: "65536",
     NEXUS_Serilog__MinimumLevel__Override__Microsoft: "Information",
   };
   for (const name of ["Config", "Cache", "Catalogs", "Artifacts", "Packages"]) {

@@ -99,7 +99,6 @@ variables such as `NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREADS`.
 | MaxConcurrentReads    | 8                  |
 | MaxComputeWorkers     | 2                  |
 | MaxConcurrentRequests | 4                  |
-| TargetReadBytes       | 4194304 (4 MiB)     |
 | MaxAggregatePoints    | 262144             |
 | MaxDatasetBytes       | 1073741824 (1 GiB)  |
 | MemoryLimitBytes      | 1073741824 (1 GiB)  |
@@ -115,13 +114,14 @@ and stay inside the owning worker permit to avoid recursive semaphore deadlocks.
 Dependencies are capped at depth eight and their working memory is estimated
 separately from output sizing.
 
-Slices align to the absolute sample lattice and base stride 256. `TargetReadBytes`
-targets the output slice size, not a hard worker memory cap. Working-memory
-estimates also include native/status buffers, normalization, slice copies,
-resampling halos, and dependency reads; these can exceed the output slice size.
-All requested views share the cold scan; raw detail needed for those views is
-retained during that scan. Base summaries and factor-four ancestors are retained.
-Compute permits cover base reduction, ancestor construction, and view projection.
+Slices align to the absolute sample lattice and base stride 256. Read workers use
+the shared data memory tracker to admit each slice and derive its sample count.
+The estimate covers raw source/status buffers, normalization, slice copies,
+resampling halos, output buffers, and dependency reads; granted slices are capped
+at 1,048,576 samples. All requested views share the cold scan; raw detail needed
+for those views is retained during that scan. Base summaries and factor-four
+ancestors are retained. Compute permits cover base reduction, ancestor
+construction, and view projection.
 
 `MaxDatasetBytes` limits a dataset's summary payload and separately its retained
 raw viewport payload. `MemoryLimitBytes` is a **process-global** resident-summary
@@ -154,6 +154,55 @@ There is no cross-request raw hot cache. Overlapping
 domains or different ordered resource sets do not share cached summaries. A cold
 main-only request still scans its whole domain to establish the global range and
 reusable pyramid. No provisional drawing frames are emitted during that scan.
+
+### Edge buckets
+
+The summary pyramid is bucket-aligned, but requested views usually are not. Base
+summaries cover fixed 256-sample buckets, so a view that starts or ends in the
+middle of a bucket cannot use that bucket summary exactly: the summary may include
+samples outside the requested half-open interval. For exact min/max at the view
+edges, the backend resolves those partial base boundaries from raw samples.
+
+These edge reads invoke the normal data-source pipeline. On a warm summary-cache
+hit, a request with unaligned summary-level views can still instantiate plugin
+controllers and call plugin `ReadAsync` for the affected 256-sample edge buckets.
+The raw edge data is retained only for the active request; it is not part of the
+cross-request summary cache. A later request with the same dataset key can hit the
+summary cache and still reread its own edge buckets.
+
+Example with a four-sample base bucket:
+
+```text
+Raw samples: 0 1 2 3 4 5 6 7 8 9 10 11
+
+Cached summaries:
+bucket A = samples 0..3
+bucket B = samples 4..7
+bucket C = samples 8..11
+
+Requested view: samples 2..10
+Exact interval: samples 2..9
+```
+
+Bucket B is fully contained in the view and can be answered from the cached
+summary. Buckets A and C are partial edges. Current exact behavior reads raw
+samples `2..3` for the left edge, uses cached bucket B for `4..7`, and reads raw
+samples `8..9` for the right edge. This prevents samples `0..1` and `10..11`
+from affecting the returned edge extrema.
+
+One possible latency optimization is to widen, or snap, summary-level view ranges
+to bucket boundaries and use the cached edge summaries directly. In the example,
+the backend would answer the request from buckets A, B, and C, effectively using
+samples `0..11` instead of exactly `2..9`, and would not need plugin reads for
+those edge buckets.
+
+That optimization is approximate and mathematically incorrect for the requested
+range. If sample `1` or sample `11` contains an outlier, it can change the first
+or last displayed min/max even though it is outside the view. With the production
+base bucket size of 256 samples, a 20 us representation can over-include up to
+5.12 ms before the left edge and up to 5.12 ms after the right edge. Interior
+bucket summaries remain exact because they are fully contained in the requested
+range.
 
 Scans invoking plugin `readData` callbacks are not cached: arbitrary dynamic
 dependencies are not represented by the outer cache key, and every subsequent
@@ -251,9 +300,9 @@ entry have no visualization timings.
 ## Development example
 
 This high-memory development configuration raises read concurrency to 64 and both
-payload quotas to 20 GiB, retaining two compute workers, four concurrent requests,
-and a 4 MiB output slice target. It is not a measured optimum or a process memory
-limit:
+payload quotas to 20 GiB, retaining two compute workers and four concurrent
+requests. Read slice sizing still comes from the shared `Data:TotalBufferMemoryConsumption`
+memory tracker. It is not a measured optimum or a process memory limit:
 
 ```json
 {
@@ -262,7 +311,6 @@ limit:
       "MaxConcurrentReads": 64,
       "MaxComputeWorkers": 2,
       "MaxConcurrentRequests": 4,
-      "TargetReadBytes": 4194304,
       "MaxDatasetBytes": 21474836480,
       "MemoryLimitBytes": 21474836480
     }
