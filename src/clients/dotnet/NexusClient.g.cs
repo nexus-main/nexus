@@ -3491,7 +3491,7 @@ public class DataClient : IDataClient
         __urlBuilder.Append("/api/v2/data/visualization");
 
         var __url = __urlBuilder.ToString();
-        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
+        return ___client.Invoke<HttpResponseMessage>("POST", __url, "application/vnd.apache.arrow.stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions));
     }
 
     /// <inheritdoc />
@@ -3501,7 +3501,7 @@ public class DataClient : IDataClient
         __urlBuilder.Append("/api/v2/data/visualization");
 
         var __url = __urlBuilder.ToString();
-        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/octet-stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
+        return ___client.InvokeAsync<HttpResponseMessage>("POST", __url, "application/vnd.apache.arrow.stream", "application/json", JsonContent.Create(request, options: Utilities.JsonOptions), cancellationToken);
     }
 
     /// <inheritdoc />

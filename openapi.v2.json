@@ -36,7 +36,7 @@
           "200": {
             "description": "The visualization Arrow stream.",
             "content": {
-              "application/octet-stream": {
+              "application/vnd.apache.arrow.stream": {
                 "schema": {
                   "type": "string",
                   "format": "binary"

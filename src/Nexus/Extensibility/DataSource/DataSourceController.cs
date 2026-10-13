@@ -4,6 +4,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -441,6 +442,7 @@ internal class DataSourceController(
         IProgress<double> progress,
         CancellationToken cancellationToken)
     {
+        var originalStart = Stopwatch.GetTimestamp();
         var tuples = originalUnits
             .Select(readUnit =>
             {
@@ -449,11 +451,16 @@ internal class DataSourceController(
                 ReadRequestManager manager = null!;
                 var onCompleted = async (CancellationToken cancellationToken) =>
                 {
+                    var completeStart = Stopwatch.GetTimestamp();
                     var data = manager.Request.Data;
                     var status = manager.Request.Status;
                     var sourceItem = catalogItemRequest.SourceItem ?? catalogItemRequest.Item;
                     var sourceElementSize = sourceItem.Representation.ElementSize;
                     var elementOffset = 0;
+
+                    var chunkCount = 0;
+                    var totalTransformMs = 0.0;
+                    var totalFlushMs = 0.0;
 
                     while (elementOffset < targetElementCount)
                     {
@@ -467,6 +474,7 @@ internal class DataSourceController(
                         var dataSlice = data.Slice(elementOffset * sourceElementSize, elementCount * sourceElementSize);
                         var statusSlice = status.Slice(elementOffset, elementCount);
 
+                        var transformStart = Stopwatch.GetTimestamp();
                         switch (precision)
                         {
                             case Precision.Float32:
@@ -488,10 +496,25 @@ internal class DataSourceController(
                             default:
                                 throw new NotSupportedException($"The precision {readUnit.Precision} is not supported.");
                         }
+                        var transformDuration = Stopwatch.GetElapsedTime(transformStart).TotalMilliseconds;
 
                         _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", byteCount);
                         dataWriter.Advance(byteCount);
+                        var flushStart = Stopwatch.GetTimestamp();
                         var flushResult = await dataWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
+                        var flushDuration = Stopwatch.GetElapsedTime(flushStart).TotalMilliseconds;
+
+                        chunkCount++;
+                        totalTransformMs += transformDuration;
+                        totalFlushMs += flushDuration;
+
+                        _logger.LogInformation(
+                            "NEXUS-DATA-TIMING phase=original-complete-chunk chunk={Chunk} elements={ElementCount} bytes={ByteCount} transformMs={TransformMs:F3} flushMs={FlushMs:F3}",
+                            chunkCount,
+                            elementCount,
+                            byteCount,
+                            transformDuration,
+                            flushDuration);
 
                         if (flushResult.IsCanceled)
                             throw new OperationCanceledException(cancellationToken);
@@ -501,6 +524,14 @@ internal class DataSourceController(
 
                         elementOffset += elementCount;
                     }
+
+                    _logger.LogInformation(
+                        "NEXUS-DATA-TIMING phase=original-complete chunks={ChunkCount} elements={ElementCount} transformMs={TransformMs:F3} flushMs={FlushMs:F3} durationMs={DurationMs:F3}",
+                        chunkCount,
+                        targetElementCount,
+                        totalTransformMs,
+                        totalFlushMs,
+                        Stopwatch.GetElapsedTime(completeStart).TotalMilliseconds);
                 };
 
                 var sourceItem = catalogItemRequest.SourceItem ?? catalogItemRequest.Item;
@@ -567,6 +598,8 @@ internal class DataSourceController(
 
                     foreach (var rangeGroup in currentReadRequests.GroupBy(tuple => (tuple.readBegin, tuple.readEnd)))
                     {
+                        var sourceStart = Stopwatch.GetTimestamp();
+                        var requestCount = rangeGroup.Count();
                         await _dataSources[pipelinePosition].ReadAsync(
                             rangeGroup.Key.readBegin,
                             rangeGroup.Key.readEnd,
@@ -575,6 +608,11 @@ internal class DataSourceController(
                             progress,
                             cancellationToken
                         );
+                        _logger.LogInformation(
+                            "NEXUS-DATA-TIMING phase=source-read pipelinePosition={PipelinePosition} requests={RequestCount} durationMs={DurationMs:F3}",
+                            pipelinePosition,
+                            requestCount,
+                            Stopwatch.GetElapsedTime(sourceStart).TotalMilliseconds);
                     }
                 }
             }
@@ -599,7 +637,12 @@ internal class DataSourceController(
             }
 
             /* wait for tasks to finish */
+            var fallbackStart = Stopwatch.GetTimestamp();
             await Task.WhenAll(readingTasks).ConfigureAwait(false);
+            _logger.LogInformation(
+                "NEXUS-DATA-TIMING phase=original-fallback-complete requests={RequestCount} durationMs={DurationMs:F3}",
+                readingTasks.Count,
+                Stopwatch.GetElapsedTime(fallbackStart).TotalMilliseconds);
         }
         finally
         {
@@ -607,6 +650,10 @@ internal class DataSourceController(
             {
                 tuple.manager.Dispose();
             }
+
+            _logger.LogInformation(
+                "NEXUS-DATA-TIMING phase=original-read durationMs={DurationMs:F3}",
+                Stopwatch.GetElapsedTime(originalStart).TotalMilliseconds);
         }
     }
 
@@ -1187,6 +1234,10 @@ internal class DataSourceController(
                     var currentEnd = currentBegin + currentPeriod;
 
                     logger.LogTrace("Process period {CurrentBegin} to {CurrentEnd}", currentBegin, currentEnd);
+                    logger.LogInformation(
+                        "NEXUS-DATA-TIMING phase=group-chunk-start rows={RowCount} bytes={ByteCount}",
+                        rowCount,
+                        rowCount * bytesPerRow);
 
                     var dataSourceProgress = new Progress<double>();
 
@@ -1207,6 +1258,7 @@ internal class DataSourceController(
                         }
                     };
 
+                    var chunkStart = Stopwatch.GetTimestamp();
                     await controller.ReadAsync(
                         currentBegin,
                         currentEnd,
@@ -1216,6 +1268,10 @@ internal class DataSourceController(
                         readDataHandler,
                         dataSourceProgress,
                         cancellationToken).ConfigureAwait(false);
+                    logger.LogInformation(
+                        "NEXUS-DATA-TIMING phase=group-chunk-end rows={RowCount} durationMs={DurationMs:F3}",
+                        rowCount,
+                        Stopwatch.GetElapsedTime(chunkStart).TotalMilliseconds);
 
                     consumedPeriod += currentPeriod;
                     remainingPeriod -= currentPeriod;

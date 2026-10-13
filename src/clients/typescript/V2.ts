@@ -63,7 +63,7 @@ export class DataClient implements IDataClient {
     public async getVisualization(request: VisualizationRequest, signal?: AbortSignal): Promise<Response> {
         let __url = "/api/v2/data/visualization";
 
-        return this._invoke<Response>("POST", __url, "application/octet-stream", "application/json", JSON.stringify(request), signal);
+        return this._invoke<Response>("POST", __url, "application/vnd.apache.arrow.stream", "application/json", JSON.stringify(request), signal);
     }
 
     /**

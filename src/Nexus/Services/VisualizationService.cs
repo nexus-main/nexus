@@ -69,7 +69,7 @@ internal sealed class VisualizationService(
         try
         {
             workingBytesPerSample = items.Sum(EstimateBytesPerSample);
-            outputBytesPerSample = items.Sum(EstimateOutputBytesPerSample);
+            outputBytesPerSample = items.Length * (long)Precision.Float32;
         }
         catch (OverflowException ex) { throw new ValidationException("The representations exceed the visualization read budget.", ex); }
         int sliceSamples = (int)Math.Min(1_048_576, cache.Options.TargetReadBytes / outputBytesPerSample / 256 * 256);
@@ -295,9 +295,17 @@ internal sealed class VisualizationService(
                     throw;
 
                 logger.LogError(ex, "Visualization stream failed");
-                await EmitAsync(3, -1, -1, 0, [], double.NaN, float.NaN, float.NaN, "Visualization read failed.", token);
-                await writer.WriteEndAsync(token);
-                await output.FlushAsync(token);
+
+                try
+                {
+                    await EmitAsync(3, -1, -1, 0, [], double.NaN, float.NaN, float.NaN, "Visualization read failed.", token);
+                    await writer.WriteEndAsync(token);
+                    await output.FlushAsync(token);
+                }
+                catch (Exception emitException)
+                {
+                    logger.LogDebug(emitException, "Could not emit visualization stream error frame.");
+                }
             }
             finally
             {
@@ -602,6 +610,9 @@ internal sealed class VisualizationService(
 
     internal static void ValidateRequest(VisualizationRequest request, VisualizationOptions options)
     {
+        if (request is null)
+            throw new ValidationException("A visualization request body is required.");
+
         DataService.ValidateResourcePaths(request.ResourcePaths);
 
         if (request.Begin >= request.End || request.Views is null || request.Views.Length is < 1 or > 3)
@@ -625,8 +636,6 @@ internal sealed class VisualizationService(
         // Include native/status, normalization, pipe, retained slice and resampling halos.
         return checked((ratio * (source.ElementSize + 1L) + 32) * 2);
     }
-
-    private static long EstimateOutputBytesPerSample(CatalogItemRequest _) => (long)Precision.Float32;
 
     private static ResourceCatalog[] Catalogs(CatalogItemRequest item) =>
         new[] { item.SourceItem?.Catalog, item.SourceBaseItem?.Catalog, item.Item.Catalog, item.BaseItem?.Catalog }
