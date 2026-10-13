@@ -549,8 +549,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       const text =
         this.data?.remote && value === undefined
           ? cursor?.error
-            ? "Unavailable"
-            : "Pending"
+            ? "unavailable"
+            : "pending"
           : visible
             ? formatLegendValue(value!, digits)
             : "--";

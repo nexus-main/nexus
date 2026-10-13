@@ -30,6 +30,7 @@ internal sealed class VisualizationService(
     IDataControllerService controllers,
     IAcceptedLicenseService licenses,
     VisualizationCache cache,
+    IMemoryTracker memoryTracker,
     ILogger<VisualizationService> logger) : IVisualizationService
 {
     public async Task<Func<Stream, CancellationToken, Task>> PrepareAsync(VisualizationRequest request, CancellationToken cancellationToken, VisualizationTiming? timing = null)
@@ -63,19 +64,16 @@ internal sealed class VisualizationService(
         long end = request.End.Ticks / period.Ticks;
         long baseCount = (end - 1) / 256 - begin / 256 + 1;
         VisualizationDataset.EstimateBytes(begin, end, items.Length, cache.Options.MaxDatasetBytes);
-        long workingBytesPerSample;
-        long outputBytesPerSample;
+        long readBytesPerSample;
 
         try
         {
-            workingBytesPerSample = items.Sum(EstimateBytesPerSample);
-            outputBytesPerSample = items.Length * (long)Precision.Float32;
+            long workingBytesPerSample = items.Sum(EstimateBytesPerSample);
+            long outputBytesPerSample = items.Length * (long)Precision.Float32;
+            readBytesPerSample = checked(workingBytesPerSample + outputBytesPerSample);
+            _ = CheckedByteCount(256, readBytesPerSample);
         }
         catch (OverflowException ex) { throw new ValidationException("The representations exceed the visualization read budget.", ex); }
-        int sliceSamples = (int)Math.Min(1_048_576, cache.Options.TargetReadBytes / outputBytesPerSample / 256 * 256);
-
-        if (sliceSamples < 256 || cache.Options.TargetReadBytes / workingBytesPerSample < 256)
-            throw new ValidationException("The representations require more memory than the configured visualization read budget.");
 
         var views = request.Views.Select(view => new ViewPlan(
             view.Begin.Ticks / period.Ticks, view.End.Ticks / period.Ticks, view.MaxPoints)).ToArray();
@@ -115,17 +113,33 @@ internal sealed class VisualizationService(
             Configuration = configuration,
             User = user.Identities.Select(identity => new
             {
-                identity.AuthenticationType, identity.IsAuthenticated, identity.NameClaimType, identity.RoleClaimType,
+                identity.AuthenticationType,
+                identity.IsAuthenticated,
+                identity.NameClaimType,
+                identity.RoleClaimType,
                 Claims = identity.Claims.Select(claim => new
                 {
-                    claim.Type, claim.Value, claim.ValueType, claim.Issuer, claim.OriginalIssuer, claim.Properties
+                    claim.Type,
+                    claim.Value,
+                    claim.ValueType,
+                    claim.Issuer,
+                    claim.OriginalIssuer,
+                    claim.Properties
                 }).OrderBy(claim => claim.Type).ThenBy(claim => claim.Value).ThenBy(claim => claim.Issuer)
             }),
             Items = items.Select(item => new
             {
-                item.Item, item.BaseItem, item.SourceItem, item.SourceBaseItem,
-                item.Container.Id, item.Container.BackingSourceId, item.Container.MinBegin, item.Container.MaxEnd,
-                item.Container.PipelineId, item.Container.Pipeline, item.Container.PackageReferenceIds,
+                item.Item,
+                item.BaseItem,
+                item.SourceItem,
+                item.SourceBaseItem,
+                item.Container.Id,
+                item.Container.BackingSourceId,
+                item.Container.MinBegin,
+                item.Container.MaxEnd,
+                item.Container.PipelineId,
+                item.Container.Pipeline,
+                item.Container.PackageReferenceIds,
                 item.Container.Metadata
             })
         })));
@@ -393,30 +407,67 @@ internal sealed class VisualizationService(
             {
                 using var scan = timing?.Measure(cold ? "cold-scan" : "detail-scan", ct);
                 long firstBucket = begin / 256;
-                int bucketsPerSlice = sliceSamples / 256;
-                long sliceCount = (baseCount + bucketsPerSlice - 1) / bucketsPerSlice;
-                long next = -1;
-                var missing = new List<(long First, long End)>();
+                var ranges = new Queue<(long First, long End)>();
+                long bucketCount = baseCount;
 
-                if (!cold)
+                if (cold)
                 {
+                    ranges.Enqueue((firstBucket, firstBucket + baseCount));
+                }
+                else
+                {
+                    long? rangeStart = null;
+                    long previous = 0;
+
                     foreach (long bucket in rawBuckets.Where(bucket => !raw.ContainsKey(bucket)).Order())
                     {
-                        if (missing.Count > 0 && missing[^1].End == bucket && bucket - missing[^1].First < bucketsPerSlice)
-                            missing[^1] = (missing[^1].First, bucket + 1);
-                        else
-                            missing.Add((bucket, bucket + 1));
+                        if (rangeStart is null)
+                        {
+                            rangeStart = bucket;
+                        }
+                        else if (previous + 1 != bucket)
+                        {
+                            ranges.Enqueue((rangeStart.Value, previous + 1));
+                            rangeStart = bucket;
+                        }
+
+                        previous = bucket;
                     }
+
+                    if (rangeStart is not null)
+                        ranges.Enqueue((rangeStart.Value, previous + 1));
+
+                    bucketCount = rawBuckets.LongCount(bucket => !raw.ContainsKey(bucket));
                 }
 
-                if (!cold)
-                    sliceCount = missing.Count;
-
                 using var scanCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                var workers = Enumerable.Range(0, (int)Math.Min(sliceCount, cache.Options.MaxConcurrentReads))
+                var workers = Enumerable.Range(0, (int)Math.Min(bucketCount, cache.Options.MaxConcurrentReads))
                     .Select(_ => Task.Run(WorkerAsync)).ToArray();
                 await Task.WhenAll(workers);
                 scan?.Complete();
+
+                bool TryReserveSlice(long maxBuckets, out long start, out long stop)
+                {
+                    lock (ranges)
+                    {
+                        if (ranges.Count == 0)
+                        {
+                            start = 0;
+                            stop = 0;
+                            return false;
+                        }
+
+                        var range = ranges.Dequeue();
+                        long count = Math.Min(maxBuckets, range.End - range.First);
+                        start = Math.Max(begin, range.First * 256);
+                        stop = Math.Min(end, (range.First + count) * 256);
+
+                        if (range.First + count < range.End)
+                            ranges.Enqueue((range.First + count, range.End));
+
+                        return true;
+                    }
+                }
 
                 async Task WorkerAsync()
                 {
@@ -445,13 +496,12 @@ internal sealed class VisualizationService(
 
                         while (true)
                         {
-                            long index = Interlocked.Increment(ref next);
+                            using var allocation = await RegisterSliceAllocationAsync(readBytesPerSample, scanCancellation.Token);
+                            long maxBuckets = Math.Max(1, allocation.ActualByteCount / readBytesPerSample / 256);
 
-                            if (index >= sliceCount)
+                            if (!TryReserveSlice(maxBuckets, out long start, out long stop))
                                 break;
 
-                            long start = Math.Max(begin, (cold ? firstBucket + index * bucketsPerSlice : missing[(int)index].First) * 256);
-                            long stop = Math.Min(end, (cold ? firstBucket + (index + 1) * bucketsPerSlice : missing[(int)index].End) * 256);
                             var values = new float[items.Length][];
 
                             foreach (var (controller, indices) in owned)
@@ -569,43 +619,64 @@ internal sealed class VisualizationService(
                 if ((to - from).Ticks / dependencyPeriod.Ticks != buffer.Length)
                     throw new ValidationException("Visualization dependency exceeds the memory budget.");
 
-                long maxDependencySamples = Math.Min(cache.Options.TargetReadBytes / sizeof(double),
-                    cache.Options.TargetReadBytes / workingBytesPerSample);
+                long dependencyBytesPerSample;
 
-                if (maxDependencySamples < 1)
-                    throw new ValidationException("Visualization dependency exceeds the memory budget.");
+                try { dependencyBytesPerSample = checked(workingBytesPerSample + sizeof(double)); }
+                catch (OverflowException ex) { throw new ValidationException("Visualization dependency exceeds the memory budget.", ex); }
 
-                if (buffer.Length > maxDependencySamples)
+                if (buffer.Length > 0)
                 {
                     int offset = 0;
 
                     while (offset < buffer.Length)
                     {
-                        int count = (int)Math.Min(maxDependencySamples, buffer.Length - offset);
+                        using var allocation = await RegisterSliceAllocationAsync(dependencyBytesPerSample, ct, alignToBaseBucket: false);
+                        int count = (int)Math.Min(Math.Max(1, allocation.ActualByteCount / dependencyBytesPerSample), Math.Min(1_048_576, buffer.Length - offset));
                         var chunkFrom = from.AddTicks((long)offset * dependencyPeriod.Ticks);
                         var chunkTo = chunkFrom.AddTicks((long)count * dependencyPeriod.Ticks);
-                        await ReadDependencyAsync(path, chunkFrom, chunkTo, buffer.Slice(offset, count), depth, ct);
+                        await ReadDependencySliceAsync(item, chunkFrom, chunkTo, dependencyPeriod, buffer.Slice(offset, count), depth, ct);
                         offset += count;
                     }
 
                     return;
                 }
 
-                using var controller = await controllers.GetVisualizationDataSourceControllerAsync(item.Container.Pipeline, configuration, Catalogs(item), ct);
-                using var dependencies = new SemaphoreSlim(1);
-                var values = await ReadSliceAsync(controller, [item], from, to, dependencyPeriod, Precision.Float64,
-                    ReadNestedAsync, ct);
-                MemoryMarshal.Cast<byte, double>(values[0]).CopyTo(buffer.Span);
-
-                async Task ReadNestedAsync(string resource, DateTime start, DateTime stop, Memory<double> target, CancellationToken cancellationToken)
+                async Task ReadDependencySliceAsync(CatalogItemRequest dependency, DateTime sliceFrom, DateTime sliceTo,
+                    TimeSpan slicePeriod, Memory<double> target, int sliceDepth, CancellationToken cancellationToken)
                 {
-                    await dependencies.WaitAsync(cancellationToken);
+                    using var controller = await controllers.GetVisualizationDataSourceControllerAsync(dependency.Container.Pipeline,
+                        configuration, Catalogs(dependency), cancellationToken);
+                    using var dependencies = new SemaphoreSlim(1);
+                    var values = await ReadSliceAsync(controller, [dependency], sliceFrom, sliceTo, slicePeriod, Precision.Float64,
+                        ReadNestedAsync, cancellationToken);
+                    MemoryMarshal.Cast<byte, double>(values[0]).CopyTo(target.Span);
 
-                    try { await ReadDependencyAsync(resource, start, stop, target, depth + 1, cancellationToken); }
-                    finally { dependencies.Release(); }
+                    async Task ReadNestedAsync(string resource, DateTime start, DateTime stop, Memory<double> nestedTarget, CancellationToken nestedToken)
+                    {
+                        await dependencies.WaitAsync(nestedToken);
+
+                        try { await ReadDependencyAsync(resource, start, stop, nestedTarget, sliceDepth + 1, nestedToken); }
+                        finally { dependencies.Release(); }
+                    }
                 }
             }
         }
+    }
+
+    private async Task<AllocationRegistration> RegisterSliceAllocationAsync(long bytesPerSample, CancellationToken cancellationToken,
+        bool alignToBaseBucket = true)
+    {
+        long minimumSamples = alignToBaseBucket ? 256 : 1;
+        long minimumBytes = CheckedByteCount(minimumSamples, bytesPerSample);
+        long maximumBytes = CheckedByteCount(1_048_576, bytesPerSample);
+
+        return await memoryTracker.RegisterAllocationAsync(minimumBytes, maximumBytes, cancellationToken);
+    }
+
+    private static long CheckedByteCount(long samples, long bytesPerSample)
+    {
+        try { return checked(samples * bytesPerSample); }
+        catch (OverflowException ex) { throw new ValidationException("The representations exceed the visualization read budget.", ex); }
     }
 
     internal static void ValidateRequest(VisualizationRequest request, VisualizationOptions options)
