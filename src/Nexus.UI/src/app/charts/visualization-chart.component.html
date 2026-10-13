@@ -1,7 +1,7 @@
 <div class="chart-container" [class.webgpu-unavailable]="errorTitle">
   @if (data?.remote; as remote) {
     <div
-      class="flex flex-wrap items-center gap-2 px-3 text-xs text-ink-muted"
+      class="remote-status flex flex-wrap items-center gap-2 px-3 text-xs text-ink-muted"
       role="status"
       aria-live="polite"
     >
@@ -34,18 +34,6 @@
           (click)="requestRemoteViews(true)"
         >
           Retry
-        </button>
-      } @else {
-        <span>Server-reduced view. Cursor values are read exactly on demand.</span>
-        <button
-          pButton
-          type="button"
-          size="small"
-          severity="secondary"
-          [text]="true"
-          (click)="requestRemoteViews(true)"
-        >
-          Refine
         </button>
       }
     </div>

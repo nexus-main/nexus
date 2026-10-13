@@ -530,12 +530,12 @@ export class RemoteVisualization {
     this.positioned.clear();
   }
 
-  requestViews(views: RequestedView[], immediate = false): void {
+  requestViews(views: RequestedView[], immediate = false, force = false): void {
     const keyOf = (view: (typeof views)[number]) => `${view.begin}:${view.end}:${view.maxPoints}`;
     const key = views.map(keyOf).join("|");
 
-    if (key === this.viewportKey) {
-      this.trace("request-skip-same-viewport", { immediate, views: traceViews(views) });
+    if (key === this.viewportKey && !force) {
+      this.trace("request-skip-same-viewport", { immediate, force, views: traceViews(views) });
 
       return;
     }
@@ -546,6 +546,39 @@ export class RemoteVisualization {
     this.viewportKey = key;
     this.requestedViews = views;
     this.error = "";
+
+    if (force) {
+      const invalidated = new Set<CachedView>();
+
+      for (const view of views) {
+        const cached = this.cachedView(view);
+
+        if (cached) {
+          invalidated.add(cached);
+        }
+      }
+
+      for (const [cacheKey, cached] of this.cache) {
+        if (invalidated.has(cached)) {
+          this.cache.delete(cacheKey);
+          this.protectedViews.delete(cached);
+        }
+      }
+
+      if (invalidated.size) {
+        this.positioned.clear();
+      }
+
+      this.retainedPreview = undefined;
+      this.previews.clear();
+
+      this.trace("request-force-invalidate", {
+        immediate,
+        invalidatedEntries: invalidated.size,
+        views: traceViews(views),
+      });
+    }
+
     const retainedPreview = this.retainedPreview;
 
     if (

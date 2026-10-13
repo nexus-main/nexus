@@ -409,7 +409,11 @@
 <ng-template #visualizationContent let-breakout>
   <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 pt-3 sm:pt-4">
     <div class="flex flex-wrap items-center gap-3 px-3 text-xs sm:px-4">
-      <label class="flex items-center gap-2">
+      <label
+        class="flex items-center gap-2"
+        pTooltip="Useful for large or high-rate selections: the server sends only the points needed for the current view, reducing download time and browser memory use. Cursor values are still read exactly on demand."
+        tooltipPosition="top"
+      >
         <p-checkbox
           [binary]="true"
           [ngModel]="visualizationServerReduction()"
@@ -436,6 +440,19 @@
           [ngModel]="visualizationCacheMiB()"
           (ngModelChange)="setVisualizationCache($event)"
       /></label>
+      @if (visualizationData()) {
+        <button
+          pButton
+          type="button"
+          size="small"
+          severity="secondary"
+          [outlined]="true"
+          class="ml-auto"
+          (click)="reloadVisualizationView()"
+        >
+          Reload
+        </button>
+      }
     </div>
     <div
       class="chart-surface relative min-w-0 flex-1 bg-surface/60 text-ink-muted ring-1 ring-surface-border"
