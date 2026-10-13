@@ -60,6 +60,7 @@ const columns = [
   ["message", "Utf8"],
 ];
 const visualizationTraceKey = "nexus.visualizationTrace";
+const maxRemoteVisualizationCacheEntries = 1024;
 let nextTraceId = 0;
 
 function visualizationTraceEnabled(): boolean {
@@ -437,6 +438,7 @@ export class RemoteVisualization {
   readonly samplePeriod: bigint;
   readonly resourcePaths: string[];
   private readonly transport: VisualizationTransport;
+  private readonly cacheBudgetBytes: number;
 
   constructor(
     begin: bigint,
@@ -444,6 +446,7 @@ export class RemoteVisualization {
     samplePeriod: bigint,
     resourcePaths: string[],
     transport: VisualizationTransport,
+    cacheBudgetBytes: number,
     cursorTransport?: CursorTransport,
   ) {
     this.begin = begin;
@@ -451,12 +454,14 @@ export class RemoteVisualization {
     this.samplePeriod = samplePeriod;
     this.resourcePaths = resourcePaths;
     this.transport = transport;
+    this.cacheBudgetBytes = cacheBudgetBytes;
 
     this.trace("create", {
       begin: String(begin),
       end: String(end),
       samplePeriod: String(samplePeriod),
       resources: resourcePaths.length,
+      cacheBudgetBytes,
       enableWith: `localStorage.setItem("${visualizationTraceKey}", "true")`,
     });
 
@@ -956,12 +961,16 @@ export class RemoteVisualization {
             );
             const reservedBytes = view.maxPoints * this.resourcePaths.length * 12;
 
-            if (retained.length >= 8 || retainedBytes + reservedBytes > 32 * 1024 * 1024) {
+            if (
+              retained.length >= maxRemoteVisualizationCacheEntries ||
+              retainedBytes + reservedBytes > this.cacheBudgetBytes
+            ) {
               this.trace("prefetch-stop-capacity", {
                 generation,
                 retainedEntries: retained.length,
                 retainedBytes,
                 reservedBytes,
+                cacheBudgetBytes: this.cacheBudgetBytes,
               });
 
               break;
@@ -1215,11 +1224,20 @@ export class RemoteVisualization {
       );
 
       // Speculation must not evict the visible view or displace useful history.
+      // Keep broader completed views longer so fast zoom-out has an intermediate
+      // fallback instead of dropping straight to the full-domain overview.
       const priority = (view: CachedView) => (view.prefetched ? 0 : 1);
-      const evictionOrder = [...this.cache].sort((a, b) => priority(a[1]) - priority(b[1]));
+      const evictionOrder = [...this.cache].sort(
+        (a, b) =>
+          priority(a[1]) - priority(b[1]) ||
+          Number(a[1].end - a[1].begin - (b[1].end - b[1].begin)),
+      );
 
       for (const [key, view] of evictionOrder) {
-        if (this.cache.size <= 8 && bytes <= 32 * 1024 * 1024) {
+        if (
+          this.cache.size <= maxRemoteVisualizationCacheEntries &&
+          bytes <= this.cacheBudgetBytes
+        ) {
           break;
         }
 

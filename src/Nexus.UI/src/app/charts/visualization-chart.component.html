@@ -8,7 +8,7 @@
       @if (remote.loading) {
         <span>Refining server view {{ (remote.progress * 100).toFixed(0) }}%</span>
         <p-progressbar
-          class="w-24"
+          class="nexus-progress-immediate w-24"
           [value]="remote.progress * 100"
           [showValue]="false"
           ariaLabel="Server visualization progress"

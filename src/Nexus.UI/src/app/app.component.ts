@@ -1150,6 +1150,7 @@ export class AppComponent implements OnDestroy {
               onFrame,
               trace,
             ),
+          this.visualizationCacheMiB() * 1024 * 1024,
           (begin, end, paths, count, signal) =>
             this.nexus.loadCursor(begin, end, paths, count, signal),
         );
