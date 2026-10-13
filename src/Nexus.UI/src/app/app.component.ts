@@ -251,6 +251,7 @@ export class AppComponent implements OnDestroy {
   private restoreHistory: (() => void) | null = null;
   private acceptedHistoryNavigation = false;
   private readonly resourceMatrix = viewChild(ResourceMatrixComponent);
+  private readonly visualizationChart = viewChild(VisualizationChartComponent);
   readonly revealResourceKey = signal("");
   readonly revealResourceSequence = signal(0);
   readonly selectionLoading = signal(true);
@@ -1303,6 +1304,16 @@ export class AppComponent implements OnDestroy {
     if (value !== null && Number.isFinite(value) && value >= 16) {
       this.visualizationCacheMiB.set(Math.floor(value));
     }
+  }
+
+  reloadVisualizationView(): void {
+    if (this.visualizationData()?.remote) {
+      this.visualizationChart()?.requestRemoteViews(true, true);
+
+      return;
+    }
+
+    void this.visualize(false);
   }
 
   ngOnDestroy() {

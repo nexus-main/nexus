@@ -549,8 +549,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
       const text =
         this.data?.remote && value === undefined
           ? cursor?.error
-            ? "Exact value unavailable"
-            : "Exact value pending"
+            ? "Unavailable"
+            : "Pending"
           : visible
             ? formatLegendValue(value!, digits)
             : "--";
@@ -585,7 +585,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     });
   }
 
-  requestRemoteViews(immediate = false): void {
+  requestRemoteViews(immediate = false, force = false): void {
     const data = this.data;
 
     if (!data?.remote) {
@@ -628,6 +628,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         };
       }),
       immediate,
+      force,
     );
   }
 
