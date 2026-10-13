@@ -64,7 +64,7 @@ class DataClient:
 
         __url = "/api/v2/data/visualization"
 
-        return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___invoke(Response, "POST", __url, "application/vnd.apache.arrow.stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
 
     def get_stream(self, request: BatchStreamRequest) -> Response:
         """
@@ -147,7 +147,7 @@ class DataAsyncClient:
 
         __url = "/api/v2/data/visualization"
 
-        return self.___invoke(Response, "POST", __url, "application/octet-stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+        return self.___invoke(Response, "POST", __url, "application/vnd.apache.arrow.stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
 
     def get_stream(self, request: BatchStreamRequest) -> Awaitable[Response]:
         """

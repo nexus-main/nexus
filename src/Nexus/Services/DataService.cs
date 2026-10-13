@@ -2,6 +2,7 @@
 // Copyright (c) [2024] [nexus-main]
 
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
@@ -218,6 +219,7 @@ internal class DataService(
                 }
             }
 
+            var requestStart = Stopwatch.GetTimestamp();
             var reading = DataSourceController.ReadAsync(
                 begin,
                 end,
@@ -230,9 +232,16 @@ internal class DataService(
                 _loggerFactory.CreateLogger<DataSourceController>(),
                 cts.Token);
 
-            var outputWriting = WriteArrowStreamAsync(dataReaders, outputPipe.Writer, request.Precision, reading, cts.Token);
+            var outputWriting = WriteArrowStreamAsync(dataReaders, outputPipe.Writer, request.Precision, reading, _logger, cts.Token);
 
-            _ = CompleteAndLogAsync(reading, outputWriting, readingGroups, dataReaders, outputPipe.Writer, cts);
+            _logger.LogInformation(
+                "NEXUS-DATA-TIMING phase=batch-stream-start resources={ResourceCount} groups={GroupCount} precision={Precision} durationMs={DurationMs:F3}",
+                dataReaders.Count,
+                readingGroups.Count,
+                request.Precision,
+                Stopwatch.GetElapsedTime(requestStart).TotalMilliseconds);
+
+            _ = CompleteAndLogAsync(reading, outputWriting, readingGroups, dataReaders, outputPipe.Writer, cts, requestStart);
             return outputPipe.Reader.AsStream();
         }
         catch
@@ -287,8 +296,10 @@ internal class DataService(
             PipeWriter output,
             Precision precision,
             Task reading,
+            ILogger logger,
             CancellationToken cancellationToken)
         {
+            var outputStart = Stopwatch.GetTimestamp();
             var readerStates = readers
                 .Select(current => new ArrowStreamReaderState(current.Index, current.Reader, cancellationToken))
                 .ToArray();
@@ -305,11 +316,20 @@ internal class DataService(
 
             await using var stream = output.AsStream(leaveOpen: true);
             using var arrowWriter = new ArrowStreamWriter(stream, schema);
+            var batchCount = 0;
+            var totalValueCount = 0L;
+            var totalPayloadBytes = 0L;
+            var totalWriteMs = 0.0;
+            var totalFlushMs = 0.0;
 
             try
             {
+                var writeStartStart = Stopwatch.GetTimestamp();
                 await arrowWriter.WriteStartAsync(cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                logger.LogInformation(
+                    "NEXUS-DATA-TIMING phase=arrow-start durationMs={DurationMs:F3}",
+                    Stopwatch.GetElapsedTime(writeStartStart).TotalMilliseconds);
 
                 while (activeReaderStates.Count > 0)
                 {
@@ -359,8 +379,29 @@ internal class DataService(
                             var valueCount = segment.Length / elementSize;
                             using var recordBatch = CreateArrowRecordBatch(schema, precision, readerState.Index, offsets[readerState.Index], segment, valueCount);
 
+                            var writeStart = Stopwatch.GetTimestamp();
                             await arrowWriter.WriteRecordBatchAsync(recordBatch, cancellationToken).ConfigureAwait(false);
+                            var writeDuration = Stopwatch.GetElapsedTime(writeStart).TotalMilliseconds;
+
+                            var flushStart = Stopwatch.GetTimestamp();
                             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                            var flushDuration = Stopwatch.GetElapsedTime(flushStart).TotalMilliseconds;
+
+                            batchCount++;
+                            totalValueCount += valueCount;
+                            totalPayloadBytes += segment.Length;
+                            totalWriteMs += writeDuration;
+                            totalFlushMs += flushDuration;
+
+                            logger.LogInformation(
+                                "NEXUS-DATA-TIMING phase=arrow-batch batch={Batch} reader={Reader} values={ValueCount} payloadBytes={PayloadBytes} writeMs={WriteMs:F3} flushMs={FlushMs:F3}",
+                                batchCount,
+                                readerState.Index,
+                                valueCount,
+                                segment.Length,
+                                writeDuration,
+                                flushDuration);
+
                             offsets[readerState.Index] += valueCount;
                         }
                     }
@@ -391,6 +432,14 @@ internal class DataService(
             }
 
             await arrowWriter.WriteEndAsync(CancellationToken.None).ConfigureAwait(false);
+            logger.LogInformation(
+                "NEXUS-DATA-TIMING phase=arrow-end batches={BatchCount} values={ValueCount} payloadBytes={PayloadBytes} writeMs={WriteMs:F3} flushMs={FlushMs:F3} durationMs={DurationMs:F3}",
+                batchCount,
+                totalValueCount,
+                totalPayloadBytes,
+                totalWriteMs,
+                totalFlushMs,
+                Stopwatch.GetElapsedTime(outputStart).TotalMilliseconds);
 
             static int GetCompletedReaderStateIndex(List<Task<ReadResult>> pendingReads)
             {
@@ -493,11 +542,15 @@ internal class DataService(
             List<DataReadingGroup> groups,
             List<(int Index, PipeReader Reader)> readers,
             PipeWriter output,
-            CancellationTokenSource cts)
+            CancellationTokenSource cts,
+            long requestStart)
         {
             try
             {
                 await CompleteAsync(reading, outputWriting, groups, readers, output, cts).ConfigureAwait(false);
+                _logger.LogInformation(
+                    "NEXUS-DATA-TIMING phase=batch-stream-complete durationMs={DurationMs:F3}",
+                    Stopwatch.GetElapsedTime(requestStart).TotalMilliseconds);
             }
             catch (Exception ex)
             {

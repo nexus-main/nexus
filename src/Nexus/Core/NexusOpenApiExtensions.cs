@@ -64,20 +64,28 @@ internal static class NexusOpenApiExtensions
 
                     // NSwag ignores custom response content types for FileStreamResult.
                     // https://github.com/RicoSuter/NSwag/issues/3920
-                    if (description.GroupName == "v2" &&
-                        document.Paths.TryGetValue("/api/v2/data", out var dataPath) &&
-                        dataPath.TryGetValue(OpenApiOperationMethod.Post, out var dataOperation) &&
-                        dataOperation.Responses.TryGetValue("200", out var response) &&
-                        response.Content.TryGetValue("application/octet-stream", out var streamContent))
+                    if (description.GroupName == "v2")
                     {
-                        response.Content.Remove("application/octet-stream");
-                        response.Content["application/vnd.apache.arrow.stream"] = streamContent;
+                        FixArrowStreamContentType(document, "/api/v2/data");
+                        FixArrowStreamContentType(document, "/api/v2/data/visualization");
                     }
                 };
             });
         }
 
         return services;
+    }
+
+    private static void FixArrowStreamContentType(OpenApiDocument document, string path)
+    {
+        if (document.Paths.TryGetValue(path, out var dataPath) &&
+            dataPath.TryGetValue(OpenApiOperationMethod.Post, out var dataOperation) &&
+            dataOperation.Responses.TryGetValue("200", out var response) &&
+            response.Content.TryGetValue("application/octet-stream", out var streamContent))
+        {
+            response.Content.Remove("application/octet-stream");
+            response.Content["application/vnd.apache.arrow.stream"] = streamContent;
+        }
     }
 
     public static WebApplication UseNexusOpenApi(
