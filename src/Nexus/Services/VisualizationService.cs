@@ -63,7 +63,7 @@ internal sealed class VisualizationService(
         long begin = request.Begin.Ticks / period.Ticks;
         long end = request.End.Ticks / period.Ticks;
         long baseCount = (end - 1) / 256 - begin / 256 + 1;
-        VisualizationDataset.EstimateBytes(begin, end, items.Length, cache.Options.MaxDatasetBytes);
+        VisualizationDataset.EstimateBytes(begin, end, items.Length, cache.Options.MaxDatasetCacheBytes);
         long readBytesPerSample;
 
         try
@@ -96,7 +96,7 @@ internal sealed class VisualizationService(
             }
         }
 
-        if ((long)rawBuckets.Count * 256 * sizeof(float) * items.Length > cache.Options.MaxDatasetBytes)
+        if ((long)rawBuckets.Count * 256 * sizeof(float) * items.Length > cache.Options.MaxDatasetCacheBytes)
             throw new ValidationException("The requested detail views exceed the visualization memory budget.");
 
         // Views deliberately do not enter the key: zooms reuse the domain pyramid.
@@ -631,7 +631,7 @@ internal sealed class VisualizationService(
                     while (offset < buffer.Length)
                     {
                         using var allocation = await RegisterSliceAllocationAsync(dependencyBytesPerSample, ct, alignToBaseBucket: false);
-                        int count = (int)Math.Min(Math.Max(1, allocation.ActualByteCount / dependencyBytesPerSample), Math.Min(1_048_576, buffer.Length - offset));
+                        int count = (int)Math.Min(Math.Max(1, allocation.ActualByteCount / dependencyBytesPerSample), buffer.Length - offset);
                         var chunkFrom = from.AddTicks((long)offset * dependencyPeriod.Ticks);
                         var chunkTo = chunkFrom.AddTicks((long)count * dependencyPeriod.Ticks);
                         await ReadDependencySliceAsync(item, chunkFrom, chunkTo, dependencyPeriod, buffer.Slice(offset, count), depth, ct);
@@ -668,9 +668,7 @@ internal sealed class VisualizationService(
     {
         long minimumSamples = alignToBaseBucket ? 256 : 1;
         long minimumBytes = CheckedByteCount(minimumSamples, bytesPerSample);
-        long maximumBytes = CheckedByteCount(1_048_576, bytesPerSample);
-
-        return await memoryTracker.RegisterAllocationAsync(minimumBytes, maximumBytes, cancellationToken);
+        return await memoryTracker.RegisterAllocationAsync(minimumBytes, long.MaxValue, cancellationToken);
     }
 
     private static long CheckedByteCount(long samples, long bytesPerSample)

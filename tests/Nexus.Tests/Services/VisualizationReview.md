@@ -93,8 +93,8 @@ read concurrency; this workload does not establish an optimal compute setting.
 
 ## Bounds and remaining limitations
 
-`MemoryLimitBytes` defaults to 1 GiB and is the process-global resident-summary
-cache quota, shared by all users and requests per server process. `MaxDatasetBytes`
+`MaxTotalCacheBytes` defaults to 1 GiB and is the process-global resident-summary
+cache quota, shared by all users and requests per server process. `MaxDatasetCacheBytes`
 also defaults to 1 GiB and limits each dataset's summaries and separately its raw
 detail payload. Active summaries (including uncached leases), raw detail, worker
 buffers, and Arrow output must be budgeted in addition to the cache. Shared arrays

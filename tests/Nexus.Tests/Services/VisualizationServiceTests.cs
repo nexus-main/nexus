@@ -478,23 +478,23 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         Assert.Equal(dataset.Bytes, VisualizationDataset.EstimateBytes(begin, end, resources, dataset.Bytes));
         var exception = Assert.Throws<ValidationException>(() =>
             VisualizationDataset.EstimateBytes(begin, end, resources, dataset.Bytes - 1));
-        Assert.Contains("Data:Visualization:MaxDatasetBytes", exception.Message);
+        Assert.Contains("Data:Visualization:MaxDatasetCacheBytes", exception.Message);
     }
 
     [Fact]
     public async Task LargeDomainPreparationUsesConfigurableSummaryBudgetNotSampleLimit()
     {
         using var fixture = new Fixture();
-        Assert.Equal(1L << 30, fixture.Cache.Options.MaxDatasetBytes);
-        Assert.Equal(1L << 30, new VisualizationOptions().MemoryLimitBytes);
+        Assert.Equal(1L << 30, fixture.Cache.Options.MaxDatasetCacheBytes);
+        Assert.Equal(1L << 30, new VisualizationOptions().MaxTotalCacheBytes);
         const int count = 600_000_000;
         var request = fixture.Request([fixture.View("main", 0, count, 100)]) with { End = fixture.Begin.AddSeconds(count) };
 
         Assert.NotNull(await fixture.Service.PrepareAsync(request, CancellationToken.None));
-        fixture.Cache.Options.MaxDatasetBytes = 65536;
+        fixture.Cache.Options.MaxDatasetCacheBytes = 65536;
         var exception = await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.PrepareAsync(request, CancellationToken.None));
-        Assert.Contains("Data:Visualization:MaxDatasetBytes", exception.Message);
-        fixture.Cache.Options.MaxDatasetBytes = 20L * 1024 * 1024 * 1024;
+        Assert.Contains("Data:Visualization:MaxDatasetCacheBytes", exception.Message);
+        fixture.Cache.Options.MaxDatasetCacheBytes = 20L * 1024 * 1024 * 1024;
         Assert.NotNull(await fixture.Service.PrepareAsync(request, CancellationToken.None));
         Assert.Equal(0, fixture.Calls);
     }
@@ -506,7 +506,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         await fixture.RunAsync(request);
         long bytes = fixture.Cache.ResidentBytes;
-        fixture.Cache.Options.MemoryLimitBytes = bytes;
+        fixture.Cache.Options.MaxTotalCacheBytes = bytes;
         var other = fixture.CreateService(new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.Role, nameof(NexusRoles.Administrator))], "other")));
         var write = await other.PrepareAsync(request, CancellationToken.None);
@@ -988,7 +988,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             var options = new DataOptions
             {
                 Visualization = new VisualizationOptions { MaxConcurrentReads = readWorkers,
-                    MaxComputeWorkers = computeWorkers, MemoryLimitBytes = memoryLimit }
+                    MaxComputeWorkers = computeWorkers, MaxTotalCacheBytes = memoryLimit }
             };
             Cache = new VisualizationCache(Options.Create(options));
             _memoryTracker.Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
