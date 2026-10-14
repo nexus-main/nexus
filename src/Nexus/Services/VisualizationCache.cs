@@ -28,7 +28,7 @@ internal sealed class VisualizationDataset(long begin, long end, int resources)
             long count = last - first + 1;
 
             if (count > int.MaxValue || count > (limit - bytes) / elementBytes)
-                throw new System.ComponentModel.DataAnnotations.ValidationException("The visualization domain exceeds Data:Visualization:MaxDatasetBytes or the supported summary array size.");
+                throw new System.ComponentModel.DataAnnotations.ValidationException("The visualization domain exceeds Data:Visualization:MaxDatasetCacheBytes or the supported summary array size.");
 
             bytes += count * elementBytes;
 
@@ -167,7 +167,7 @@ internal sealed class VisualizationCache : IDisposable
         if (Options.MaxConcurrentReads < 1 ||
             Options.MaxComputeWorkers < 1 || Options.MaxComputeWorkers > 64 ||
             Options.MaxConcurrentRequests < 1 || Options.MaxConcurrentRequests > 64 ||
-            Options.MaxDatasetBytes < 65536 || Options.MemoryLimitBytes < 0 ||
+            Options.MaxDatasetCacheBytes < 65536 || Options.MaxTotalCacheBytes < 0 ||
             Options.CacheTtl <= TimeSpan.Zero || Options.CacheTtl > TimeSpan.FromDays(365) ||
             Options.MaxAggregatePoints < 5)
             throw new InvalidOperationException("Invalid Data:Visualization limits.");
@@ -210,10 +210,10 @@ internal sealed class VisualizationCache : IDisposable
 
     private Lease Remember(string key, VisualizationDataset dataset, DateTime expires)
     {
-        if (dataset.Bytes > Options.MemoryLimitBytes || _memory.ContainsKey(key))
+        if (dataset.Bytes > Options.MaxTotalCacheBytes || _memory.ContainsKey(key))
             return new Lease(dataset, () => { });
 
-        while (dataset.Bytes > Options.MemoryLimitBytes - _bytes && _memory.Count > 0)
+        while (dataset.Bytes > Options.MaxTotalCacheBytes - _bytes && _memory.Count > 0)
         {
             string? oldest = _memory.Where(pair => pair.Value.Pins == 0).OrderBy(pair => pair.Value.LastAccess).Select(pair => pair.Key).FirstOrDefault();
 

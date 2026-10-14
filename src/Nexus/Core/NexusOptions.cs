@@ -71,12 +71,25 @@ internal record DataOptions() : NexusOptionsBase
 
 internal record VisualizationOptions
 {
+    /// <summary>Maximum number of source-read workers used by one visualization scan.</summary>
     public int MaxConcurrentReads { get; set; } = 8;
+
+    /// <summary>Maximum number of CPU workers used for summary reduction, parent construction, and view projection.</summary>
     public int MaxComputeWorkers { get; set; } = 2;
+
+    /// <summary>Maximum number of visualization requests admitted concurrently.</summary>
     public int MaxConcurrentRequests { get; set; } = 4;
-    public int MaxAggregatePoints { get; set; } = 262144;
-    public long MaxDatasetBytes { get; set; } = 1L * 1024 * 1024 * 1024;
-    public long MemoryLimitBytes { get; set; } = 1L * 1024 * 1024 * 1024;
+
+    /// <summary>Maximum total number of projected visualization points accepted across all views and resources in one request.</summary>
+    public int MaxAggregatePoints { get; set; } = 256 * 1024;
+
+    /// <summary>Maximum retained visualization cache bytes for one dataset, including summaries and raw detail.</summary>
+    public long MaxDatasetCacheBytes { get; set; } = 1L * 1024 * 1024 * 1024; // 1 GB
+
+    /// <summary>Maximum retained visualization cache bytes shared by all datasets in this server process.</summary>
+    public long MaxTotalCacheBytes { get; set; } = 1L * 1024 * 1024 * 1024; // 1 GB
+
+    /// <summary>Time after last use before a visualization cache entry is eligible for expiration.</summary>
     public TimeSpan CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
 }
 

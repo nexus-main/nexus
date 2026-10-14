@@ -100,8 +100,8 @@ variables such as `NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREADS`.
 | MaxComputeWorkers     | 2                  |
 | MaxConcurrentRequests | 4                  |
 | MaxAggregatePoints    | 262144             |
-| MaxDatasetBytes       | 1073741824 (1 GiB)  |
-| MemoryLimitBytes      | 1073741824 (1 GiB)  |
+| MaxDatasetCacheBytes  | 1073741824 (1 GiB)  |
+| MaxTotalCacheBytes    | 1073741824 (1 GiB)  |
 | CacheTtl              | 00:10:00           |
 
 Read/compute permits are process-global, not per-request. Each worker creates and
@@ -117,16 +117,16 @@ separately from output sizing.
 Slices align to the absolute sample lattice and base stride 256. Read workers use
 the shared data memory tracker to admit each slice and derive its sample count.
 The estimate covers raw source/status buffers, normalization, slice copies,
-resampling halos, output buffers, and dependency reads; granted slices are capped
-at 1,048,576 samples. All requested views share the cold scan; raw detail needed
-for those views is retained during that scan. Base summaries and factor-four
-ancestors are retained. Compute permits cover base reduction, ancestor
-construction, and view projection.
+resampling halos, output buffers, and dependency reads. The shared memory tracker
+determines the granted slice size. All requested views share the cold scan; raw
+detail needed for those views is retained during that scan. Base summaries and
+factor-four ancestors are retained. Compute permits cover base reduction,
+ancestor construction, and view projection.
 
-`MaxDatasetBytes` limits a dataset's summary payload and separately its retained
-raw viewport payload. `MemoryLimitBytes` is a **process-global** resident-summary
-cache quota shared by all users and requests in one server process, not a per-user
-or per-request allowance. Both default to 1 GiB. Active requests additionally hold
+`MaxDatasetCacheBytes` limits one dataset's summary payload and separately its retained
+raw viewport payload. `MaxTotalCacheBytes` is a **process-global** resident-summary
+cache quota shared by all visualization datasets, users, and requests in one
+server process, not a per-user or per-request allowance. Both default to 1 GiB. Active requests additionally hold
 summaries (including uncached leases), raw viewport samples, worker buffers, and
 Arrow output. `MaxConcurrentRequests` limits active request concurrency, not total
 memory. Managed overhead, pool retention, and plugin-internal allocations are
@@ -311,8 +311,8 @@ memory tracker. It is not a measured optimum or a process memory limit:
       "MaxConcurrentReads": 64,
       "MaxComputeWorkers": 2,
       "MaxConcurrentRequests": 4,
-      "MaxDatasetBytes": 21474836480,
-      "MemoryLimitBytes": 21474836480
+      "MaxDatasetCacheBytes": 21474836480,
+      "MaxTotalCacheBytes": 21474836480
     }
   }
 }
