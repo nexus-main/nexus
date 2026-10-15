@@ -30,8 +30,8 @@ export class V2 implements IV2 {
  */
 export interface IDataClient {
     /**
-     * Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
-     * @param request The domain, resources and up to three views.
+     * Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
+     * @param request The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.
      * @param signal The signal to cancel the current operation.
      */
     getVisualization(request: VisualizationRequest, signal?: AbortSignal): Promise<Response>;
@@ -56,8 +56,8 @@ export class DataClient implements IDataClient {
     }
 
     /**
-     * Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
-     * @param request The domain, resources and up to three views.
+     * Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
+     * @param request The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.
      * @param signal The signal to cancel the current operation.
      */
     public async getVisualization(request: VisualizationRequest, signal?: AbortSignal): Promise<Response> {

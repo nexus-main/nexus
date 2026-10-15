@@ -3447,15 +3447,15 @@ public class V2 : IV2
 public interface IDataClient
 {
     /// <summary>
-    /// Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+    /// Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
     /// </summary>
-    /// <param name="request">The domain, resources and up to three views.</param>
+    /// <param name="request">The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.</param>
     HttpResponseMessage GetVisualization(VisualizationRequest request);
 
     /// <summary>
-    /// Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+    /// Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
     /// </summary>
-    /// <param name="request">The domain, resources and up to three views.</param>
+    /// <param name="request">The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
     Task<HttpResponseMessage> GetVisualizationAsync(VisualizationRequest request, CancellationToken cancellationToken = default);
 
