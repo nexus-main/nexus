@@ -198,15 +198,31 @@ public static class VisualizationReduction
     /// </summary>
     public static VisualizationPoint[] Project(VisualizationSummary summary)
     {
+        Span<VisualizationPoint> points = stackalloc VisualizationPoint[5];
+        int count = Project(summary, points);
+        return points[..count].ToArray();
+    }
+
+    /// <summary>
+    /// Writes at most five sorted, index-deduplicated projected points to <paramref name="points" />.
+    /// </summary>
+    /// <returns>The number of points written.</returns>
+    public static int Project(VisualizationSummary summary, Span<VisualizationPoint> points)
+    {
         ArgumentOutOfRangeException.ThrowIfNegative(summary.Count);
 
+        if (points.Length < 5)
+            throw new ArgumentException("Projection requires space for five points.", nameof(points));
+
         if (summary.Count == 0)
-            return [];
+            return 0;
 
         if (!summary.HasFinite || summary.GapRuns >= 2)
-            return [new VisualizationPoint(summary.FirstGapIndex, float.NaN)];
+        {
+            points[0] = new VisualizationPoint(summary.FirstGapIndex, float.NaN);
+            return 1;
+        }
 
-        Span<VisualizationPoint> points = stackalloc VisualizationPoint[5];
         points[0] = new(summary.Start, float.IsFinite(summary.First) ? summary.First : float.NaN);
         points[1] = new(checked(summary.Start + (summary.Count - 1)), float.IsFinite(summary.Last) ? summary.Last : float.NaN);
         points[2] = new(summary.MinIndex, summary.Min);
@@ -238,6 +254,6 @@ public static class VisualizationReduction
                 points[uniqueCount++] = points[i];
         }
 
-        return points[..uniqueCount].ToArray();
+        return uniqueCount;
     }
 }
