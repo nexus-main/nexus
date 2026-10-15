@@ -21,10 +21,6 @@ using Nexus.Services;
 namespace Nexus.Benchmarks;
 
 // Run: dotnet run -c Release --project benchmarks/Nexus.Benchmarks -- --filter '*VisualizationServiceBenchmarks*'
-// Measures synthetic visualization latency: service orchestration, strict
-// DataSourceController reads, Float32 normalization, pyramid construction, projection,
-// Arrow output and decoding/validation. Source plugins, catalog/controller lookup,
-// license/cache services and the memory tracker are mocked; no HTTP or source I/O.
 [MemoryDiagnoser]
 public class VisualizationServiceBenchmarks
 {

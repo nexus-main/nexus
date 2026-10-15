@@ -9,8 +9,6 @@ using System.Runtime.Intrinsics.X86;
 namespace Nexus.Benchmarks;
 
 // Run: dotnet run -c Release --project benchmarks/Nexus.Benchmarks -- --filter '*VisualizationReductionBenchmarks*'
-// Summarize measures raw throughput; BaseBuckets also includes the fixed 256-sample
-// boundary and merging overhead used by pyramid construction. No source I/O is timed.
 [MemoryDiagnoser]
 [CategoriesColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]

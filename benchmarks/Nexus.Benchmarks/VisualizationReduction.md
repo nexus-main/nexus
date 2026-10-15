@@ -1,4 +1,4 @@
-# Visualization Reduction Kernel
+# Visualization Reduction Kernel Throughput
 
 Run from the repository root:
 
@@ -6,9 +6,11 @@ Run from the repository root:
 dotnet run -c Release --project benchmarks/Nexus.Benchmarks -- --filter '*VisualizationReductionBenchmarks*' --artifacts artifacts/visualization-benchmarks
 ```
 
-Uses the existing BenchmarkDotNet dependency and runner. Setup requires AVX2 so
-the SIMD comparison cannot silently benchmark the scalar fallback. The kernel
-itself supports machines without AVX2.
+This benchmark measures scalar and AVX2 throughput for the visualization reduction
+kernel. It covers point summary reduction and 256-sample base-bucket construction
+using synthetic Float32 inputs. Setup requires AVX2 so the SIMD cases cannot
+silently benchmark the scalar fallback. The kernel itself supports machines without
+AVX2.
 
 ## Algorithm
 
@@ -26,17 +28,16 @@ to seven samples are reduced scalarly; disabling SIMD uses the scalar reference.
 It includes summary merge overhead but not projection allocations, pyramid page
 storage, parallel scheduling, normalization, or source I/O.
 
-## Historical Measurements
+## Measurement Notes
 
-The following observations predate the current invalid-sample-count semantics.
-The original measured commit was not recorded, so these numbers are retained only
-as historical evidence, not validated performance of the current kernel. Rerun the
-command above before making current speedup claims.
+Rerun the command above on the target machine before making performance claims.
+The table below records one synthetic AVX2 run for reference; it is not a guarantee
+of current throughput on other hardware or runtime versions.
 
-2026-10-07, Linux Debian 13, AMD EPYC 7763 (virtualized environment reporting
-96 logical CPUs), .NET 9.0.17, x64 AVX2, BenchmarkDotNet 0.15.8. Existing runner
-settings: one warmup, three measured iterations. All 24 cases completed; no
-managed allocations measured. Process priority elevation was unavailable.
+Environment: Linux Debian 13, AMD EPYC 7763 (virtualized environment reporting 96
+logical CPUs), .NET 9.0.17, x64 AVX2, BenchmarkDotNet 0.15.8. Runner settings:
+one warmup, three measured iterations. All 24 cases completed; no managed
+allocations measured. Process priority elevation was unavailable.
 
 Selected means (microseconds per operation):
 
@@ -51,8 +52,8 @@ Selected means (microseconds per operation):
 | BaseBuckets |  131072 | Invalid | 149.77 | 55.38 |   2.70x |
 
 Raw reports are generated under `artifacts/visualization-benchmarks/results/`.
-These are warm, single-threaded, synthetic kernel measurements with only three
+These are warm, single-threaded, synthetic kernel measurements with three
 iterations, not cold-memory or source-read throughput claims. Data-dependent
 extrema positions affect the length of the second pass. Real source throughput,
-parallel scaling, projection, and architecture-specific results outside AVX2
-remain unmeasured.
+parallel scaling, projection, and architecture-specific results outside AVX2 are
+outside this benchmark.
