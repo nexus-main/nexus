@@ -1,0 +1,7 @@
+{
+  "name": "nexus-webgpu-tests",
+  "private": true,
+  "dependencies": {
+    "webgpu": "0.6.2"
+  }
+}

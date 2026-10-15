@@ -48,29 +48,60 @@ function createDevice(options = {}) {
         lost: lost.promise,
         destroyed: false,
         buffers: [],
+        commands: [],
         submissions: 0,
         createShaderModule() { return {}; },
         createRenderPipeline() { return { getBindGroupLayout() { return {}; } }; },
-        createComputePipeline() { return { getBindGroupLayout() { return {}; } }; },
+        createComputePipeline({ compute }) { return { entryPoint: compute.entryPoint, getBindGroupLayout() { return {}; } }; },
         createBuffer({ size }) {
             const buffer = createBuffer(size, options);
             this.buffers.push(buffer);
             return buffer;
         },
-        createBindGroup() { return {}; },
+        createBindGroup({ entries }) { return { entries }; },
         createCommandEncoder() {
+            device.commands.push({ type: 'encoder' });
             return {
                 beginComputePass() {
-                    return { setPipeline() {}, setBindGroup() {}, dispatchWorkgroups() {}, end() {} };
+                    let pipeline, bindGroup;
+                    device.commands.push({ type: 'compute' });
+                    return {
+                        setPipeline(value) { pipeline = value; },
+                        setBindGroup(_index, value) { bindGroup = value; },
+                        dispatchWorkgroups(count) { device.commands.push({ type: 'dispatch', pipeline, bindGroup, count }); },
+                        end() {},
+                    };
                 },
                 beginRenderPass() {
-                    return { setPipeline() {}, setScissorRect() {}, setBindGroup() {}, draw() {}, end() {} };
+                    let pipeline, bindGroup;
+                    device.commands.push({ type: 'render' });
+                    return {
+                        setPipeline(value) { pipeline = value; },
+                        setScissorRect() {},
+                        setBindGroup(_index, value) { bindGroup = value; },
+                        draw(count) { device.commands.push({ type: 'draw', pipeline, bindGroup, count }); },
+                        end() {},
+                    };
                 },
-                copyBufferToBuffer() {},
+                copyBufferToBuffer(source, sourceOffset, destination, destinationOffset, size) {
+                    assert.ok(sourceOffset + size <= source.size);
+                    assert.ok(destinationOffset + size <= destination.size);
+                    device.commands.push({ type: 'copy', source, sourceOffset, destination, destinationOffset, size });
+                },
                 finish() { return {}; },
             };
         },
-        queue: { writeBuffer() {}, submit() { device.submissions++; }, async onSubmittedWorkDone() {} },
+        queue: {
+            writeBuffer(buffer, offset, data) {
+                const bytes = ArrayBuffer.isView(data)
+                    ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+                    : new Uint8Array(data);
+                assert.ok(offset + bytes.byteLength <= buffer.size);
+                device.commands.push({ type: 'write', buffer, offset, data: bytes.slice().buffer });
+            },
+            submit() { device.submissions++; device.commands.push({ type: 'submit' }); },
+            async onSubmittedWorkDone() {},
+        },
         destroy() { this.destroyed = true; },
         lose(info = { message: 'test loss' }) { lost.resolve(info); },
     };
@@ -225,22 +256,25 @@ test('remote points use the existing drawing pipeline without reduction or raw r
     assert.equal(item.seriesBuffer.decimations, undefined);
     assert.equal(environment.hooks.getRemoteRenderItem(instance, series, 'series', plot).seriesBuffer, item.seriesBuffer);
 
-    let computePasses = 0;
-    const createEncoder = instance.device.createCommandEncoder.bind(instance.device);
-    instance.device.createCommandEncoder = () => {
-        const encoder = createEncoder();
-        const beginCompute = encoder.beginComputePass.bind(encoder);
-        encoder.beginComputePass = () => { computePasses++; return beginCompute(); };
-        return encoder;
-    };
+    const commandStart = instance.device.commands.length;
     await environment.hooks.scheduleRender('chart', {
         plot: { left: 0, top: 0, right: 1, bottom: 1 },
         zoom: { left: 0.2, right: 0.3 },
         series: [{ ...series, axisMin: 0, axisMax: 10, length: 1e12, sampleStep: 1e-12 }],
     });
-    assert.equal(computePasses, 0);
+    const commands = instance.device.commands.slice(commandStart);
+    assert.equal(commands.filter(command => command.type === 'compute').length, 0);
     assert.equal(instance.rawRequests.size, 0);
-    assert.ok(instance.device.submissions > 0);
+    const draws = commands.filter(command => command.type === 'draw');
+    assert.deepEqual(draws.map(draw => draw.count), [12, 36]);
+    for (const draw of draws) {
+        assert.equal(draw.pipeline, instance.pipeline);
+        assert.equal(draw.bindGroup.entries.find(entry => entry.binding === 2).resource.buffer, item.seriesBuffer.buffer);
+        const uniform = draw.bindGroup.entries.find(entry => entry.binding === 0).resource.buffer;
+        const data = commands.find(command => command.type === 'write' && command.buffer === uniform).data;
+        assert.equal(new Uint32Array(data)[22], 1);
+        assert.deepEqual([...new Float32Array(data).slice(10, 12)], [0, 100]);
+    }
 
     const next = environment.hooks.getRemoteRenderItem(instance, { ...series, remotePoints: new Float32Array([0, 4, 1, 5]) }, 'series', plot);
     assert.equal(item.seriesBuffer.buffer.destroyed, true);
@@ -249,15 +283,6 @@ test('remote points use the existing drawing pipeline without reduction or raw r
     environment.api.releaseTarget('chart', 'series');
     assert.equal(next.seriesBuffer.buffer.destroyed, true);
     environment.api.dispose('chart');
-});
-
-test('canonical GPU projection is shared and all tree extrema ties select the earliest index', () => {
-    const source = scripts.find(script => script.name === 'chart.webgpu.shaders.js').source;
-    assert.equal((source.match(/minimumIndices\[other\] < minimumIndices\[lane\]/g) ?? []).length, 3);
-    assert.equal((source.match(/maximumIndices\[other\] < maximumIndices\[lane\]/g) ?? []).length, 3);
-    assert.match(source, /array<u32, 5>\(start, end - 1u, minIndex, maxIndex, gapIndex\)/);
-    assert.match(source, /if \(index == previous\) \{ continue; \}/);
-    assert.match(source, /f32\(index - origin\)/);
 });
 
 test('device loss fails every chart using the shared device', async () => {
@@ -476,25 +501,6 @@ test('series color preserves its configured alpha', () => {
         [1, 128 / 255, 0, 64 / 255]);
 });
 
-test('fill shader multiplies fill opacity by series alpha', () => {
-    const shaderSource = scripts.find(script => script.name === 'chart.webgpu.shaders.js').source;
-    assert.match(shaderSource, /uniforms\.color\.a \* uniforms\.fillOpacity/);
-});
-
-test('gap-preserving reduction reserves five points per bucket including endpoints', () => {
-    const environment = createEnvironment();
-
-    assert.equal(environment.hooks.reducedPointsPerBucket, 5);
-    assert.equal(environment.hooks.getReducedOutputLength(8), 40);
-});
-
-test('every reduction shader blanks buckets with at least half nonfinite samples without overflow', () => {
-    const shaderSource = scripts.find(script => script.name === 'chart.webgpu.shaders.js').source;
-    assert.match(shaderSource, /invalidCount >= bucketCount - invalidCount/);
-    assert.doesNotMatch(shaderSource, /gapRuns|nanRunCounts/);
-    assert.equal((shaderSource.match(/\$\{projectionShader\(/g) ?? []).length, 3);
-});
-
 test('tracked buffers enforce the total chart budget and release exactly once', async () => {
     const environment = createEnvironment();
     environment.api.initialize('chart', environment.helper('chart'));
@@ -571,7 +577,7 @@ test('disposing an initialized chart removes its lifecycle epoch', async () => {
     assert.equal(environment.hooks.lifecycleEpochs.has('chart'), false);
 });
 
-test('chunked series keeps only mergeable summary levels resident', async () => {
+test('chunked series releases upload buffers and retains only summary storage', async () => {
     const environment = createEnvironment();
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
@@ -589,6 +595,10 @@ test('chunked series keeps only mergeable summary levels resident', async () => 
     assert.equal(source.pyramid, true);
     assert.equal(source.buffer.size, overviewBytes);
     assert.equal(instance.ownedGpuBytes, overviewBytes);
+    assert.equal(source.transientBuffer.destroyed, true);
+    assert.equal(source.paramsBuffer.destroyed, true);
+    assert.equal(instance.chunkedUploadSessions.size, 0);
+    environment.api.dispose('chart');
 });
 
 test('production local renderer queries summary levels and uploads only boundary fragments', async () => {
@@ -599,19 +609,65 @@ test('production local renderer queries summary levels and uploads only boundary
     const reads = [];
     const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length, 123n, async (offset, count) => {
         reads.push({ offset, count });
-        return new Float32Array(count);
+        return Float32Array.from({ length: count }, (_, i) => offset + i);
     });
     environment.api.appendChunkedSeries('chart', token, 0, new Float32Array(length));
     await environment.api.processChunkedSeriesUpload('chart', token, 0, length);
     await environment.api.completeChunkedSeries('chart', token);
-    const payload = { plot: { left: 0, top: 0, right: 1, bottom: 1 }, zoom: { left: 0.1, right: 0.9 }, series: [{ id: 'series', dataVersion: 0, length, sampleStep: 1 / length, pointBudget: 100, axisMin: 0, axisMax: 1 }] };
-    await environment.hooks.scheduleRender('chart', payload);
-    assert.ok(reads.reduce((sum, read) => sum + read.count, 0) <= 510);
-    assert.ok(reads.length > 0);
-    const count = reads.length;
-    await environment.hooks.scheduleRender('chart', payload);
-    assert.equal(reads.length, count);
     const instance = environment.hooks.instances.get('chart');
+    const source = instance.seriesBuffers.get(`series:0:${length}`);
+    let previous;
+    for (const [begin, end, budget, expectedReads] of [
+        [1000, 30000, 100, [{ offset: 1000, count: 157 }, { offset: 29829, count: 171 }]],
+        [1157, 29829, 100, []],
+        [700, 725, 32, [{ offset: 700, count: 25 }]],
+    ]) {
+        reads.length = 0;
+        const start = instance.device.commands.length;
+        const payload = {
+            plot: { left: 0, top: 0, right: 1, bottom: 1 },
+            series: [{ id: 'series', dataVersion: 0, length, sampleStep: 1 / length, viewFirst: begin, viewEnd: end, pointBudget: budget, axisMin: 0, axisMax: 1 }],
+        };
+        await environment.hooks.scheduleRender('chart', payload);
+        assert.deepEqual(reads, expectedReads);
+        const commands = instance.device.commands.slice(start);
+        const dispatches = commands.filter(command => command.type === 'dispatch');
+        assert.equal(dispatches.length, 1);
+        const dispatch = dispatches[0];
+        assert.equal(dispatch.pipeline.entryPoint, 'query');
+        const output = source.decimations.get('series').outputBuffer;
+        assert.equal(dispatch.bindGroup.entries[4].resource.buffer, output);
+        const params = commands.find(command => command.type === 'write' && command.buffer === dispatch.bindGroup.entries[5].resource.buffer);
+        const slots = end - begin <= budget ? 1 : 5;
+        const jobs = output.size / (slots * 8);
+        assert.deepEqual([...new Uint32Array(params.data)], [jobs, begin, slots, 0]);
+        assert.equal(dispatch.count, Math.ceil(jobs / 64));
+        const rawBuffer = dispatch.bindGroup.entries[1].resource.buffer;
+        const rawWrite = commands.find(command => command.type === 'write' && command.buffer === rawBuffer);
+        const expectedRaw = expectedReads.flatMap(({ offset, count }) => Array.from({ length: count }, (_, i) => offset + i));
+        assert.deepEqual(rawWrite ? [...new Float32Array(rawWrite.data)] : [], expectedRaw);
+        const copies = commands.filter(command => command.type === 'copy');
+        assert.equal(copies.length > 0, end - begin > budget);
+        for (const copy of copies) {
+            assert.ok(source.pages.some(page => page.buffer === copy.source));
+            assert.equal(copy.destination, dispatch.bindGroup.entries[0].resource.buffer);
+        }
+        const draws = commands.filter(command => command.type === 'draw');
+        assert.deepEqual(draws.map(draw => draw.count), [(output.size / 8 - 1) * 6, (output.size / 8 - 1) * 18]);
+        for (const draw of draws) {
+            assert.equal(draw.bindGroup.entries[2].resource.buffer, output);
+        }
+        if (previous) assert.equal(previous.destroyed, true);
+        previous = output;
+
+        const allocations = instance.device.buffers.length;
+        const cachedStart = instance.device.commands.length;
+        await environment.hooks.scheduleRender('chart', payload);
+        assert.deepEqual(reads, expectedReads);
+        assert.equal(source.decimations.get('series').outputBuffer, output);
+        assert.equal(instance.device.buffers.length, allocations);
+        assert.equal(instance.device.commands.slice(cachedStart).some(command => command.type === 'dispatch' || command.type === 'copy'), false);
+    }
     assert.equal(instance.rawRequests.size, 0);
     environment.api.dispose('chart');
     assert.equal(instance.ownedGpuBytes, 0);
@@ -619,7 +675,8 @@ test('production local renderer queries summary levels and uploads only boundary
 
 test('local density uses physical target pixels without a server point budget', async () => {
     for (const dpr of [1, 1.25, 2, 3]) {
-        const environment = createEnvironment({ width: 1000, dpr });
+        const width = 1001;
+        const environment = createEnvironment({ width, dpr });
         environment.api.initialize('chart', environment.helper('chart'));
         await settle();
         const length = 1000000;
@@ -630,28 +687,37 @@ test('local density uses physical target pixels without a server point budget', 
         await environment.api.completeChunkedSeries('chart', token);
         const instance = environment.hooks.instances.get('chart');
         const source = instance.seriesBuffers.get(`series:0:${length}`);
+        let previous;
         for (const plotWidth of [1, 0.5]) {
             await environment.hooks.scheduleRender('chart', {
                 plot: { left: 0, top: 0, right: plotWidth, bottom: 1 },
                 series: [{ id: 'series', length, sampleStep: 1 / length, axisMin: 0, axisMax: 1 }],
             });
             const view = source.decimations.get('series');
-            const budget = 5 * (Math.min(8192, Math.ceil(1000 * dpr * plotWidth * 4)) + 1);
+            const pixels = Math.round(width * dpr) * plotWidth;
+            const budget = 5 * (Math.min(8192, Math.ceil(pixels * 4)) + 1);
             assert.equal(view.key, `0:${length}:${budget}`);
-            assert.ok(view.outputBuffer.size / (5 * 8) >= Math.min(8192, 1000 * dpr * plotWidth * 4) / 2);
+            assert.ok(view.outputBuffer.size / (5 * 8) >= Math.min(8192, pixels * 4) / 2);
+            assert.ok(view.outputBuffer.size <= budget * 8);
+            if (previous) assert.equal(previous.destroyed, true);
+            previous = view.outputBuffer;
         }
         environment.api.dispose('chart');
         assert.equal(instance.ownedGpuBytes, 0);
     }
 });
 
-test('releasing a pyramid target during a boundary read does not recreate its buffers', async () => {
+test('releasing a pyramid target during a boundary read prevents later allocations and commands', { timeout: 5000 }, async () => {
     const environment = createEnvironment();
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
     const length = 1024;
     const read = deferred();
-    const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length, 0n, () => read.promise);
+    const entered = deferred();
+    const token = await environment.api.beginChunkedSeries('chart', 'series', 0, length, 0n, (offset, count) => {
+        entered.resolve({ offset, count });
+        return read.promise;
+    });
     environment.api.appendChunkedSeries('chart', token, 0, new Float32Array(length));
     await environment.api.processChunkedSeriesUpload('chart', token, 0, length);
     await environment.api.completeChunkedSeries('chart', token);
@@ -659,15 +725,23 @@ test('releasing a pyramid target during a boundary read does not recreate its bu
     const source = instance.seriesBuffers.get(`series:0:${length}`);
     const resident = instance.ownedGpuBytes;
     const target = 'navigator-detail-series';
+    let completed = false;
     const render = environment.hooks.scheduleRender('chart', {
         target,
         zoom: { left: 0, right: 10 / length },
         series: [{ id: 'series', length, sampleStep: 1 / length, viewFirst: 0, viewEnd: 10, pointBudget: 16 }],
-    });
-    await settle();
+    }).then(() => { completed = true; });
+    assert.deepEqual(await entered.promise, { offset: 0, count: 10 });
+    assert.equal(completed, false);
     environment.api.releaseTarget('chart', target);
+    const allocations = instance.device.buffers.length;
+    const commands = instance.device.commands.length;
     read.resolve(new Float32Array(10));
     await render;
+    assert.equal(instance.device.buffers.length, allocations);
+    assert.equal(instance.device.commands.length, commands);
+    assert.equal(environment.hooks.instances.get('chart'), instance);
+    assert.deepEqual(environment.failures, []);
     assert.equal(source.decimations.size, 0);
     assert.equal(instance.ownedGpuBytes, resident);
     assert.equal(instance.targetResources.has(target), false);
@@ -676,10 +750,11 @@ test('releasing a pyramid target during a boundary read does not recreate its bu
     assert.equal(instance.ownedGpuBytes, 0);
 });
 
-test('a 10 GiB series allocates paged summaries below 128/256/512 MiB binding caps', async () => {
-  for (const limit of [128, 256, 512].map(value => value * 1024 * 1024)) {
+test('a synthetic 10 GiB domain bounds paged allocations and releases resident storage', async () => {
+  for (const [bindingMiB, bufferMiB] of [[128, 1024], [256, 1024], [512, 1024], [8, 1024], [128, 4]]) {
+    const limit = Math.min(bindingMiB, bufferMiB) * 1024 ** 2;
     const length = 10 * 1024 ** 3 / 4;
-    const environment = createEnvironment({ maxStorageBufferBindingSize: limit });
+    const environment = createEnvironment({ maxStorageBufferBindingSize: bindingMiB * 1024 ** 2, maxBufferSize: bufferMiB * 1024 ** 2 });
     environment.api.setCacheBudget('chart', 2 * 1024 ** 3);
     environment.api.initialize('chart', environment.helper('chart'));
     await settle();
@@ -687,10 +762,11 @@ test('a 10 GiB series allocates paged summaries below 128/256/512 MiB binding ca
     const instance = environment.hooks.instances.get('chart');
     const upload = instance.chunkedUploadSessions.get(token);
     assert.ok(upload.pages.length > 1);
+    assert.equal(upload.pages[0].buffer.size, Math.floor(Math.min(limit, 16 * 1024 ** 2) / 48) * 48);
     assert.ok(upload.bytes >= 640 * 1024 ** 2 && upload.bytes < 641 * 1024 ** 2);
     assert.ok(environment.devices[0].buffers.every(buffer => buffer.size <= limit));
     assert.ok(instance.ownedGpuBytes < 2 * 1024 ** 3);
-    // No 10 GiB host allocation: exercise parent planning/dispatch with mocked GPU storage.
+    // Skip raw upload: this verifies allocation/lifetime, not parent numerical contents.
     upload.writtenLength = length;
     await environment.api.completeChunkedSeries('chart', token);
     assert.equal(instance.ownedGpuBytes, upload.bytes);
@@ -715,7 +791,7 @@ test('partial multi-page allocation failure releases every page within the track
     environment.api.dispose('chart');
 });
 
-test('repeated local and remote chart replacement releases completed pyramids and pending uploads', async () => {
+test('repeated local and remote dispose/reinitialize cycles release completed pyramids and idle uploads', async () => {
     const environment = createEnvironment();
     for (let cycle = 0; cycle < 3; cycle++) {
         environment.api.initialize('chart', environment.helper('chart'));
@@ -729,8 +805,10 @@ test('repeated local and remote chart replacement releases completed pyramids an
             zoom: { left: 0, right: 1 },
             series: [{ id: 'series', length, sampleStep: 1 / length, pointBudget: 16, axisMin: 0, axisMax: 1 }],
         });
-        await environment.api.beginChunkedSeries('chart', 'pending', 0, length);
+        const pending = await environment.api.beginChunkedSeries('chart', 'pending', 0, length);
         const local = environment.hooks.instances.get('chart');
+        assert.ok(local.seriesBuffers.get(`series:0:${length}`).decimations.get('series').outputBuffer);
+        assert.equal(local.chunkedUploadSessions.get(pending).writtenLength, 0);
         assert.ok(local.ownedGpuBytes > 0);
         environment.api.dispose('chart');
         assert.equal(local.ownedGpuBytes, 0);

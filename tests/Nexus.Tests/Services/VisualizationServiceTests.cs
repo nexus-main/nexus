@@ -3,15 +3,16 @@
 
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Text.Json;
 using Apache.Arrow;
 using Apache.Arrow.Ipc;
+using Apache.Arrow.Types;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Nexus.Core;
@@ -26,195 +27,8 @@ using Xunit;
 
 namespace Services;
 
-public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper output)
+public class VisualizationServiceTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task EndpointTimingIsOptInCorrelatedAndBounded(bool enabled)
-    {
-        using var fixture = new Fixture { Delay = TimeSpan.Zero };
-        fixture.Configuration = new Dictionary<string, JsonElement> { ["secret-key"] = JsonSerializer.SerializeToElement("secret-value") };
-        using var logs = new VisualizationTimingLogger();
-        var request = fixture.Request([fixture.View("secret-view", 0, 65536, 100)]);
-
-        foreach (string cacheOutcome in new[] { "miss", "hit" })
-        {
-            using var stream = new MemoryStream();
-            var context = new DefaultHttpContext();
-            context.Response.Body = stream;
-            string id = Guid.NewGuid().ToString("D");
-
-            if (enabled)
-                context.Request.Headers[VisualizationTiming.Header] = id;
-
-            var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
-            {
-                ControllerContext = new ControllerContext { HttpContext = context }
-            };
-            Assert.IsType<EmptyResult>(await controller.GetVisualizationAsync(request, fixture.Service, CancellationToken.None));
-
-            if (!enabled)
-            {
-                Assert.Empty(logs.Entries);
-                continue;
-            }
-
-            var entries = logs.Entries.Where(entry => Equals(entry.Fields["RequestId"], id)).ToArray();
-            Assert.Equal(id, context.Response.Headers[VisualizationTiming.Header]);
-            Assert.Equal(cacheOutcome, Assert.Single(entries, entry => entry.Phase == "cache-get" && entry.Milestone == "end").Outcome);
-            Assert.Equal("request", entries.Last().Phase);
-            Assert.Equal("success", entries.Last().Outcome);
-            Assert.All(entries, entry =>
-            {
-                Assert.Equal(VisualizationTiming.Category, entry.Category);
-                Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Information, entry.Level);
-                Assert.Null(entry.Exception);
-                Assert.Contains(id, entry.Message);
-                Assert.Contains(entry.Phase, entry.Message);
-                Assert.Contains(entry.Outcome, entry.Message);
-                Assert.DoesNotContain("secret", entry.Message);
-                Assert.DoesNotContain("/A/B/C", entry.Message);
-                Assert.DoesNotContain("Administrator", entry.Message);
-                Assert.InRange((double)entry.Fields["DurationMs"]!, 0, (double)entry.Fields["ElapsedMs"]!);
-            });
-
-            foreach (string phase in new[] { "prepare", "request-admission", "join-build", "initial-progress-flush",
-                "build-gate-wait", "first-data-flush", "completion-flush", "resources-released" })
-                Assert.Contains(entries, entry => entry.Phase == phase && entry.Outcome != "pending");
-
-            if (cacheOutcome == "miss")
-            {
-                Assert.Contains(entries, entry => entry.Phase == "cache-put" && entry.Outcome == "success");
-                var reads = entries.Where(entry => entry.Phase == "controller-read-inclusive" && entry.Milestone == "aggregate").ToArray();
-                Assert.Equal(fixture.Calls, reads.Sum(entry => (long)entry.Fields["Count"]!));
-                Assert.InRange(reads.Length, 1, fixture.Instances);
-                Assert.Equal(reads.Length, reads.Select(entry => entry.Fields["WorkerId"]).Distinct().Count());
-                Assert.InRange(entries.Length, 1, 120); // Independent of the hundreds of source reads.
-
-                foreach (var read in reads)
-                {
-                    int worker = (int)read.Fields["WorkerId"]!;
-                    foreach (string phase in new[] { "read-permit-wait", "source-initialize", "controller-read-inclusive",
-                        "slice-compute-wait", "slice-compute", "source-dispose" })
-                    {
-                        Assert.Single(entries, entry => Equals(entry.Fields["WorkerId"], worker) && entry.Phase == phase && entry.Milestone == "start");
-                        Assert.Single(entries, entry => Equals(entry.Fields["WorkerId"], worker) && entry.Phase == phase && entry.Milestone == "end");
-                    }
-                }
-            }
-            else
-                Assert.DoesNotContain(entries, entry => entry.Phase == "controller-read-inclusive");
-        }
-    }
-
-    [Fact]
-    public async Task TimingRecordsCancellationBeforeDrainAndResourceRelease()
-    {
-        using var fixture = new Fixture { Delay = TimeSpan.FromSeconds(30), HoldCancelledReads = true };
-        using var logs = new VisualizationTimingLogger();
-        using var cancellation = new CancellationTokenSource();
-        using var stream = new MemoryStream();
-        var context = new DefaultHttpContext();
-        context.Request.Headers[VisualizationTiming.Header] = Guid.NewGuid().ToString("D");
-        context.Response.Body = stream;
-        var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
-        {
-            ControllerContext = new ControllerContext { HttpContext = context }
-        };
-        var running = controller.GetVisualizationAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]), fixture.Service, cancellation.Token);
-        await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        try
-        {
-            await cancellation.CancelAsync();
-            await fixture.ReadCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Contains(logs.Entries, entry => entry.Phase == "cancellation-requested");
-            Assert.DoesNotContain(logs.Entries, entry => entry.Phase == "resources-released" || entry.Phase == "request");
-            Assert.False(running.IsCompleted);
-            Assert.True(fixture.Active > 0);
-            Assert.True(fixture.Cache.Reads.CurrentCount < 3);
-            Assert.Equal(3, fixture.Cache.Requests.CurrentCount);
-        }
-        finally
-        {
-            fixture.ReleaseCancelledReads.TrySetResult();
-        }
-
-        Assert.IsType<Microsoft.AspNetCore.Mvc.EmptyResult>(await running.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.Equal(StatusCodes.Status499ClientClosedRequest, context.Response.StatusCode);
-        var entries = logs.Entries.ToArray();
-        int requested = System.Array.FindIndex(entries, entry => entry.Phase == "cancellation-requested");
-        int drained = System.Array.FindIndex(entries, entry => entry.Phase == "cancellation-drain" && entry.Outcome == "drained");
-        int released = System.Array.FindIndex(entries, entry => entry.Phase == "resources-released");
-        Assert.True(requested < drained && drained < released && released < entries.Length - 1);
-        Assert.Equal("request", entries.Last().Phase);
-        Assert.Equal("cancelled", entries.Last().Outcome);
-        Assert.Contains(entries, entry => entry.Phase == "controller-read-inclusive" && entry.Outcome == "cancelled");
-        Assert.DoesNotContain(entries, entry => entry.Phase == "first-data-flush" || entry.Phase == "completion-flush");
-        Assert.Equal(0, fixture.Active);
-        Assert.Equal(fixture.Instances, fixture.Disposed);
-        Assert.Equal(3, fixture.Cache.Reads.CurrentCount);
-        Assert.Equal(4, fixture.Cache.Requests.CurrentCount);
-    }
-
-    [Fact]
-    public async Task TimingReportsStreamFailureRatherThanSuccess()
-    {
-        using var fixture = new Fixture { Fail = true, Delay = TimeSpan.Zero };
-        using var logs = new VisualizationTimingLogger();
-        using var stream = new MemoryStream();
-        var context = new DefaultHttpContext();
-        context.Request.Headers[VisualizationTiming.Header] = Guid.NewGuid().ToString("D");
-        context.Response.Body = stream;
-        var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
-        {
-            ControllerContext = new ControllerContext { HttpContext = context }
-        };
-        await controller.GetVisualizationAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]), fixture.Service, CancellationToken.None);
-        Assert.Equal("stream-error", logs.Entries.Last().Outcome);
-        Assert.Contains(logs.Entries, entry => entry.Phase == "controller-read-inclusive" && entry.Outcome == "error");
-        Assert.All(logs.Entries, entry =>
-        {
-            Assert.Null(entry.Exception);
-            Assert.DoesNotContain("source failed", entry.Message);
-        });
-    }
-
-    [Fact]
-    public async Task TimingRecordsBusyAdmissionWithoutStartingWork()
-    {
-        using var fixture = new Fixture();
-        using var logs = new VisualizationTimingLogger();
-        using var stream = new MemoryStream();
-        var context = new DefaultHttpContext();
-        context.Request.Headers[VisualizationTiming.Header] = Guid.NewGuid().ToString("D");
-        context.Response.Body = stream;
-        var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
-        {
-            ControllerContext = new ControllerContext { HttpContext = context }
-        };
-
-        for (int i = 0; i < 4; i++)
-            await fixture.Cache.Requests.WaitAsync();
-
-        try
-        {
-            var result = await controller.GetVisualizationAsync(fixture.Request([fixture.View("main", 0, 65536, 100)]), fixture.Service, CancellationToken.None);
-            Assert.Equal(422, Assert.IsType<ContentResult>(result).StatusCode);
-            Assert.Contains(logs.Entries, entry => entry.Phase == "request-admission" && entry.Outcome == "busy");
-            Assert.Equal("rejected", logs.Entries.Last().Outcome);
-            Assert.DoesNotContain(logs.Entries, entry => entry.Phase == "join-build" || entry.Phase == "resources-released");
-            Assert.Equal(0, fixture.Instances);
-            Assert.Equal(0, fixture.Cache.Requests.CurrentCount);
-            Assert.Equal(0, stream.Length);
-        }
-        finally
-        {
-            fixture.Cache.Requests.Release(4);
-        }
-    }
-
     [Fact]
     public void ViewPlanFixedSpanHasSameStrideAtEveryAlignment()
     {
@@ -352,7 +166,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         {
             Assert.InRange(row.Values.Length, 1, maxPoints);
             Assert.Equal(expected.Select(point => point.Index - origin), row.Indices);
-            Assert.Equal(expected.Select(point => point.Value), row.Values);
+            Assert.Equal(expected.Select(point => point.Value + row.Resource * 2000), row.Values);
         }
     }
 
@@ -368,19 +182,26 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
 
+        Row[]? cold = null;
         for (int attempt = 0; attempt < 2; attempt++)
         {
             var rows = await fixture.RunAsync(request);
             Assert.Equal(2, rows.Last().Kind);
             var data = rows.Where(row => row.Kind == 0).ToArray();
-            Assert.NotEmpty(data);
+            Assert.Equal(2, data.Length);
 
             foreach (var row in data)
             {
                 Assert.InRange(row.Values.Length, 1, 100);
                 Assert.Equal(hasFinite, row.Values.Any(float.IsFinite));
                 Assert.Contains(row.Values, float.IsNaN);
+                if (cold is not null)
+                {
+                    Assert.Equal(cold[row.Resource].Indices, row.Indices);
+                    Assert.Equal(cold[row.Resource].Values, row.Values);
+                }
             }
+            cold = data;
         }
 
         Assert.Equal(65536 * 2, fixture.Samples);
@@ -391,23 +212,45 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     [InlineData(true)]
     public async Task CancellingBuildOwnerDoesNotRestartOtherConsumersScan(bool disableCache)
     {
-        using var fixture = new Fixture(memoryLimit: disableCache ? 0 : 16 * 1024 * 1024) { Delay = TimeSpan.FromMilliseconds(10) };
+        using var fixture = new Fixture(memoryLimit: disableCache ? 0 : 16 * 1024 * 1024);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.BeforeRead = (_, token) => release.Task.WaitAsync(token);
         using var logs = new VisualizationTimingLogger();
+        var joined = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        logs.EntryWritten = entry =>
+        {
+            if (entry.Phase == "join-build" && entry.Milestone == "end")
+                joined.TrySetResult();
+        };
         var timing = new VisualizationTiming(logs.CreateLogger(VisualizationTiming.Category), Guid.NewGuid());
 
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         using var cancellation = new CancellationTokenSource();
-        var write = await fixture.Service.PrepareAsync(request, cancellation.Token);
-        using var stream = new MemoryStream();
-        var owner = write(stream, cancellation.Token);
-        await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var waiter = fixture.RunAsync(request, timing);
-        Assert.Equal(2, fixture.Cache.Requests.CurrentCount);
-        await cancellation.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => owner.WaitAsync(TimeSpan.FromSeconds(10)));
-        Assert.Equal(2, (await waiter).Last().Kind);
+        var owner = fixture.RunAsync(request, cancellationToken: cancellation.Token);
+        Task<List<Row>>? waiter = null;
+        try
+        {
+            await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            waiter = fixture.RunAsync(request, timing);
+            await joined.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(2, fixture.Cache.Requests.CurrentCount);
+            await cancellation.CancelAsync();
+            Assert.False(owner.IsCompleted);
+            Assert.False(waiter.IsCompleted);
+            release.TrySetResult();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => owner);
+            await waiter;
+        }
+        finally
+        {
+            release.TrySetResult();
+            await cancellation.CancelAsync();
+            await ObserveAsync(owner);
+            if (waiter is not null)
+                await ObserveAsync(waiter);
+        }
         Assert.Equal(65536 * 2, fixture.Samples);
-        Assert.Equal(fixture.Instances, fixture.Disposed);
+        fixture.AssertReleased();
         Assert.Equal(disableCache ? "shared" : "hit",
             Assert.Single(logs.Entries, entry => entry.Phase == "cache-get" && entry.Milestone == "end").Outcome);
         Assert.Contains(logs.Entries, entry => entry.Phase == "build-gate-wait" && entry.Milestone == "end");
@@ -418,17 +261,41 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     public async Task CancellingWaiterDoesNotCancelOwner()
     {
         using var fixture = new Fixture();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.BeforeRead = (_, token) => release.Task.WaitAsync(token);
+        using var logs = new VisualizationTimingLogger();
+        var joined = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        logs.EntryWritten = entry =>
+        {
+            if (entry.Phase == "join-build" && entry.Milestone == "end")
+                joined.TrySetResult();
+        };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         var owner = fixture.RunAsync(request);
-        await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         using var cancellation = new CancellationTokenSource();
-        var write = await fixture.Service.PrepareAsync(request, cancellation.Token);
-        using var stream = new MemoryStream();
-        var waiter = write(stream, cancellation.Token);
-        await cancellation.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiter);
-        Assert.Equal(2, (await owner).Last().Kind);
+        Task<List<Row>>? waiter = null;
+        try
+        {
+            await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            waiter = fixture.RunAsync(request, new VisualizationTiming(logs.CreateLogger(VisualizationTiming.Category), Guid.NewGuid()), cancellationToken: cancellation.Token);
+            await joined.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await cancellation.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiter);
+            Assert.False(owner.IsCompleted);
+            Assert.True(fixture.Active > 0);
+            release.TrySetResult();
+            await owner;
+        }
+        finally
+        {
+            release.TrySetResult();
+            await cancellation.CancelAsync();
+            await ObserveAsync(owner);
+            if (waiter is not null)
+                await ObserveAsync(waiter);
+        }
         Assert.Equal(65536 * 2, fixture.Samples);
+        fixture.AssertReleased();
     }
 
     [Fact]
@@ -524,6 +391,10 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         fixture.Cache.Options.MaxDatasetCacheBytes = 65536;
         var exception = await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.PrepareAsync(request, CancellationToken.None));
         Assert.Contains("Data:Visualization:MaxDatasetCacheBytes", exception.Message);
+        const int largerCount = 2_000_000_000;
+        request = request with { End = fixture.Begin.AddSeconds(largerCount), Views = [fixture.View("main", 0, largerCount, 100)] };
+        fixture.Cache.Options.MaxDatasetCacheBytes = 1L << 30;
+        await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.PrepareAsync(request, CancellationToken.None));
         fixture.Cache.Options.MaxDatasetCacheBytes = 20L * 1024 * 1024 * 1024;
         Assert.NotNull(await fixture.Service.PrepareAsync(request, CancellationToken.None));
         Assert.Equal(0, fixture.Calls);
@@ -537,11 +408,8 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         await fixture.RunAsync(request);
         long bytes = fixture.Cache.ResidentBytes;
         fixture.Cache.Options.MaxTotalCacheBytes = bytes;
-        var other = fixture.CreateService(new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.Role, nameof(NexusRoles.Administrator))], "other")));
-        var write = await other.PrepareAsync(request, CancellationToken.None);
-        using var stream = new MemoryStream();
-        await write(stream, CancellationToken.None);
+        var other = fixture.CreateService(Fixture.User("other"));
+        await fixture.RunAsync(request, service: other);
         Assert.Equal(65536 * 4, fixture.Samples);
         Assert.Equal(bytes, fixture.Cache.ResidentBytes);
         await fixture.RunAsync(request);
@@ -558,22 +426,6 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         Assert.Equal(2, (await fixture.RunAsync(request)).Last().Kind);
         Assert.Equal(65536 * 4, fixture.Samples);
         Assert.Equal(0, fixture.Cache.ResidentBytes);
-        Assert.False(Directory.Exists(fixture.Directory));
-    }
-
-    [Fact]
-    public void CacheDoesNotPersistAcrossInstances()
-    {
-        var options = Options.Create(new DataOptions());
-        var dataset = new VisualizationDataset(0, 65536, 1);
-        dataset.AllocateBase();
-        dataset.BuildParents(CancellationToken.None);
-        using (var cache = new VisualizationCache(options))
-            cache.Put("same-key", dataset).Dispose();
-
-        using var restarted = new VisualizationCache(options);
-        Assert.Null(restarted.Get("same-key"));
-        Assert.Equal(0, restarted.ResidentBytes);
     }
 
     [Fact]
@@ -606,11 +458,10 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             End = fixture.Begin.AddSeconds(alignment + 1307)
         };
         var expected = Enumerable.Range(viewBegin, viewEnd - viewBegin)
-            .SelectMany(index => VisualizationReduction.Project(
-                VisualizationReduction.Summarize([values[index % values.Length]], origin + index)))
+            .Select(index => new VisualizationPoint(origin + index,
+                float.IsFinite(values[index % values.Length]) ? values[index % values.Length] : float.NaN))
             .ToArray();
         using var logs = new VisualizationTimingLogger();
-        Row[]? cold = null;
 
         foreach (string cacheOutcome in new[] { "miss", "hit" })
         {
@@ -627,51 +478,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
                 Assert.Equal(expected.Select(point => BitConverter.SingleToInt32Bits(point.Value)),
                     row.Values.Select(BitConverter.SingleToInt32Bits));
 
-                if (cold is not null)
-                {
-                    Assert.Equal(cold[row.Resource].Indices, row.Indices);
-                    Assert.Equal(cold[row.Resource].Values.Select(BitConverter.SingleToInt32Bits),
-                        row.Values.Select(BitConverter.SingleToInt32Bits));
-                }
             }
-
-            cold = data;
-        }
-    }
-
-    [Fact]
-    public async Task SyntheticSourceThroughputBenchmark()
-    {
-        if (Environment.GetEnvironmentVariable("NEXUS_VISUALIZATION_BENCHMARK") != "1")
-            return;
-
-        using (var warmup = new Fixture { Delay = TimeSpan.Zero })
-            await warmup.RunAsync(warmup.Request([warmup.View("main", 0, 65536, 100)]));
-
-        foreach (int delay in new[] { 0, 2 })
-        foreach (int reads in new[] { 1, 2, 4, 8 })
-        foreach (int compute in new[] { 1, 2, 4 })
-        {
-            var measurements = new List<double>();
-
-            for (int iteration = 0; iteration < 3; iteration++)
-            {
-                using var fixture = new Fixture(readWorkers: reads, computeWorkers: compute, memoryGrantBytes: 1024 * 1024)
-                {
-                    Delay = TimeSpan.FromMilliseconds(delay)
-                };
-                const int count = 4 * 1024 * 1024;
-                var request = fixture.Request([fixture.View("main", 0, count, 1000)]) with { End = fixture.Begin.AddSeconds(count) };
-                var watch = Stopwatch.StartNew();
-                Assert.Equal(2, (await fixture.RunAsync(request)).Last().Kind);
-                watch.Stop();
-                Assert.Equal(count * 2, fixture.Samples);
-                Assert.Equal(fixture.Instances, fixture.Disposed);
-                measurements.Add(watch.Elapsed.TotalMilliseconds);
-            }
-
-            double median = measurements.Order().ElementAt(1);
-            output.WriteLine($"delay={delay}ms reads={reads} compute={compute}: median={median:F1}ms, {8 * 1024 * 1024 / median / 1000:F2} Msamples/s");
         }
     }
 
@@ -686,6 +493,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         foreach (var row in rows.Where(row => row.Kind == 0))
         {
             Assert.Contains(row.Values, float.IsNaN);
+            Assert.Contains(row.Values, float.IsFinite);
 
             foreach (var (value, index) in row.Values.Zip(row.Indices))
             {
@@ -721,23 +529,57 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             DynamicDependencies = true, SiblingDependencies = true, CyclicDependencies = cycle,
             Delay = TimeSpan.Zero
         };
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dependencyStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int dependencyReads = 0;
+        fixture.BeforeRead = async (requests, token) =>
+        {
+            if (requests.All(request => request.CatalogItem.Resource.Id == "T2"))
+            {
+                Interlocked.Increment(ref dependencyReads);
+                dependencyStarted.TrySetResult();
+                await release.Task.WaitAsync(token);
+            }
+        };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]) with { ResourcePaths = ["/A/B/C/T1/1_s"] };
-        Assert.Equal(cycle ? 3 : 2, (await fixture.RunAsync(request)).Last().Kind);
-        Assert.Equal(fixture.Instances, fixture.Disposed);
-        Assert.Equal(1, fixture.Cache.Reads.CurrentCount);
-        Assert.Equal(0, fixture.Active);
+        var running = fixture.RunAsync(request, expectError: cycle);
+        try
+        {
+            await dependencyStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await fixture.SiblingsInvoked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(running.IsCompleted);
+            Assert.Equal(1, Volatile.Read(ref dependencyReads));
+            release.TrySetResult();
+            await running;
+        }
+        finally
+        {
+            release.TrySetResult();
+            await ObserveAsync(running);
+        }
+        if (cycle)
+            Assert.Contains(fixture.Errors, error => error is ValidationException && error.Message == "Visualization dependency exceeds the recursion or memory budget.");
+        else
+        {
+            Assert.Empty(fixture.Errors);
+            Assert.Equal(65536 * 3, fixture.Samples);
+        }
+        fixture.AssertReleased();
     }
 
     [Fact]
-    public async Task MixedOriginalAndDerivedResourcesNeverReadSameInstanceConcurrently()
+    public async Task MixedOriginalAndResampledResourcesPreserveValuesAndRouting()
     {
         using var fixture = new Fixture();
-        var request = fixture.Request([fixture.View("main", 0, 65536, 100)]) with
+        var request = fixture.Request([fixture.View("main", 137, 211, 100)]) with
         {
             ResourcePaths = ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s_resampled#base=2_s"]
         };
-        Assert.Equal(2, (await fixture.RunAsync(request)).Last().Kind);
-        Assert.Equal(fixture.Instances, fixture.Disposed);
+        var rows = await fixture.RunAsync(request);
+        foreach (var row in rows.Where(row => row.Kind == 0))
+            Assert.Equal(Enumerable.Range(137, 74).Select(index => row.Resource == 0 ? (float)index : index / 2 * 2 + 2000f), row.Values);
+        Assert.Equal(65536 + 32768, fixture.Samples);
+        fixture.AssertReleased();
     }
 
     [Fact]
@@ -772,7 +614,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     }
 
     [Fact]
-    public async Task SerializesDerivedReadsAndBypassesUnsafeDerivedCache()
+    public async Task DerivedReadsBypassLowerCacheAndReuseOuterCache()
     {
         using var fixture = new Fixture();
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]) with
@@ -786,17 +628,23 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         int samples = fixture.Samples;
         await fixture.RunAsync(request);
         Assert.Equal(samples, fixture.Samples);
+        fixture.DerivedCache.VerifyNoOtherCalls();
+        fixture.AssertReleased();
     }
 
-    [Fact]
-    public async Task FailedDerivedReadsAreNotCachedAsGaps()
+    [Theory]
+    [InlineData("/A/B/C/T1/2_s_mean#base=1_s")]
+    [InlineData("/A/B/C/T2/1_s_resampled#base=2_s")]
+    public async Task FailedDerivedReadsAreNotCachedAsGaps(string path)
     {
         using var fixture = new Fixture { Fail = true };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]) with
         {
-            ResourcePaths = ["/A/B/C/T1/2_s_mean#base=1_s"]
+            ResourcePaths = [path]
         };
-        Assert.Equal(3, (await fixture.RunAsync(request)).Last().Kind);
+        Assert.Equal(3, (await fixture.RunAsync(request, expectError: true)).Last().Kind);
+        Assert.Contains(fixture.Errors, error => error.Message == "source failed");
+        fixture.AssertReleased();
         fixture.Fail = false;
         var rows = await fixture.RunAsync(request);
         Assert.Equal(2, rows.Last().Kind);
@@ -804,29 +652,68 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     }
 
     [Fact]
-    public async Task DeduplicatesSimultaneousBuildsAndHonorsGlobalReadLimit()
+    public async Task DeduplicatesSimultaneousBuilds()
     {
         using var fixture = new Fixture();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.BeforeRead = (_, token) => release.Task.WaitAsync(token);
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
-        var results = await Task.WhenAll(fixture.RunAsync(request), fixture.RunAsync(request));
+        var first = fixture.RunAsync(request);
+        Task<List<Row>>? second = null;
+        try
+        {
+            await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            second = fixture.RunAsync(request);
+            Assert.Equal(2, fixture.Cache.Requests.CurrentCount);
+            release.TrySetResult();
+            await Task.WhenAll(first, second);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await ObserveAsync(first);
+            if (second is not null)
+                await ObserveAsync(second);
+        }
         Assert.Equal(65536 * 2, fixture.Samples);
-        Assert.InRange(fixture.Peak, 1, 3);
-        Assert.All(results, rows => Assert.Equal(2, rows.Last().Kind));
+        fixture.AssertReleased();
     }
 
     [Fact]
     public async Task ReadsOnceForAllViewsWithIndependentWorkersAndWarmZoom()
     {
         using var fixture = new Fixture();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.BeforeRead = async (_, token) =>
+        {
+            if (fixture.Active == 3)
+                entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+        };
         var request = fixture.Request([
             fixture.View("main", 0, 65536, 1000),
             fixture.View("detail", 137, 211, 1000),
             fixture.View("nav", 0, 65536, 100)]);
-        var rows = await fixture.RunAsync(request);
+        var running = fixture.RunAsync(request);
+        List<Row> rows;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(3, fixture.Active);
+            release.TrySetResult();
+            rows = await running;
+        }
+        finally
+        {
+            release.TrySetResult();
+            await ObserveAsync(running);
+        }
+        fixture.BeforeRead = null;
 
         Assert.Equal(65536 * 2, fixture.Samples);
-        Assert.InRange(fixture.Peak, 2, 3);
-        Assert.InRange(fixture.Instances, 2, 3);
+        Assert.Equal(3, fixture.Peak);
+        Assert.Equal(3, fixture.Instances);
         Assert.Equal(fixture.Instances, fixture.Disposed);
         Assert.Equal(6, rows.Count(row => row.Kind == 0));
         Assert.Equal(2, rows.Last().Kind);
@@ -836,13 +723,16 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             Assert.True(row.Indices.SequenceEqual(row.Indices.Order()));
             Assert.InRange(row.Values.Length, 1, request.Views[row.View].MaxPoints);
             Assert.Equal("complete", row.Message);
-            Assert.Equal(0, row.Minimum);
-            Assert.Equal(999, row.Maximum);
+            Assert.Equal(row.Resource * 2000, row.Minimum);
+            Assert.Equal(999 + row.Resource * 2000, row.Maximum);
         }
 
         var detail = rows.Single(row => row.Kind == 0 && row.Resource == 0 && row.View == 1);
         Assert.Equal(Enumerable.Range(137, 74).Select(i => (long)i), detail.Indices);
         Assert.Equal(Enumerable.Range(137, 74).Select(i => (float)i), detail.Values);
+        var otherDetail = rows.Single(row => row.Kind == 0 && row.Resource == 1 && row.View == 1);
+        Assert.Equal(detail.Indices, otherDetail.Indices);
+        Assert.Equal(Enumerable.Range(137, 74).Select(i => (float)i + 2000), otherDetail.Values);
         Assert.Contains(rows.Where(row => row.Kind == 0 && row.View == 0).SelectMany(row => row.Values), float.IsNaN);
 
         int samples = fixture.Samples;
@@ -851,7 +741,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         Assert.Equal(2, warm.Last().Kind);
 
         await fixture.RunAsync(fixture.Request([fixture.View("fine", 8193, 16397, 1000)]));
-        Assert.InRange(fixture.Samples - samples, 1, 17000);
+        Assert.Equal(33 * 256 * 2, fixture.Samples - samples);
     }
 
     [Fact]
@@ -867,8 +757,6 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         fixture.Configuration = new Dictionary<string, JsonElement> { ["tenant"] = JsonSerializer.SerializeToElement("other") };
         await fixture.RunAsync(request);
         Assert.Equal(samples * 2, fixture.Samples);
-
-        Assert.False(Directory.Exists(fixture.Directory));
     }
 
     [Fact]
@@ -876,55 +764,94 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     {
         using var fixture = new Fixture { Fail = true };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
-        var failed = await fixture.RunAsync(request);
+        var failed = await fixture.RunAsync(request, expectError: true);
         Assert.Equal(3, failed.Last().Kind);
         Assert.DoesNotContain(failed, row => row.Kind is 0 or 2);
         fixture.Fail = false;
         var success = await fixture.RunAsync(request);
         Assert.Equal(2, success.Last().Kind);
+        Assert.All(success.Where(row => row.Kind == 0), row => Assert.Contains(row.Values, float.IsFinite));
         Assert.Equal(fixture.Instances, fixture.Disposed);
     }
 
     [Fact]
     public async Task CancellationDrainsWorkersAndReleasesGlobalBudgets()
     {
-        using var fixture = new Fixture { Delay = TimeSpan.FromSeconds(30) };
+        using var fixture = new Fixture(readWorkers: 1);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.BeforeRead = async (_, token) =>
+        {
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
+            catch (OperationCanceledException)
+            {
+                cancelled.TrySetResult();
+                await release.Task;
+                throw;
+            }
+        };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         using var cancellation = new CancellationTokenSource();
         var write = await fixture.Service.PrepareAsync(request, cancellation.Token);
         using var output = new MemoryStream();
         var running = write(output, cancellation.Token);
-        await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await cancellation.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.Equal(0, fixture.Active);
-        Assert.Equal(fixture.Instances, fixture.Disposed);
-        Assert.Equal(3, fixture.Cache.Reads.CurrentCount);
-        Assert.Equal(4, fixture.Cache.Requests.CurrentCount);
-
-        fixture.Delay = TimeSpan.Zero;
+        try
+        {
+            await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await cancellation.CancelAsync();
+            await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(running.IsCompleted);
+            Assert.Equal(1, fixture.Active);
+            Assert.Equal(0, fixture.Disposed);
+            Assert.NotEmpty(fixture.Allocations);
+            Assert.Equal(0, fixture.Cache.Reads.CurrentCount);
+            Assert.Equal(3, fixture.Cache.Requests.CurrentCount);
+            release.TrySetResult();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running.WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+        finally
+        {
+            release.TrySetResult();
+            await cancellation.CancelAsync();
+            await ObserveAsync(running);
+        }
+        fixture.AssertReleased();
+        fixture.BeforeRead = null;
         Assert.Equal(2, (await fixture.RunAsync(request)).Last().Kind);
+        fixture.AssertReleased();
     }
 
     [Fact]
     public async Task FlushesProgressBeforeSlowReadFinishes()
     {
-        using var fixture = new Fixture { Delay = TimeSpan.FromSeconds(30) };
+        using var fixture = new Fixture();
+        fixture.BeforeRead = (_, token) => Task.Delay(Timeout.InfiniteTimeSpan, token);
         using var cancellation = new CancellationTokenSource();
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         var write = await fixture.Service.PrepareAsync(request, cancellation.Token);
         var pipe = new System.IO.Pipelines.Pipe();
         var running = write(pipe.Writer.AsStream(), cancellation.Token);
         using var reader = new ArrowStreamReader(pipe.Reader.AsStream());
-        using var first = await reader.ReadNextRecordBatchAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-        using var next = await reader.ReadNextRecordBatchAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(1, ((Int32Array)first.Column(0)).GetValue(0));
-        Assert.Equal(1, ((Int32Array)next.Column(0)).GetValue(0));
-        Assert.False(running.IsCompleted);
-        await cancellation.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
-        await pipe.Writer.CompleteAsync();
-        await pipe.Reader.CompleteAsync();
+        try
+        {
+            using var first = await reader.ReadNextRecordBatchAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            using var next = await reader.ReadNextRecordBatchAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(1, ((Int32Array)first.Column(0)).GetValue(0));
+            Assert.Equal(0, ((DoubleArray)first.Column(6)).GetValue(0));
+            Assert.Equal(1, ((Int32Array)next.Column(0)).GetValue(0));
+            Assert.Equal(0, ((DoubleArray)next.Column(6)).GetValue(0));
+            Assert.False(running.IsCompleted);
+            await cancellation.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+        }
+        finally
+        {
+            await cancellation.CancelAsync();
+            await ObserveAsync(running);
+            await pipe.Writer.CompleteAsync();
+            await pipe.Reader.CompleteAsync();
+        }
+        fixture.AssertReleased();
     }
 
     [Fact]
@@ -932,7 +859,8 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     {
         using var fixture = new Fixture();
         var context = new DefaultHttpContext();
-        context.Response.Body = new MemoryStream();
+        using var output = new MemoryStream();
+        context.Response.Body = output;
         var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), NullLoggerFactory.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = context }
@@ -940,18 +868,35 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
         Assert.IsType<EmptyResult>(await controller.GetVisualizationAsync(request, fixture.Service, CancellationToken.None));
         Assert.Equal("application/vnd.apache.arrow.stream", context.Response.ContentType);
+        Assert.Equal("no-store", context.Response.Headers.CacheControl);
+        Fixture.AssertSuccess(request, await Fixture.ReadRowsAsync(output));
         context.Response.Body.Position = 0;
-        using var reader = new ArrowStreamReader(context.Response.Body);
+        using var reader = new ArrowStreamReader(context.Response.Body, leaveOpen: true);
         using var batch = await reader.ReadNextRecordBatchAsync();
         Assert.Equal("1", reader.Schema.Metadata["visualizationVersion"]);
         Assert.Equal(new[] { "kind", "resourceIndex", "viewIndex", "offset", "indices", "values", "progress", "minimum", "maximum", "message" }, reader.Schema.FieldsList.Select(field => field.Name));
         Assert.All(reader.Schema.FieldsList, field => Assert.False(field.IsNullable));
+        for (int column = 0; column < batch.ColumnCount; column++)
+            Assert.Equal(0, batch.Column(column).NullCount);
+        Assert.Equal(new[] { ArrowTypeId.Int32, ArrowTypeId.Int32, ArrowTypeId.Int32, ArrowTypeId.Int64,
+            ArrowTypeId.List, ArrowTypeId.List, ArrowTypeId.Double, ArrowTypeId.Float, ArrowTypeId.Float, ArrowTypeId.String },
+            reader.Schema.FieldsList.Select(field => field.DataType.TypeId));
+        foreach (int index in new[] { 4, 5 })
+        {
+            var list = Assert.IsType<ListType>(reader.Schema.FieldsList[index].DataType);
+            Assert.False(list.ValueField.IsNullable);
+            Assert.Equal(index == 4 ? ArrowTypeId.Int64 : ArrowTypeId.Float, list.ValueField.DataType.TypeId);
+        }
         Assert.IsType<Int64Array>(((ListArray)batch.Column(4)).Values);
         Assert.IsType<FloatArray>(((ListArray)batch.Column(5)).Values);
-        Assert.Empty(((ListArray)batch.Column(4)).Values.Data.Buffers[1].Span.ToArray());
+        Assert.Equal(0, ((ListArray)batch.Column(4)).Values.Length);
 
         var invalid = request with { Views = [fixture.View("bad", 0, 65536, 32769)] };
-        var invalidResult = Assert.IsType<ContentResult>(await controller.GetVisualizationAsync(invalid, fixture.Service, CancellationToken.None));
+        var invalidController = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), NullLoggerFactory.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
+        var invalidResult = Assert.IsType<ContentResult>(await invalidController.GetVisualizationAsync(invalid, fixture.Service, CancellationToken.None));
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, invalidResult.StatusCode);
         Assert.Equal("text/plain", invalidResult.ContentType);
         Assert.Throws<ValidationException>(() => VisualizationService.ValidateRequest(request with { Views = [request.Views[0], request.Views[0]] }, fixture.Cache.Options));
@@ -963,10 +908,19 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
     {
         using var fixture = new Fixture();
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
-        await fixture.RunAsync(request);
-        var denied = fixture.CreateService(new ClaimsPrincipal(new ClaimsIdentity([], "test")));
-        var exception = await Assert.ThrowsAsync<Exception>(() => denied.PrepareAsync(request, CancellationToken.None));
+        var service = fixture.CreateService(Fixture.User("licensed", administrator: false));
+        fixture.LicenseAccepted = true;
+        await fixture.RunAsync(request, service: service);
+        int samples = fixture.Samples;
+        long bytes = fixture.Cache.ResidentBytes;
+        fixture.LicenseAccepted = false;
+        var exception = await Assert.ThrowsAsync<Exception>(() => service.PrepareAsync(request, CancellationToken.None));
         Assert.StartsWith("The current user is not permitted", exception.Message);
+        Assert.Equal(samples, fixture.Samples);
+        Assert.Equal(bytes, fixture.Cache.ResidentBytes);
+        fixture.LicenseAccepted = true;
+        await fixture.RunAsync(request, service: service);
+        Assert.Equal(samples, fixture.Samples);
     }
 
     [Fact]
@@ -983,11 +937,216 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         Assert.Equal(expectedCalls, fixture.Calls);
     }
 
-    private sealed record Row(int Kind, int Resource, int View, long[] Indices, float[] Values, float Minimum, float Maximum, string Message);
+    [Fact]
+    public async Task DifferentKeyScansShareTheGlobalReadBudget()
+    {
+        using var fixture = new Fixture();
+        // Do not let random hash-stripe collisions serialize the two distinct datasets.
+        foreach (var gate in fixture.Cache.Builds)
+            gate.Release();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var saturated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allWorkersWaiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int attempts = 0;
+        using var logs = new VisualizationTimingLogger();
+        logs.EntryWritten = entry =>
+        {
+            if (entry.Phase == "read-permit-wait" && entry.Milestone == "start" && Interlocked.Increment(ref attempts) == 6)
+                allWorkersWaiting.TrySetResult();
+        };
+        fixture.BeforeRead = async (_, token) =>
+        {
+            if (fixture.Active == 3)
+                saturated.TrySetResult();
+            await release.Task.WaitAsync(token);
+        };
+        var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
+        var first = fixture.RunAsync(request, new VisualizationTiming(logs.CreateLogger(VisualizationTiming.Category), Guid.NewGuid()));
+        var second = fixture.RunAsync(request with { End = fixture.Begin.AddSeconds(65792) },
+            new VisualizationTiming(logs.CreateLogger(VisualizationTiming.Category), Guid.NewGuid()));
+        try
+        {
+            await allWorkersWaiting.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await saturated.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(3, fixture.Active);
+            Assert.Equal(0, fixture.Cache.Reads.CurrentCount);
+            Assert.False(first.IsCompleted);
+            Assert.False(second.IsCompleted);
+            release.TrySetResult();
+            await Task.WhenAll(first, second);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await ObserveAsync(Task.WhenAll(first, second));
+        }
+        Assert.Equal(3, fixture.Peak);
+        Assert.Equal((65536 + 65792) * 2, fixture.Samples);
+        fixture.AssertReleased();
+    }
+
+    [Theory]
+    [InlineData(100, 110, 0, 10)]
+    [InlineData(1, 2, 0, 10)]
+    public async Task RestrictedResamplingWithoutCompleteBaseIntervalEmitsGaps(int minimum, int maximum, int begin, int end)
+    {
+        using var fixture = new Fixture(minBegin: minimum, maxEnd: maximum);
+        var request = fixture.Request([fixture.View("raw", begin, end, 100)]) with
+        {
+            Begin = fixture.Begin.AddSeconds(begin), End = fixture.Begin.AddSeconds(end),
+            ResourcePaths = ["/A/B/C/T2/1_s_resampled#base=2_s"]
+        };
+        var rows = await fixture.RunAsync(request);
+        Assert.All(Assert.Single(rows, row => row.Kind == 0).Values, value => Assert.True(float.IsNaN(value)));
+        Assert.Equal(0, fixture.Calls);
+        fixture.AssertReleased();
+    }
+
+    [Fact]
+    public async Task CatalogStateReplacementInvalidatesCompletedDatasets()
+    {
+        using var fixture = new Fixture();
+        var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
+        await fixture.RunAsync(request);
+        await fixture.RunAsync(request);
+        Assert.Equal(65536 * 2, fixture.Samples);
+        fixture.ReloadCatalogs();
+        await fixture.RunAsync(request);
+        Assert.Equal(65536 * 4, fixture.Samples);
+        fixture.AssertReleased();
+    }
+
+    [Fact]
+    public async Task InvalidRequestsAreRejectedBeforeSourceWork()
+    {
+        using var fixture = new Fixture();
+        var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
+        VisualizationRequest[] invalid =
+        [
+            null!, request with { ResourcePaths = [] }, request with { ResourcePaths = ["", "x"] },
+            request with { ResourcePaths = [request.ResourcePaths[0], request.ResourcePaths[0]] },
+            request with { Begin = request.End }, request with { Views = [] },
+            request with { Views = null! }, request with { Views = [null!] },
+            request with { Views = [fixture.View("", 0, 1, 5)] },
+            request with { Views = [fixture.View("small", 0, 1, 4)] },
+            request with { Views = [fixture.View("large", 0, 1, 32769)] },
+            request with { Views = [request.Views[0], request.Views[0]] },
+            request with { Views = [fixture.View("outside", 0, 65537, 100)] },
+            request with { Views = [fixture.View("empty", 1, 1, 100)] },
+            request with { Views = [fixture.View("a", 0, 1, 5), fixture.View("b", 0, 1, 5), fixture.View("c", 0, 1, 5), fixture.View("d", 0, 1, 5)] },
+            request with { ResourcePaths = ["/A/B/C/T1/1_s", "/A/B/C/T2/2_s"] },
+            request with { Begin = request.Begin.AddTicks(1), Views = [fixture.View("inside", 1, 10, 100)] },
+            request with { End = request.End.AddTicks(1) },
+            request with { Views = [request.Views[0] with { Begin = request.Begin.AddTicks(1) }] }
+        ];
+        foreach (var value in invalid)
+            await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.PrepareAsync(value, CancellationToken.None));
+        fixture.Cache.Options.MaxAggregatePoints = 199;
+        await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.PrepareAsync(request, CancellationToken.None));
+        fixture.Cache.Options.MaxAggregatePoints = 200;
+        Assert.NotNull(await fixture.Service.PrepareAsync(request, CancellationToken.None));
+        Assert.Equal(0, fixture.Instances);
+        Assert.Equal(0, fixture.Calls);
+        fixture.AssertReleased();
+    }
+
+    [Fact]
+    public async Task BusyAdmissionRejectsWithoutOutputOrSourceWork()
+    {
+        using var fixture = new Fixture();
+        using var stream = new MemoryStream();
+        for (int i = 0; i < fixture.Cache.Options.MaxConcurrentRequests; i++)
+            await fixture.Cache.Requests.WaitAsync();
+        try
+        {
+            var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
+            var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), NullLoggerFactory.Instance)
+            {
+                ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+            };
+            controller.Response.Body = stream;
+            var result = Assert.IsType<ContentResult>(await controller.GetVisualizationAsync(request, fixture.Service, CancellationToken.None));
+            Assert.Equal(422, result.StatusCode);
+            Assert.Contains("busy", result.Content);
+            Assert.Equal(0, stream.Length);
+            Assert.Equal(0, fixture.Instances);
+            Assert.Equal(0, fixture.Calls);
+            Assert.Equal(0, fixture.Cache.Requests.CurrentCount);
+        }
+        finally { fixture.Cache.Requests.Release(fixture.Cache.Options.MaxConcurrentRequests); }
+        fixture.AssertReleased();
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task RealPipelineTraceIsOptInRedactedAndAggregated(bool enabled, bool fail)
+    {
+        using var fixture = new Fixture { Fail = fail };
+        fixture.Configuration = new Dictionary<string, JsonElement> { ["secret-key"] = JsonSerializer.SerializeToElement("secret-value") };
+        using var logs = new VisualizationTimingLogger();
+        var request = fixture.Request([fixture.View("secret-view", 0, 65536, 100)]);
+        for (int attempt = 0; attempt < (fail ? 1 : 2); attempt++)
+        {
+            using var output = new MemoryStream();
+            var controller = new Nexus.Controllers.V2.DataController(Mock.Of<IDataService>(), logs)
+            {
+                ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+            };
+            controller.Response.Body = output;
+            string id = Guid.NewGuid().ToString("D");
+            if (enabled)
+                controller.Request.Headers[VisualizationTiming.Header] = id;
+            int calls = fixture.Calls;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            Assert.IsType<EmptyResult>(await controller.GetVisualizationAsync(request, fixture.Service, timeout.Token));
+            var rows = await Fixture.ReadRowsAsync(output);
+            if (fail)
+                Assert.Equal(3, rows.Last().Kind);
+            else
+                Fixture.AssertSuccess(request, rows);
+            if (!enabled)
+            {
+                Assert.Empty(logs.Entries);
+                Assert.False(controller.Response.Headers.ContainsKey(VisualizationTiming.Header));
+                continue;
+            }
+            Assert.Equal(id, controller.Response.Headers[VisualizationTiming.Header]);
+            var entries = logs.Entries.Where(entry => Equals(entry.Fields["RequestId"], id)).ToArray();
+            Assert.Equal(fail ? "stream-error" : "success", Assert.Single(entries, entry => entry.Phase == "request" && entry.Milestone == "end").Outcome);
+            Assert.All(entries, entry =>
+            {
+                Assert.Null(entry.Exception);
+                Assert.DoesNotContain("secret", entry.Message);
+                Assert.DoesNotContain("/A/B/C", entry.Message);
+                Assert.DoesNotContain("Administrator", entry.Message);
+                Assert.DoesNotContain("source failed", entry.Message);
+            });
+            var reads = entries.Where(entry => entry.Phase == "controller-read-inclusive" && entry.Milestone == "aggregate").ToArray();
+            Assert.Equal(fixture.Calls - calls, reads.Sum(entry => (long)entry.Fields["Count"]!));
+            Assert.True(reads.Length <= fixture.Cache.Options.MaxConcurrentReads);
+            if (!fail && attempt == 0)
+            {
+                Assert.True(fixture.Calls > 100);
+                Assert.True(entries.Length < fixture.Calls);
+            }
+            if (attempt == 1)
+                Assert.Empty(reads);
+        }
+        fixture.AssertReleased();
+    }
+
+    private static async Task ObserveAsync(Task task)
+    {
+        try { await task.WaitAsync(TimeSpan.FromSeconds(35)); }
+        catch (OperationCanceledException) { }
+    }
+
+    private sealed record Row(int Kind, int Resource, int View, long Offset, long[] Indices, float[] Values, double Progress, float Minimum, float Maximum, string Message);
 
     private sealed class Fixture : IDisposable
     {
-        public string Directory { get; } = Path.Combine(Path.GetTempPath(), "nexus-visualization-test-" + Guid.NewGuid());
         public DateTime Begin { get; } = new(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         public VisualizationCache Cache { get; }
         public VisualizationService Service { get; }
@@ -1001,29 +1160,44 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
         public bool DynamicDependencies;
         public bool SiblingDependencies;
         public bool CyclicDependencies;
-        public bool HoldCancelledReads;
+        public bool LicenseAccepted;
+        public Func<ReadRequest[], CancellationToken, Task>? BeforeRead;
+        public TaskCompletionSource SiblingsInvoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public ConcurrentQueue<Exception> Errors { get; } = new();
+        public Mock<ICacheService> DerivedCache { get; } = new(MockBehavior.Strict);
+        public ConcurrentDictionary<AllocationRegistration, byte> Allocations { get; } = new();
         public Func<long, float>? SampleValue;
-        public TimeSpan Delay = TimeSpan.FromMilliseconds(5);
+        public TimeSpan Delay = TimeSpan.Zero;
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource ReadCancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource ReleaseCancelledReads { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IReadOnlyDictionary<string, JsonElement>? Configuration;
         private readonly Mock<IDataControllerService> _controllers = new();
         private readonly Mock<IMemoryTracker> _memoryTracker = new();
+        private readonly Mock<IAcceptedLicenseService> _licenses = new();
         private readonly AppState _state;
 
         public Fixture(long memoryLimit = 16 * 1024 * 1024, bool restrictRange = false,
-            int readWorkers = 3, int computeWorkers = 2, int memoryGrantBytes = 65536)
+            int readWorkers = 3, int memoryGrantBytes = 65536, int? minBegin = null, int? maxEnd = null)
         {
             var options = new DataOptions
             {
                 Visualization = new VisualizationOptions { MaxConcurrentReads = readWorkers,
-                    MaxComputeWorkers = computeWorkers, MaxTotalCacheBytes = memoryLimit }
+                    MaxComputeWorkers = 2, MaxTotalCacheBytes = memoryLimit }
             };
             Cache = new VisualizationCache(Options.Create(options));
             _memoryTracker.Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minimum, maximum, _) =>
-                    new AllocationRegistration(_memoryTracker.Object, Math.Max(minimum, Math.Min(memoryGrantBytes, maximum))));
+                .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minimum, maximum, token) =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    var allocation = new AllocationRegistration(_memoryTracker.Object, Math.Max(minimum, Math.Min(memoryGrantBytes, maximum)));
+                    Assert.True(Allocations.TryAdd(allocation, 0));
+                    return allocation;
+                });
+            _memoryTracker.Setup(current => current.UnregisterAllocation(It.IsAny<AllocationRegistration>()))
+                .Callback<AllocationRegistration>(allocation => Assert.True(Allocations.TryRemove(allocation, out _)));
+            _licenses.Setup(current => current.HasAccepted(It.IsAny<ClaimsPrincipal>(), It.IsAny<string>(), It.IsAny<string?>()))
+                .Returns(() => LicenseAccepted);
+            minBegin ??= restrictRange ? 1024 : null;
+            maxEnd ??= restrictRange ? 2048 : null;
             var pipeline = new DataSourcePipeline([new DataSourceRegistration("test", null, JsonSerializer.SerializeToElement<object?>(null))]);
             var representation = new Representation(NexusDataType.Float32, TimeSpan.FromSeconds(1));
             var coarseRepresentation = new Representation(NexusDataType.Float32, TimeSpan.FromSeconds(2));
@@ -1048,7 +1222,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
                                 It.IsAny<ReadDataHandler>(), It.IsAny<IProgress<double>>(), It.IsAny<CancellationToken>()))
                             .Returns<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(async (from, to, requests, readData, _, ct) =>
                             {
-                                Assert.Equal(1, Interlocked.Increment(ref reading));
+                                int concurrent = Interlocked.Increment(ref reading);
                                 Interlocked.Increment(ref Calls);
                                 int active = Interlocked.Increment(ref Active);
                                 int previous;
@@ -1058,35 +1232,39 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
 
                                 try
                                 {
-                                    if (restrictRange)
-                                    {
-                                        Assert.True(from >= Begin.AddSeconds(1024));
-                                        Assert.True(to <= Begin.AddSeconds(2048));
-                                    }
+                                    Assert.Equal(1, concurrent);
+                                    if (minBegin is not null)
+                                        Assert.True(from >= Begin.AddSeconds(minBegin.Value));
+                                    if (maxEnd is not null)
+                                        Assert.True(to <= Begin.AddSeconds(maxEnd.Value));
 
                                     Started.TrySetResult();
-                                    try { await Task.Delay(Delay, ct); }
-                                    catch (OperationCanceledException) when (HoldCancelledReads)
-                                    {
-                                        ReadCancelled.TrySetResult();
-                                        await ReleaseCancelledReads.Task;
-                                        throw;
-                                    }
+                                    if (BeforeRead is not null)
+                                        await BeforeRead(requests, ct);
+                                    await Task.Delay(Delay, ct);
 
                                     if (Fail)
                                         throw new InvalidOperationException("source failed");
 
                                     int count = (int)(to - from).TotalSeconds;
-                                    Interlocked.Add(ref Samples, count * requests.Length);
+                                    Interlocked.Add(ref Samples, requests.Sum(request => request.Data.Length / request.CatalogItem.Representation.ElementSize));
 
                                     if (DynamicDependencies && (CyclicDependencies || requests.Any(request => request.CatalogItem.Resource.Id == "T1")))
                                     {
-                                        var first = readData("/A/B/C/T2/1_s", from, to, new double[count], ct);
+                                        var firstValues = new double[count];
+                                        var secondValues = new double[count];
+                                        var first = readData("/A/B/C/T2/1_s", from, to, firstValues, ct);
 
                                         if (SiblingDependencies)
-                                            await Task.WhenAll(first, readData("/A/B/C/T2/1_s", from, to, new double[count], ct));
+                                        {
+                                            var second = readData("/A/B/C/T2/1_s", from, to, secondValues, ct);
+                                            SiblingsInvoked.TrySetResult();
+                                            await Task.WhenAll(first, second);
+                                            Assert.Equal(firstValues, secondValues);
+                                        }
                                         else
                                             await first;
+                                        Assert.Equal(Enumerable.Range(0, count).Select(i => (double)Value("T2", (long)(from - Begin).TotalSeconds + i)), firstValues);
                                     }
 
                                     foreach (var request in requests)
@@ -1095,9 +1273,8 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
 
                                         for (int i = 0; i < values.Length; i++)
                                         {
-                                            long index = (long)(from - Begin).TotalSeconds + i;
-                                            values[i] = SampleValue is not null ? SampleValue(index)
-                                                : index is >= 500 and < 510 ? float.PositiveInfinity : index % 1000;
+                                            long index = (long)(from - Begin).TotalSeconds + i * (long)request.CatalogItem.Representation.SamplePeriod.TotalSeconds;
+                                            values[i] = Value(request.CatalogItem.Resource.Id, index);
                                         }
 
                                         request.Status.Span.Fill(1);
@@ -1110,7 +1287,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
                                 }
                             });
                         var controller = new DataSourceController([source.Object], pipeline.Registrations, configuration,
-                            new ProcessingService(Options.Create(options)), Mock.Of<ICacheService>(), options,
+                            new ProcessingService(Options.Create(options)), DerivedCache.Object, options,
                             NullLogger<DataSourceController>.Instance, strictReads: true);
                         await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(catalogs.Select(current => KeyValuePair.Create(current.Id, current))), NullLoggerFactory.Instance, token);
                         return controller;
@@ -1118,26 +1295,51 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             var manager = new Mock<ICatalogManager>();
             manager.Setup(current => current.GetCatalogContainersAsync(It.IsAny<CatalogContainer>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync([new CatalogContainer(new CatalogRegistration(catalog.Id, "",
-                    MinBegin: restrictRange ? Begin.AddSeconds(1024) : null,
-                    MaxEnd: restrictRange ? Begin.AddSeconds(2048) : null), Guid.Empty, pipeline, [],
+                    MinBegin: minBegin is null ? null : Begin.AddSeconds(minBegin.Value),
+                    MaxEnd: maxEnd is null ? null : Begin.AddSeconds(maxEnd.Value)), Guid.Empty, pipeline, [],
                     new CatalogMetadata(null, null, null), manager.Object, default!, _controllers.Object)]);
             _state = new AppState { CatalogState = new CatalogState(CatalogContainer.CreateRoot(manager.Object, default!), new CatalogCache()) };
-            Service = CreateService(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, nameof(NexusRoles.Administrator))], "test")));
+            Service = CreateService(User("first"));
         }
 
+        public static ClaimsPrincipal User(string subject, bool administrator = true) => new(new ClaimsIdentity(
+            administrator ? [new Claim(NexusClaimTypes.Subject, subject), new Claim(ClaimTypes.Role, nameof(NexusRoles.Administrator))]
+                : [new Claim(NexusClaimTypes.Subject, subject)], "test"));
+
+        public float Value(string resource, long index) => SampleValue is not null ? SampleValue(index)
+            : index is >= 500 and < 510 ? float.PositiveInfinity : index % 1000 + (resource == "T2" ? 2000 : 0);
+
+        public void ReloadCatalogs() => _state.CatalogState = new CatalogState(_state.CatalogState.Root, new CatalogCache());
+
         public VisualizationService CreateService(ClaimsPrincipal user) => new(_state, user, _controllers.Object,
-            Mock.Of<IAcceptedLicenseService>(), Cache, _memoryTracker.Object, NullLogger<VisualizationService>.Instance);
+            _licenses.Object, Cache, _memoryTracker.Object, new ErrorLogger(Errors));
 
         public VisualizationView View(string id, int begin, int end, int points) => new(id, Begin.AddSeconds(begin), Begin.AddSeconds(end), points);
         public VisualizationRequest Request(VisualizationView[] views) => new(Begin, Begin.AddSeconds(65536), ["/A/B/C/T1/1_s", "/A/B/C/T2/1_s"], views);
 
-        public async Task<List<Row>> RunAsync(VisualizationRequest request, VisualizationTiming? timing = null)
+        public async Task<List<Row>> RunAsync(VisualizationRequest request, VisualizationTiming? timing = null,
+            bool expectError = false, VisualizationService? service = null, CancellationToken cancellationToken = default)
         {
-            var write = await Service.PrepareAsync(request, CancellationToken.None, timing);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            var write = await (service ?? Service).PrepareAsync(request, timeout.Token, timing);
             using var stream = new MemoryStream();
-            await write(stream, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(15));
+            await write(stream, timeout.Token);
+            var rows = await ReadRowsAsync(stream);
+            if (expectError)
+            {
+                Assert.Equal(3, rows.Last().Kind);
+                Assert.DoesNotContain(rows, row => row.Kind is 0 or 2);
+            }
+            else
+                AssertSuccess(request, rows);
+            return rows;
+        }
+
+        public static async Task<List<Row>> ReadRowsAsync(Stream stream)
+        {
             stream.Position = 0;
-            using var reader = new ArrowStreamReader(stream);
+            using var reader = new ArrowStreamReader(stream, leaveOpen: true);
             var rows = new List<Row>();
             RecordBatch batch;
 
@@ -1145,10 +1347,13 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             {
                 using (batch)
                 {
+                    Assert.Equal(1, batch.Length);
                     rows.Add(new Row(((Int32Array)batch.Column(0)).GetValue(0)!.Value,
                         ((Int32Array)batch.Column(1)).GetValue(0)!.Value, ((Int32Array)batch.Column(2)).GetValue(0)!.Value,
+                        ((Int64Array)batch.Column(3)).GetValue(0)!.Value,
                         ((Int64Array)((ListArray)batch.Column(4)).Values).Values.ToArray(),
                         ((FloatArray)((ListArray)batch.Column(5)).Values).Values.ToArray(),
+                        ((DoubleArray)batch.Column(6)).GetValue(0)!.Value,
                         ((FloatArray)batch.Column(7)).GetValue(0)!.Value, ((FloatArray)batch.Column(8)).GetValue(0)!.Value,
                         ((StringArray)batch.Column(9)).GetString(0)));
                 }
@@ -1157,12 +1362,76 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             return rows;
         }
 
+        public static void AssertSuccess(VisualizationRequest request, List<Row> rows)
+        {
+            Assert.DoesNotContain(rows, row => row.Kind == 3);
+            Assert.Equal(2, rows.Last().Kind);
+            Assert.Single(rows, row => row.Kind == 2);
+            Assert.Equal(1, rows[0].Kind);
+            Assert.Equal(0, rows[0].Progress);
+            Assert.All(rows, row => Assert.InRange(row.Progress, 0, 1));
+            Assert.All(rows, row => Assert.InRange(row.Kind, 0, 2));
+            var data = rows.Where(row => row.Kind == 0).ToArray();
+            Assert.Equal(request.ResourcePaths.Length * request.Views.Length, data.Length);
+            // Derived and original resource paths both encode the requested period before '#'.
+            Assert.True(DataModelUtilities.TryParseResourcePath(request.ResourcePaths[0], out var parsed));
+            long period = parsed.SamplePeriod.Ticks;
+            Assert.Equal((request.End - request.Begin).Ticks / period, rows.Last().Offset);
+            Assert.Equal(1, rows.Last().Progress);
+            var progress = rows.Where(row => row.Kind == 1 && row.Resource == -1).Select(row => row.Progress).ToArray();
+            Assert.True(progress.Zip(progress.Skip(1)).All(pair => pair.First <= pair.Second));
+            for (int resource = 0; resource < request.ResourcePaths.Length; resource++)
+            {
+                var completed = Assert.Single(rows, row => row.Kind == 1 && row.Resource == resource);
+                Assert.Equal(-1, completed.View);
+                Assert.Equal(1, completed.Progress);
+                Assert.Equal("complete", completed.Message);
+            }
+            for (int resource = 0; resource < request.ResourcePaths.Length; resource++)
+            for (int view = 0; view < request.Views.Length; view++)
+            {
+                var row = Assert.Single(data, row => row.Resource == resource && row.View == view);
+                long begin = (request.Views[view].Begin - request.Begin).Ticks / period;
+                long end = (request.Views[view].End - request.Begin).Ticks / period;
+                Assert.Equal(begin, row.Offset);
+                Assert.Equal(1, row.Progress);
+                Assert.Equal("complete", row.Message);
+                Assert.Equal(row.Indices.Length, row.Values.Length);
+                Assert.InRange(row.Values.Length, 1, request.Views[view].MaxPoints);
+                Assert.All(row.Indices, index => Assert.InRange(index, begin, end - 1));
+                Assert.True(row.Indices.Zip(row.Indices.Skip(1)).All(pair => pair.First < pair.Second));
+            }
+        }
+
+        public void AssertReleased()
+        {
+            Assert.Equal(0, Active);
+            Assert.Equal(Instances, Disposed);
+            Assert.Empty(Allocations);
+            Assert.Equal(Cache.Options.MaxConcurrentReads, Cache.Reads.CurrentCount);
+            Assert.Equal(Cache.Options.MaxComputeWorkers, Cache.Compute.CurrentCount);
+            Assert.Equal(Cache.Options.MaxConcurrentRequests, Cache.Requests.CurrentCount);
+        }
+
         public void Dispose()
         {
-            Cache.Dispose();
+            try
+            {
+                AssertReleased();
+                DerivedCache.VerifyNoOtherCalls();
+            }
+            finally { Cache.Dispose(); }
+        }
+    }
 
-            if (System.IO.Directory.Exists(Directory))
-                System.IO.Directory.Delete(Directory, recursive: true);
+    private sealed class ErrorLogger(ConcurrentQueue<Exception> errors) : ILogger<VisualizationService>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (exception is not null)
+                errors.Enqueue(exception);
         }
     }
 }

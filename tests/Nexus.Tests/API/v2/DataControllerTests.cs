@@ -118,8 +118,8 @@ public class DataControllerTests
             Assert.Empty(logs.Entries);
         else
         {
-            Assert.Equal(new[] { "prepare", "prepare", "request" }, logs.Entries.Select(entry => entry.Phase));
-            Assert.Equal("success", logs.Entries.Last().Outcome);
+            var completion = Assert.Single(logs.Entries, entry => entry.Phase == "request" && entry.Milestone == "end");
+            Assert.Equal("success", completion.Outcome);
             Assert.All(logs.Entries, entry =>
             {
                 Assert.Equal(VisualizationTiming.Category, entry.Category);
@@ -127,18 +127,28 @@ public class DataControllerTests
                 Assert.Contains(expected, entry.Message);
             });
         }
+    }
 
-        // Multiple header values are invalid even if each value is a valid GUID.
+    [Fact]
+    public async Task VisualizationTraceRejectsMultipleValidHeaderValues()
+    {
+        using var logs = new VisualizationTimingLogger();
+        var controller = new DataController(Mock.Of<IDataService>(), logs)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
         controller.Request.Headers[VisualizationTiming.Header] = new Microsoft.Extensions.Primitives.StringValues([
             "adac95f1-2346-48dd-866f-293563c57b68", "adac95f1-2346-48dd-866f-293563c57b68"]);
-        controller.Response.Headers.Clear();
+        var request = new VisualizationRequest(default, default, [], []);
+        var visualization = new Mock<IVisualizationService>();
         visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), It.IsAny<VisualizationTiming?>()))
             .Callback<VisualizationRequest, CancellationToken, VisualizationTiming?>((_, _, timing) => Assert.Null(timing))
             .ReturnsAsync((Stream _, CancellationToken _) => Task.CompletedTask);
-        int count = logs.Entries.Count;
-        await controller.GetVisualizationAsync(request, visualization.Object, CancellationToken.None);
+
+        Assert.IsType<EmptyResult>(await controller.GetVisualizationAsync(request, visualization.Object, CancellationToken.None));
+        visualization.Verify(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), null), Times.Once);
         Assert.False(controller.Response.Headers.ContainsKey(VisualizationTiming.Header));
-        Assert.Equal(count, logs.Entries.Count);
+        Assert.Empty(logs.Entries);
     }
 
     [Theory]
@@ -169,8 +179,8 @@ public class DataControllerTests
         Assert.Equal(id, controller.Response.Headers[VisualizationTiming.Header]);
         var prepare = Assert.Single(logs.Entries, entry => entry.Phase == "prepare" && entry.Milestone == "end");
         Assert.Equal("error", prepare.Outcome);
-        Assert.Equal(outcome, logs.Entries.Last().Outcome);
-        Assert.Equal("request", logs.Entries.Last().Phase);
+        var completion = Assert.Single(logs.Entries, entry => entry.Phase == "request" && entry.Milestone == "end");
+        Assert.Equal(outcome, completion.Outcome);
         Assert.All(logs.Entries, entry =>
         {
             Assert.Null(entry.Exception);
@@ -224,8 +234,8 @@ public class DataControllerTests
         lifetime.Verify(feature => feature.Abort(), Times.Once);
         if (responseStarted)
             response.VerifySet(feature => feature.StatusCode = It.IsAny<int>(), Times.Never);
-        Assert.Equal("cancelled", logs.Entries.Last().Outcome);
-        Assert.Equal("request", logs.Entries.Last().Phase);
+        var completion = Assert.Single(logs.Entries, entry => entry.Phase == "request" && entry.Milestone == "end");
+        Assert.Equal("cancelled", completion.Outcome);
     }
 
     [Theory]

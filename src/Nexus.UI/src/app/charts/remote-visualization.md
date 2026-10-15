@@ -49,6 +49,10 @@ browser trace, including canceled requests that may still be draining workers.
   views, explicit cancel, and disposal abort it and advance a generation guarding
   progress, previews, errors, and cache publication. Immediate requests bypass the
   coalescing delay but still reuse useful running work.
+- Explicit Reload bypasses same-viewport reuse, aborts active foreground and
+  speculative work, and invalidates every cached resolution covering a requested
+  view. Late results from aborted work cannot restore invalidated coverage.
+  Unrelated cached history remains available.
 - Retained results may provide temporary coverage with clipped boundary buckets;
   completion rechecks the latest views and schedules any remaining refinement.
   Boundary-correct cache-hit rules are unchanged. Failed unchanged requests do not
@@ -67,8 +71,17 @@ browser trace, including canceled requests that may still be draining workers.
   on foreground failure, explicit cancel/disposal, loss of coverage, or when the
   latest views are satisfied by the completed cache. Trace candidates identify it
   with `retained: true`.
-- The cache retains one full-domain fallback and recent views, bounded by eight
-  entries and 32 MiB of point payload. Repositioned arrays retain at most one view
+- Foreground progress is monotonic within a load. Finite global ranges publish
+  independently of point-cache completion and survive failure/cancel; speculative
+  and aborted frames do not change them. Completed full-domain points supply a
+  missing range, but never replace an authoritative server range. Nonfinite range
+  frames do not erase a previously published range.
+- The cache retains one full-domain fallback and recent views, targeting at most
+  1024 entries and the cache budget captured when constructing the dataset
+  (the UI's configured cache size, currently 2048 MiB by default). Payload accounting
+  includes Int64 indices and Float32 values, 12 bytes per point. Full-domain and
+  current protected coverage are exempt from eviction, so these are soft limits.
+  Repositioned arrays retain at most one view
   per target/resource. There is no raw network prefetch or automatic two-million
   sample download. Exact cursor neighborhoods debounce for 120 ms, use the same
   authenticated `NexusService.v2.data.getStream` route, and fetch at most 32 samples
@@ -102,9 +115,10 @@ still read small unresolved boundary fragments. The dataset-wide summary pyramid
 already exists after the foreground load, subject to normal server cache eviction.
 
 Prefetch never changes foreground progress or publishes incomplete previews/errors.
-Successfully completed results notify chart subscribers and share the eight-entry/32 MiB cache. Speculative
+Successfully completed results notify chart subscribers and share the configured cache. Speculative
 entries are evicted before visited history; current coverage and the full-domain
-fallback remain protected. Before each speculative request, capacity is checked
+fallback remain protected. Within either class, narrower views are evicted before
+broader coverage. Before each speculative request, capacity is checked
 using its worst-case point payload, excluding replaceable unvisited speculative
 entries. A full history cache therefore suppresses prefetch before network dispatch
 (`prefetch-stop-capacity`), rather than downloading a result only to evict it.
@@ -197,19 +211,26 @@ reads are prevented from republishing GPU query buffers after target release.
 
 ## Verification
 
-`npm test` includes fragmented Arrow, schema/count/coordinate/error/completion,
-cancellation, large-coordinate, preview rollback, latest-wins, and cache tests.
+`npm test` includes fragmented multi-batch Arrow, version/schema/count/coordinate/
+error/completion checks, resource-major multi-view decoder/provider integration,
+cancellation, large-coordinate, preview rollback, latest-wins, force reload,
+progress/ranges, and byte/entry cache limits. Provider scheduling tests advance
+mocked timers and drain promise continuations rather than sleeping in real time.
 `node --test tests/js/*.test.js` includes CPU-oracle query/merge tests across huge
 absolute origins, boundary gaps, ties and levels, production pyramid upload/query
 and memory-lifetime tests, plus direct remote point uploads and interactions.
 
-Optional `tests/js/chart.webgpu.numeric.test.js` uses the Dawn `webgpu` Node module
-specified by `NEXUS_WEBGPU_MODULE` (absolute module URL). It compares all three GPU
+`tests/js/chart.webgpu.numeric.test.js` uses the Dawn `webgpu` Node module
+specified by `NEXUS_WEBGPU_MODULE` (absolute module URL). CI installs the locked
+runtime in `tests/js/webgpu` and runs this suite with Mesa lavapipe in a Node 24
+Debian Trixie container before permitting the build/publish job. Local runs without
+the module variable explicitly skip numerical verification. It compares all three GPU
 reducers and the actual production pyramid upload/parent/query path to canonical
 fixtures. `NEXUS_WEBGPU_COMPILE_ONLY=1` selects Dawn's null backend and checks all
 eight WGSL modules plus creation of the three summary compute pipelines, not
-numerical parity. Numerical execution was also verified using Dawn with Mesa
-lavapipe loaded from an isolated ignored `node_modules/.nexus-gpu-check` directory.
+numerical parity. CI unsets that flag so compilation alone cannot satisfy the gate.
+Numerical execution has also been verified locally using Dawn 0.6.2 with Mesa 25
+lavapipe.
 This includes split uploads, five absolute origins (one beyond Number's safe
 integer range), multiple strides and clipped boundaries, plus an artificial 4 KiB
 binding/allocation cap forcing multi-page parents, queries and transient uploads.
