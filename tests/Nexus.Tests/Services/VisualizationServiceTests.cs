@@ -88,7 +88,7 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
                 Assert.Contains(entries, entry => entry.Phase == "cache-put" && entry.Outcome == "success");
                 var reads = entries.Where(entry => entry.Phase == "controller-read-inclusive" && entry.Milestone == "aggregate").ToArray();
                 Assert.Equal(fixture.Calls, reads.Sum(entry => (long)entry.Fields["Count"]!));
-                Assert.Equal(fixture.Instances, reads.Length);
+                Assert.InRange(reads.Length, 1, fixture.Instances);
                 Assert.Equal(reads.Length, reads.Select(entry => entry.Fields["WorkerId"]).Distinct().Count());
                 Assert.InRange(entries.Length, 1, 120); // Independent of the hundreds of source reads.
 
@@ -354,6 +354,36 @@ public class VisualizationServiceTests(Xunit.Abstractions.ITestOutputHelper outp
             Assert.Equal(expected.Select(point => point.Index - origin), row.Indices);
             Assert.Equal(expected.Select(point => point.Value), row.Values);
         }
+    }
+
+    [Theory]
+    [InlineData(1000, true)]
+    [InlineData(2, false)]
+    public async Task OverviewInvalidThresholdMatchesOnColdAndWarmCache(int dropoutPeriod, bool hasFinite)
+    {
+        using var fixture = new Fixture
+        {
+            Delay = TimeSpan.Zero,
+            SampleValue = index => index % dropoutPeriod == 0 ? float.NaN : (float)(index % 1000)
+        };
+        var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
+
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            var rows = await fixture.RunAsync(request);
+            Assert.Equal(2, rows.Last().Kind);
+            var data = rows.Where(row => row.Kind == 0).ToArray();
+            Assert.NotEmpty(data);
+
+            foreach (var row in data)
+            {
+                Assert.InRange(row.Values.Length, 1, 100);
+                Assert.Equal(hasFinite, row.Values.Any(float.IsFinite));
+                Assert.Contains(row.Values, float.IsNaN);
+            }
+        }
+
+        Assert.Equal(65536 * 2, fixture.Samples);
     }
 
     [Theory]

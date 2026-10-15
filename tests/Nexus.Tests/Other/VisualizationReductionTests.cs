@@ -71,14 +71,14 @@ public class VisualizationReductionTests
     }
 
     [Fact]
-    public void AllInvalidAndMultipleGapsNeverEmitFinitePoints()
+    public void AtLeastHalfInvalidNeverEmitsFinitePoints()
     {
         float nan = BitConverter.Int32BitsToSingle(unchecked((int)0xffc01234));
         float[][] cases =
         [
             [nan],
             [float.PositiveInfinity, nan, float.NegativeInfinity],
-            [1, nan, 2, float.PositiveInfinity, 3],
+            [1, nan, 2, float.PositiveInfinity],
             [nan, 1, nan],
             Enumerable.Repeat(nan, 257).ToArray()
         ];
@@ -96,12 +96,55 @@ public class VisualizationReductionTests
     }
 
     [Fact]
-    public void SingleGapAtEitherBoundaryDoesNotInventContinuity()
+    public void SparseGapsAtEitherBoundaryPreserveFinitePoints()
     {
-        Assert.Equal(new VisualizationPoint[] { new(0, float.NaN), new(2, 2), new(3, 3) },
-            VisualizationReduction.Project(VisualizationReduction.Summarize([float.NegativeInfinity, float.NaN, 2, 3], 0)));
-        Assert.Equal(new VisualizationPoint[] { new(0, 3), new(1, 2), new(2, float.NaN), new(3, float.NaN) },
-            VisualizationReduction.Project(VisualizationReduction.Summarize([3, 2, float.NaN, float.PositiveInfinity], 0)));
+        Assert.Equal(new VisualizationPoint[] { new(0, float.NaN), new(2, 2), new(4, 4) },
+            VisualizationReduction.Project(VisualizationReduction.Summarize([float.NegativeInfinity, float.NaN, 2, 3, 4], 0)));
+        Assert.Equal(new VisualizationPoint[] { new(0, 4), new(2, 2), new(3, float.NaN), new(4, float.NaN) },
+            VisualizationReduction.Project(VisualizationReduction.Summarize([4, 3, 2, float.NaN, float.PositiveInfinity], 0)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InvalidThresholdCountsSamplesNotRuns(bool useSimd)
+    {
+        foreach (int length in new[] { 5, 6, 255, 256, 257, 4096 })
+        {
+            foreach (int invalidCount in new[] { (length - 1) / 2, (length + 1) / 2, length })
+            {
+                var values = Enumerable.Range(0, length).Select(i => (float)i).ToArray();
+
+                // Scatter invalid samples rather than creating one contiguous gap.
+                for (int i = 0; i < invalidCount; i++)
+                    values[(i * 2) % length + (i * 2 >= length && length % 2 == 0 ? 1 : 0)] = float.NaN;
+
+                var summary = VisualizationReduction.Summarize(values, 42, useSimd);
+                Assert.Equal(invalidCount, summary.InvalidCount);
+                var points = VisualizationReduction.Project(summary);
+
+                if (invalidCount >= length - invalidCount)
+                    Assert.True(float.IsNaN(Assert.Single(points).Value));
+                else
+                {
+                    Assert.Contains(points, point => float.IsFinite(point.Value));
+                    Assert.Contains(points, point => float.IsNaN(point.Value));
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void ThresholdDoesNotOverflowAtInt64Limit()
+    {
+        var summary = VisualizationReduction.Summarize([1, float.NaN, 2], 0) with
+        {
+            Count = long.MaxValue,
+            InvalidCount = long.MaxValue / 2
+        };
+        Assert.Contains(VisualizationReduction.Project(summary), point => float.IsFinite(point.Value));
+        Assert.True(float.IsNaN(Assert.Single(VisualizationReduction.Project(
+            summary with { InvalidCount = long.MaxValue / 2 + 1 })).Value));
     }
 
     [Fact]
@@ -293,11 +336,10 @@ public class VisualizationReductionTests
         var minimum = finite.OrderBy(point => point.Value).FirstOrDefault(new VisualizationPoint(-1, float.NaN));
         var maximum = finite.OrderByDescending(point => point.Value).FirstOrDefault(new VisualizationPoint(-1, float.NaN));
         var gaps = samples.Where(point => !float.IsFinite(point.Value)).ToArray();
-        int runs = gaps.Where((point, index) => index == 0 || point.Index != gaps[index - 1].Index + 1).Count();
 
         return new(start, values.Length, values[0], values[^1],
             minimum.Value, minimum.Index, maximum.Value, maximum.Index,
-            gaps.Length == 0 ? -1 : gaps[0].Index, Math.Min(2, runs), finite.Length != 0);
+            gaps.Length == 0 ? -1 : gaps[0].Index, gaps.LongLength, finite.Length != 0);
     }
 
     private static void AssertSummary(VisualizationSummary expected, VisualizationSummary actual)

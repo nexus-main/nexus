@@ -123,8 +123,12 @@ navigation but does not guarantee request-free or latency-free continuous zoom.
 The production local GPU pyramid uses the same summary and projection rules as
 the server: first/last samples,
 earliest-index finite minimum/maximum, and first nonfinite gap, sorted and
-deduplicated by index. Infinity is normalized to NaN. All-invalid or two-or-more
-gap-run buckets emit NaN only. Fixed GPU output uses five slots and repeats the
+deduplicated by index. Infinity is normalized to NaN. Buckets with at least 50%
+nonfinite samples emit NaN only at the first invalid index. Below 50%, endpoints,
+finite extrema, and the first gap marker are retained, even for multiple gaps.
+Exact invalid counts are summed during merges; the final query bucket uses
+`invalidCount >= count - invalidCount`, including partial buckets. This fixed
+rule is independent of `Data:AggregationNaNThreshold`. Fixed GPU output uses five slots and repeats the
 last point to pad; the server emits a variable number of unique points. Padding
 adds only zero-length segments. Extrema ties, including signed zero, choose the
 earliest source index.

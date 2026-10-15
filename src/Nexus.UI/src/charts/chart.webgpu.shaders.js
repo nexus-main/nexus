@@ -201,12 +201,15 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4f {
   function projectionShader(pointSource) {
     return `
 fn projectBucket(start: u32, end: u32, minIndex: u32, maxIndex: u32,
-    gapIndex: u32, hasFinite: u32, gapRuns: u32, outIndex: u32, origin: u32, scale: f32) {
+    gapIndex: u32, invalidCount: u32, outIndex: u32, origin: u32, scale: f32) {
     // Keep NaN construction at runtime; WGSL constant evaluation rejects NaNs.
     let nan = bitcast<f32>(0x7fc00000u | (start & 1u));
     var indices = array<u32, 5>(start, end - 1u, minIndex, maxIndex, gapIndex);
-    var count = select(4u, 5u, gapRuns != 0u);
-    if (hasFinite == 0u || gapRuns >= 2u) {
+    // Compare against finite count to avoid doubling and overflowing u32.
+    let bucketCount = end - start;
+    let mostlyInvalid = invalidCount >= bucketCount - invalidCount;
+    var count = select(4u, 5u, invalidCount != 0u);
+    if (mostlyInvalid) {
         indices[0] = gapIndex;
         count = 1u;
     }
@@ -228,7 +231,7 @@ fn projectBucket(start: u32, end: u32, minIndex: u32, maxIndex: u32,
         if (index == previous) { continue; }
         previous = index;
         ${pointSource ? "point = source[index];" : "point = vec2f(f32(index - origin) * scale, source[index]);"}
-        if (isNonFinite(point.y) || hasFinite == 0u || gapRuns >= 2u) { point.y = nan; }
+        if (isNonFinite(point.y) || mostlyInvalid) { point.y = nan; }
         output[outIndex + written] = point;
         written++;
     }
@@ -259,7 +262,7 @@ var<workgroup> maximumIndices: array<u32, ${overviewBucketSize}>;
 var<workgroup> valid: array<u32, ${overviewBucketSize}>;
 var<workgroup> nanSeen: array<u32, ${overviewBucketSize}>;
 var<workgroup> nanIndices: array<u32, ${overviewBucketSize}>;
-var<workgroup> nanRunCounts: array<u32, ${overviewBucketSize}>;
+var<workgroup> invalidCounts: array<u32, ${overviewBucketSize}>;
 
 fn isNonFinite(x: f32) -> bool {
     let bits = bitcast<u32>(x);
@@ -275,15 +278,11 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     var value = 0.0;
     var hasValue = 0u;
     var hasNan = 0u;
-    var nanRunCount = 0u;
 
     if (localIndex < params.sourceLength) {
         value = source[localIndex];
         hasNan = select(0u, 1u, isNonFinite(value));
         hasValue = select(1u, 0u, isNonFinite(value));
-        if (hasNan != 0u && (lane == 0u || !isNonFinite(source[localIndex - 1u]))) {
-            nanRunCount = 1u;
-        }
     }
 
     minimums[lane] = value;
@@ -293,7 +292,7 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     valid[lane] = hasValue;
     nanSeen[lane] = hasNan;
     nanIndices[lane] = localIndex;
-    nanRunCounts[lane] = nanRunCount;
+    invalidCounts[lane] = hasNan;
     workgroupBarrier();
 
     var stride = ${overviewBucketSize / 2}u;
@@ -317,7 +316,7 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
                 nanIndices[lane] = nanIndices[other];
             }
             nanSeen[lane] |= nanSeen[other];
-            nanRunCounts[lane] = min(2u, nanRunCounts[lane] + nanRunCounts[other]);
+            invalidCounts[lane] += invalidCounts[other];
         }
         workgroupBarrier();
         stride /= 2u;
@@ -327,7 +326,7 @@ fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
         let outputIndex = (params.outputBucket + groupId.x) * ${reducedPointsPerBucket}u;
         let start = groupId.x * ${overviewBucketSize}u;
         projectBucket(start, min(start + ${overviewBucketSize}u, params.sourceLength),
-            minimumIndices[0], maximumIndices[0], nanIndices[0], valid[0], nanRunCounts[0],
+            minimumIndices[0], maximumIndices[0], nanIndices[0], invalidCounts[0],
             outputIndex, 0u, 1.0 / ${overviewBucketSize}.0);
         for (var i = 0u; i < ${reducedPointsPerBucket}u; i++) {
             output[outputIndex + i].x += f32(params.globalOffset) / ${overviewBucketSize}.0;
@@ -353,7 +352,7 @@ var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> minimumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
-var<workgroup> nanRunCounts: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> invalidCounts: array<u32, ${decimationWorkgroupSize}>;
 fn isNonFinite(x: f32) -> bool { let b = bitcast<u32>(x); return (b & 0x7f800000u) == 0x7f800000u; }
 ${projectionShader(true)}
 @compute @workgroup_size(${decimationWorkgroupSize})
@@ -372,14 +371,14 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     var minimumIndex = 0u;
     var maximumIndex = 0u;
     var nanIndex = 0u;
-    var nanRunCount = 0u;
+    var invalidCount = 0u;
     var index = start + lane;
     while (index < end) {
         let point = source[index];
         if (isNonFinite(point.y)) {
             if (hasNan == 0u || index < nanIndex) { nanIndex = index; }
             hasNan = 1u;
-            if (index == start || !isNonFinite(source[index - 1u].y)) { nanRunCount = min(2u, nanRunCount + 1u); }
+            invalidCount++;
         }
         else {
             if (hasValue == 0u || point.y < minimum.y) { minimum = point; minimumIndex = index; }
@@ -390,7 +389,7 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
     }
     minimums[lane] = minimum; maximums[lane] = maximum; valid[lane] = hasValue; nanSeen[lane] = hasNan;
     minimumIndices[lane] = minimumIndex; maximumIndices[lane] = maximumIndex; nanIndices[lane] = nanIndex;
-    nanRunCounts[lane] = nanRunCount;
+    invalidCounts[lane] = invalidCount;
     workgroupBarrier();
     var stride = ${decimationWorkgroupSize / 2}u;
     while (stride > 0u) {
@@ -403,13 +402,13 @@ fn decimatePoints(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocati
             }
             if (nanSeen[other] != 0u && (nanSeen[lane] == 0u || nanIndices[other] < nanIndices[lane])) { nanIndices[lane] = nanIndices[other]; }
             nanSeen[lane] |= nanSeen[other];
-            nanRunCounts[lane] = min(2u, nanRunCounts[lane] + nanRunCounts[other]);
+            invalidCounts[lane] += invalidCounts[other];
         }
         workgroupBarrier(); stride /= 2u;
     }
     if (lane == 0u) {
         projectBucket(start, end, minimumIndices[0], maximumIndices[0], nanIndices[0],
-            valid[0], nanRunCounts[0], bucket * ${reducedPointsPerBucket}u, 0u, 1.0);
+            invalidCounts[0], bucket * ${reducedPointsPerBucket}u, 0u, 1.0);
     }
 }
 `;
@@ -433,7 +432,7 @@ var<workgroup> maximumIndices: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> valid: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanSeen: array<u32, ${decimationWorkgroupSize}>;
 var<workgroup> nanIndices: array<u32, ${decimationWorkgroupSize}>;
-var<workgroup> nanRunCounts: array<u32, ${decimationWorkgroupSize}>;
+var<workgroup> invalidCounts: array<u32, ${decimationWorkgroupSize}>;
 
 fn isNonFinite(x: f32) -> bool {
     let bits = bitcast<u32>(x);
@@ -468,7 +467,7 @@ fn decimate(
     var hasValue = 0u;
     var hasNan = 0u;
     var nanIndex = 0u;
-    var nanRunCount = 0u;
+    var invalidCount = 0u;
     var index = start + lane;
 
     while (index < end) {
@@ -480,9 +479,7 @@ fn decimate(
             }
 
             hasNan = 1u;
-            if (index == start || !isNonFinite(source[index - 1u])) {
-                nanRunCount = min(2u, nanRunCount + 1u);
-            }
+            invalidCount++;
         } else {
             if (hasValue == 0u || value < minimum || (value == minimum && index < minimumIndex)) {
                 minimum = value;
@@ -507,7 +504,7 @@ fn decimate(
     valid[lane] = hasValue;
     nanSeen[lane] = hasNan;
     nanIndices[lane] = nanIndex;
-    nanRunCounts[lane] = nanRunCount;
+    invalidCounts[lane] = invalidCount;
     workgroupBarrier();
 
     var stride = ${decimationWorkgroupSize / 2}u;
@@ -537,7 +534,7 @@ fn decimate(
             }
 
             nanSeen[lane] |= nanSeen[lane + stride];
-            nanRunCounts[lane] = min(2u, nanRunCounts[lane] + nanRunCounts[lane + stride]);
+            invalidCounts[lane] += invalidCounts[lane + stride];
         }
 
         workgroupBarrier();
@@ -546,7 +543,7 @@ fn decimate(
 
     if (lane == 0u) {
         projectBucket(start, end, minimumIndices[0], maximumIndices[0], nanIndices[0],
-            valid[0], nanRunCounts[0], bucket * ${reducedPointsPerBucket}u, params.first, 1.0);
+            invalidCounts[0], bucket * ${reducedPointsPerBucket}u, params.first, 1.0);
     }
 }
 `;

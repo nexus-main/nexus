@@ -9,12 +9,13 @@ for backend kernel implementation and measurements.
 
 - Each aligned 256-sample base bucket retains its first/last samples, finite
   minimum/maximum with the earliest index on ties (including signed zero), first
-  nonfinite gap, and gap-run count saturated at two. NaN and infinities are gaps.
+  nonfinite gap, and exact invalid sample count. NaN and infinities are invalid.
 - Parents merge four adjacent summaries in source order, preserving extrema,
-  endpoints, and gaps. Coarser levels are never built from projected drawing points.
+  endpoints, and invalid counts. Coarser levels are never built from projected drawing points.
 - Projection emits up to five index-sorted, deduplicated points: endpoints, finite
-  extrema, and the first gap. Nonfinite values become NaN; all-invalid or multigap
-  buckets emit only a NaN, avoiding invented continuity across gaps.
+  extrema, and the first gap. Nonfinite values become NaN. Buckets with at least
+  50% invalid samples emit only a NaN at the first invalid sample's index. Below
+  50%, endpoints/extrema and the first gap marker are retained, even with multiple gaps.
 - Queries return raw samples when they fit the point budget. Otherwise they choose
   the smallest power-of-two stride that fits the worst-case five points per bucket,
   reserving boundary capacity independently of alignment (except when only one
@@ -183,9 +184,39 @@ line at NaN, not skip it and connect the remaining finite points:
 
 Here `*` identifies the retained finite samples; isolated samples may not be
 visible in a line-only renderer. This coarse summary preserves the break's
-existence, not its exact duration or the valid segments on either side. Buckets
-with multiple gap runs conservatively project to a single NaN rather than imply
-continuity that one gap marker cannot describe.
+existence, not its exact duration or the valid segments on either side. With
+multiple gaps, only the first gap is explicitly marked; this approximation may
+connect across later gaps. Sparse dropouts no longer discard all finite points.
+
+### The 50% invalid-sample rule
+
+For each final query bucket, count all invalid samples, regardless of whether
+they form one gap or many. NaN, positive infinity, and negative infinity count
+equally. The threshold is fixed, independent of `Data:AggregationNaNThreshold`.
+
+| Invalid samples | Bucket samples | Projection                                  |
+| --------------- | -------------- | ------------------------------------------- |
+| 127             | 256            | Endpoints, finite extrema, first gap marker |
+| 128             | 256            | One NaN at the first invalid index          |
+| 129             | 256            | One NaN at the first invalid index          |
+| 2               | 5              | Endpoints, finite extrema, first gap marker |
+| 3               | 5              | One NaN at the first invalid index          |
+
+The exact integer test is `invalidCount >= count - invalidCount`, avoiding
+overflow from doubling the count. Partial edge buckets use their actual sample
+count, not the nominal stride. Empty summaries emit nothing. Raw views still
+return individual samples (nonfinite values normalized to NaN).
+
+Summaries retain finite extrema even when a child bucket is mostly invalid.
+Parents add sample counts and invalid counts; the threshold is applied only when
+projecting the final bucket, never while constructing the pyramid. This makes
+the result independent of merge order and avoids averaging child percentages.
+CPU scalar/SIMD reduction and client GPU reduction use the same rule.
+
+For example, two isolated NaNs among 4096 samples no longer suppress that
+bucket's finite points. A gap marker is still emitted below 50%, so a line-only
+chart can still show fragmented or isolated points. This rule preserves finite
+summary data; it does not guarantee a continuous overview line.
 
 ### Why the point budget starts at five
 
@@ -224,8 +255,9 @@ Ranges are half-open, contained in the domain, and aligned to the common
 representation sample period. There must be 1-100 unique resource paths and 1-3
 unique nonblank view IDs. Each point budget is 5-32768, including endpoints; a
 separate aggregate budget applies across resources and views. Float32 normalization
-precedes reduction. Nonfinite samples are gaps; multigap buckets are conservatively
-suppressed by the shared visualization kernel rather than connected across gaps.
+precedes reduction. Nonfinite samples count as invalid; buckets with at least
+50% invalid samples are suppressed by the shared visualization kernel. Other
+buckets retain endpoints, finite extrema, and the first gap marker.
 
 ## Arrow contract
 
@@ -269,8 +301,8 @@ variables such as `NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREADS`.
 | MaxComputeWorkers     | 2                  |
 | MaxConcurrentRequests | 4                  |
 | MaxAggregatePoints    | 262144             |
-| MaxDatasetCacheBytes  | 1073741824 (1 GiB)  |
-| MaxTotalCacheBytes    | 1073741824 (1 GiB)  |
+| MaxDatasetCacheBytes  | 1073741824 (1 GiB) |
+| MaxTotalCacheBytes    | 1073741824 (1 GiB) |
 | CacheTtl              | 00:10:00           |
 
 Read/compute permits are process-global, not per-request. Each worker creates and
