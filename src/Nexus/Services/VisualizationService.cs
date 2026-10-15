@@ -257,7 +257,7 @@ internal sealed class VisualizationService(
                                     token.ThrowIfCancellationRequested();
                                     long stop = Math.Min(view.End, (start / view.Stride + 1) * view.Stride);
                                     var summary = Query(dataset, raw, resource, start, stop);
-                                    points.AddRange(VisualizationReduction.Project(summary).Select(point => point with { Index = point.Index - begin }));
+                                    AddProjectedPoints(points, summary, begin);
                                     start = stop;
                                 }
                             }
@@ -675,6 +675,15 @@ internal sealed class VisualizationService(
     {
         try { return checked(samples * bytesPerSample); }
         catch (OverflowException ex) { throw new ValidationException("The representations exceed the visualization read budget.", ex); }
+    }
+
+    private static void AddProjectedPoints(List<VisualizationPoint> points, VisualizationSummary summary, long domainBegin)
+    {
+        Span<VisualizationPoint> projected = stackalloc VisualizationPoint[5];
+        int count = VisualizationReduction.Project(summary, projected);
+
+        for (int i = 0; i < count; i++)
+            points.Add(projected[i] with { Index = projected[i].Index - domainBegin });
     }
 
     internal static void ValidateRequest(VisualizationRequest request, VisualizationOptions options)

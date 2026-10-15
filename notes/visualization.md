@@ -30,6 +30,175 @@ reduced bucket to five slots by repeating its last point; the server emits only
 unique points. Server-reduced points go directly to the GPU line/fill renderer,
 bypassing GPU decimation.
 
+## Why a summary retains up to five points
+
+A line chart connects emitted points in time order. A summary retains first,
+last, finite minimum, finite maximum, and a gap marker because each protects
+against a different visual distortion. These examples use small buckets for
+clarity; the same reasoning applies to larger buckets.
+
+In each plot, sample times are four character columns apart. `*` marks a sample;
+connecting strokes approximate straight lines between samples. The tables give
+the exact values and timestamps.
+
+### Min/max preserve spikes and dips
+
+One bucket contains:
+
+```text
+Time:   0   1   2   3   4   5   6
+Value:  2   2   4   2   0   2   2
+```
+
+Raw data:
+
+```text
+ 4 |        *
+ 3 |      /   \
+ 2 |*---*       *       *---*
+ 1 |              \   /
+ 0 |                *
+   +-------------------------
+    0   1   2   3   4   5   6
+```
+
+Keeping only first and last hides both extremes:
+
+```text
+ 4 |
+ 3 |
+ 2 |*-----------------------*
+ 1 |
+ 0 |
+   +-------------------------
+    0   1   2   3   4   5   6
+```
+
+Keeping min/max as well preserves the spike and dip at their original timestamps:
+
+```text
+ 4 |        *
+ 3 |    /     \
+ 2 |*           \           *
+ 1 |              \     /
+ 0 |                *
+   +-------------------------
+    0   1   2   3   4   5   6
+```
+
+The emitted samples are `(0, 2), (2, 4), (4, 0), (6, 2)`. The extremes survive,
+but the original intermediate plateaus are not reconstructed: this is still a
+reduced approximation, not lossless compression.
+
+### First/last preserve transitions between buckets
+
+Bucket A contains `t=0..2`; bucket B contains `t=3..5`:
+
+```text
+Time:   0   1   2   3   4   5
+Value:  0   4   1   1   4   0
+Bucket: A   A   A   B   B   B
+```
+
+Raw data has two peaks separated by a valley:
+
+```text
+ 4 |    *           *
+ 3 |   / \         / \
+ 2 |  /   \       /   \
+ 1 | /      *---*      \
+ 0 |*                   *
+   +---------------------
+    0   1   2   3   4   5
+```
+
+Keeping only min/max retains `t=0,1` from A and `t=4,5` from B. Neither boundary
+sample (`t=2,3`) is an extremum of its bucket, so both disappear:
+
+```text
+ 4 |    *-----------*
+ 3 |   /             \
+ 2 |  /               \
+ 1 | /                 \
+ 0 |*                   *
+   +---------------------
+    0   1   2   3   4   5
+```
+
+Two short peaks now look like one prolonged high signal. At `t=2` and `t=3`, the
+line shows `4` even though both actual values are `1`.
+
+Retaining last A (`t=2`) and first B (`t=3`) restores the valley:
+
+```text
+ 4 |    *           *
+ 3 |   / \         / \
+ 2 |  /   \       /   \
+ 1 | /      *---*      \
+ 0 |*                   *
+   +---------------------
+    0   1   2   3   4   5
+```
+
+First A already equals min A, and last B already equals min B, so those samples
+are not emitted twice. First/last anchor the connection between adjacent buckets
+to their actual boundary samples instead of connecting distant extrema directly.
+They prevent this distortion, not every possible loss of interior detail.
+
+### Gap markers prevent false continuity
+
+One bucket contains a missing sample at `t=3`:
+
+```text
+Time:   0   1   2    3    4   5   6
+Value:  2   2   2   NaN   2   2   2
+```
+
+Raw data has a break:
+
+```text
+ 2 |*---*---*       *---*---*
+   +-------------------------
+    0   1   2   3   4   5   6
+```
+
+Keeping finite endpoints/extrema but omitting the gap falsely joins the sides:
+
+```text
+ 2 |*-----------------------*
+   +-------------------------
+    0   1   2   3   4   5   6
+```
+
+The summary instead emits `(0, 2), (3, NaN), (6, 2)`. The renderer must break the
+line at NaN, not skip it and connect the remaining finite points:
+
+```text
+ 2 |*                       *
+   +-------------------------
+    0   1   2   3   4   5   6
+                ^
+              NaN: break, not a plotted value
+```
+
+Here `*` identifies the retained finite samples; isolated samples may not be
+visible in a line-only renderer. This coarse summary preserves the break's
+existence, not its exact duration or the valid segments on either side. Buckets
+with multiple gap runs conservatively project to a single NaN rather than imply
+continuity that one gap marker cannot describe.
+
+### Why the point budget starts at five
+
+First/last anchor boundaries, min/max preserve finite extremes, and the gap
+marker breaks continuity. They can occupy five distinct timestamps in one bucket.
+Projection sorts them by timestamp and deduplicates coincident indices, not equal
+values at different times.
+
+Five is therefore the worst-case output size of one complete summary under this
+algorithm, not a universal minimum for plotting. `MaxPoints >= 5` lets the planner
+fit at least one such summary without discarding one of these features. Lower
+budgets would need an explicit policy for which information to sacrifice.
+
 ## Backend endpoint
 
 `POST /api/v2/data/visualization` is separate from the exact `POST /api/v2/data`
