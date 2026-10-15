@@ -6,8 +6,6 @@ import { decodeCursor } from "../charts/exact-cursor";
 import { requestError } from "../request-error";
 import {
   decodeVisualization,
-  visualizationTraceHeader,
-  type VisualizationLoadTrace,
   type VisualizationRequest,
   type VisualizationFrame,
 } from "../charts/remote-visualization";
@@ -214,7 +212,6 @@ export class NexusService {
     sampleCount: bigint,
     signal: AbortSignal,
     onFrame: (frame: VisualizationFrame) => void,
-    trace?: VisualizationLoadTrace,
   ): Promise<void> {
     const response = await this.invoke<Response>(
       "POST",
@@ -223,10 +220,9 @@ export class NexusService {
       "application/json",
       JSON.stringify(request),
       signal,
-      trace,
     );
 
-    await decodeVisualization(response, request, sampleCount, signal, onFrame, trace);
+    await decodeVisualization(response, request, sampleCount, signal, onFrame);
     this.apiAvailable.set(true);
   }
 
@@ -262,7 +258,6 @@ export class NexusService {
     contentType?: string,
     body?: BodyInit | null,
     signal?: AbortSignal,
-    visualizationTrace?: VisualizationLoadTrace,
   ): Promise<T> {
     const headers = new Headers();
 
@@ -278,18 +273,7 @@ export class NexusService {
       headers.set(devAuthRoleHeader, this.devAuthMode());
     }
 
-    if (visualizationTrace) {
-      headers.set(visualizationTraceHeader, visualizationTrace.requestId);
-      visualizationTrace.event("transport-start");
-    }
-
     const response = await fetch(`${this.endpoint}${url}`, { method, headers, body, signal });
-
-    visualizationTrace?.event("transport-headers", {
-      status: response.status,
-      serverRequestId: response.headers.get(visualizationTraceHeader),
-      contentType: response.headers.get("Content-Type"),
-    });
 
     if (!response.ok) {
       throw await requestError(response);

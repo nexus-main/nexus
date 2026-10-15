@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
 import { access, appendFile, cp, mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -141,17 +140,9 @@ async function main() {
           ...(signal ? [signal] : []),
         ]),
       });
-    async function visualization(
-      label: string,
-      body: VisualizationRequest,
-      cacheOutcome: "miss" | "hit",
-    ) {
+    async function visualization(label: string, body: VisualizationRequest) {
       const started = performance.now();
-      const trace = randomUUID();
-      const response = await post("/api/v2/data/visualization", body, {
-        "X-Nexus-Visualization-Trace": trace,
-      });
-      assert.equal(response.headers.get("X-Nexus-Visualization-Trace"), trace);
+      const response = await post("/api/v2/data/visualization", body);
       assert.equal(
         response.status,
         200,
@@ -206,43 +197,12 @@ async function main() {
           assert.equal(Math.max(...frame.values), range.maximum);
         }
       }
-      // Console delivery can lag HTTP completion; wait for this request's final timing.
-      let entries: string[] = [];
-      for (let i = 0; i < 100; i++) {
-        entries = log
-          .replaceAll('"', "")
-          .split("\n")
-          .filter((line) => line.includes(`request=${trace} `));
-        if (entries.some((line) => line.includes("phase=request milestone=end"))) {
-          break;
-        }
-        await delay(50, undefined, { signal: run.signal });
-      }
-      assert.ok(
-        entries.some(
-          (line) =>
-            line.includes("phase=request milestone=end") && line.includes("outcome=success"),
-        ),
-      );
-      assert.ok(
-        entries.some(
-          (line) =>
-            line.includes("phase=cache-get milestone=end") &&
-            line.includes(`outcome=${cacheOutcome}`),
-        ),
-      );
-      if (cacheOutcome === "miss") {
-        const reads = entries
-          .filter((line) => line.includes("phase=controller-read-inclusive milestone=aggregate"))
-          .reduce((sum, line) => sum + Number(line.match(/count=(\d+)/)?.[1] ?? 0), 0);
-        assert.ok(reads > 1, "Cold scan must use multiple source-read slices");
-      }
       console.log(
         `${label}: HTTP 200, ${Math.round(performance.now() - started)} ms, ${progress.length} progress frames, completed points [${data.map((frame) => frame.values.length)}]`,
       );
       return data;
     }
-    const coldData = await visualization("cold full domain (604800 samples x 2)", request, "miss");
+    const coldData = await visualization("cold full domain (604800 samples x 2)", request);
     const at = (index: number) => new Date(Date.parse(begin) + index * 1000).toISOString();
     const zoom = {
       ...request,
@@ -252,7 +212,7 @@ async function main() {
         { id: "cursor-neighborhood", begin: at(123456), end: at(123488), maxPoints: 128 },
       ],
     };
-    const zoomData = await visualization("warm overview + zoom + 32-point detail", zoom, "hit");
+    const zoomData = await visualization("warm overview + zoom + 32-point detail", zoom);
     assert.deepEqual(
       zoomData.filter((frame) => frame.viewIndex === 0),
       coldData,

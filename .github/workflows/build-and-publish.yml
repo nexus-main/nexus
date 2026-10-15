@@ -36,7 +36,6 @@ jobs:
         shell: sh
         run: |
           set -eu
-          unset NEXUS_WEBGPU_COMPILE_ONLY
           set -- /usr/share/vulkan/icd.d/lvp_icd*.json
           test "$#" -eq 1
           test -f "$1"
