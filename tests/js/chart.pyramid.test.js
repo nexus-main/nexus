@@ -8,7 +8,7 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../src/Nexus.UI/src/
 const { pyramidLayout, planQuery } = context.window.__nexusChartWebGpu;
 
 function summarize(values, start = 0) {
-    let minimum = 0, maximum = 0, minIndex = 0, maxIndex = 0, gapIndex = 0, gaps = 0, finite = false;
+    let minimum = 0, maximum = 0, minIndex = 0, maxIndex = 0, gapIndex = 0, invalidCount = 0, finite = false;
     for (let i = 0; i < values.length; i++) {
         const value = values[i];
         if (Number.isFinite(value)) {
@@ -16,11 +16,11 @@ function summarize(values, start = 0) {
             if (!finite || value > maximum) { maximum = value; maxIndex = start + i; }
             finite = true;
         } else {
-            if (!gaps) gapIndex = start + i;
-            if (!i || Number.isFinite(values[i - 1])) gaps = Math.min(2, gaps + 1);
+            if (!invalidCount) gapIndex = start + i;
+            invalidCount++;
         }
     }
-    return { start, count: values.length, first: values[0], last: values.at(-1), minimum, maximum, minIndex, maxIndex, gapIndex, gaps, finite };
+    return { start, count: values.length, first: values[0], last: values.at(-1), minimum, maximum, minIndex, maxIndex, gapIndex, invalidCount, finite };
 }
 
 function merge(a, b) {
@@ -29,15 +29,41 @@ function merge(a, b) {
     const min = a.finite && (!b.finite || a.minimum <= b.minimum) ? a : b;
     const max = a.finite && (!b.finite || a.maximum >= b.maximum) ? a : b;
     return { start: a.start, count: a.count + b.count, first: a.first, last: b.last, minimum: min.minimum, maximum: max.maximum,
-        minIndex: min.minIndex, maxIndex: max.maxIndex, gapIndex: a.gaps ? a.gapIndex : b.gapIndex,
-        gaps: Math.min(2, a.gaps + b.gaps - (!Number.isFinite(a.last) && !Number.isFinite(b.first) ? 1 : 0)), finite: a.finite || b.finite };
+        minIndex: min.minIndex, maxIndex: max.maxIndex, gapIndex: a.invalidCount ? a.gapIndex : b.gapIndex,
+        invalidCount: a.invalidCount + b.invalidCount, finite: a.finite || b.finite };
 }
 
 function project(s) {
-    if (!s.finite || s.gaps >= 2) return [[s.gapIndex, NaN]];
-    const candidates = [[s.start, s.first], [s.start + s.count - 1, s.last], [s.minIndex, s.minimum], [s.maxIndex, s.maximum], ...(s.gaps ? [[s.gapIndex, NaN]] : [])];
+    if (s.invalidCount >= s.count - s.invalidCount) return [[s.gapIndex, NaN]];
+    const candidates = [[s.start, s.first], [s.start + s.count - 1, s.last], [s.minIndex, s.minimum], [s.maxIndex, s.maximum], ...(s.invalidCount ? [[s.gapIndex, NaN]] : [])];
     return [...new Map(candidates.sort((a, b) => a[0] - b[0]).map(([i, v]) => [i, Number.isFinite(v) ? v : NaN])).entries()];
 }
+
+// Direct selection oracle: no summary/merge logic or production threshold expression.
+function referenceProjection(values, start = 0) {
+    const samples = Array.from(values, (value, index) => ({ value, index }));
+    const finite = samples.filter(sample => Number.isFinite(sample.value));
+    const invalid = samples.filter(sample => !Number.isFinite(sample.value));
+    if (invalid.length >= Math.ceil(values.length / 2)) return [[start + invalid[0].index, NaN]];
+    const minimum = finite.toSorted((a, b) => a.value - b.value || a.index - b.index)[0];
+    const maximum = finite.toSorted((a, b) => b.value - a.value || a.index - b.index)[0];
+    const indices = new Set([0, values.length - 1, minimum.index, maximum.index]);
+    if (invalid.length) indices.add(invalid[0].index);
+    return [...indices].sort((a, b) => a - b).map(index => [start + index, Number.isFinite(values[index]) ? values[index] : NaN]);
+}
+
+const thresholdFixtures = [
+    ['below even', 256, 127], ['exact even', 256, 128], ['above even', 256, 129],
+    ['below odd', 129, 64], ['above odd', 129, 65],
+].map(([name, count, invalidCount]) => ({
+    name,
+    values: Array.from({ length: count }, (_, i) => i > 0 && i <= invalidCount ? [NaN, Infinity, -Infinity][i % 3] : (i % 17) - 8),
+}));
+thresholdFixtures.push(
+    { name: 'regular sparse gaps', values: Array.from({ length: 256 }, (_, i) => i % 11 === 3 ? [NaN, Infinity, -Infinity][Math.floor(i / 11) % 3] : (i % 17) - 8) },
+    { name: 'invalid endpoints below threshold', values: [Infinity, 3, -8, 10, NaN, 5, -Infinity] },
+    { name: 'all nonfinite', values: [NaN, Infinity, -Infinity] },
+);
 
 test('canonical query plans match direct CPU projection across absolute origins, boundaries and levels', () => {
     for (const origin of [0n, 1n, 255n, 1023n, 9007199254740993123n]) {
@@ -67,7 +93,7 @@ test('canonical query plans match direct CPU projection across absolute origins,
             for (let start = origin + BigInt(begin); start < origin + BigInt(end);) {
                 const stop = (start / plan.stride + 1n) * plan.stride;
                 const b = Math.min(end, Number(stop - origin));
-                expected.push(...project(summarize(values.subarray(Number(start - origin), b), Number(start - origin))));
+                expected.push(...referenceProjection(values.subarray(Number(start - origin), b), Number(start - origin)));
                 start = origin + BigInt(b);
             }
             assert.deepEqual(actual, expected);
@@ -77,16 +103,42 @@ test('canonical query plans match direct CPU projection across absolute origins,
     }
 });
 
-test('merge preserves boundary gap runs, earliest signed-zero ties and hidden extrema', () => {
-    const fixtures = [[0, -0, 4, 4], [1, NaN, NaN, 2], [NaN, 5, NaN, -8, NaN], [1, 2, 3, 4]];
+test('merge preserves invalid counts, earliest signed-zero ties and hidden extrema', () => {
+    const fixtures = [[0, -0, 4, 4], [1, NaN, NaN, 2], [NaN, 5, NaN, -8, NaN], [1, 2, 3, 4], ...thresholdFixtures.map(fixture => fixture.values)];
     for (const values of fixtures) {
         for (let split = 1; split < values.length; split++) {
             const combined = merge(summarize(values.slice(0, split)), summarize(values.slice(split), split));
-            assert.deepEqual(project(combined), project(summarize(values)));
+            assert.deepEqual(project(combined), referenceProjection(values));
+            assert.equal(combined.invalidCount, values.filter(value => !Number.isFinite(value)).length);
             assert.equal(combined.minimum, summarize(values).minimum);
             assert.equal(combined.maximum, summarize(values).maximum);
         }
     }
+});
+
+test('projection uses sample density, not gap runs, at even and odd thresholds', () => {
+    for (const { name, values } of thresholdFixtures) {
+        const actual = project(summarize(values, 23));
+        assert.deepEqual(actual, referenceProjection(values, 23), name);
+        const collapsed = name.startsWith('exact') || name.startsWith('above') || name === 'all nonfinite';
+        assert.equal(actual.length === 1 && Number.isNaN(actual[0][1]), collapsed, name);
+    }
+    assert.deepEqual(project(summarize([4, NaN, -8, Infinity, 10, 2])), [[0, 4], [1, NaN], [2, -8], [4, 10], [5, 2]]);
+    assert.deepEqual(project(summarize([4, NaN, Infinity, -Infinity, 10, 2])), [[1, NaN]]);
+});
+
+test('summary density remains overflow-safe near the u32 count limit', () => {
+    for (const count of [0xfffffffe, 0xffffffff]) {
+        for (const invalidCount of [Math.ceil(count / 2) - 1, Math.ceil(count / 2), count]) {
+            const summary = { ...summarize([3, NaN, -8, 10, 2]), count, invalidCount };
+            assert.equal(project(summary).length === 1, invalidCount >= Math.ceil(count / 2));
+        }
+    }
+    const { summaryWgsl, querySummaryShader } = context.window.__nexusChartWebGpu;
+    assert.match(summaryWgsl, /s\.invalidCount \+= b\.invalidCount/);
+    assert.match(querySummaryShader, /s\.invalidCount >= s\.count - s\.invalidCount/);
+    assert.equal(pyramidLayout(0n, 256).bytes, 48);
+    assert.equal(planQuery(0n, 256, 0, 256, 5, pyramidLayout(0n, 256).levels).slots, 5);
 });
 
 test('query LOD is independent of panning alignment and uses intermediate binary strides', () => {
@@ -136,4 +188,4 @@ test('dense periodic signals retain at least two extrema buckets per physical pi
     }
 });
 
-module.exports = { summarize, merge, project };
+module.exports = { summarize, merge, project, referenceProjection, thresholdFixtures };

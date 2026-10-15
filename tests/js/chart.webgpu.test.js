@@ -488,9 +488,10 @@ test('gap-preserving reduction reserves five points per bucket including endpoin
     assert.equal(environment.hooks.getReducedOutputLength(8), 40);
 });
 
-test('every reduction shader blanks buckets containing multiple NaN runs', () => {
+test('every reduction shader blanks buckets with at least half nonfinite samples without overflow', () => {
     const shaderSource = scripts.find(script => script.name === 'chart.webgpu.shaders.js').source;
-    assert.match(shaderSource, /gapRuns >= 2u/);
+    assert.match(shaderSource, /invalidCount >= bucketCount - invalidCount/);
+    assert.doesNotMatch(shaderSource, /gapRuns|nanRunCounts/);
     assert.equal((shaderSource.match(/\$\{projectionShader\(/g) ?? []).length, 3);
 });
 

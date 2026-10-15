@@ -5,7 +5,7 @@
 struct Summary {
     start: u32, count: u32, first: f32, last: f32,
     minimum: f32, maximum: f32, minIndex: u32, maxIndex: u32,
-    gapIndex: u32, gaps: u32, finite: u32, pad: u32,
+    gapIndex: u32, invalidCount: u32, finite: u32, pad: u32,
 };
 fn invalid(v: f32) -> bool { return (bitcast<u32>(v) & 0x7f800000u) == 0x7f800000u; }
 fn sample(index: u32, value: f32) -> Summary {
@@ -22,8 +22,8 @@ fn merge(a: Summary, b: Summary) -> Summary {
         if (a.finite == 0u || b.minimum < a.minimum) { s.minimum = b.minimum; s.minIndex = b.minIndex; }
         if (a.finite == 0u || b.maximum > a.maximum) { s.maximum = b.maximum; s.maxIndex = b.maxIndex; }
     }
-    if (a.gaps == 0u) { s.gapIndex = b.gapIndex; }
-    s.gaps = min(2u, a.gaps + b.gaps - select(0u, 1u, invalid(a.last) && invalid(b.first)));
+    if (a.invalidCount == 0u) { s.gapIndex = b.gapIndex; }
+    s.invalidCount += b.invalidCount;
     s.finite |= b.finite;
     return s;
 }
@@ -106,8 +106,9 @@ fn query(@builtin(global_invocation_id) invocation: vec3u) {
     let nan = bitcast<f32>(0x7fc00000u | (id & 1u));
     var indices = array<u32, 5>(s.start, s.start + s.count - 1u, s.minIndex, s.maxIndex, s.gapIndex);
     var values = array<f32, 5>(s.first, s.last, s.minimum, s.maximum, nan);
-    var count = select(4u, 5u, s.gaps != 0u);
-    if (s.finite == 0u || s.gaps >= 2u) { indices[0] = s.gapIndex; values[0] = nan; count = 1u; }
+    var count = select(4u, 5u, s.invalidCount != 0u);
+    // Compare against finite count to avoid doubling and overflowing u32.
+    if (s.invalidCount >= s.count - s.invalidCount) { indices[0] = s.gapIndex; values[0] = nan; count = 1u; }
     for (var i = 1u; i < count; i++) {
         let index = indices[i]; let value = values[i]; var j = i;
         while (j > 0u) {

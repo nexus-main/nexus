@@ -14,15 +14,15 @@ namespace Nexus.Utilities;
 public readonly record struct VisualizationPoint(long Index, float Value);
 
 /// <summary>
-/// Summary of a contiguous sample interval. GapRuns saturates at two; First/Last
+/// Summary of a contiguous sample interval. InvalidCount counts nonfinite samples; First/Last
 /// retain source bits, including nonfinite values. With no finite samples, extrema
-/// are NaN and their indices are -1. FirstGapIndex is -1 when GapRuns is zero.
+/// are NaN and their indices are -1. FirstGapIndex is -1 when InvalidCount is zero.
 /// Count == 0 (including default) is the empty identity; its other fields are ignored.
 /// </summary>
 public readonly record struct VisualizationSummary(
     long Start, long Count, float First, float Last,
     float Min, long MinIndex, float Max, long MaxIndex,
-    long FirstGapIndex, int GapRuns, bool HasFinite);
+    long FirstGapIndex, long InvalidCount, bool HasFinite);
 
 /// <summary>
 /// Canonical Float32 chart reduction. Merge summaries, never projected points,
@@ -50,8 +50,7 @@ public static class VisualizationReduction
         int minIndex = -1;
         int maxIndex = -1;
         int firstGap = -1;
-        int gapRuns = 0;
-        bool previousGap = false;
+        long invalidCount = 0;
         int offset = 0;
 
         if (useSimd && Avx2.IsSupported && values.Length >= Vector256<float>.Count)
@@ -75,12 +74,9 @@ public static class VisualizationReduction
                     if (firstGap < 0)
                         firstGap = offset + BitOperations.TrailingZeroCount(gaps);
 
-                    // A set bit begins a run only when its predecessor was finite.
-                    uint starts = gaps & ~((gaps << 1) | (previousGap ? 1u : 0u));
-                    gapRuns = Math.Min(2, gapRuns + BitOperations.PopCount(starts));
+                    invalidCount += BitOperations.PopCount(gaps);
                 }
 
-                previousGap = (gaps & 0x80) != 0;
                 vectorMin = Avx.Min(vectorMin, Avx.BlendVariable(
                     Vector256.Create(float.PositiveInfinity), vector, finite));
                 vectorMax = Avx.Max(vectorMax, Avx.BlendVariable(
@@ -130,8 +126,7 @@ public static class VisualizationReduction
                 if (firstGap < 0)
                     firstGap = offset;
 
-                if (!previousGap)
-                    gapRuns = Math.Min(2, gapRuns + 1);
+                invalidCount++;
             }
             else
             {
@@ -147,8 +142,6 @@ public static class VisualizationReduction
                     maxIndex = offset;
                 }
             }
-
-            previousGap = gap;
         }
 
         bool hasFinite = minIndex >= 0;
@@ -156,7 +149,7 @@ public static class VisualizationReduction
         return new VisualizationSummary(startIndex, values.Length, values[0], values[^1],
             hasFinite ? min : float.NaN, hasFinite ? startIndex + minIndex : -1,
             hasFinite ? max : float.NaN, hasFinite ? startIndex + maxIndex : -1,
-            firstGap >= 0 ? startIndex + firstGap : -1, gapRuns, hasFinite);
+            firstGap >= 0 ? startIndex + firstGap : -1, invalidCount, hasFinite);
     }
 
     /// <summary>
@@ -181,20 +174,19 @@ public static class VisualizationReduction
         _ = checked(left.Start + (count - 1));
         bool useLeftMin = left.HasFinite && (!right.HasFinite || left.Min <= right.Min);
         bool useLeftMax = left.HasFinite && (!right.HasFinite || left.Max >= right.Max);
-        int joinedGap = !float.IsFinite(left.Last) && !float.IsFinite(right.First) ? 1 : 0;
-        int gapRuns = Math.Min(2, left.GapRuns + right.GapRuns - joinedGap);
+        long invalidCount = checked(left.InvalidCount + right.InvalidCount);
 
         return new VisualizationSummary(left.Start, count, left.First, right.Last,
             useLeftMin ? left.Min : right.Min, useLeftMin ? left.MinIndex : right.MinIndex,
             useLeftMax ? left.Max : right.Max, useLeftMax ? left.MaxIndex : right.MaxIndex,
-            left.GapRuns != 0 ? left.FirstGapIndex : right.FirstGapIndex,
-            gapRuns, left.HasFinite || right.HasFinite);
+            left.InvalidCount != 0 ? left.FirstGapIndex : right.FirstGapIndex,
+            invalidCount, left.HasFinite || right.HasFinite);
     }
 
     /// <summary>
     /// Emits at most five sorted, index-deduplicated points: endpoints, finite
-    /// extrema, and the first gap. Nonfinite values become NaN. All-invalid or
-    /// multigap intervals emit only a NaN at FirstGapIndex, never invented continuity.
+    /// extrema, and the first gap. Nonfinite values become NaN. Intervals with at least
+    /// 50% nonfinite samples emit only a NaN at FirstGapIndex.
     /// </summary>
     public static VisualizationPoint[] Project(VisualizationSummary summary)
     {
@@ -217,7 +209,8 @@ public static class VisualizationReduction
         if (summary.Count == 0)
             return 0;
 
-        if (!summary.HasFinite || summary.GapRuns >= 2)
+        // Compare invalid and valid counts without multiplying (counts can reach Int64.MaxValue).
+        if (!summary.HasFinite || summary.InvalidCount >= summary.Count - summary.InvalidCount)
         {
             points[0] = new VisualizationPoint(summary.FirstGapIndex, float.NaN);
             return 1;
@@ -229,7 +222,7 @@ public static class VisualizationReduction
         points[3] = new(summary.MaxIndex, summary.Max);
         int count = 4;
 
-        if (summary.GapRuns != 0)
+        if (summary.InvalidCount != 0)
             points[count++] = new(summary.FirstGapIndex, float.NaN);
 
         for (int i = 1; i < count; i++)

@@ -20,8 +20,6 @@ public class UpgradeConfigurationServiceTests
     public async Task CanUpgrade()
     {
         // Arrange
-        const string USER_ID = "UserA";
-
         var registration = new DataSourceRegistration(
             Type: typeof(TestSource).FullName!,
             ResourceLocator: new Uri("", UriKind.Relative),
