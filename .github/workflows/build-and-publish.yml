@@ -33,18 +33,14 @@ jobs:
           npm ci --prefix tests/js/webgpu --no-audit --no-fund
 
       - name: Execute WebGPU numerical tests
-        shell: sh
         run: |
           set -eu
           set -- /usr/share/vulkan/icd.d/lvp_icd*.json
           test "$#" -eq 1
           test -f "$1"
           export VK_DRIVER_FILES="$1"
-          export VK_ICD_FILENAMES="$1"
           export XDG_RUNTIME_DIR="$(mktemp -d)"
-          trap 'rm -rf "$XDG_RUNTIME_DIR"' EXIT
           chmod 700 "$XDG_RUNTIME_DIR"
-          export LP_NUM_THREADS=4
           export NEXUS_WEBGPU_MODULE="$(node -p 'require("node:url").pathToFileURL(require("node:path").resolve("tests/js/webgpu/node_modules/webgpu/index.js")).href')"
           node --test tests/js/*.test.js
 
