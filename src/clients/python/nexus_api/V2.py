@@ -210,17 +210,17 @@ class VisualizationRequest:
 @dataclass(frozen=True)
 class VisualizationView:
     """
-    A half-open viewport with a hard output point budget, including endpoints.
+    Defines one caller-supplied half-open time viewport and the maximum number of decimated points to return for it.
 
     Args:
-        id: The unique view identifier.
+        id: The caller-supplied view identifier that is echoed on the corresponding response view.
         begin: The viewport start.
         end: The exclusive viewport end.
-        max_points: The maximum number of points (5 through 32768). Each aggregate bucket can emit up to five points:
+        max_points: The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit.
     """
 
     id: str
-    """The unique view identifier."""
+    """The caller-supplied view identifier that is echoed on the corresponding response view."""
 
     begin: datetime
     """The viewport start."""
@@ -229,10 +229,7 @@ class VisualizationView:
     """The exclusive viewport end."""
 
     max_points: int
-    """The maximum number of points (5 through 32768). Each aggregate bucket can emit up to five points:
-first and last samples to anchor bucket boundaries, finite minimum and maximum to preserve extremes,
-and a NaN gap marker to break the line across missing data. The minimum budget of five allows at least
-one complete summary without discarding any of these features; coincident sample indices are deduplicated."""
+    """The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit."""
 
 
 @dataclass(frozen=True)

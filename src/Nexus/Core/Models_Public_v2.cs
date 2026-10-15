@@ -13,16 +13,11 @@ namespace Nexus.Core.V2;
 /// <param name="Views">The requested replacement views.</param>
 public record VisualizationRequest(DateTime Begin, DateTime End, string[] ResourcePaths, VisualizationView[] Views);
 
-/// <summary>A half-open viewport with a hard output point budget, including endpoints.</summary>
-/// <param name="Id">The unique view identifier.</param>
+/// <summary>Defines one caller-supplied half-open time viewport and the maximum number of decimated points to return for it.</summary>
+/// <param name="Id">The caller-supplied view identifier that is echoed on the corresponding response view.</param>
 /// <param name="Begin">The viewport start.</param>
 /// <param name="End">The exclusive viewport end.</param>
-/// <param name="MaxPoints">
-/// The maximum number of points (5 through 32768). Each aggregate bucket can emit up to five points:
-/// first and last samples to anchor bucket boundaries, finite minimum and maximum to preserve extremes,
-/// and a NaN gap marker to break the line across missing data. The minimum budget of five allows at least
-/// one complete summary without discarding any of these features; coincident sample indices are deduplicated.
-/// </param>
+/// <param name="MaxPoints">The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit.</param>
 public record VisualizationView(string Id, DateTime Begin, DateTime End, int MaxPoints);
 
 /// <summary>

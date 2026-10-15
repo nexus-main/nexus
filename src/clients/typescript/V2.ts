@@ -132,16 +132,16 @@ export interface VisualizationRequest {
 
 
 /**
- * A half-open viewport with a hard output point budget, including endpoints.
+ * Defines one caller-supplied half-open time viewport and the maximum number of decimated points to return for it.
  */
 export interface VisualizationView {
-    /** The unique view identifier. */
+    /** The caller-supplied view identifier that is echoed on the corresponding response view. */
     id?: string | undefined;
     /** The viewport start. */
     begin?: string | undefined;
     /** The exclusive viewport end. */
     end?: string | undefined;
-    /** The maximum number of points (5 through 32768). Each aggregate bucket can emit up to five points: */
+    /** The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit. */
     maxPoints?: number | undefined;
 }
 

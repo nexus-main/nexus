@@ -212,12 +212,12 @@
       },
       "VisualizationView": {
         "type": "object",
-        "description": "A half-open viewport with a hard output point budget, including endpoints.",
+        "description": "Defines one caller-supplied half-open time viewport and the maximum number of decimated points to return for it.",
         "additionalProperties": false,
         "properties": {
           "id": {
             "type": "string",
-            "description": "The unique view identifier."
+            "description": "The caller-supplied view identifier that is echoed on the corresponding response view."
           },
           "begin": {
             "type": "string",
@@ -231,7 +231,7 @@
           },
           "maxPoints": {
             "type": "integer",
-            "description": "The maximum number of points (5 through 32768). Each aggregate bucket can emit up to five points:\nfirst and last samples to anchor bucket boundaries, finite minimum and maximum to preserve extremes,\nand a NaN gap marker to break the line across missing data. The minimum budget of five allows at least\none complete summary without discarding any of these features; coincident sample indices are deduplicated.",
+            "description": "The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit.",
             "format": "int32"
           }
         }
