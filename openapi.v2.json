@@ -231,7 +231,7 @@
           },
           "maxPoints": {
             "type": "integer",
-            "description": "The maximum number of points (5 through 32768).",
+            "description": "The maximum number of points (5 through 32768). Each aggregate bucket can emit up to five points:\nfirst and last samples to anchor bucket boundaries, finite minimum and maximum to preserve extremes,\nand a NaN gap marker to break the line across missing data. The minimum budget of five allows at least\none complete summary without discarding any of these features; coincident sample indices are deduplicated.",
             "format": "int32"
           }
         }

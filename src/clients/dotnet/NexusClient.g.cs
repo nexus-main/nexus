@@ -3595,7 +3595,7 @@ public record VisualizationRequest(DateTime Begin, DateTime End, IReadOnlyList<s
 /// <param name="Id">The unique view identifier.</param>
 /// <param name="Begin">The viewport start.</param>
 /// <param name="End">The exclusive viewport end.</param>
-/// <param name="MaxPoints">The maximum number of points (5 through 32768).</param>
+/// <param name="MaxPoints">The maximum number of points (5 through 32768). Each aggregate bucket can emit up to five points:</param>
 public record VisualizationView(string Id, DateTime Begin, DateTime End, int MaxPoints);
 
 /// <summary>

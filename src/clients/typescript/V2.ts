@@ -141,7 +141,7 @@ export interface VisualizationView {
     begin?: string | undefined;
     /** The exclusive viewport end. */
     end?: string | undefined;
-    /** The maximum number of points (5 through 32768). */
+    /** The maximum number of points (5 through 32768). Each aggregate bucket can emit up to five points: */
     maxPoints?: number | undefined;
 }
 
