@@ -1,3 +1,6 @@
+## v2.0.0-beta.59 - 2026-10-15
+- New SSH host keys are now auto-accepted.
+
 ## v2.0.0-beta.58 - 2026-09-30
 - New Angular-based UI replacing the Blazor frontend, built with Angular 21, PrimeNG, and Tailwind CSS v4.
 - WebGPU-accelerated chart rendering for high-performance time-series visualization.
