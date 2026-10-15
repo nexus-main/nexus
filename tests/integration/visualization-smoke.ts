@@ -295,7 +295,7 @@ async function main() {
       (error: Error) => error.name === "AbortError",
     );
     assert.ok(sawInitialProgress);
-    await visualization("post-cancellation recovery", request, "hit");
+    await visualization("post-cancellation recovery", request);
     console.log(
       "Cancellation: aborted actual response after first progress, parser rejected AbortError, host recovered",
     );
