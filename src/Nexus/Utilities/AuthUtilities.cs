@@ -27,11 +27,30 @@ internal static class AuthUtilities
         return $"{secret}_{userId}";
     }
 
-    public static (string userId, string secret) TokenValueToComponents(string tokenValue)
+    public static bool TryTokenValueToComponents(string tokenValue, out string userId, out string secret)
     {
         var parts = tokenValue.Split('_', count: 2);
 
-        return (parts[1], parts[0]);
+        if (parts.Length != 2)
+        {
+            userId = string.Empty;
+            secret = string.Empty;
+
+            return false;
+        }
+
+        userId = parts[1];
+        secret = parts[0];
+
+        return true;
+    }
+
+    public static (string userId, string secret) TokenValueToComponents(string tokenValue)
+    {
+        if (!TryTokenValueToComponents(tokenValue, out var userId, out var secret))
+            throw new FormatException("The token value is malformed.");
+
+        return (userId, secret);
     }
 
     public static bool IsCatalogReadable(

@@ -55,6 +55,7 @@ public class CatalogManagerTests
                             ("C", "/") => Task.FromResult(new CatalogRegistration[] { new("/C/A", string.Empty) }),
                             ("D", "/") => Task.FromResult(new CatalogRegistration[] { new("/D", string.Empty) }),
                             ("Nexus.Sources." + nameof(Sample), "/") => Task.FromResult(Array.Empty<CatalogRegistration>()),
+                            ("Nexus.Sources." + nameof(Dev), "/") => Task.FromResult(Array.Empty<CatalogRegistration>()),
                             _ => throw new Exception("Unsupported combination.")
                         };
                     });

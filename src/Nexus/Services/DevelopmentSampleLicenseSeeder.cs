@@ -23,10 +23,10 @@ Accepting this license is required before accessing this catalog.
 
     public void Seed()
     {
-        if (_databaseService.AttachmentExists(Sample.LicensedCatalogId, LicenseAttachmentId))
+        if (_databaseService.AttachmentExists(Dev.LicensedCatalogId, LicenseAttachmentId))
             return;
 
-        using var stream = _databaseService.WriteAttachment(Sample.LicensedCatalogId, LicenseAttachmentId);
+        using var stream = _databaseService.WriteAttachment(Dev.LicensedCatalogId, LicenseAttachmentId);
         using var writer = new StreamWriter(stream, Encoding.UTF8);
 
         writer.Write(LicenseText);

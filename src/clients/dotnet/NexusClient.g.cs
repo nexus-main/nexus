@@ -2814,14 +2814,14 @@ public interface IUsersClient
     /// Creates a personal access token.
     /// </summary>
     /// <param name="token">The personal access token to create.</param>
-    string CreateToken(PersonalAccessToken token);
+    string CreateToken(CreateTokenRequest token);
 
     /// <summary>
     /// Creates a personal access token.
     /// </summary>
     /// <param name="token">The personal access token to create.</param>
     /// <param name="cancellationToken">The token to cancel the current operation.</param>
-    Task<string> CreateTokenAsync(PersonalAccessToken token, CancellationToken cancellationToken = default);
+    Task<string> CreateTokenAsync(CreateTokenRequest token, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a personal access token.
@@ -2923,7 +2923,7 @@ public class UsersClient : IUsersClient
     }
 
     /// <inheritdoc />
-    public string CreateToken(PersonalAccessToken token)
+    public string CreateToken(CreateTokenRequest token)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens/create");
@@ -2933,7 +2933,7 @@ public class UsersClient : IUsersClient
     }
 
     /// <inheritdoc />
-    public Task<string> CreateTokenAsync(PersonalAccessToken token, CancellationToken cancellationToken = default)
+    public Task<string> CreateTokenAsync(CreateTokenRequest token, CancellationToken cancellationToken = default)
     {
         var __urlBuilder = new StringBuilder();
         __urlBuilder.Append("/api/v1/users/tokens/create");
@@ -3385,6 +3385,14 @@ public record TokenClaim(string Type, string Value);
 /// <param name="Claims">The claims that will be part of the token.</param>
 /// <param name="GrantClaims">A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator.</param>
 public record PersonalAccessToken(string Description, DateTime Expires, IReadOnlyList<TokenClaim> Claims, IReadOnlyList<TokenClaim> GrantClaims);
+
+/// <summary>
+/// A request to create a personal access token.
+/// </summary>
+/// <param name="Description">The token description.</param>
+/// <param name="Expires">The date/time when the token expires.</param>
+/// <param name="Claims">The claims that will be part of the token.</param>
+public record CreateTokenRequest(string Description, DateTime Expires, IReadOnlyList<TokenClaim> Claims);
 
 
 

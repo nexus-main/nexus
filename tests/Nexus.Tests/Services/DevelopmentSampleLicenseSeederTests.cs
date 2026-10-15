@@ -24,7 +24,7 @@ public class DevelopmentSampleLicenseSeederTests
             seeder.Seed();
 
             Assert.True(databaseService.TryReadAttachment(
-                Sample.LicensedCatalogId,
+                Dev.LicensedCatalogId,
                 DevelopmentSampleLicenseSeeder.LicenseAttachmentId,
                 out var attachment));
 
@@ -50,7 +50,7 @@ public class DevelopmentSampleLicenseSeederTests
             const string existingLicense = "existing license";
 
             using (var stream = databaseService.WriteAttachment(
-                Sample.LicensedCatalogId,
+                Dev.LicensedCatalogId,
                 DevelopmentSampleLicenseSeeder.LicenseAttachmentId))
             using (var writer = new StreamWriter(stream))
             {
@@ -62,7 +62,7 @@ public class DevelopmentSampleLicenseSeederTests
             seeder.Seed();
 
             Assert.True(databaseService.TryReadAttachment(
-                Sample.LicensedCatalogId,
+                Dev.LicensedCatalogId,
                 DevelopmentSampleLicenseSeeder.LicenseAttachmentId,
                 out var attachment));
 

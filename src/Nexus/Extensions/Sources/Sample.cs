@@ -3,8 +3,6 @@
 
 using Nexus.DataModel;
 using Nexus.Extensibility;
-using System.Runtime.InteropServices;
-using System.Text.Json;
 
 namespace Nexus.Sources;
 
@@ -16,109 +14,13 @@ internal class Sample : IDataSource<object?>
 {
     public static readonly Guid PipelineId = new("c2c724ab-9002-4879-9cd9-2147844bee96");
 
-    private static readonly float[] DATA =
-    [
-        6.5f,
-        6.7f,
-        7.9f,
-        8.1f,
-        7.5f,
-        7.6f,
-        7.0f,
-        6.5f,
-        6.0f,
-        5.9f,
-        5.8f,
-        5.2f,
-        4.6f,
-        5.0f,
-        5.1f,
-        4.9f,
-        5.3f,
-        5.8f,
-        5.9f,
-        6.1f,
-        5.9f,
-        6.3f,
-        6.5f,
-        6.9f,
-        7.1f,
-        6.9f,
-        7.1f,
-        7.2f,
-        7.6f,
-        7.9f,
-        8.2f,
-        8.1f,
-        8.2f,
-        8.0f,
-        7.5f,
-        7.7f,
-        7.6f,
-        8.0f,
-        7.5f,
-        7.2f,
-        6.8f,
-        6.5f,
-        6.6f,
-        6.6f,
-        6.7f,
-        6.2f,
-        5.9f,
-        5.7f,
-        5.9f,
-        6.3f,
-        6.6f,
-        6.7f,
-        6.9f,
-        6.5f,
-        6.0f,
-        5.8f,
-        5.3f,
-        5.8f,
-        6.1f,
-        6.8f
-    ];
-
     public const string LocalCatalogId = "/SAMPLE/LOCAL";
 
     public const string RemoteCatalogId = "/SAMPLE/REMOTE";
 
-    public const string LicensedCatalogId = "/DEV/LICENSED";
-
-    public const string RangeLimitedCatalogId = "/DEV/RANGE_LIMITED";
-
-    public const string AliasRangeCatalogId = "/DEV/ALIAS_RANGE";
-
-    public const string AliasToAliasCatalogId = "/DEV/ALIAS_TO_ALIAS";
-
-    public const string SourceWithChildrenCatalogId = "/DEV/SOURCE_WITH_CHILDREN";
-
-    public const string AliasWithChildrenCatalogId = "/DEV/ALIAS_WITH_CHILDREN";
-
-    public const string ChildACatalogId = "/DEV/SOURCE_WITH_CHILDREN/CHILD_A";
-
-    public const string ChildBCatalogId = "/DEV/SOURCE_WITH_CHILDREN/CHILD_B";
-
     private const string LocalCatalogTitle = "Simulates a local catalog";
 
     private const string RemoteCatalogTitle = "Simulates a remote catalog";
-
-    private const string LicensedCatalogTitle = "Simulates a licensed catalog";
-
-    private const string RangeLimitedCatalogTitle = "Simulates a catalog with a limited registration time range";
-
-    private const string AliasRangeCatalogTitle = "Simulates an alias with a limited registration time range";
-
-    private const string AliasToAliasCatalogTitle = "Simulates an alias to another alias";
-
-    private const string SourceWithChildrenCatalogTitle = "Simulates a catalog that contains child catalogs";
-
-    private const string AliasWithChildrenCatalogTitle = "Simulates an alias to a catalog that contains child catalogs";
-
-    private const string ChildACatalogTitle = "Simulates child catalog A";
-
-    private const string ChildBCatalogTitle = "Simulates child catalog B";
 
     public const string RemoteUsername = "test";
 
@@ -150,38 +52,7 @@ internal class Sample : IDataSource<object?>
             if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
             {
                 registrations.Add(new(RemoteCatalogId, RemoteCatalogTitle));
-                registrations.Add(new(LicensedCatalogId, LicensedCatalogTitle));
-
-                registrations.Add(new(RangeLimitedCatalogId, RangeLimitedCatalogTitle,
-                    MinBegin: new DateTime(2020, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-                    MaxEnd: new DateTime(2020, 02, 01, 0, 0, 0, DateTimeKind.Utc)));
-
-                registrations.Add(new(AliasRangeCatalogId, AliasRangeCatalogTitle,
-                    LinkTarget: RangeLimitedCatalogId,
-                    MinBegin: new DateTime(2020, 01, 15, 0, 0, 0, DateTimeKind.Utc),
-                    MaxEnd: new DateTime(2020, 03, 01, 0, 0, 0, DateTimeKind.Utc)));
-
-                registrations.Add(new(AliasToAliasCatalogId, AliasToAliasCatalogTitle,
-                    LinkTarget: AliasRangeCatalogId,
-                    MinBegin: new DateTime(2020, 01, 20, 0, 0, 0, DateTimeKind.Utc),
-                    MaxEnd: new DateTime(2020, 02, 15, 0, 0, 0, DateTimeKind.Utc)));
-
-                registrations.Add(new(SourceWithChildrenCatalogId, SourceWithChildrenCatalogTitle));
-
-                registrations.Add(new(AliasWithChildrenCatalogId, AliasWithChildrenCatalogTitle,
-                    LinkTarget: SourceWithChildrenCatalogId));
             }
-
-            return Task.FromResult(registrations.ToArray());
-        }
-
-        else if (path == SourceWithChildrenCatalogId + "/")
-        {
-            var registrations = new List<CatalogRegistration>()
-            {
-                new(ChildACatalogId, ChildACatalogTitle),
-                new(ChildBCatalogId, ChildBCatalogTitle)
-            };
 
             return Task.FromResult(registrations.ToArray());
         }
@@ -215,7 +86,7 @@ internal class Sample : IDataSource<object?>
         return Task.FromResult(1.0);
     }
 
-    public async Task ReadAsync(
+    public Task ReadAsync(
         DateTime begin,
         DateTime end,
         ReadRequest[] requests,
@@ -223,21 +94,15 @@ internal class Sample : IDataSource<object?>
         IProgress<double> progress,
         CancellationToken cancellationToken)
     {
-        var tasks = requests.Select(request =>
-        {
-            var catalogItem = request.CatalogItem;
-            var data = request.Data;
-            var status = request.Status;
-
-            return Task.Run(async () =>
+        return SampleDataHelper.ReadAsync(
+            begin,
+            requests,
+            progress,
+            cancellationToken,
+            validateRequest: request =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var catalog = request.CatalogItem.Catalog;
 
-                var catalog = catalogItem.Catalog;
-                var resource = catalogItem.Resource;
-                var representation = catalogItem.Representation;
-
-                // check credentials
                 if (catalog.Id == RemoteCatalogId)
                 {
                     var user = Context.RequestConfiguration?.GetStringValue(typeof(Sample).FullName!, "user");
@@ -246,222 +111,18 @@ internal class Sample : IDataSource<object?>
                     if (user != RemoteUsername || password != RemotePassword)
                         throw new Exception("The provided credentials are invalid.");
                 }
-
-                var beginTime = ToUnixTimeStamp(begin);
-                var elementCount = data.Length / representation.ElementSize;
-
-                // unix time
-                if (resource.Id.Contains("unix_time"))
-                {
-                    var dt = representation.SamplePeriod.TotalSeconds;
-                    var target = MemoryMarshal.Cast<byte, double>(data.Span);
-
-                    for (int i = 0; i < elementCount; i++)
-                        target[i] = i * dt + beginTime;
-                }
-
-                // parameterized temperature
-                else if (resource.Id == "P1")
-                {
-                    var height = catalogItem.Parameters is not null && catalogItem.Parameters.TryGetValue("height", out var heightValue) && int.TryParse(heightValue, out var parsedHeight)
-                        ? parsedHeight
-                        : 10;
-                    var mode = catalogItem.Parameters is not null && catalogItem.Parameters.TryGetValue("mode", out var modeValue)
-                        ? modeValue
-                        : "mean";
-                    var dataLength = DATA.Length;
-                    var sourceOffset = (int)(((long)beginTime % dataLength + dataLength) % dataLength);
-                    var target = MemoryMarshal.Cast<byte, float>(data.Span);
-                    var heightOffset = 0.12f * height;
-                    var modeScale = mode == "max" ? 1.25f : 1.0f;
-                    var modeOffset = mode == "max" ? 8.0f : 0.0f;
-
-                    for (int i = 0; i < target.Length; i++)
-                    {
-                        target[i] = (DATA[sourceOffset] - heightOffset) * modeScale + modeOffset;
-                        sourceOffset = (sourceOffset + 1) % dataLength;
-                    }
-                }
-
-                // temperature or wind speed
-                else
-                {
-                    var dataLength = DATA.Length;
-                    var sourceOffset = (int)(((long)beginTime % dataLength + dataLength) % dataLength);
-                    var target = MemoryMarshal.Cast<byte, float>(data.Span);
-
-                    while (!target.IsEmpty)
-                    {
-                        var source = DATA.AsSpan(sourceOffset);
-                        var count = Math.Min(source.Length, target.Length);
-                        source[..count].CopyTo(target);
-                        target = target[count..];
-                        sourceOffset = 0;
-                    }
-                }
-
-                status.Span
-                    .Fill(1);
-
-                await request.CompleteAsync();
             });
-        }).ToList();
-
-        try
-        {
-            var finishedTasks = 0;
-
-            while (tasks.Count != 0)
-            {
-                var task = await Task.WhenAny(tasks);
-                await task;
-                finishedTasks++;
-                progress.Report(finishedTasks / (double)requests.Length);
-                tasks.Remove(task);
-            }
-        }
-        finally
-        {
-            try
-            {
-                await Task.WhenAll(tasks);
-            }
-            catch
-            {
-                // Preserve the first failure after every worker has unwound.
-            }
-        }
     }
 
     internal static ResourceCatalog LoadCatalog(
         string catalogId)
     {
-        if (catalogId == SourceWithChildrenCatalogId)
-        {
-            return new ResourceCatalogBuilder(catalogId).Build();
-        }
-
-        if (catalogId == ChildACatalogId)
-        {
-            var resource = new ResourceBuilder(id: "T1")
-                .WithUnit("°C")
-                .WithDescription("Child Resource A")
-                .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
-                .Build();
-
-            return new ResourceCatalogBuilder(catalogId)
-                .AddResources([resource])
-                .Build();
-        }
-
-        if (catalogId == ChildBCatalogId)
-        {
-            var resource = new ResourceBuilder(id: "V1")
-                .WithUnit("m/s")
-                .WithDescription("Child Resource B")
-                .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
-                .Build();
-
-            return new ResourceCatalogBuilder(catalogId)
-                .AddResources([resource])
-                .Build();
-        }
-
-        var resourceA = new ResourceBuilder(id: "T1")
-            .WithUnit("°C")
-            .WithDescription("Test Resource B")
-            .WithGroups("Group 1")
-            .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
-            .Build();
-
-        var resourceB = new ResourceBuilder(id: "V1")
-            .WithUnit("m/s")
-            .WithDescription("Test Resource C")
-            .WithGroups("Group 1")
-            .AddRepresentation(new Representation(dataType: NexusDataType.Float32, samplePeriod: TimeSpan.FromSeconds(1)))
-            .Build();
-
-        var resourceC = new ResourceBuilder(id: "unix_time1")
-            .WithDescription("Test Resource D")
-            .WithGroups("Group 2")
-            .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromMilliseconds(40)))
-            .Build();
-
-        var resourceD = new ResourceBuilder(id: "unix_time2")
-            .WithDescription("Test Resource E")
-            .WithGroups("Group 2")
-            .AddRepresentation(new Representation(dataType: NexusDataType.Float64, samplePeriod: TimeSpan.FromSeconds(1)))
-            .Build();
-
-        var p1Parameters = new Dictionary<string, JsonElement>()
-        {
-            ["height"] = JsonSerializer.SerializeToElement(new
-            {
-                type = "input-integer",
-                label = "Height",
-                @default = 10,
-                minimum = 1,
-                maximum = 100
-            }),
-            ["mode"] = JsonSerializer.SerializeToElement(new
-            {
-                type = "select",
-                label = "Mode",
-                @default = "mean",
-                items = new Dictionary<string, string>()
-                {
-                    ["mean"] = "Mean",
-                    ["max"] = "Maximum"
-                }
-            })
-        };
-
-        var resourceE = new ResourceBuilder(id: "P1")
-            .WithUnit("bar")
-            .WithDescription("Test Resource A")
-            .WithGroups("Group 1")
-            .AddRepresentation(new Representation(
-                dataType: NexusDataType.Float32,
-                samplePeriod: TimeSpan.FromSeconds(1),
-                parameters: p1Parameters))
-            .AddRepresentation(new Representation(
-                dataType: NexusDataType.Float32,
-                samplePeriod: TimeSpan.FromMilliseconds(100),
-                parameters: p1Parameters))
-            .Build();
-
-        var catalogBuilder = new ResourceCatalogBuilder(catalogId);
-
-        catalogBuilder.AddResources(new List<Resource>()
-        {
-            resourceA,
-            resourceB,
-            resourceC,
-            resourceD,
-            resourceE
-        });
-
-        catalogBuilder.WithProperty("resources", new
-        {
-            availability = new[]
-            {
-                new
-                {
-                    pattern = $"^{catalogId}/P1/1_s#base=1_s$",
-                    begin = (string?)"2020-01-01T00:00:00Z",
-                    end = (string?)null
-                },
-                new
-                {
-                    pattern = $"^{catalogId}/P1/100_ms#base=100_ms$",
-                    begin = (string?)null,
-                    end = (string?)"2020-01-01T00:00:00Z"
-                }
-            }
-        });
+        var catalog = SampleDataHelper.BuildDefaultCatalog(catalogId);
 
         if (catalogId == RemoteCatalogId)
-            catalogBuilder.WithReadme(
+        {
+            var readmeCatalog = new ResourceCatalogBuilder(catalogId)
+                .WithReadme(
 """
 This catalog demonstrates how to access data sources that require additional credentials. These can be appended in the user settings menu (on the top right). In case of this example catalog, the JSON string to be added would look like the following:
 
@@ -475,14 +136,12 @@ This catalog demonstrates how to access data sources that require additional cre
 ```
 
 As soon as these credentials have been added, you should be granted full access to the data.
-""");
+""")
+                .Build();
 
-        return catalogBuilder.Build();
-    }
+            catalog = catalog.Merge(readmeCatalog);
+        }
 
-    private static double ToUnixTimeStamp(
-        DateTime value)
-    {
-        return value.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+        return catalog;
     }
 }

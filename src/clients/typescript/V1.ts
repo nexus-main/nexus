@@ -968,7 +968,7 @@ export interface IUsersClient {
      * @param token The personal access token to create.
      * @param signal The signal to cancel the current operation.
      */
-    createToken(token: PersonalAccessToken, signal?: AbortSignal): Promise<string>;
+    createToken(token: CreateTokenRequest, signal?: AbortSignal): Promise<string>;
 
     /**
      * Deletes a personal access token.
@@ -1031,7 +1031,7 @@ export class UsersClient implements IUsersClient {
      * @param token The personal access token to create.
      * @param signal The signal to cancel the current operation.
      */
-    public async createToken(token: PersonalAccessToken, signal?: AbortSignal): Promise<string> {
+    public async createToken(token: CreateTokenRequest, signal?: AbortSignal): Promise<string> {
         let __url = "/api/v1/users/tokens/create";
 
         return this._invoke<string>("POST", __url, "application/json", "application/json", JSON.stringify(token), signal);
@@ -1528,4 +1528,17 @@ export interface PersonalAccessToken {
     claims?: TokenClaim[] | undefined;
     /** A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator. */
     grantClaims?: TokenClaim[] | undefined;
+}
+
+
+/**
+ * A request to create a personal access token.
+ */
+export interface CreateTokenRequest {
+    /** The token description. */
+    description?: string | undefined;
+    /** The date/time when the token expires. */
+    expires?: string | undefined;
+    /** The claims that will be part of the token. */
+    claims?: TokenClaim[] | undefined;
 }

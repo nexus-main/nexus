@@ -1446,7 +1446,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PersonalAccessToken"
+                "$ref": "#/components/schemas/CreateTokenRequest"
               }
             }
           },
@@ -2335,6 +2335,29 @@
           "grantClaims": {
             "type": "array",
             "description": "A snapshot of the creator's claims at the time of token creation, used to validate that the token is not more powerful than its creator.",
+            "items": {
+              "$ref": "#/components/schemas/TokenClaim"
+            }
+          }
+        }
+      },
+      "CreateTokenRequest": {
+        "type": "object",
+        "description": "A request to create a personal access token.",
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "The token description."
+          },
+          "expires": {
+            "type": "string",
+            "description": "The date/time when the token expires.",
+            "format": "date-time"
+          },
+          "claims": {
+            "type": "array",
+            "description": "The claims that will be part of the token.",
             "items": {
               "$ref": "#/components/schemas/TokenClaim"
             }
