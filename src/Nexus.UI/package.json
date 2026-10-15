@@ -11,7 +11,8 @@
     "eslint:fix": "cd ../.. && node src/Nexus.UI/node_modules/eslint/bin/eslint.js src/Nexus.UI/src tests/Nexus.UI.Tests/app --fix",
     "format": "prettier --check . \"../../tests/Nexus.UI.Tests/app/**/*.ts\"",
     "format:fix": "prettier --write . \"../../tests/Nexus.UI.Tests/app/**/*.ts\"",
-    "test": "tsc -p tsconfig.selection-tests.json && node --test ../../tests/Nexus.UI.Tests/app/resource-selection.test.ts ../../tests/Nexus.UI.Tests/app/resource-matrix.test.ts ../../tests/Nexus.UI.Tests/app/charts/*.test.ts ../../tests/Nexus.UI.Tests/app/json-schema.test.ts ../../tests/Nexus.UI.Tests/app/data-source-pipelines.test.ts ../../tests/Nexus.UI.Tests/app/yaml-monaco.test.ts ../../tests/Nexus.UI.Tests/app/nexus-ui-setup.test.ts"
+    "test": "tsc -p tsconfig.selection-tests.json && node --test ../../tests/Nexus.UI.Tests/app/resource-selection.test.ts ../../tests/Nexus.UI.Tests/app/resource-matrix.test.ts ../../tests/Nexus.UI.Tests/app/charts/*.test.ts ../../tests/Nexus.UI.Tests/app/json-schema.test.ts ../../tests/Nexus.UI.Tests/app/data-source-pipelines.test.ts ../../tests/Nexus.UI.Tests/app/yaml-monaco.test.ts ../../tests/Nexus.UI.Tests/app/nexus-ui-setup.test.ts",
+    "test:integration-types": "tsc -p ../../tests/integration/tsconfig.json"
   },
   "dependencies": {
     "@angular/cdk": "^21.2.14",

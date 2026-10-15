@@ -122,7 +122,7 @@ jobs:
         run: |
           npm ci
           npm test
-          node node_modules/typescript/bin/tsc -p ../../tests/integration/tsconfig.json
+          npm run test:integration-types
 
       # --- Build ---
 
