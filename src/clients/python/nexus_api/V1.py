@@ -138,6 +138,7 @@ class CatalogsClient:
         Searches for the given resource paths and returns the corresponding catalog items.
 
         Args:
+            resource_paths: The list of resource paths.
         """
 
         __url = "/api/v1/catalogs/search-items"
@@ -256,6 +257,7 @@ class CatalogsClient:
         Args:
             catalog_id: The catalog identifier.
             attachment_id: The attachment identifier.
+            content: The binary file content.
         """
 
         __url = "/api/v1/catalogs/{catalogId}/attachments/{attachmentId}"
@@ -313,6 +315,7 @@ class CatalogsClient:
 
         Args:
             catalog_id: The catalog identifier.
+            metadata: The catalog metadata to set.
         """
 
         __url = "/api/v1/catalogs/{catalogId}/metadata"
@@ -366,8 +369,6 @@ class GitClient:
     def get_config(self) -> GitConfigResponse:
         """
         Gets the effective Git configuration without secrets.
-
-        Args:
         """
 
         __url = "/api/v1/git/config"
@@ -377,8 +378,6 @@ class GitClient:
     def get_status(self) -> GitStatusResponse:
         """
         Gets the current Git status.
-
-        Args:
         """
 
         __url = "/api/v1/git/status"
@@ -388,8 +387,6 @@ class GitClient:
     def get_history(self) -> list[GitHistoryEntry]:
         """
         Gets the configuration history.
-
-        Args:
         """
 
         __url = "/api/v1/git/history"
@@ -414,6 +411,7 @@ class GitClient:
         Restores the configuration from a commit by creating a new commit.
 
         Args:
+            request:
         """
 
         __url = "/api/v1/git/restore"
@@ -432,8 +430,6 @@ class JobsClient:
     def get_jobs(self) -> list[Job]:
         """
         Gets a list of jobs.
-
-        Args:
         """
 
         __url = "/api/v1/jobs"
@@ -471,6 +467,7 @@ class JobsClient:
         Creates a new export job.
 
         Args:
+            parameters: Export parameters.
         """
 
         __url = "/api/v1/jobs/export"
@@ -480,8 +477,6 @@ class JobsClient:
     def refresh_database(self) -> Job:
         """
         Creates a new job which reloads all extensions and resets the resource catalog.
-
-        Args:
         """
 
         __url = "/api/v1/jobs/refresh-database"
@@ -518,6 +513,7 @@ class JobsClient:
         Creates a new Git synchronization job.
 
         Args:
+            parameters:
         """
 
         __url = "/api/v1/jobs/git/sync"
@@ -536,8 +532,6 @@ class PackageReferencesClient:
     def get(self) -> dict[str, PackageReference]:
         """
         Gets the list of package references.
-
-        Args:
         """
 
         __url = "/api/v1/packagereferences"
@@ -549,6 +543,7 @@ class PackageReferencesClient:
         Creates a package reference.
 
         Args:
+            package_reference: The package reference to create.
         """
 
         __url = "/api/v1/packagereferences"
@@ -561,6 +556,7 @@ class PackageReferencesClient:
 
         Args:
             id: The identifier of the package reference to update.
+            package_reference: The new package reference.
         """
 
         __url = "/api/v1/packagereferences"
@@ -593,6 +589,7 @@ class PackageReferencesClient:
         Gets package versions.
 
         Args:
+            package_reference: The package reference to get versions for.
         """
 
         __url = "/api/v1/packagereferences/versions"
@@ -611,8 +608,6 @@ class SourcesClient:
     def get_descriptions(self) -> list[ExtensionDescription]:
         """
         Gets the list of source descriptions.
-
-        Args:
         """
 
         __url = "/api/v1/sources/descriptions"
@@ -622,8 +617,6 @@ class SourcesClient:
     def get_pipelines(self) -> dict[str, DataSourcePipeline]:
         """
         Gets the list of data source pipelines.
-
-        Args:
         """
 
         __url = "/api/v1/sources/pipelines"
@@ -635,6 +628,7 @@ class SourcesClient:
         Creates a data source pipeline.
 
         Args:
+            pipeline: The pipeline to create.
         """
 
         __url = "/api/v1/sources/pipelines"
@@ -647,6 +641,7 @@ class SourcesClient:
 
         Args:
             pipeline_id: The identifier of the pipeline to update.
+            pipeline: The new pipeline.
         """
 
         __url = "/api/v1/sources/pipelines/{pipelineId}"
@@ -679,8 +674,6 @@ class SystemClient:
     def get(self) -> SystemResponse:
         """
         Gets the system configuration.
-
-        Args:
         """
 
         __url = "/api/v1/system"
@@ -718,8 +711,6 @@ class UsersClient:
     def get_me(self) -> MeResponse:
         """
         Gets the current user.
-
-        Args:
         """
 
         __url = "/api/v1/users/me"
@@ -729,8 +720,6 @@ class UsersClient:
     def get_tokens(self) -> dict[str, PersonalAccessToken]:
         """
         Gets all personal access tokens.
-
-        Args:
         """
 
         __url = "/api/v1/users/tokens"
@@ -742,6 +731,7 @@ class UsersClient:
         Creates a personal access token.
 
         Args:
+            token: The personal access token to create.
         """
 
         __url = "/api/v1/users/tokens/create"
@@ -773,8 +763,6 @@ class WritersClient:
     def get_descriptions(self) -> list[ExtensionDescription]:
         """
         Gets the list of writer descriptions.
-
-        Args:
         """
 
         __url = "/api/v1/writers/descriptions"
@@ -905,6 +893,7 @@ class CatalogsAsyncClient:
         Searches for the given resource paths and returns the corresponding catalog items.
 
         Args:
+            resource_paths: The list of resource paths.
         """
 
         __url = "/api/v1/catalogs/search-items"
@@ -1023,6 +1012,7 @@ class CatalogsAsyncClient:
         Args:
             catalog_id: The catalog identifier.
             attachment_id: The attachment identifier.
+            content: The binary file content.
         """
 
         __url = "/api/v1/catalogs/{catalogId}/attachments/{attachmentId}"
@@ -1080,6 +1070,7 @@ class CatalogsAsyncClient:
 
         Args:
             catalog_id: The catalog identifier.
+            metadata: The catalog metadata to set.
         """
 
         __url = "/api/v1/catalogs/{catalogId}/metadata"
@@ -1133,8 +1124,6 @@ class GitAsyncClient:
     def get_config(self) -> Awaitable[GitConfigResponse]:
         """
         Gets the effective Git configuration without secrets.
-
-        Args:
         """
 
         __url = "/api/v1/git/config"
@@ -1144,8 +1133,6 @@ class GitAsyncClient:
     def get_status(self) -> Awaitable[GitStatusResponse]:
         """
         Gets the current Git status.
-
-        Args:
         """
 
         __url = "/api/v1/git/status"
@@ -1155,8 +1142,6 @@ class GitAsyncClient:
     def get_history(self) -> Awaitable[list[GitHistoryEntry]]:
         """
         Gets the configuration history.
-
-        Args:
         """
 
         __url = "/api/v1/git/history"
@@ -1181,6 +1166,7 @@ class GitAsyncClient:
         Restores the configuration from a commit by creating a new commit.
 
         Args:
+            request:
         """
 
         __url = "/api/v1/git/restore"
@@ -1199,8 +1185,6 @@ class JobsAsyncClient:
     def get_jobs(self) -> Awaitable[list[Job]]:
         """
         Gets a list of jobs.
-
-        Args:
         """
 
         __url = "/api/v1/jobs"
@@ -1238,6 +1222,7 @@ class JobsAsyncClient:
         Creates a new export job.
 
         Args:
+            parameters: Export parameters.
         """
 
         __url = "/api/v1/jobs/export"
@@ -1247,8 +1232,6 @@ class JobsAsyncClient:
     def refresh_database(self) -> Awaitable[Job]:
         """
         Creates a new job which reloads all extensions and resets the resource catalog.
-
-        Args:
         """
 
         __url = "/api/v1/jobs/refresh-database"
@@ -1285,6 +1268,7 @@ class JobsAsyncClient:
         Creates a new Git synchronization job.
 
         Args:
+            parameters:
         """
 
         __url = "/api/v1/jobs/git/sync"
@@ -1303,8 +1287,6 @@ class PackageReferencesAsyncClient:
     def get(self) -> Awaitable[dict[str, PackageReference]]:
         """
         Gets the list of package references.
-
-        Args:
         """
 
         __url = "/api/v1/packagereferences"
@@ -1316,6 +1298,7 @@ class PackageReferencesAsyncClient:
         Creates a package reference.
 
         Args:
+            package_reference: The package reference to create.
         """
 
         __url = "/api/v1/packagereferences"
@@ -1328,6 +1311,7 @@ class PackageReferencesAsyncClient:
 
         Args:
             id: The identifier of the package reference to update.
+            package_reference: The new package reference.
         """
 
         __url = "/api/v1/packagereferences"
@@ -1360,6 +1344,7 @@ class PackageReferencesAsyncClient:
         Gets package versions.
 
         Args:
+            package_reference: The package reference to get versions for.
         """
 
         __url = "/api/v1/packagereferences/versions"
@@ -1378,8 +1363,6 @@ class SourcesAsyncClient:
     def get_descriptions(self) -> Awaitable[list[ExtensionDescription]]:
         """
         Gets the list of source descriptions.
-
-        Args:
         """
 
         __url = "/api/v1/sources/descriptions"
@@ -1389,8 +1372,6 @@ class SourcesAsyncClient:
     def get_pipelines(self) -> Awaitable[dict[str, DataSourcePipeline]]:
         """
         Gets the list of data source pipelines.
-
-        Args:
         """
 
         __url = "/api/v1/sources/pipelines"
@@ -1402,6 +1383,7 @@ class SourcesAsyncClient:
         Creates a data source pipeline.
 
         Args:
+            pipeline: The pipeline to create.
         """
 
         __url = "/api/v1/sources/pipelines"
@@ -1414,6 +1396,7 @@ class SourcesAsyncClient:
 
         Args:
             pipeline_id: The identifier of the pipeline to update.
+            pipeline: The new pipeline.
         """
 
         __url = "/api/v1/sources/pipelines/{pipelineId}"
@@ -1446,8 +1429,6 @@ class SystemAsyncClient:
     def get(self) -> Awaitable[SystemResponse]:
         """
         Gets the system configuration.
-
-        Args:
         """
 
         __url = "/api/v1/system"
@@ -1485,8 +1466,6 @@ class UsersAsyncClient:
     def get_me(self) -> Awaitable[MeResponse]:
         """
         Gets the current user.
-
-        Args:
         """
 
         __url = "/api/v1/users/me"
@@ -1496,8 +1475,6 @@ class UsersAsyncClient:
     def get_tokens(self) -> Awaitable[dict[str, PersonalAccessToken]]:
         """
         Gets all personal access tokens.
-
-        Args:
         """
 
         __url = "/api/v1/users/tokens"
@@ -1509,6 +1486,7 @@ class UsersAsyncClient:
         Creates a personal access token.
 
         Args:
+            token: The personal access token to create.
         """
 
         __url = "/api/v1/users/tokens/create"
@@ -1540,8 +1518,6 @@ class WritersAsyncClient:
     def get_descriptions(self) -> Awaitable[list[ExtensionDescription]]:
         """
         Gets the list of writer descriptions.
-
-        Args:
         """
 
         __url = "/api/v1/writers/descriptions"
