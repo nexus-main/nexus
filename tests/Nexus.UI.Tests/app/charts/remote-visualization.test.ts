@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { setTimeout as delay } from "node:timers/promises";
-import { describe, it } from "node:test";
+import { setImmediate as settle } from "node:timers/promises";
+import { beforeEach, describe, it, type TestContext } from "node:test";
 import {
   decodeVisualization,
   positionVisualizationPoints,
@@ -10,7 +10,6 @@ import {
   type VisualizationFrame,
   type VisualizationLoadTrace,
   type VisualizationRequest,
-  type VisualizationTransport,
 } from "../../../../src/Nexus.UI/src/app/charts/remote-visualization.ts";
 import { requestError } from "../../../../src/Nexus.UI/src/app/request-error.ts";
 import { dateTicks } from "../../../../src/Nexus.UI/src/app/resource-selection.ts";
@@ -88,9 +87,11 @@ interface Row {
   progress?: number;
   message?: string;
   offset?: bigint;
+  minimum?: number;
+  maximum?: number;
 }
 
-function ipc(rows: Row[], invalidType = false): Uint8Array {
+function ipc(rows: Row[], invalidType = false, version?: string, multiBatch = false): Uint8Array {
   const vector = arrow.vectorFromArray;
   const table = new arrow.Table({
     kind: vector(
@@ -122,11 +123,11 @@ function ipc(rows: Row[], invalidType = false): Uint8Array {
       new arrow.Float64(),
     ),
     minimum: vector(
-      rows.map(() => -2),
+      rows.map((r) => r.minimum ?? -2),
       new arrow.Float32(),
     ),
     maximum: vector(
-      rows.map(() => 8),
+      rows.map((r) => r.maximum ?? 8),
       new arrow.Float32(),
     ),
     message: vector(
@@ -135,7 +136,18 @@ function ipc(rows: Row[], invalidType = false): Uint8Array {
     ),
   });
 
-  return arrow.tableToIPC(table);
+  if (version !== undefined) {
+    table.schema.metadata.set("visualizationVersion", version);
+  }
+
+  return arrow.tableToIPC(
+    multiBatch
+      ? new arrow.Table(
+          table.schema,
+          rows.flatMap((_, i) => table.slice(i, i + 1).batches),
+        )
+      : table,
+  );
 }
 
 const dataRow: Row = {
@@ -165,7 +177,7 @@ function response(bytes: Uint8Array, fragment = 19): Response {
 
 describe("visualization Arrow protocol", () => {
   it("reports bounded decoder milestones and delivered byte totals", async () => {
-    const bytes = ipc([{ kind: 1 }, dataRow, { kind: 2 }]);
+    const bytes = ipc([{ kind: 1 }, dataRow, { kind: 2 }], false, "1", true);
     const events: { event: string; details?: object }[] = [];
     const body = response(bytes);
 
@@ -195,7 +207,7 @@ describe("visualization Arrow protocol", () => {
 
     assert.equal(end.bytes, bytes.length);
     assert.equal(end.chunks, Math.ceil(bytes.length / 19));
-    assert.equal(end.batches, 1);
+    assert.equal(end.batches, 3);
     assert.equal(end.outcome, "complete");
     assert.ok(end.durationMs >= 0);
     assert.equal(body.body!.locked, false);
@@ -204,7 +216,10 @@ describe("visualization Arrow protocol", () => {
   it("reports decoder failure without changing protocol rejection or reader cleanup", async () => {
     const outcomes: string[] = [];
 
-    for (const body of [response(ipc([dataRow])), new Response(null)]) {
+    for (const [body, error] of [
+      [response(ipc([dataRow])), /before explicit completion of all views/],
+      [new Response(null), /response has no body/],
+    ] as const) {
       await assert.rejects(
         decodeVisualization(body, request, 100n, new AbortController().signal, () => {}, {
           requestId: "test",
@@ -214,6 +229,7 @@ describe("visualization Arrow protocol", () => {
             }
           },
         }),
+        error,
       );
 
       assert.ok(!body.body?.locked);
@@ -240,12 +256,16 @@ describe("visualization Arrow protocol", () => {
       range: { hasValue: true, minimum: -2, maximum: 8 },
     });
 
-    assert.equal(frames[1].kind, "data");
-
-    if (frames[1].kind === "data") {
-      assert.deepEqual([...frames[1].indices], [0n, 20n, 99n]);
-      assert.ok(Number.isNaN(frames[1].values[1]));
-    }
+    assert.deepEqual(frames.slice(1), [
+      {
+        kind: "data",
+        complete: true,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([0n, 20n, 99n]),
+        values: new Float32Array([-2, NaN, 8]),
+      },
+    ]);
   });
 
   it("accepts nonzero view offsets without adding them to domain-relative indices", async () => {
@@ -255,7 +275,7 @@ describe("visualization Arrow protocol", () => {
       response(
         ipc([{ ...dataRow, offset: 20n, indices: [20n, 99n], values: [1, 2] }, { kind: 2 }]),
       ),
-      request,
+      { ...request, views: [{ ...request.views[0], begin: "0001-01-01T00:00:00.0000020Z" }] },
       100n,
       new AbortController().signal,
       (frame) => frames.push(frame),
@@ -265,35 +285,316 @@ describe("visualization Arrow protocol", () => {
   });
 
   it("rejects bad schema, counts, nulls, unsorted/out-of-range coordinates, errors and truncation", async () => {
-    const malformed = [
-      ipc([dataRow, { kind: 2 }], true),
-      ipc([{ ...dataRow, values: [1] }, { kind: 2 }]),
-      ipc([{ ...dataRow, indices: [0n, null, 99n] }, { kind: 2 }]),
-      ipc([{ ...dataRow, values: [1, null, 2] }, { kind: 2 }]),
-      ipc([{ ...dataRow, indices: [0n, 0n, 99n] }, { kind: 2 }]),
-      ipc([{ ...dataRow, indices: [0n, 20n, 100n] }, { kind: 2 }]),
-      ipc([{ ...dataRow, resourceIndex: 1 }, { kind: 2 }]),
-      ipc([
-        {
-          ...dataRow,
-          values: Array(17).fill(1),
-          indices: Array.from({ length: 17 }, (_, i) => BigInt(i)),
-        },
-        { kind: 2 },
+    const malformed: [Uint8Array, RegExp][] = [
+      [ipc([dataRow, { kind: 2 }], true), /Invalid visualization Arrow schema/],
+      [ipc([{ ...dataRow, values: [1] }, { kind: 2 }]), /Invalid visualization replacement points/],
+      [
+        ipc([{ ...dataRow, indices: [0n, null, 99n] }, { kind: 2 }]),
+        /Invalid visualization replacement points/,
+      ],
+      [
+        ipc([{ ...dataRow, values: [1, null, 2] }, { kind: 2 }]),
+        /Invalid visualization replacement points/,
+      ],
+      [
+        ipc([{ ...dataRow, indices: [0n, 0n, 99n] }, { kind: 2 }]),
+        /Invalid visualization sample coordinate/,
+      ],
+      [
+        ipc([{ ...dataRow, indices: [0n, 20n, 100n] }, { kind: 2 }]),
+        /Invalid visualization sample coordinate/,
+      ],
+      [
+        ipc([{ ...dataRow, resourceIndex: 1 }, { kind: 2 }]),
+        /Invalid visualization resource\/view index/,
+      ],
+      [
+        ipc([{ ...dataRow, viewIndex: 1 }, { kind: 2 }]),
+        /Invalid visualization resource\/view index/,
+      ],
+      [
+        ipc([
+          {
+            ...dataRow,
+            values: Array(17).fill(1),
+            indices: Array.from({ length: 17 }, (_, i) => BigInt(i)),
+          },
+          { kind: 2 },
+        ]),
+        /Invalid visualization replacement points/,
+      ],
+      ...[Infinity, -0.1, 1.1].map((progress): [Uint8Array, RegExp] => [
+        ipc([{ kind: 1, progress }, dataRow, { kind: 2 }]),
+        /Invalid visualization progress/,
       ]),
-      ipc([{ kind: 1, progress: Infinity }]),
-      ipc([{ kind: 3, message: "read failed" }]),
-      ipc([dataRow]),
-      ipc([{ kind: 2 }]),
-      ipc([dataRow, { kind: 2 }, { kind: 1 }]),
-      ipc([dataRow, { kind: 2 }]).slice(0, 100),
+      [ipc([{ kind: 3, message: "read failed" }]), /^Error: read failed$/],
+      [ipc([{ kind: 4 }, dataRow, { kind: 2 }]), /Unknown visualization record kind/],
+      [ipc([dataRow]), /before explicit completion of all views/],
+      [ipc([{ kind: 2 }]), /before explicit completion of all views/],
+      [ipc([dataRow, { kind: 2 }, { kind: 1 }]), /records follow completion/],
+      [
+        ipc([{ ...dataRow, message: "unexpected" }, { kind: 2 }]),
+        /Invalid visualization replacement points/,
+      ],
+      [ipc([{ ...dataRow, offset: -1n }, { kind: 2 }]), /Invalid visualization replacement points/],
+      [
+        ipc([{ ...dataRow, offset: 101n }, { kind: 2 }]),
+        /Invalid visualization replacement points/,
+      ],
     ];
 
-    for (const bytes of malformed) {
+    for (const [bytes, error] of malformed) {
       await assert.rejects(
         decodeVisualization(response(bytes), request, 100n, new AbortController().signal, () => {}),
+        error,
       );
     }
+
+    // Arrow's own truncation error is version-dependent.
+    await assert.rejects(
+      decodeVisualization(
+        response(ipc([dataRow, { kind: 2 }]).slice(0, 100)),
+        request,
+        100n,
+        new AbortController().signal,
+        () => {},
+      ),
+    );
+  });
+
+  it("checks view coordinates independently of the containing domain", async () => {
+    const narrow = {
+      ...request,
+      views: [
+        {
+          ...request.views[0],
+          begin: "0001-01-01T00:00:00.0000020Z",
+          end: "0001-01-01T00:00:00.0000080Z",
+        },
+      ],
+    };
+
+    for (const indices of [
+      [19n, 79n],
+      [20n, 80n],
+    ]) {
+      await assert.rejects(
+        decodeVisualization(
+          response(ipc([{ ...dataRow, offset: 20n, indices, values: [1, 2] }, { kind: 2 }])),
+          narrow,
+          100n,
+          new AbortController().signal,
+          () => {},
+        ),
+        /Invalid visualization sample coordinate/,
+      );
+    }
+  });
+
+  it("accepts supported or absent version metadata and rejects unsupported versions", async () => {
+    for (const version of [undefined, "1", "2"]) {
+      const task = decodeVisualization(
+        response(ipc([dataRow, { kind: 2 }], false, version)),
+        request,
+        100n,
+        new AbortController().signal,
+        () => {},
+      );
+
+      if (version === "2") {
+        await assert.rejects(task, /Invalid visualization Arrow schema/);
+      } else {
+        await task;
+      }
+    }
+  });
+
+  it("routes resource-major multi-view batches through the decoder and provider transactionally", async (t) => {
+    const multiRequest = {
+      ...request,
+      resourcePaths: ["/a", "/b"],
+      views: [
+        request.views[0],
+        {
+          ...request.views[0],
+          id: "detail",
+          begin: "0001-01-01T00:00:00.0000020Z",
+          end: "0001-01-01T00:00:00.0000080Z",
+        },
+      ],
+    };
+    const rows: Row[] = [];
+
+    for (let resourceIndex = 0; resourceIndex < 2; resourceIndex++) {
+      rows.push({ kind: 1, resourceIndex, progress: (resourceIndex + 1) / 2 });
+
+      for (let viewIndex = 0; viewIndex < 2; viewIndex++) {
+        rows.push({
+          ...dataRow,
+          resourceIndex,
+          viewIndex,
+          offset: viewIndex ? 20n : 0n,
+          indices: viewIndex ? [20n, 79n] : [0n, 99n],
+          values: [resourceIndex + viewIndex + 1, 8],
+        });
+      }
+    }
+
+    rows.push({ kind: 2, offset: 100n });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    for (const missing of [false, true]) {
+      const frames: VisualizationFrame[] = [];
+      let complete!: () => void;
+      const ended = new Promise<void>((resolve) => {
+        complete = resolve;
+      });
+      const provider = new RemoteVisualization(
+        0n,
+        100n,
+        1n,
+        multiRequest.resourcePaths,
+        async (actual, signal, emit) => {
+          try {
+            await decodeVisualization(
+              response(
+                ipc(
+                  missing
+                    ? rows.filter(
+                        (row) =>
+                          !(row.kind === 0 && row.resourceIndex === 1 && row.viewIndex === 1),
+                      )
+                    : rows,
+                  false,
+                  "1",
+                  true,
+                ),
+              ),
+              actual,
+              100n,
+              signal,
+              (frame) => {
+                frames.push(frame);
+                emit(frame);
+
+                if (frame.kind === "data" && frame.resourceIndex === 0) {
+                  assert.equal(provider.pointsFor("main", 0, 0n, 100n), undefined);
+                }
+              },
+            );
+          } finally {
+            complete();
+          }
+        },
+        4096,
+      );
+
+      try {
+        provider.requestViews(
+          multiRequest.views.map((view) => ({
+            ...view,
+            begin: dateTicks(view.begin)!,
+            end: dateTicks(view.end)!,
+          })),
+          true,
+        );
+
+        t.mock.timers.tick(0);
+        await ended;
+        await settle();
+
+        if (missing) {
+          assert.match(provider.error, /before explicit completion of all views/);
+          assert.equal(provider.pointsFor("main", 0, 0n, 100n), undefined);
+        } else {
+          assert.equal(provider.error, "");
+          assert.equal(frames.filter((frame) => frame.kind === "data" && frame.complete).length, 4);
+          assert.equal(provider.pointsFor("main", 1, 0n, 100n)?.[1], 2);
+          assert.equal(provider.pointsFor("detail", 1, 20n, 80n)?.[1], 3);
+          assert.equal(provider.loading, false);
+        }
+      } finally {
+        provider.dispose();
+      }
+    }
+  });
+
+  it("emits replacement completeness and rejects missing or repeated pair completion across batches", async () => {
+    const partial = { ...dataRow, message: "partial", values: [1, 2, 3] };
+    const frames: VisualizationFrame[] = [];
+
+    await decodeVisualization(
+      response(ipc([partial, dataRow, { kind: 2 }], false, "1", true)),
+      request,
+      100n,
+      new AbortController().signal,
+      (frame) => frames.push(frame),
+    );
+
+    assert.deepEqual(frames, [
+      {
+        kind: "data",
+        complete: false,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([0n, 20n, 99n]),
+        values: new Float32Array([1, 2, 3]),
+      },
+      {
+        kind: "data",
+        complete: true,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([0n, 20n, 99n]),
+        values: new Float32Array([-2, NaN, 8]),
+      },
+    ]);
+
+    for (const [rows, error] of [
+      [[partial, { kind: 2 }], /before explicit completion of all views/],
+      [[dataRow, dataRow, { kind: 2 }], /Invalid visualization replacement points/],
+      [[dataRow, partial, { kind: 2 }], /Invalid visualization replacement points/],
+    ] as [Row[], RegExp][]) {
+      await assert.rejects(
+        decodeVisualization(
+          response(ipc(rows, false, "1", true)),
+          request,
+          100n,
+          new AbortController().signal,
+          () => {},
+        ),
+        error,
+      );
+    }
+  });
+
+  it("omits invalid ranges without losing valid progress", async () => {
+    const frames: VisualizationFrame[] = [];
+    const rows = [
+      { kind: 1, progress: 0, minimum: NaN, maximum: NaN },
+      { kind: 1, progress: 0.5, minimum: 8, maximum: -2 },
+      { kind: 1, progress: 1, minimum: -Infinity, maximum: Infinity },
+      dataRow,
+      { kind: 2 },
+    ];
+
+    await decodeVisualization(
+      response(ipc(rows)),
+      request,
+      100n,
+      new AbortController().signal,
+      (frame) => frames.push(frame),
+    );
+
+    assert.deepEqual(
+      frames.slice(0, 3),
+      [0, 0.5, 1].map((progress) => ({
+        kind: "progress",
+        progress,
+        resourceIndex: -1,
+        range: undefined,
+      })),
+    );
   });
 
   it("cancels a stalled body and releases the reader lock", async () => {
@@ -321,9 +622,9 @@ describe("visualization Arrow protocol", () => {
       },
     );
 
-    await delay(5);
+    await settle();
     controller.abort();
-    await assert.rejects(task);
+    await assert.rejects(task, { name: "AbortError" });
     assert.equal(cancelled, true);
     assert.equal(body.locked, false);
     assert.deepEqual(outcomes, ["cancelled"]);
@@ -331,7 +632,27 @@ describe("visualization Arrow protocol", () => {
 });
 
 describe("remote viewport provider", () => {
-  function prefetchFixture(resources = 1, origin = 0n, period = 1n) {
+  let clock: TestContext["mock"]["timers"];
+
+  beforeEach((t) => {
+    clock = (t as TestContext).mock.timers;
+    clock.enable({ apis: ["setTimeout"] });
+  });
+
+  async function delay(milliseconds: number) {
+    await settle();
+    clock.tick(milliseconds);
+    // Drain promise continuations before advancing another scheduling deadline.
+    await settle();
+  }
+
+  function prefetchFixture(
+    resources = 1,
+    origin = 0n,
+    period = 1n,
+    cacheBudgetBytes = 32 * 1024 * 1024,
+    length = 10000000n,
+  ) {
     const calls: {
       request: VisualizationRequest;
       signal: AbortSignal;
@@ -342,29 +663,36 @@ describe("remote viewport provider", () => {
     }[] = [];
     const provider = new RemoteVisualization(
       origin,
-      origin + 10000000n * period,
+      origin + length * period,
       period,
       Array.from({ length: resources }, (_, i) => `/r${i}`),
       (request, signal, emit, trace) =>
         new Promise<void>((resolve, reject) => {
           calls.push({ request, signal, emit, resolve, reject, trace });
         }),
+      cacheBudgetBytes,
     );
-    const finish = (index: number, value = index + 1) => {
+    const finish = (index: number, value = index + 1, pointCount?: number) => {
       const call = calls[index];
 
       call.request.views.forEach((view, viewIndex) => {
+        const first = (dateTicks(view.begin)! - origin) / period;
+        const end = (dateTicks(view.end)! - origin) / period;
+        const count =
+          pointCount ?? (end - first <= BigInt(view.maxPoints) ? Number(end - first) : 2);
+        const indices = Array.from(
+          { length: count },
+          (_, i) => first + (BigInt(i) * (end - first - 1n)) / BigInt(Math.max(1, count - 1)),
+        );
+
         for (let resourceIndex = 0; resourceIndex < resources; resourceIndex++) {
           call.emit({
             kind: "data",
             complete: true,
             resourceIndex,
             viewIndex,
-            indices: new BigInt64Array([
-              (dateTicks(view.begin)! - origin) / period,
-              (dateTicks(view.end)! - origin) / period - 1n,
-            ]),
-            values: new Float32Array([value, value]),
+            indices: new BigInt64Array(indices),
+            values: new Float32Array(indices.length).fill(value),
           });
         }
       });
@@ -379,7 +707,6 @@ describe("remote viewport provider", () => {
   }
 
   it("passes unique correlated load traces only while diagnostics are enabled", (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const storage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
     let enabled = false;
 
@@ -496,7 +823,6 @@ describe("remote viewport provider", () => {
   });
 
   it("starts foreground for the latest view without waiting for a gesture to stop", async (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, finish, view } = prefetchFixture();
 
     try {
@@ -514,8 +840,7 @@ describe("remote viewport provider", () => {
       provider.requestViews(view(3n, 97n));
       assert.equal(calls[0].signal.aborted, false);
       finish(0, 8);
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       assert.equal(provider.loading, false);
       assert.equal(provider.progress, 1);
       assert.equal(provider.pointsFor("main", 0, 3n, 97n)?.[1], 8);
@@ -527,7 +852,6 @@ describe("remote viewport provider", () => {
   });
 
   it("retains nearby reduced foreground work and then refines the latest boundaries", async (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, finish, view } = prefetchFixture();
 
     try {
@@ -545,8 +869,7 @@ describe("remote viewport provider", () => {
       );
 
       finish(0);
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       assert.equal(provider.loading, true);
       assert.ok(states.every((state) => state.loading && state.progress === 0));
       assert.equal(provider.pointsFor("main", 0, 100n, 9900n)?.[1], 1);
@@ -554,8 +877,7 @@ describe("remote viewport provider", () => {
       assert.equal(calls.length, 2);
       assert.equal(dateTicks(calls[1].request.views[0].begin), 100n);
       finish(1, 7);
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       assert.equal(provider.loading, false);
       assert.equal(provider.pointsFor("main", 0, 100n, 9900n)?.[1], 7);
     } finally {
@@ -564,7 +886,6 @@ describe("remote viewport provider", () => {
   });
 
   it("replaces foreground work that no longer covers the view or is too coarse", (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, view } = prefetchFixture();
 
     try {
@@ -587,15 +908,13 @@ describe("remote viewport provider", () => {
   });
 
   it("retains completed superseded previews without caching them or suppressing refinement", async (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, finish, view } = prefetchFixture(2);
 
     try {
       provider.requestViews(view(0n, 10000n), true);
       t.mock.timers.tick(1);
       finish(0, 1);
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       provider.requestViews(view(100n, 9900n, 1000), true);
       t.mock.timers.tick(1);
 
@@ -614,8 +933,7 @@ describe("remote viewport provider", () => {
       provider.requestViews(view(2000n, 3000n, 1000));
       assert.equal(calls[1].signal.aborted, true);
       calls[1].reject(new Error("aborted"));
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
 
       for (let resourceIndex = 0; resourceIndex < 2; resourceIndex++) {
         assert.equal(provider.pointsFor("main", resourceIndex, 2000n, 3000n)?.[1], 8);
@@ -627,8 +945,7 @@ describe("remote viewport provider", () => {
       t.mock.timers.tick(50);
       assert.equal(calls.length, 3);
       finish(2, 7);
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       assert.equal(provider.loading, false);
       assert.equal(provider.pointsFor("main", 0, 100n, 9900n)?.[1], 7);
     } finally {
@@ -638,7 +955,6 @@ describe("remote viewport provider", () => {
 
   for (const delivery of ["missing-resource", "partial-resource", "complete"] as const) {
     it(`only retains all-resource complete previews on supersession (${delivery})`, async (t) => {
-      t.mock.timers.enable({ apis: ["setTimeout"] });
       const { provider, calls, view } = prefetchFixture(2);
 
       try {
@@ -670,8 +986,7 @@ describe("remote viewport provider", () => {
 
         t.mock.timers.tick(50);
         calls[1].reject(new Error("truncated"));
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
         assert.equal(provider.pointsFor("main", 0, 2000n, 3000n), undefined);
       } finally {
         provider.dispose();
@@ -680,7 +995,6 @@ describe("remote viewport provider", () => {
   }
 
   it("replaces rather than accumulates retained views across repeated supersessions", (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, view } = prefetchFixture();
 
     try {
@@ -733,10 +1047,11 @@ describe("remote viewport provider", () => {
   });
 
   it("bounds retained view payload to 262144 resource-points", (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, view } = prefetchFixture(9);
 
     try {
+      // Deliberately exceed the server aggregate limit to exercise the provider's
+      // independent retained-preview guard at its transport boundary.
       provider.requestViews(view(0n, 1000000n, 32768), true);
       t.mock.timers.tick(1);
 
@@ -746,7 +1061,7 @@ describe("remote viewport provider", () => {
           complete: true,
           resourceIndex,
           viewIndex: 0,
-          indices: new BigInt64Array(32768),
+          indices: BigInt64Array.from({ length: 32768 }, (_, i) => BigInt(i)),
           values: new Float32Array(32768),
         });
       }
@@ -761,7 +1076,6 @@ describe("remote viewport provider", () => {
 
   for (const cleanup of ["cancel", "dispose", "uncovered"] as const) {
     it(`clears retained previews on ${cleanup}`, (t) => {
-      t.mock.timers.enable({ apis: ["setTimeout"] });
       const { provider, calls, view } = prefetchFixture();
 
       try {
@@ -816,7 +1130,6 @@ describe("remote viewport provider", () => {
   });
 
   it("retries only the latest changed viewport after retained foreground failure", async (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, view } = prefetchFixture();
 
     try {
@@ -824,8 +1137,7 @@ describe("remote viewport provider", () => {
       t.mock.timers.tick(1);
       provider.requestViews(view(1n, 9999n));
       calls[0].reject(new Error("old view failed"));
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       assert.equal(provider.error, "");
       assert.equal(provider.loading, true);
       assert.equal(provider.progress, 0);
@@ -833,8 +1145,7 @@ describe("remote viewport provider", () => {
       assert.equal(calls.length, 2);
       assert.equal(dateTicks(calls[1].request.views[0].begin), 1n);
       calls[1].reject(new Error("latest view failed"));
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       assert.match(provider.error, /latest view failed/);
       assert.equal(provider.loading, false);
       t.mock.timers.tick(1000);
@@ -845,7 +1156,6 @@ describe("remote viewport provider", () => {
   });
 
   it("retains one-level-coarser main coverage and follows up missing detail", async (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
     const { provider, calls, finish, view } = prefetchFixture();
 
     try {
@@ -860,8 +1170,7 @@ describe("remote viewport provider", () => {
 
       assert.equal(calls[0].signal.aborted, false);
       finish(0);
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       t.mock.timers.tick(50);
 
       assert.deepEqual(
@@ -870,8 +1179,7 @@ describe("remote viewport provider", () => {
       );
 
       finish(1);
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
       assert.equal(provider.loading, false);
     } finally {
       provider.dispose();
@@ -879,8 +1187,6 @@ describe("remote viewport provider", () => {
   });
 
   it("clears pending refinement on cancel, disposal, or navigation to cached coverage", async (t) => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
-
     for (const action of ["cancel", "dispose", "cached"]) {
       const { provider, calls, finish, view } = prefetchFixture();
 
@@ -889,8 +1195,7 @@ describe("remote viewport provider", () => {
         t.mock.timers.tick(1);
         provider.requestViews(view(1n, 999n));
         finish(0);
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
         assert.equal(provider.loading, true);
 
         if (action === "cached") {
@@ -910,35 +1215,51 @@ describe("remote viewport provider", () => {
     }
   });
 
-  it("cancels speculative work for foreground gestures and ignores late frames and errors", async () => {
-    const { provider, calls, finish, view } = prefetchFixture();
+  for (const outcome of ["success", "failure"] as const) {
+    it(`cancels speculative work for foreground gestures and ignores late ${outcome}`, async () => {
+      const { provider, calls, finish, view } = prefetchFixture();
 
-    try {
-      provider.requestViews(view(), true);
-      await delay(5);
-      finish(0);
-      await delay(280);
-      assert.equal(calls.length, 2);
-      calls[1].emit({ kind: "progress", progress: 0.1, resourceIndex: -1 });
-      assert.equal(provider.progress, 1);
-      provider.requestViews(view(7000000n, 7100000n), true);
-      assert.equal(calls[1].signal.aborted, true);
-      await delay(5);
-      assert.equal(calls.length, 3);
-      finish(1, 99);
-      await delay(5);
-      assert.equal(provider.loading, true);
-      finish(2);
-      await delay(5);
-      assert.equal(provider.error, "");
-      assert.equal(provider.pointsFor("main", 0, 7000000n, 7100000n)?.[1], 3);
-      provider.cancel();
-      await delay(280);
-      assert.equal(calls.length, 3);
-    } finally {
-      provider.dispose();
-    }
-  });
+      try {
+        provider.requestViews(view(), true);
+        await delay(5);
+        finish(0);
+        await delay(280);
+        assert.equal(calls.length, 2);
+
+        calls[1].emit({
+          kind: "progress",
+          progress: 0.1,
+          resourceIndex: 0,
+          range: { hasValue: true, minimum: -99, maximum: 99 },
+        });
+
+        assert.equal(provider.progress, 1);
+        assert.equal(provider.ranges.size, 0);
+        provider.requestViews(view(7000000n, 7100000n), true);
+        assert.equal(calls[1].signal.aborted, true);
+        await delay(5);
+        assert.equal(calls.length, 3);
+
+        if (outcome === "success") {
+          finish(1, 99);
+        } else {
+          calls[1].reject(new Error("stale speculative failure"));
+        }
+
+        await delay(5);
+        assert.equal(provider.loading, true);
+        finish(2);
+        await delay(5);
+        assert.equal(provider.error, "");
+        assert.equal(provider.pointsFor("main", 0, 7000000n, 7100000n)?.[1], 3);
+        provider.cancel();
+        await delay(280);
+        assert.equal(calls.length, 3);
+      } finally {
+        provider.dispose();
+      }
+    });
+  }
 
   it("infers edge zoom anchors and clamps all speculative coverage to the domain", async () => {
     for (const rightEdge of [false, true]) {
@@ -1031,7 +1352,8 @@ describe("remote viewport provider", () => {
   });
 
   it("does not prefetch fine raw views or sacrifice visited history for speculation", async () => {
-    const { provider, calls, finish, view } = prefetchFixture();
+    // 100 raw points plus seven two-point views fill the payload budget exactly.
+    const { provider, calls, finish, view } = prefetchFixture(1, 0n, 1n, (100 + 7 * 2) * 12);
 
     try {
       provider.requestViews(view(0n, 100n), true);
@@ -1059,7 +1381,7 @@ describe("remote viewport provider", () => {
   });
 
   it("replaces unvisited speculative entries without evicting a full visited history", async () => {
-    const { provider, calls, finish, view } = prefetchFixture();
+    const { provider, calls, finish, view } = prefetchFixture(1, 0n, 1n, (7 * 2 + 100) * 12);
 
     try {
       for (let i = 0; i < 7; i++) {
@@ -1071,13 +1393,29 @@ describe("remote viewport provider", () => {
 
       await delay(280);
 
-      // Seven visited entries leave one slot; subsequent predictions can replace
-      // the unvisited prediction in that slot instead of downloading and dropping.
+      // Seven two-point views leave 100 points. The two small zoom-in results fit,
+      // then each full-budget zoom-out result must replace speculative coverage.
       for (let i = 7; i < 11; i++) {
         assert.equal(calls.length, i + 1);
-        finish(i);
+        assert.equal(calls[i].request.views[0].maxPoints, 100);
+        finish(i, i + 1, i < 9 ? 2 : 100);
         await delay(5);
       }
+
+      const last = calls[10].request.views[0];
+
+      assert.equal(
+        provider.pointsFor("main", 0, dateTicks(last.begin)!, dateTicks(last.end)!)?.[1],
+        11,
+      );
+
+      const first = calls[7].request.views[0];
+
+      // The last, broader prediction is the only speculative payload retained.
+      assert.notEqual(
+        provider.pointsFor("main", 0, dateTicks(first.begin)!, dateTicks(first.end)!)?.[1],
+        8,
+      );
 
       for (let i = 0; i < 7; i++) {
         provider.requestViews(view(BigInt(i) * 1000000n, BigInt(i) * 1000000n + 500000n), true);
@@ -1090,7 +1428,7 @@ describe("remote viewport provider", () => {
     }
   });
 
-  it("refines clipped boundary buckets and renders the finest canonical cached LOD", async () => {
+  it("refines clipped boundary buckets", async () => {
     const { provider, calls, finish, view } = prefetchFixture();
 
     try {
@@ -1108,6 +1446,221 @@ describe("remote viewport provider", () => {
       assert.equal(calls.length, 3);
       assert.equal(provider.loading, true);
       finish(2, 3);
+      await delay(0);
+      assert.equal(provider.pointsFor("main", 0, 10n, 90n)?.[1], 3);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("renders the finest compatible canonical LOD even when coarser cached coverage was requested", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      // Both bounds are compatible; budgets cross a canonical stride boundary.
+      provider.requestViews(view(0n, 100n, 16), true);
+      await delay(0);
+      finish(0, 1);
+      await delay(0);
+      provider.requestViews(view(0n, 100n, 100), true);
+      await delay(0);
+      finish(1, 2);
+      await delay(0);
+      provider.requestViews(view(0n, 100n, 16), true);
+      assert.equal(calls.length, 2);
+      assert.equal(provider.pointsFor("main", 0, 0n, 100n)?.[1], 2);
+      assert.equal(provider.pointsFor("main", 0, 0n, 100n)?.length, 200);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("force reload invalidates every covering resolution but preserves unrelated history", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      for (const requested of [view(0n, 100n, 16), view(0n, 100n, 100), view(200n, 300n, 100)]) {
+        provider.requestViews(requested, true);
+        await delay(0);
+        finish(calls.length - 1);
+        await delay(0);
+      }
+
+      provider.requestViews(view(0n, 100n, 16), true);
+      assert.equal(provider.pointsFor("main", 0, 0n, 100n)?.[1], 2);
+      provider.requestViews(view(0n, 100n, 16), true, true);
+      assert.equal(provider.loading, true);
+      assert.equal(provider.pointsFor("main", 0, 0n, 100n), undefined);
+      await delay(0);
+      assert.equal(calls.length, 4);
+      finish(3, 9);
+      await delay(0);
+      assert.equal(provider.pointsFor("main", 0, 0n, 100n)?.[1], 9);
+      provider.requestViews(view(200n, 300n, 100), true);
+      assert.equal(provider.loading, false);
+      assert.equal(calls.length, 4);
+      assert.equal(provider.pointsFor("main", 0, 200n, 300n)?.[1], 3);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  for (const outcome of ["success", "failure"] as const) {
+    it(`force reload aborts useful foreground work and ignores its late ${outcome}`, async () => {
+      const { provider, calls, finish, view } = prefetchFixture();
+
+      try {
+        provider.requestViews(view(0n, 100n), true);
+        await delay(0);
+        finish(0, 1);
+        // The complete preview exists, but transport completion has not settled.
+        assert.equal(provider.pointsFor("main", 0, 0n, 100n)?.[1], 1);
+        provider.requestViews(view(0n, 100n), true, true);
+        assert.equal(calls[0].signal.aborted, true);
+        assert.equal(provider.pointsFor("main", 0, 0n, 100n), undefined);
+        await delay(0);
+        assert.equal(calls.length, 2);
+
+        // Supersede a second useful request before it completes.
+        provider.requestViews(view(0n, 100n), true, true);
+        assert.equal(calls[1].signal.aborted, true);
+        await delay(0);
+        assert.equal(calls.length, 3);
+
+        calls[1].emit({
+          kind: "progress",
+          progress: 0.9,
+          resourceIndex: 0,
+          range: { hasValue: true, minimum: -99, maximum: 99 },
+        });
+
+        if (outcome === "success") {
+          finish(1, 99);
+        } else {
+          calls[1].reject(new Error("stale failure"));
+        }
+
+        await delay(0);
+        assert.equal(provider.loading, true);
+        assert.equal(provider.progress, 0);
+        assert.equal(provider.error, "");
+        assert.equal(provider.ranges.size, 0);
+        assert.equal(provider.pointsFor("main", 0, 0n, 100n), undefined);
+        finish(2, 7);
+        await delay(0);
+        assert.equal(provider.loading, false);
+        assert.equal(provider.pointsFor("main", 0, 0n, 100n)?.[1], 7);
+      } finally {
+        provider.dispose();
+      }
+    });
+  }
+
+  it("keeps progress monotonic and publishes per-resource ranges and all-resource previews", async () => {
+    const { provider, calls, view } = prefetchFixture(2, 0n, 1n, 4096, 100n);
+    const authoritative = { hasValue: true, minimum: -10, maximum: 10 };
+
+    try {
+      provider.requestViews(view(0n, 100n, 16), true);
+      await delay(0);
+      calls[0].emit({ kind: "progress", progress: 0.7, resourceIndex: 0, range: authoritative });
+      calls[0].emit({ kind: "progress", progress: 0.2, resourceIndex: 1 });
+
+      calls[0].emit({
+        kind: "progress",
+        progress: 0.3,
+        resourceIndex: -1,
+        range: { hasValue: true, minimum: -99, maximum: 99 },
+      });
+
+      assert.equal(provider.progress, 0.7);
+      assert.deepEqual([...provider.ranges], [[0, authoritative]]);
+
+      const point = (resourceIndex: number, complete: boolean): VisualizationFrame => ({
+        kind: "data",
+        complete,
+        resourceIndex,
+        viewIndex: 0,
+        indices: new BigInt64Array([0n, 50n, 99n]),
+        values: new Float32Array([2, NaN, 4]),
+      });
+
+      calls[0].emit(point(0, true));
+      assert.equal(provider.pointsFor("main", 0, 0n, 100n), undefined);
+      calls[0].emit(point(1, false));
+      assert.equal(provider.pointsFor("main", 0, 0n, 100n)?.[1], 2);
+      assert.equal(provider.pointsFor("main", 1, 0n, 100n)?.[1], 2);
+      assert.equal(provider.loading, true);
+      calls[0].emit(point(1, true));
+      calls[0].resolve();
+      await delay(0);
+      assert.equal(provider.progress, 1);
+      assert.equal(provider.loading, false);
+
+      // Finite full-domain points fill only the missing range, not server extrema.
+      assert.deepEqual(
+        [...provider.ranges],
+        [
+          [0, authoritative],
+          [1, { hasValue: true, minimum: 2, maximum: 4 }],
+        ],
+      );
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("does not invent a full-domain range from all-nonfinite drawing points", async () => {
+    const { provider, calls, view } = prefetchFixture(1, 0n, 1n, 4096, 100n);
+
+    try {
+      provider.requestViews(view(0n, 100n, 16), true);
+      await delay(0);
+
+      calls[0].emit({
+        kind: "data",
+        complete: true,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: new BigInt64Array([0n]),
+        values: new Float32Array([NaN]),
+      });
+
+      calls[0].resolve();
+      await delay(0);
+      assert.equal(provider.loading, false);
+      assert.equal(provider.ranges.size, 0);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  it("keeps published global ranges on failure and cancel but ignores aborted progress", async () => {
+    const { provider, calls, view } = prefetchFixture();
+    const range = { hasValue: true, minimum: -4, maximum: 8 };
+
+    try {
+      provider.requestViews(view(0n, 100n), true);
+      await delay(0);
+      calls[0].emit({ kind: "progress", progress: 0.5, resourceIndex: 0, range });
+      calls[0].reject(new Error("failed after range"));
+      await delay(0);
+      assert.deepEqual(provider.ranges.get(0), range);
+      provider.requestViews(view(0n, 100n), true);
+      await delay(0);
+      assert.equal(calls.length, 2);
+      assert.equal(provider.progress, 0);
+      provider.cancel();
+
+      calls[1].emit({
+        kind: "progress",
+        progress: 1,
+        resourceIndex: 0,
+        range: { hasValue: true, minimum: -99, maximum: 99 },
+      });
+
+      assert.equal(provider.progress, 0);
+      assert.deepEqual(provider.ranges.get(0), range);
     } finally {
       provider.dispose();
     }
@@ -1144,60 +1697,35 @@ describe("remote viewport provider", () => {
   });
 
   it("shows streamed partial replacements and restores completed coverage on stream failure", async () => {
-    let emit!: (frame: VisualizationFrame) => void;
-    let fail!: (error: Error) => void;
-    let first = true;
-    const provider = new RemoteVisualization(
-      0n,
-      100n,
-      1n,
-      ["/a"],
-      async (_request, _signal, onFrame) => {
-        if (first) {
-          first = false;
+    const { provider, calls, finish } = prefetchFixture(1, 0n, 1n, 4096, 100n);
 
-          onFrame({
-            kind: "data",
-            complete: true,
-            resourceIndex: 0,
-            viewIndex: 0,
-            indices: new BigInt64Array([0n, 99n]),
-            values: new Float32Array([1, 2]),
-          });
+    try {
+      provider.requestViews([{ id: "overview", begin: 0n, end: 100n, maxPoints: 16 }], true);
+      await delay(5);
+      finish(0, 1);
+      await delay(0);
+      provider.requestViews([{ id: "main", begin: 10n, end: 20n, maxPoints: 16 }], true);
+      await delay(5);
+      calls[1].emit({ kind: "progress", progress: 0.25, resourceIndex: -1 });
 
-          return;
-        }
+      calls[1].emit({
+        kind: "data",
+        complete: false,
+        resourceIndex: 0,
+        viewIndex: 0,
+        indices: BigInt64Array.from({ length: 10 }, (_, i) => 10n + BigInt(i)),
+        values: new Float32Array(10).fill(8),
+      });
 
-        emit = onFrame;
-
-        await new Promise<void>((_resolve, reject) => {
-          fail = reject;
-        });
-      },
-    );
-
-    provider.requestViews([{ id: "overview", begin: 0n, end: 100n, maxPoints: 16 }], true);
-    await delay(5);
-    provider.requestViews([{ id: "main", begin: 10n, end: 20n, maxPoints: 16 }], true);
-    await delay(5);
-    emit({ kind: "progress", progress: 0.25, resourceIndex: -1 });
-
-    emit({
-      kind: "data",
-      complete: false,
-      resourceIndex: 0,
-      viewIndex: 0,
-      indices: new BigInt64Array([10n, 19n]),
-      values: new Float32Array([8, 9]),
-    });
-
-    assert.equal(provider.loading, true);
-    assert.equal(provider.progress, 0.25);
-    assert.equal(provider.pointsFor("main", 0, 10n, 20n)?.[1], 8);
-    fail(new Error("truncated"));
-    await delay(5);
-    assert.equal(provider.pointsFor("main", 0, 10n, 20n)?.[1], 1);
-    provider.dispose();
+      assert.equal(provider.loading, true);
+      assert.equal(provider.progress, 0.25);
+      assert.equal(provider.pointsFor("main", 0, 10n, 20n)?.[1], 8);
+      calls[1].reject(new Error("truncated"));
+      await delay(5);
+      assert.equal(provider.pointsFor("main", 0, 10n, 20n)?.[1], 1);
+    } finally {
+      provider.dispose();
+    }
   });
 
   it("subtracts integer origins before converting huge indices to Float32", () => {
@@ -1219,95 +1747,94 @@ describe("remote viewport provider", () => {
   });
 
   it("coalesces gestures, aborts stale requests, retains fallback on failure and reuses cached views", async () => {
-    const calls: {
-      request: VisualizationRequest;
-      signal: AbortSignal;
-      emit: (frame: VisualizationFrame) => void;
-      resolve: () => void;
-      reject: (error: Error) => void;
-    }[] = [];
-    const transport: VisualizationTransport = (request, signal, emit) =>
-      new Promise<void>((resolve, reject) => {
-        calls.push({ request, signal, emit, resolve, reject });
-      });
-    const provider = new RemoteVisualization(0n, 100n, 1n, ["/a"], transport);
+    const { provider, calls, finish } = prefetchFixture(1, 0n, 1n, 4096, 100n);
     const view = (begin = 0n, end = 100n) => [{ id: "main", begin, end, maxPoints: 16 }];
-    const finish = (index: number, value: number) => {
-      calls[index].emit({
-        kind: "data",
-        complete: true,
-        resourceIndex: 0,
-        viewIndex: 0,
-        indices: new BigInt64Array([0n, 99n]),
-        values: new Float32Array([value, value]),
-      });
 
-      calls[index].resolve();
-    };
+    try {
+      provider.requestViews(view(), true);
+      await delay(5);
+      finish(0, 1);
+      await delay(5);
+      const fallback = provider.pointsFor("main", 0, 0n, 100n);
 
-    provider.requestViews(view(), true);
-    await delay(5);
-    finish(0, 1);
-    await delay(5);
-    const fallback = provider.pointsFor("main", 0, 0n, 100n);
-
-    assert.equal(fallback?.[1], 1);
-    provider.requestViews(view(10n, 30n));
-    provider.requestViews(view(20n, 40n));
-    await delay(180);
-    assert.equal(calls.length, 2);
-    provider.requestViews(view(40n, 60n), true);
-    assert.equal(calls[1].signal.aborted, true);
-    await delay(5);
-    finish(1, 99);
-    calls[2].reject(new Error("network failed"));
-    await delay(5);
-    assert.match(provider.error, /network failed/);
-    assert.equal(provider.pointsFor("main", 0, 0n, 100n), fallback);
-    provider.requestViews(view(), true);
-    await delay(5);
-    assert.equal(calls.length, 3);
-    provider.dispose();
+      assert.equal(fallback?.[1], 1);
+      provider.requestViews(view(10n, 30n));
+      provider.requestViews(view(20n, 40n));
+      await delay(180);
+      assert.equal(calls.length, 2);
+      provider.requestViews(view(40n, 60n), true);
+      assert.equal(calls[1].signal.aborted, true);
+      await delay(5);
+      finish(1, 99);
+      calls[2].reject(new Error("network failed"));
+      await delay(5);
+      assert.match(provider.error, /network failed/);
+      assert.equal(provider.pointsFor("main", 0, 0n, 100n), fallback);
+      provider.requestViews(view(), true);
+      await delay(5);
+      assert.equal(calls.length, 3);
+    } finally {
+      provider.dispose();
+    }
   });
 
-  it("bounds recent cache and keeps the coarse domain when cancelling refinements", async () => {
-    let calls = 0;
-    const provider = new RemoteVisualization(
-      0n,
-      1000n,
-      1n,
-      ["/a"],
-      async (_request, _signal, emit) => {
-        calls++;
+  it("evicts narrow history under byte pressure but protects the domain and current view", async () => {
+    // Space for the two-point domain plus one twenty-sample raw view.
+    const { provider, calls, finish, view } = prefetchFixture(1, 0n, 1n, 22 * 12, 1000n);
 
-        emit({
-          kind: "data",
-          complete: true,
-          resourceIndex: 0,
-          viewIndex: 0,
-          indices: new BigInt64Array([0n, 999n]),
-          values: new Float32Array([1, 2]),
-        });
-      },
-    );
-    const views = (begin: bigint, end: bigint) => [{ id: "main", begin, end, maxPoints: 16 }];
+    try {
+      for (const [begin, end] of [
+        [0n, 1000n],
+        [100n, 120n],
+        [200n, 210n],
+      ]) {
+        provider.requestViews(view(begin, end), true);
+        await delay(0);
+        finish(calls.length - 1);
+        await delay(0);
+      }
 
-    provider.requestViews(views(0n, 1000n), true);
-    await delay(5);
-
-    for (let i = 1n; i < 12n; i++) {
-      provider.requestViews(views(i, i + 10n), true);
-      await delay(5);
+      // The protected new view remains even though it is narrower than history.
+      provider.requestViews(view(200n, 210n), true);
+      assert.equal(provider.loading, false);
+      assert.equal(calls.length, 3);
+      provider.requestViews(view(100n, 120n), true);
+      await delay(0);
+      assert.equal(calls.length, 4);
+      finish(3);
+      await delay(0);
+      provider.requestViews(view(0n, 1000n), true);
+      assert.equal(provider.loading, false);
+      assert.equal(calls.length, 4);
+      provider.requestViews(view(300n, 310n));
+      provider.cancel();
+      await delay(1000);
+      assert.equal(calls.length, 4);
+      assert.equal(provider.pointsFor("overview", 0, 0n, 1000n)?.[1], 1);
+    } finally {
+      provider.dispose();
     }
+  });
 
-    provider.requestViews(views(1n, 11n), true);
-    await delay(5);
-    assert.equal(calls, 13);
-    provider.requestViews(views(100n, 120n));
-    provider.cancel();
-    await delay(170);
-    assert.equal(calls, 13);
-    assert.ok(provider.pointsFor("overview", 0, 0n, 1000n));
-    provider.dispose();
+  it("bounds tiny cached views by entry count even with ample byte capacity", async () => {
+    const { provider, calls, finish, view } = prefetchFixture();
+
+    try {
+      for (let i = 0; i < 1025; i++) {
+        provider.requestViews(view(BigInt(i * 2), BigInt(i * 2 + 1)), true);
+        await delay(0);
+        finish(i);
+        await delay(0);
+      }
+
+      provider.requestViews(view(2048n, 2049n), true);
+      assert.equal(provider.loading, false);
+      assert.equal(calls.length, 1025);
+      provider.requestViews(view(0n, 1n), true);
+      await delay(0);
+      assert.equal(calls.length, 1026);
+    } finally {
+      provider.dispose();
+    }
   });
 });

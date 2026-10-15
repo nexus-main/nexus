@@ -9,6 +9,7 @@ namespace Nexus.Tests;
 internal sealed class VisualizationTimingLogger : ILoggerFactory
 {
     public ConcurrentQueue<Entry> Entries { get; } = new();
+    public Action<Entry>? EntryWritten { get; set; }
 
     public sealed record Entry(string Category, LogLevel Level, string Message, Exception? Exception,
         IReadOnlyDictionary<string, object?> Fields)
@@ -31,8 +32,12 @@ internal sealed class VisualizationTimingLogger : ILoggerFactory
             Func<TState, Exception?, string> formatter)
         {
             if (IsEnabled(logLevel))
-                owner.Entries.Enqueue(new Entry(category, logLevel, formatter(state, exception), exception,
-                    ((IEnumerable<KeyValuePair<string, object?>>)state!).ToDictionary()));
+            {
+                var entry = new Entry(category, logLevel, formatter(state, exception), exception,
+                    ((IEnumerable<KeyValuePair<string, object?>>)state!).ToDictionary());
+                owner.Entries.Enqueue(entry);
+                owner.EntryWritten?.Invoke(entry);
+            }
         }
     }
 }

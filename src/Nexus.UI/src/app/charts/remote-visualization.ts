@@ -548,33 +548,28 @@ export class RemoteVisualization {
     this.error = "";
 
     if (force) {
-      const invalidated = new Set<CachedView>();
-
-      for (const view of views) {
-        const cached = this.cachedView(view);
-
-        if (cached) {
-          invalidated.add(cached);
-        }
-      }
+      // Reload must not reuse another cached resolution or an in-flight result.
+      this.generation++;
+      this.controller?.abort();
+      this.controller = undefined;
+      this.foregroundViews = [];
+      let invalidatedEntries = 0;
 
       for (const [cacheKey, cached] of this.cache) {
-        if (invalidated.has(cached)) {
+        if (views.some((view) => cached.begin <= view.begin && cached.end >= view.end)) {
           this.cache.delete(cacheKey);
           this.protectedViews.delete(cached);
+          invalidatedEntries++;
         }
       }
 
-      if (invalidated.size) {
-        this.positioned.clear();
-      }
-
+      this.positioned.clear();
       this.retainedPreview = undefined;
       this.previews.clear();
 
       this.trace("request-force-invalidate", {
         immediate,
-        invalidatedEntries: invalidated.size,
+        invalidatedEntries,
         views: traceViews(views),
       });
     }

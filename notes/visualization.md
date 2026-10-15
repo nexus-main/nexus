@@ -417,7 +417,7 @@ the scan. Unversioned sources use TTL freshness,
 not snapshot guarantees. Warm raw fragments can reflect newer source data than
 the cached pyramid until expiry. Kernel and synthetic pipeline measurements are
 recorded in the [reduction benchmarks](../benchmarks/Nexus.Benchmarks/VisualizationReduction.md)
-and [historical service review](../tests/Nexus.Tests/Services/VisualizationReview.md);
+and [synthetic service benchmarks](../benchmarks/Nexus.Benchmarks/VisualizationService.md);
 these are not NVMe benchmarks.
 
 ## Opt-in server timings

@@ -20,6 +20,11 @@ public class VisualizationReductionTests
         AssertSummary(summary, VisualizationReduction.Merge(summary, empty));
         AssertSummary(empty, VisualizationReduction.Merge(empty, empty));
         AssertSummary(summary, VisualizationReduction.Merge(empty with { Start = 999 }, summary));
+    }
+
+    [Fact]
+    public void BaseStrideMatchesPyramidBucketContract()
+    {
         Assert.Equal(256, VisualizationReduction.BaseStride);
     }
 
