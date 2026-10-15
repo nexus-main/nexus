@@ -40,13 +40,6 @@ export type VisualizationFrame =
   | ({ kind: "data"; complete: boolean } & VisualizationPoints)
   | { kind: "progress"; progress: number; resourceIndex: number; range?: GpuRange };
 
-export interface VisualizationLoadTrace {
-  requestId: string;
-  event: (event: string, details?: object) => void;
-}
-
-export const visualizationTraceHeader = "X-Nexus-Visualization-Trace";
-
 const columns = [
   ["kind", "Int32"],
   ["resourceIndex", "Int32"],
@@ -59,43 +52,7 @@ const columns = [
   ["maximum", "Float32"],
   ["message", "Utf8"],
 ];
-const visualizationTraceKey = "nexus.visualizationTrace";
 const maxRemoteVisualizationCacheEntries = 1024;
-let nextTraceId = 0;
-
-function visualizationTraceEnabled(): boolean {
-  try {
-    const value = globalThis.localStorage?.getItem(visualizationTraceKey);
-
-    return value === "1" || value === "true";
-  } catch {
-    return false;
-  }
-}
-
-function viewSpan(view: { begin: bigint; end: bigint }): string {
-  return `${view.end - view.begin}`;
-}
-
-function traceViews(
-  views: {
-    id?: string;
-    begin: bigint;
-    end: bigint;
-    maxPoints?: number;
-    budget?: number;
-    prefetched?: boolean;
-  }[],
-): object[] {
-  return views.map((view) => ({
-    id: view.id,
-    begin: String(view.begin),
-    end: String(view.end),
-    span: viewSpan(view),
-    maxPoints: view.maxPoints ?? view.budget,
-    prefetched: view.prefetched,
-  }));
-}
 
 function validateSchema(schema: Schema): void {
   if (
@@ -118,27 +75,15 @@ export async function decodeVisualization(
   sampleCount: bigint,
   signal: AbortSignal,
   onFrame: (frame: VisualizationFrame) => void,
-  trace?: VisualizationLoadTrace,
 ): Promise<void> {
-  const startedAt = trace ? performance.now() : 0;
   const stream = response.body?.getReader();
 
   if (!stream) {
-    trace?.event("decoder-end", {
-      outcome: "missing-body",
-      durationMs: performance.now() - startedAt,
-    });
-
     throw new Error("The visualization response has no body.");
   }
 
   let reader: RecordBatchReader | undefined;
   let complete = false;
-  let outcome = "error";
-  let byteCount = 0;
-  let chunks = 0;
-  let batches = 0;
-  let firstData = false;
   const completedViews = new Set<string>();
   const cancel = () => {
     void stream.cancel(signal.reason).catch(() => {});
@@ -195,15 +140,6 @@ export async function decodeVisualization(
           return;
         }
 
-        if (trace && result.value.byteLength > 0) {
-          if (byteCount === 0) {
-            trace.event("decoder-first-bytes", { bytes: result.value.byteLength });
-          }
-
-          byteCount += result.value.byteLength;
-          chunks++;
-        }
-
         yield result.value;
       }
     }
@@ -212,14 +148,8 @@ export async function decodeVisualization(
     await reader.open({ autoDestroy: false });
     signal.throwIfAborted();
     validateSchema(reader.schema);
-    trace?.event("decoder-open", { durationMs: performance.now() - startedAt });
-
     for await (const batch of reader) {
       validateSchema(batch.schema);
-
-      if (trace && batches++ === 0) {
-        trace.event("decoder-first-batch");
-      }
 
       for (let row = 0; row < batch.numRows; row++) {
         signal.throwIfAborted();
@@ -315,11 +245,6 @@ export async function decodeVisualization(
             completedViews.add(key);
           }
 
-          if (trace && !firstData) {
-            firstData = true;
-            trace.event("decoder-first-data", { resourceIndex, viewIndex });
-          }
-
           onFrame({
             kind: "data",
             complete: message === "complete",
@@ -340,7 +265,6 @@ export async function decodeVisualization(
       throw new Error("Visualization stream ended before explicit completion of all views.");
     }
 
-    outcome = "complete";
   } finally {
     signal.removeEventListener("abort", cancel);
     cancel();
@@ -349,14 +273,6 @@ export async function decodeVisualization(
       await reader?.cancel();
     } finally {
       stream.releaseLock();
-
-      trace?.event("decoder-end", {
-        outcome: signal.aborted ? "cancelled" : outcome,
-        durationMs: performance.now() - startedAt,
-        bytes: byteCount,
-        chunks,
-        batches,
-      });
     }
   }
 }
@@ -365,7 +281,6 @@ export type VisualizationTransport = (
   request: VisualizationRequest,
   signal: AbortSignal,
   onFrame: (frame: VisualizationFrame) => void,
-  trace?: VisualizationLoadTrace,
 ) => Promise<void>;
 
 interface CachedView {
@@ -429,9 +344,6 @@ export class RemoteVisualization {
   private requestedViews: RequestedView[] = [];
   private zoomAnchor = 500000n;
   private zoomVelocity = 0;
-  private loadSequence = 0;
-  private readonly traceId = ++nextTraceId;
-  private readonly traceStartedAt = performance.now();
   private readonly protectedViews = new Set<CachedView>();
   readonly begin: bigint;
   readonly end: bigint;
@@ -456,15 +368,6 @@ export class RemoteVisualization {
     this.transport = transport;
     this.cacheBudgetBytes = cacheBudgetBytes;
 
-    this.trace("create", {
-      begin: String(begin),
-      end: String(end),
-      samplePeriod: String(samplePeriod),
-      resources: resourcePaths.length,
-      cacheBudgetBytes,
-      enableWith: `localStorage.setItem("${visualizationTraceKey}", "true")`,
-    });
-
     if (cursorTransport) {
       this.cursor = new ExactCursor(begin, end, samplePeriod, resourcePaths, cursorTransport, () =>
         this.notify(),
@@ -486,23 +389,7 @@ export class RemoteVisualization {
     }
   }
 
-  private trace(event: string, details?: object): void {
-    if (!visualizationTraceEnabled()) {
-      return;
-    }
-
-    const elapsed = (performance.now() - this.traceStartedAt).toFixed(1);
-
-    console.debug(`[visualization ${this.traceId} +${elapsed}ms] ${event}`, details ?? {});
-  }
-
   cancel(): void {
-    this.trace("cancel", {
-      generation: this.generation,
-      loading: this.loading,
-      foregroundActive: !!this.controller,
-      prefetchActive: !!this.prefetchController,
-    });
 
     this.generation++;
     clearTimeout(this.foregroundTimer);
@@ -535,7 +422,6 @@ export class RemoteVisualization {
     const key = views.map(keyOf).join("|");
 
     if (key === this.viewportKey && !force) {
-      this.trace("request-skip-same-viewport", { immediate, force, views: traceViews(views) });
 
       return;
     }
@@ -567,11 +453,6 @@ export class RemoteVisualization {
       this.retainedPreview = undefined;
       this.previews.clear();
 
-      this.trace("request-force-invalidate", {
-        immediate,
-        invalidatedEntries,
-        views: traceViews(views),
-      });
     }
 
     const retainedPreview = this.retainedPreview;
@@ -605,14 +486,6 @@ export class RemoteVisualization {
 
       this.zoomVelocity = Number.isFinite(velocity) ? velocity : 0;
 
-      this.trace("zoom-velocity", {
-        elapsed,
-        previousSpan: String(previousSpan),
-        span: String(span),
-        ratio,
-        velocity: this.zoomVelocity,
-        anchor: String(this.zoomAnchor),
-      });
     }
 
     this.mainView = main;
@@ -692,14 +565,6 @@ export class RemoteVisualization {
 
     const generation = this.generation;
 
-    this.trace("request", {
-      generation,
-      immediate,
-      views: traceViews(views),
-      missing: traceViews(missing),
-      cacheEntries: this.cache.size,
-      protectedEntries: this.protectedViews.size,
-    });
 
     if (!missing.length) {
       this.retainedPreview = undefined;
@@ -707,7 +572,6 @@ export class RemoteVisualization {
       this.foregroundTimer = undefined;
       this.loading = false;
       this.progress = 1;
-      this.trace("request-cache-hit", { generation });
       this.notify();
       this.schedulePrefetch(main, generation);
 
@@ -727,7 +591,6 @@ export class RemoteVisualization {
 
   private scheduleForeground(immediate = false): void {
     if (this.controller) {
-      this.trace("foreground-retained", { views: traceViews(this.foregroundViews) });
 
       return;
     }
@@ -748,11 +611,6 @@ export class RemoteVisualization {
         const requested = this.requestedViews;
         const stillMissing = this.requestedViews.filter((view) => !this.cachedView(view));
 
-        this.trace("foreground-coalesce-fired", {
-          generation,
-          requested: traceViews(this.requestedViews),
-          stillMissing: traceViews(stillMissing),
-        });
 
         if (!stillMissing.length) {
           if (generation === this.generation) {
@@ -835,10 +693,6 @@ export class RemoteVisualization {
 
   private schedulePrefetch(main: RequestedView | undefined, generation: number): void {
     if (!main || generation !== this.generation || this.loading) {
-      this.trace("prefetch-skip-stale", {
-        generation,
-        currentGeneration: this.generation,
-      });
 
       return;
     }
@@ -850,11 +704,6 @@ export class RemoteVisualization {
     // Keep speculative queries above base-summary resolution; only the small
     // boundary fragments may require raw reads, never a whole fine-detail view.
     if (span <= (BigInt(main.maxPoints) * 256n) / 5n) {
-      this.trace("prefetch-skip-fine", {
-        generation,
-        span: String(span),
-        maxPoints: main.maxPoints,
-      });
 
       return;
     }
@@ -899,16 +748,6 @@ export class RemoteVisualization {
             (entry) => entry.begin === this.begin && entry.end === this.end,
           ))
       ) {
-        this.trace("prefetch-candidate-skip", {
-          generation,
-          numerator: String(numerator),
-          denominator: String(denominator),
-          first: String(first),
-          last: String(last),
-          width: String(width),
-          budget,
-          remainingPoints,
-        });
 
         continue;
       }
@@ -925,10 +764,6 @@ export class RemoteVisualization {
         this.cachedView(view) ||
         predictions.some((other) => other.begin === view.begin && other.end === view.end)
       ) {
-        this.trace("prefetch-candidate-covered", {
-          generation,
-          view: traceViews([view])[0],
-        });
 
         continue;
       }
@@ -938,7 +773,6 @@ export class RemoteVisualization {
     }
 
     if (!predictions.length) {
-      this.trace("prefetch-skip-empty", { generation });
 
       return;
     }
@@ -946,24 +780,12 @@ export class RemoteVisualization {
     clearTimeout(this.prefetchTimer);
     const viewportKey = this.viewportKey;
 
-    this.trace("prefetch-scheduled", {
-      generation,
-      delay: 250,
-      velocity: this.zoomVelocity,
-      anchor: String(this.zoomAnchor),
-      predictions: traceViews(predictions),
-    });
 
     this.prefetchTimer = setTimeout(() => {
-      this.trace("prefetch-fired", { generation });
 
       void (async () => {
         for (const view of predictions) {
           if (generation !== this.generation || viewportKey !== this.viewportKey || this.loading) {
-            this.trace("prefetch-stop-stale", {
-              generation,
-              currentGeneration: this.generation,
-            });
 
             break;
           }
@@ -993,35 +815,15 @@ export class RemoteVisualization {
               retained.length >= maxRemoteVisualizationCacheEntries ||
               retainedBytes + reservedBytes > this.cacheBudgetBytes
             ) {
-              this.trace("prefetch-stop-capacity", {
-                generation,
-                retainedEntries: retained.length,
-                retainedBytes,
-                reservedBytes,
-                cacheBudgetBytes: this.cacheBudgetBytes,
-              });
 
               break;
             }
 
-            this.trace("prefetch-load", {
-              generation,
-              view: traceViews([view])[0],
-            });
 
             if (!(await this.load([view], generation, true)) || !this.cachedView(view)) {
-              this.trace("prefetch-stop-unretained", {
-                generation,
-                view: traceViews([view])[0],
-              });
 
               break;
             }
-          } else {
-            this.trace("prefetch-skip-cached", {
-              generation,
-              view: traceViews([view])[0],
-            });
           }
         }
       })();
@@ -1034,53 +836,15 @@ export class RemoteVisualization {
     prefetch = false,
   ): Promise<boolean> {
     const controller = new AbortController();
-    const loadId = ++this.loadSequence;
-    const startedAt = performance.now();
-    const kind = prefetch ? "prefetch" : "foreground";
     const requested = this.requestedViews;
-    let trace: VisualizationLoadTrace | undefined;
-
-    if (visualizationTraceEnabled()) {
-      // getRandomValues also works on HTTP deployments, unlike randomUUID.
-      const bytes = crypto.getRandomValues(new Uint8Array(16));
-
-      bytes[6] = (bytes[6] & 0x0f) | 0x40;
-      bytes[8] = (bytes[8] & 0x3f) | 0x80;
-      const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-      const requestId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-
-      trace = {
-        requestId,
-        event: (event, details) =>
-          this.trace(event, {
-            ...details,
-            requestId,
-            loadId,
-            kind,
-            generation,
-            loadElapsedMs: performance.now() - startedAt,
-          }),
-      };
-    }
-
-    this.trace("load-start", {
-      loadId,
-      kind,
-      generation,
-      requestId: trace?.requestId,
-      views: traceViews(views),
-    });
-
     if (prefetch) {
       if (this.prefetchController) {
-        this.trace("load-abort-previous-prefetch", { loadId, generation });
         this.prefetchController.abort();
       }
 
       this.prefetchController = controller;
     } else {
       if (this.prefetchController) {
-        this.trace("load-abort-prefetch-for-foreground", { loadId, generation });
         this.prefetchController.abort();
       }
 
@@ -1103,26 +867,11 @@ export class RemoteVisualization {
         controller.signal,
         (frame) => {
           if (generation !== this.generation || controller.signal.aborted) {
-            this.trace("load-frame-ignored", {
-              loadId,
-              kind,
-              generation,
-              currentGeneration: this.generation,
-              aborted: controller.signal.aborted,
-            });
 
             return;
           }
 
           if (frame.kind === "data") {
-            this.trace("load-data", {
-              loadId,
-              kind,
-              viewIndex: frame.viewIndex,
-              resourceIndex: frame.resourceIndex,
-              complete: frame.complete,
-              points: frame.values.length,
-            });
 
             published.set(`${frame.viewIndex}:${frame.resourceIndex}`, frame);
 
@@ -1153,12 +902,6 @@ export class RemoteVisualization {
           } else if (!prefetch) {
             this.progress = Math.max(this.progress, frame.progress);
 
-            this.trace("load-progress", {
-              loadId,
-              progress: this.progress,
-              resourceIndex: frame.resourceIndex,
-              range: frame.range,
-            });
 
             if (frame.resourceIndex >= 0 && frame.range) {
               this.ranges.set(frame.resourceIndex, frame.range);
@@ -1167,18 +910,9 @@ export class RemoteVisualization {
             this.notify();
           }
         },
-        trace,
       );
 
       if (generation !== this.generation || controller.signal.aborted) {
-        this.trace("load-discarded", {
-          loadId,
-          kind,
-          generation,
-          currentGeneration: this.generation,
-          aborted: controller.signal.aborted,
-          durationMs: performance.now() - startedAt,
-        });
 
         return false;
       }
@@ -1228,12 +962,6 @@ export class RemoteVisualization {
 
         this.cache.set(`${view.begin}:${view.end}:${view.budget}`, view);
 
-        this.trace("cache-store", {
-          loadId,
-          kind,
-          view: traceViews([view])[0],
-          cacheEntries: this.cache.size,
-        });
 
         if (!prefetch) {
           this.protectedViews.add(view);
@@ -1275,12 +1003,6 @@ export class RemoteVisualization {
 
         this.cache.delete(key);
 
-        this.trace("cache-evict", {
-          loadId,
-          kind,
-          view: traceViews([view])[0],
-          cacheEntries: this.cache.size,
-        });
 
         bytes -= view.points.reduce(
           (n, point) => n + point.indices.byteLength + point.values.byteLength,
@@ -1294,25 +1016,9 @@ export class RemoteVisualization {
         this.notify();
       }
 
-      this.trace("load-complete", {
-        loadId,
-        kind,
-        generation,
-        durationMs: performance.now() - startedAt,
-        cacheEntries: this.cache.size,
-        cacheBytes: bytes,
-      });
 
       return true;
     } catch (error) {
-      this.trace("load-error", {
-        loadId,
-        kind,
-        generation,
-        aborted: controller.signal.aborted,
-        durationMs: performance.now() - startedAt,
-        error: String(error),
-      });
 
       if (!prefetch && generation === this.generation) {
         this.retainedPreview = undefined;
@@ -1353,14 +1059,6 @@ export class RemoteVisualization {
         }
       }
 
-      this.trace("load-finally", {
-        loadId,
-        kind,
-        generation,
-        currentGeneration: this.generation,
-        aborted: controller.signal.aborted,
-        loading: this.loading,
-      });
     }
   }
 
@@ -1393,31 +1091,6 @@ export class RemoteVisualization {
       );
     const source = candidates[0]?.points[resourceIndex];
 
-    this.trace("points-for", {
-      target,
-      resourceIndex,
-      begin: String(begin),
-      end: String(end),
-      candidates: candidates.map((view) => ({
-        begin: String(view.begin),
-        end: String(view.end),
-        budget: view.budget,
-        prefetched: view.prefetched === true,
-        retained: view === this.retainedPreview,
-        compatible: compatible(view),
-        stride: String(this.strideOf(view.begin, view.end, view.budget)),
-      })),
-      selected: source
-        ? {
-            points: source.values.length,
-            first: source.indices[0] === undefined ? undefined : String(source.indices[0]),
-            last:
-              source.indices[source.indices.length - 1] === undefined
-                ? undefined
-                : String(source.indices[source.indices.length - 1]),
-          }
-        : undefined,
-    });
 
     if (!source) {
       return undefined;

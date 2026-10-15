@@ -4,13 +4,11 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nexus.Controllers.V2;
 using Nexus.Core.V2;
 using Nexus.DataModel;
 using Nexus.Services;
-using Nexus.Tests;
 using System.ComponentModel.DataAnnotations;
 using Xunit;
 
@@ -62,7 +60,7 @@ public class DataControllerTests
         var request = new VisualizationRequest(default, default, [], []);
         var visualization = new Mock<IVisualizationService>();
         var error = status == 422 ? new ValidationException(message) : new Exception(message);
-        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), It.IsAny<VisualizationTiming?>()))
+        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>()))
             .ThrowsAsync(error);
         var controller = CreateController(Mock.Of<IDataService>());
         controller.Request.Headers.Accept = "application/vnd.apache.arrow.stream";
@@ -76,127 +74,12 @@ public class DataControllerTests
     }
 
     [Theory]
-    [InlineData(null, null)]
-    [InlineData("", null)]
-    [InlineData("not-an-id", null)]
-    [InlineData("adac95f1234648dd866f293563c57b68", null)]
-    [InlineData("{adac95f1-2346-48dd-866f-293563c57b68}", null)]
-    [InlineData(" adac95f1-2346-48dd-866f-293563c57b68", null)]
-    [InlineData("adac95f1-2346-48dd-866f-293563c57b68 ", null)]
-    [InlineData("adac95f1-2346-48dd-866f-293563c57b6z", null)]
-    [InlineData("+dac95f1-2346-48dd-866f-293563c57b68", null)]
-    [InlineData("adac95f1-2346-48dd-866f-293563c57b68,adac95f1-2346-48dd-866f-293563c57b68", null)]
-    [InlineData("ADAC95F1-2346-48DD-866F-293563C57B68", "adac95f1-2346-48dd-866f-293563c57b68")]
-    [InlineData("adac95f1-2346-48dd-866f-293563c57b68", "adac95f1-2346-48dd-866f-293563c57b68")]
-    public async Task VisualizationTraceRequiresSingleCanonicalGuid(string? header, string? expected)
-    {
-        using var logs = new VisualizationTimingLogger();
-        var controller = new DataController(Mock.Of<IDataService>(), logs)
-        {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
-        };
-
-        if (header is not null)
-            controller.Request.Headers[VisualizationTiming.Header] = header;
-
-        var request = new VisualizationRequest(default, default, [], []);
-        var visualization = new Mock<IVisualizationService>();
-        VisualizationTiming? captured = null;
-        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), It.IsAny<VisualizationTiming?>()))
-            .Callback<VisualizationRequest, CancellationToken, VisualizationTiming?>((_, _, timing) => captured = timing)
-            .ReturnsAsync((Stream _, CancellationToken _) =>
-            {
-                Assert.Equal(expected ?? "", controller.Response.Headers[VisualizationTiming.Header].ToString());
-                return Task.CompletedTask;
-            });
-
-        Assert.IsType<EmptyResult>(await controller.GetVisualizationAsync(request, visualization.Object, CancellationToken.None));
-        Assert.Equal(expected, captured?.RequestId);
-        Assert.Equal(expected ?? "", controller.Response.Headers[VisualizationTiming.Header].ToString());
-
-        if (expected is null)
-            Assert.Empty(logs.Entries);
-        else
-        {
-            var completion = Assert.Single(logs.Entries, entry => entry.Phase == "request" && entry.Milestone == "end");
-            Assert.Equal("success", completion.Outcome);
-            Assert.All(logs.Entries, entry =>
-            {
-                Assert.Equal(VisualizationTiming.Category, entry.Category);
-                Assert.Equal(expected, entry.Fields["RequestId"]);
-                Assert.Contains(expected, entry.Message);
-            });
-        }
-    }
-
-    [Fact]
-    public async Task VisualizationTraceRejectsMultipleValidHeaderValues()
-    {
-        using var logs = new VisualizationTimingLogger();
-        var controller = new DataController(Mock.Of<IDataService>(), logs)
-        {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
-        };
-        controller.Request.Headers[VisualizationTiming.Header] = new Microsoft.Extensions.Primitives.StringValues([
-            "adac95f1-2346-48dd-866f-293563c57b68", "adac95f1-2346-48dd-866f-293563c57b68"]);
-        var request = new VisualizationRequest(default, default, [], []);
-        var visualization = new Mock<IVisualizationService>();
-        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), It.IsAny<VisualizationTiming?>()))
-            .Callback<VisualizationRequest, CancellationToken, VisualizationTiming?>((_, _, timing) => Assert.Null(timing))
-            .ReturnsAsync((Stream _, CancellationToken _) => Task.CompletedTask);
-
-        Assert.IsType<EmptyResult>(await controller.GetVisualizationAsync(request, visualization.Object, CancellationToken.None));
-        visualization.Verify(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), null), Times.Once);
-        Assert.False(controller.Response.Headers.ContainsKey(VisualizationTiming.Header));
-        Assert.Empty(logs.Entries);
-    }
-
-    [Theory]
-    [InlineData(422, "invalid-secret", "rejected")]
-    [InlineData(404, "Could not find resource path /secret.", "not-found")]
-    [InlineData(403, "The current user is not permitted to access the catalog /secret.", "forbidden")]
-    [InlineData(500, "unexpected-secret", "error")]
-    public async Task TraceIncludesPreparationFailuresWithoutExceptionDetails(int status, string message, string outcome)
-    {
-        using var logs = new VisualizationTimingLogger();
-        var controller = new DataController(Mock.Of<IDataService>(), logs)
-        {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
-        };
-        string id = Guid.NewGuid().ToString("D");
-        controller.Request.Headers[VisualizationTiming.Header] = id;
-        var request = new VisualizationRequest(default, default, [], []);
-        var visualization = new Mock<IVisualizationService>();
-        var error = status == 422 ? new ValidationException(message) : new Exception(message);
-        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), It.IsAny<VisualizationTiming?>()))
-            .ThrowsAsync(error);
-
-        if (status == 500)
-            Assert.Same(error, await Assert.ThrowsAsync<Exception>(() => controller.GetVisualizationAsync(request, visualization.Object, CancellationToken.None)));
-        else
-            Assert.Equal(status, Assert.IsType<ContentResult>(await controller.GetVisualizationAsync(request, visualization.Object, CancellationToken.None)).StatusCode);
-
-        Assert.Equal(id, controller.Response.Headers[VisualizationTiming.Header]);
-        var prepare = Assert.Single(logs.Entries, entry => entry.Phase == "prepare" && entry.Milestone == "end");
-        Assert.Equal("error", prepare.Outcome);
-        var completion = Assert.Single(logs.Entries, entry => entry.Phase == "request" && entry.Milestone == "end");
-        Assert.Equal(outcome, completion.Outcome);
-        Assert.All(logs.Entries, entry =>
-        {
-            Assert.Null(entry.Exception);
-            Assert.DoesNotContain("secret", entry.Message);
-            Assert.Equal(id, entry.Fields["RequestId"]);
-        });
-    }
-
-    [Theory]
     [InlineData(true, false)]
     [InlineData(false, false)]
     [InlineData(false, true)]
     public async Task CancelledVisualizationAbortsWithoutServerError(bool duringPreparation, bool responseStarted)
     {
         using var cancellation = new CancellationTokenSource();
-        using var logs = new VisualizationTimingLogger();
         var context = new DefaultHttpContext();
         var response = new Mock<IHttpResponseFeature>();
         response.SetupProperty(feature => feature.StatusCode, StatusCodes.Status200OK);
@@ -206,15 +89,14 @@ public class DataControllerTests
         var lifetime = new Mock<IHttpRequestLifetimeFeature>();
         lifetime.SetupGet(feature => feature.RequestAborted).Returns(cancellation.Token);
         context.Features.Set(lifetime.Object);
-        var controller = new DataController(Mock.Of<IDataService>(), logs)
+        var controller = new DataController(Mock.Of<IDataService>())
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };
-        controller.Request.Headers[VisualizationTiming.Header] = Guid.NewGuid().ToString("D");
         var request = new VisualizationRequest(default, default, [], []);
         var visualization = new Mock<IVisualizationService>();
-        visualization.Setup(service => service.PrepareAsync(request, cancellation.Token, It.IsAny<VisualizationTiming?>()))
-            .Returns<VisualizationRequest, CancellationToken, VisualizationTiming?>((_, token, _) =>
+        visualization.Setup(service => service.PrepareAsync(request, cancellation.Token))
+            .Returns<VisualizationRequest, CancellationToken>((_, token) =>
             {
                 if (duringPreparation)
                 {
@@ -234,8 +116,6 @@ public class DataControllerTests
         lifetime.Verify(feature => feature.Abort(), Times.Once);
         if (responseStarted)
             response.VerifySet(feature => feature.StatusCode = It.IsAny<int>(), Times.Never);
-        var completion = Assert.Single(logs.Entries, entry => entry.Phase == "request" && entry.Milestone == "end");
-        Assert.Equal("cancelled", completion.Outcome);
     }
 
     [Theory]
@@ -246,7 +126,7 @@ public class DataControllerTests
         var request = new VisualizationRequest(default, default, [], []);
         var visualization = new Mock<IVisualizationService>();
         var error = new OperationCanceledException();
-        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>(), It.IsAny<VisualizationTiming?>()))
+        visualization.Setup(service => service.PrepareAsync(request, It.IsAny<CancellationToken>()))
             .Returns(() => duringPreparation
                 ? Task.FromException<Func<Stream, CancellationToken, Task>>(error)
                 : Task.FromResult<Func<Stream, CancellationToken, Task>>((_, _) => Task.FromException(error)));
@@ -258,7 +138,7 @@ public class DataControllerTests
 
     private static DataController CreateController(IDataService service)
     {
-        return new DataController(service, NullLoggerFactory.Instance)
+        return new DataController(service)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };

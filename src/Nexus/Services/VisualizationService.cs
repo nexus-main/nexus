@@ -21,7 +21,7 @@ namespace Nexus.Services;
 
 internal interface IVisualizationService
 {
-    Task<Func<Stream, CancellationToken, Task>> PrepareAsync(VisualizationRequest request, CancellationToken cancellationToken, VisualizationTiming? timing = null);
+    Task<Func<Stream, CancellationToken, Task>> PrepareAsync(VisualizationRequest request, CancellationToken cancellationToken);
 }
 
 internal sealed class VisualizationService(
@@ -33,7 +33,7 @@ internal sealed class VisualizationService(
     IMemoryTracker memoryTracker,
     ILogger<VisualizationService> logger) : IVisualizationService
 {
-    public async Task<Func<Stream, CancellationToken, Task>> PrepareAsync(VisualizationRequest request, CancellationToken cancellationToken, VisualizationTiming? timing = null)
+    public async Task<Func<Stream, CancellationToken, Task>> PrepareAsync(VisualizationRequest request, CancellationToken cancellationToken)
     {
         ValidateRequest(request, cache.Options);
         var catalogState = appState.CatalogState;
@@ -159,25 +159,14 @@ internal sealed class VisualizationService(
 
         async Task WriteAsync(Stream output, CancellationToken token)
         {
-            using (var admission = timing?.Measure("request-admission", token))
-            {
-                bool admitted = await cache.Requests.WaitAsync(0, token);
-                admission?.Complete(admitted ? "admitted" : "busy");
-
-                if (!admitted)
-                    throw new ValidationException("The visualization server is busy. Retry later.");
-            }
+            if (!await cache.Requests.WaitAsync(0, token))
+                throw new ValidationException("The visualization server is busy. Retry later.");
 
             using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
-            using var cancellationLog = timing is null ? default : token.Register(timing.CancellationRequested);
             VisualizationCache.BuildInterest buildInterest;
             IDisposable buildRegistration;
 
-            using (var join = timing?.Measure("join-build", token))
-            {
-                (buildInterest, buildRegistration) = cache.JoinBuild(key, cancellation.Token);
-                join?.Complete();
-            }
+            (buildInterest, buildRegistration) = cache.JoinBuild(key, cancellation.Token);
 
             using var buildScope = buildRegistration;
             var buildToken = buildInterest.Cancellation.Token;
@@ -189,17 +178,11 @@ internal sealed class VisualizationService(
             var raw = new ConcurrentDictionary<long, float[][]>();
             VisualizationDataset? dataset = null;
             VisualizationCache.Lease? datasetLease = null;
-            int nextWorkerId = -1;
-            bool firstData = true;
 
             try
             {
-                using (var initial = timing?.Measure("initial-progress-flush", token))
-                {
-                    await writer.WriteStartAsync(token);
-                    await EmitAsync(1, -1, -1, 0, [], 0, float.NaN, float.NaN, "", token);
-                    initial?.Complete();
-                }
+                await writer.WriteStartAsync(token);
+                await EmitAsync(1, -1, -1, 0, [], 0, float.NaN, float.NaN, "", token);
                 work = RunAsync(cancellation.Token);
 
                 while (!work.IsCompleted)
@@ -222,15 +205,10 @@ internal sealed class VisualizationService(
                     {
                         var view = views[viewIndex];
                         var points = new List<VisualizationPoint>(view.Stride == 1 ? (int)(view.End - view.Begin) : 0);
-                        using (var wait = timing?.Measure("projection-compute-wait", token, aggregate: true))
-                        {
-                            await cache.Compute.WaitAsync(token);
-                            wait?.Complete();
-                        }
+                        await cache.Compute.WaitAsync(token);
 
                         try
                         {
-                            using var compute = timing?.Measure("projection-compute", token, aggregate: true);
                             if (view.Stride == 1)
                             {
                                 for (long start = view.Begin; start < view.End;)
@@ -261,48 +239,28 @@ internal sealed class VisualizationService(
                                     start = stop;
                                 }
                             }
-                            compute?.Complete();
                         }
                         finally { cache.Compute.Release(); }
 
                         if (points.Count > request.Views[viewIndex].MaxPoints)
                             throw new InvalidOperationException("Visualization point budget exceeded.");
 
-                        using (var flush = firstData ? timing?.Measure("first-data-flush", token) : null)
-                        {
-                            await EmitAsync(0, resource, viewIndex, view.Begin - begin, points.ToArray(), 1, range.Min, range.Max, "complete", token);
-                            flush?.Complete();
-                            firstData = false;
-                        }
+                        await EmitAsync(0, resource, viewIndex, view.Begin - begin, points.ToArray(), 1, range.Min, range.Max, "complete", token);
                     }
                 }
 
-                using (var completion = timing?.Measure("completion-flush", token))
-                {
-                    await EmitAsync(2, -1, -1, end - begin, [], 1, float.NaN, float.NaN, "complete", token);
-                    await writer.WriteEndAsync(token);
-                    await output.FlushAsync(token);
-                    completion?.Complete();
-                }
-                if (timing is not null)
-                    timing.Outcome = "success";
+                await EmitAsync(2, -1, -1, end - begin, [], 1, float.NaN, float.NaN, "complete", token);
+                await writer.WriteEndAsync(token);
+                await output.FlushAsync(token);
             }
             catch (Exception ex)
             {
-                if (timing is not null)
-                    timing.Outcome = token.IsCancellationRequested ? "cancelled" : "stream-error";
-                timing?.CancellationRequested();
+                await cancellation.CancelAsync();
 
-                using (var drain = timing?.Measure("cancellation-drain"))
+                if (work is not null)
                 {
-                    await cancellation.CancelAsync();
-
-                    if (work is not null)
-                    {
-                        try { await work; }
-                        catch { /* Observe workers before releasing their buffers and admission. */ }
-                    }
-                    drain?.Complete("drained");
+                    try { await work; }
+                    catch { /* Observe workers before releasing their buffers and admission. */ }
                 }
 
                 if (token.IsCancellationRequested)
@@ -326,8 +284,6 @@ internal sealed class VisualizationService(
                 datasetLease?.Dispose();
                 buildScope.Dispose();
                 cache.Requests.Release();
-                timing?.FlushAggregates();
-                timing?.Mark("resources-released");
             }
 
             async Task EmitAsync(int kind, int resource, int view, long offset, VisualizationPoint[] points,
@@ -341,19 +297,11 @@ internal sealed class VisualizationService(
             async Task RunAsync(CancellationToken ct)
             {
                 var buildGate = cache.Builds[Convert.ToByte(key[..2], 16) % cache.Builds.Length];
-                using (var wait = timing?.Measure("build-gate-wait", ct))
-                {
-                    await buildGate.WaitAsync(ct);
-                    wait?.Complete();
-                }
+                await buildGate.WaitAsync(ct);
 
                 try
                 {
-                    using (var get = timing?.Measure("cache-get", ct))
-                    {
-                        datasetLease = cache.Get(key);
-                        get?.Complete(datasetLease is not null ? "hit" : buildInterest.Dataset is not null ? "shared" : "miss");
-                    }
+                    datasetLease = cache.Get(key);
                     dataset = datasetLease?.Dataset ?? buildInterest.Dataset;
 
                     if (dataset is null)
@@ -361,17 +309,11 @@ internal sealed class VisualizationService(
                         dataset = new VisualizationDataset(begin, end, items.Length);
                         dataset.AllocateBase();
                         await ScanAsync(cold: true, buildToken);
-                        using (var wait = timing?.Measure("parents-compute-wait", buildToken))
-                        {
-                            await cache.Compute.WaitAsync(buildToken);
-                            wait?.Complete();
-                        }
+                        await cache.Compute.WaitAsync(buildToken);
 
                         try
                         {
-                            using var compute = timing?.Measure("parents-compute", buildToken);
                             dataset.BuildParents(buildToken);
-                            compute?.Complete();
                         }
                         finally { cache.Compute.Release(); }
 
@@ -380,12 +322,8 @@ internal sealed class VisualizationService(
                         if (Volatile.Read(ref hasDynamicDependencies) == 0)
                         {
                             buildInterest.Dataset = dataset;
-                            using var put = timing?.Measure("cache-put", buildToken);
                             datasetLease = cache.Put(key, dataset);
-                            put?.Complete();
                         }
-                        else
-                            timing?.Mark("cache-put", "skipped-dynamic-dependencies");
                     }
                 }
                 finally
@@ -405,7 +343,6 @@ internal sealed class VisualizationService(
 
             async Task ScanAsync(bool cold, CancellationToken ct)
             {
-                using var scan = timing?.Measure(cold ? "cold-scan" : "detail-scan", ct);
                 long firstBucket = begin / 256;
                 var ranges = new Queue<(long First, long End)>();
                 long bucketCount = baseCount;
@@ -444,7 +381,6 @@ internal sealed class VisualizationService(
                 var workers = Enumerable.Range(0, (int)Math.Min(bucketCount, cache.Options.MaxConcurrentReads))
                     .Select(_ => Task.Run(WorkerAsync)).ToArray();
                 await Task.WhenAll(workers);
-                scan?.Complete();
 
                 bool TryReserveSlice(long maxBuckets, out long start, out long stop)
                 {
@@ -471,27 +407,20 @@ internal sealed class VisualizationService(
 
                 async Task WorkerAsync()
                 {
-                    int workerId = Interlocked.Increment(ref nextWorkerId);
                     var owned = new List<(IDataSourceController Controller, int[] Indices)>();
                     using var dependencies = new SemaphoreSlim(1);
                     bool admitted = false;
 
                     try
                     {
-                        using (var wait = timing?.Measure("read-permit-wait", scanCancellation.Token, workerId))
-                        {
-                            await cache.Reads.WaitAsync(scanCancellation.Token);
-                            wait?.Complete();
-                        }
+                        await cache.Reads.WaitAsync(scanCancellation.Token);
                         admitted = true;
 
                         foreach (var group in items.Select((item, index) => (item, index)).GroupBy(entry => entry.item.Container.Pipeline))
                         {
                             var catalogs = group.SelectMany(entry => Catalogs(entry.item)).DistinctBy(catalog => catalog.Id).ToArray();
-                            using var initialize = timing?.Measure("source-initialize", scanCancellation.Token, workerId, aggregate: true);
                             var controller = await controllers.GetVisualizationDataSourceControllerAsync(group.Key, configuration, catalogs, scanCancellation.Token);
                             owned.Add((controller, group.Select(entry => entry.index).ToArray()));
-                            initialize?.Complete();
                         }
 
                         while (true)
@@ -506,28 +435,18 @@ internal sealed class VisualizationService(
 
                             foreach (var (controller, indices) in owned)
                             {
-                                byte[][] buffers;
-                                using (var read = timing?.Measure("controller-read-inclusive", scanCancellation.Token, workerId, aggregate: true))
-                                {
-                                    buffers = await ReadSliceAsync(controller, indices.Select(i => items[i]).ToArray(),
-                                        new DateTime(start * period.Ticks, DateTimeKind.Utc), new DateTime(stop * period.Ticks, DateTimeKind.Utc),
-                                        period, Precision.Float32, ReadDependencySerializedAsync, scanCancellation.Token);
-                                    read?.Complete();
-                                }
+                                var buffers = await ReadSliceAsync(controller, indices.Select(i => items[i]).ToArray(),
+                                    new DateTime(start * period.Ticks, DateTimeKind.Utc), new DateTime(stop * period.Ticks, DateTimeKind.Utc),
+                                    period, Precision.Float32, ReadDependencySerializedAsync, scanCancellation.Token);
 
                                 for (int i = 0; i < indices.Length; i++)
                                     values[indices[i]] = MemoryMarshal.Cast<byte, float>(buffers[i]).ToArray();
                             }
 
-                            using (var wait = timing?.Measure("slice-compute-wait", scanCancellation.Token, workerId, aggregate: true))
-                            {
-                                await cache.Compute.WaitAsync(scanCancellation.Token);
-                                wait?.Complete();
-                            }
+                            await cache.Compute.WaitAsync(scanCancellation.Token);
 
                             try
                             {
-                                using var compute = timing?.Measure("slice-compute", scanCancellation.Token, workerId, aggregate: true);
                                 for (long position = start; position < stop;)
                                 {
                                     scanCancellation.Token.ThrowIfCancellationRequested();
@@ -551,7 +470,6 @@ internal sealed class VisualizationService(
 
                                     position += count;
                                 }
-                                compute?.Complete();
                             }
                             finally
                             {
@@ -563,7 +481,6 @@ internal sealed class VisualizationService(
                     }
                     catch
                     {
-                        timing?.CancellationRequested();
                         await scanCancellation.CancelAsync();
                         throw;
                     }
@@ -571,21 +488,15 @@ internal sealed class VisualizationService(
                     {
                         foreach (var (controller, _) in owned)
                         {
-                            using var dispose = timing?.Measure("source-dispose", worker: workerId, aggregate: true);
                             try
                             {
                                 controller.Dispose();
-                                dispose?.Complete();
                             }
                             catch (Exception ex) { logger.LogWarning(ex, "Disposing visualization controller failed"); }
                         }
 
                         if (admitted)
-                        {
                             cache.Reads.Release();
-                            timing?.Mark("read-permit-released", worker: workerId);
-                        }
-                        timing?.FlushAggregates(workerId);
                     }
 
                     async Task ReadDependencySerializedAsync(string path, DateTime from, DateTime to, Memory<double> buffer, CancellationToken cancellationToken)

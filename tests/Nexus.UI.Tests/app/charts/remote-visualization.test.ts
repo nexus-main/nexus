@@ -8,7 +8,6 @@ import {
   RemoteVisualization,
   visualizationPointBudget,
   type VisualizationFrame,
-  type VisualizationLoadTrace,
   type VisualizationRequest,
 } from "../../../../src/Nexus.UI/src/app/charts/remote-visualization.ts";
 import { requestError } from "../../../../src/Nexus.UI/src/app/request-error.ts";
@@ -176,66 +175,18 @@ function response(bytes: Uint8Array, fragment = 19): Response {
 }
 
 describe("visualization Arrow protocol", () => {
-  it("reports bounded decoder milestones and delivered byte totals", async () => {
-    const bytes = ipc([{ kind: 1 }, dataRow, { kind: 2 }], false, "1", true);
-    const events: { event: string; details?: object }[] = [];
-    const body = response(bytes);
-
-    await decodeVisualization(body, request, 100n, new AbortController().signal, () => {}, {
-      requestId: "test",
-      event: (event, details) => events.push({ event, details }),
-    });
-
-    assert.deepEqual(
-      events.map((entry) => entry.event),
-      [
-        "decoder-first-bytes",
-        "decoder-open",
-        "decoder-first-batch",
-        "decoder-first-data",
-        "decoder-end",
-      ],
-    );
-
-    const end = events.at(-1)!.details as {
-      bytes: number;
-      chunks: number;
-      batches: number;
-      outcome: string;
-      durationMs: number;
-    };
-
-    assert.equal(end.bytes, bytes.length);
-    assert.equal(end.chunks, Math.ceil(bytes.length / 19));
-    assert.equal(end.batches, 3);
-    assert.equal(end.outcome, "complete");
-    assert.ok(end.durationMs >= 0);
-    assert.equal(body.body!.locked, false);
-  });
-
-  it("reports decoder failure without changing protocol rejection or reader cleanup", async () => {
-    const outcomes: string[] = [];
-
+  it("rejects invalid streams without leaking reader locks", async () => {
     for (const [body, error] of [
       [response(ipc([dataRow])), /before explicit completion of all views/],
       [new Response(null), /response has no body/],
     ] as const) {
       await assert.rejects(
-        decodeVisualization(body, request, 100n, new AbortController().signal, () => {}, {
-          requestId: "test",
-          event: (event, details) => {
-            if (event === "decoder-end") {
-              outcomes.push((details as { outcome: string }).outcome);
-            }
-          },
-        }),
+        decodeVisualization(body, request, 100n, new AbortController().signal, () => {}),
         error,
       );
 
       assert.ok(!body.body?.locked);
     }
-
-    assert.deepEqual(outcomes, ["error", "missing-body"]);
   });
 
   it("decodes fragmented streams, progress/ranges, gaps and explicit completion", async () => {
@@ -599,7 +550,6 @@ describe("visualization Arrow protocol", () => {
 
   it("cancels a stalled body and releases the reader lock", async () => {
     let cancelled = false;
-    const outcomes: string[] = [];
     const body = new ReadableStream<Uint8Array>({
       cancel() {
         cancelled = true;
@@ -612,14 +562,6 @@ describe("visualization Arrow protocol", () => {
       100n,
       controller.signal,
       () => {},
-      {
-        requestId: "test",
-        event: (event, details) => {
-          if (event === "decoder-end") {
-            outcomes.push((details as { outcome: string }).outcome);
-          }
-        },
-      },
     );
 
     await settle();
@@ -627,7 +569,6 @@ describe("visualization Arrow protocol", () => {
     await assert.rejects(task, { name: "AbortError" });
     assert.equal(cancelled, true);
     assert.equal(body.locked, false);
-    assert.deepEqual(outcomes, ["cancelled"]);
   });
 });
 
@@ -659,16 +600,15 @@ describe("remote viewport provider", () => {
       emit: (frame: VisualizationFrame) => void;
       resolve: () => void;
       reject: (error: Error) => void;
-      trace?: VisualizationLoadTrace;
     }[] = [];
     const provider = new RemoteVisualization(
       origin,
       origin + length * period,
       period,
       Array.from({ length: resources }, (_, i) => `/r${i}`),
-      (request, signal, emit, trace) =>
+      (request, signal, emit) =>
         new Promise<void>((resolve, reject) => {
-          calls.push({ request, signal, emit, resolve, reject, trace });
+          calls.push({ request, signal, emit, resolve, reject });
         }),
       cacheBudgetBytes,
     );
@@ -705,62 +645,6 @@ describe("remote viewport provider", () => {
 
     return { provider, calls, finish, view };
   }
-
-  it("passes unique correlated load traces only while diagnostics are enabled", (t) => {
-    const storage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
-    let enabled = false;
-
-    Object.defineProperty(globalThis, "localStorage", {
-      configurable: true,
-      value: { getItem: () => (enabled ? "true" : null) },
-    });
-
-    const debug = t.mock.method(console, "debug", () => {});
-    const { provider, calls, view } = prefetchFixture();
-
-    try {
-      provider.requestViews(view(0n, 100n), true);
-      t.mock.timers.tick(0);
-      assert.equal(calls[0].trace, undefined);
-      assert.equal(debug.mock.calls.length, 0);
-      enabled = true;
-      provider.requestViews(view(200n, 300n), true);
-      t.mock.timers.tick(0);
-      provider.requestViews(view(400n, 500n), true);
-      t.mock.timers.tick(0);
-      const first = calls[1].trace!;
-      const second = calls[2].trace!;
-
-      assert.match(
-        first.requestId,
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/,
-      );
-
-      assert.notEqual(first.requestId, second.requestId);
-      first.event("test-phase", { status: 200 });
-      const details = debug.mock.calls.at(-1)!.arguments[1] as {
-        requestId: string;
-        loadId: number;
-        kind: string;
-        status: number;
-        loadElapsedMs: number;
-      };
-
-      assert.equal(details.requestId, first.requestId);
-      assert.equal(details.loadId, 2);
-      assert.equal(details.kind, "foreground");
-      assert.equal(details.status, 200);
-      assert.ok(typeof details.loadElapsedMs === "number" && details.loadElapsedMs >= 0);
-    } finally {
-      provider.dispose();
-
-      if (storage) {
-        Object.defineProperty(globalThis, "localStorage", storage);
-      } else {
-        Reflect.deleteProperty(globalThis, "localStorage");
-      }
-    }
-  });
 
   it("prefetches four bounded aligned zoom levels sequentially only after foreground completion", async () => {
     const origin = 90071992547409930n;

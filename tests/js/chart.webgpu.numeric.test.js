@@ -5,10 +5,10 @@ const test = require('node:test');
 const vm = require('node:vm');
 const { referenceProjection, thresholdFixtures, signedZeroFixtures } = require('./chart.projection.fixtures.js');
 
-test(process.env.NEXUS_WEBGPU_COMPILE_ONLY ? 'all WebGPU shader modules compile' : 'GPU reduction matches canonical projection fixtures', { skip: !process.env.NEXUS_WEBGPU_MODULE }, async () => {
+test('GPU reduction matches canonical projection fixtures', { skip: !process.env.NEXUS_WEBGPU_MODULE }, async () => {
     const { create, globals } = await import(process.env.NEXUS_WEBGPU_MODULE);
     Object.assign(globalThis, globals);
-    const gpu = create(process.env.NEXUS_WEBGPU_COMPILE_ONLY ? ['backend=null'] : []);
+    const gpu = create([]);
     const adapter = await gpu.requestAdapter();
     assert.ok(adapter, 'A GPU adapter is required for numerical verification');
     const device = await adapter.requestDevice({ requiredLimits: { maxStorageBuffersPerShaderStage: 5 } });
@@ -26,7 +26,6 @@ test(process.env.NEXUS_WEBGPU_COMPILE_ONLY ? 'all WebGPU shader modules compile'
         for (const [name, entryPoint] of [['baseSummaryShader', 'base'], ['parentSummaryShader', 'parent'], ['querySummaryShader', 'query']]) {
             await device.createComputePipelineAsync({ layout: 'auto', compute: { module: device.createShaderModule({ code: shaders[name] }), entryPoint } });
         }
-        if (process.env.NEXUS_WEBGPU_COMPILE_ONLY) return;
         // Prebuilt records exercise u32-scale merge/projection without allocating billions of samples.
         for (const count of [0xfffffffe, 0xffffffff]) {
             for (const invalidCount of [Math.ceil(count / 2) - 1, Math.ceil(count / 2), Math.ceil(count / 2) + 1]) {
