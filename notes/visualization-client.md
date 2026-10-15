@@ -1,6 +1,6 @@
-# Server Visualization
+# Visualization Client
 
-See the [visualization overview](../../../../../notes/visualization.md) for the
+See the [visualization algorithm](visualization-algorithm.md) for the
 existing shared backend/GPU algorithm and server execution, memory, and cache limits.
 
 The persisted `nexus.visualizationServerReduction` checkbox selects the remote
