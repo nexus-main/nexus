@@ -79,4 +79,4 @@ storage I/O, NVMe throughput, physical-GPU performance, cache eviction,
 cancellation behavior, dependency loading or production memory contention.
 `MemoryDiagnoser` reports managed allocations, not peak RSS or all native Arrow
 allocations. Related visualization constraints are covered in the
-[visualization overview](../../notes/visualization.md).
+[visualization algorithm](../../notes/visualization-algorithm.md).

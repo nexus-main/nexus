@@ -1,7 +1,7 @@
-# Visualization overview
+# Visualization Algorithm
 
 The backend and local GPU already share the summary, merge, and projection
-algorithm described below. See the [frontend visualization guide](../src/Nexus.UI/src/app/charts/remote-visualization.md)
+algorithm described below. See the [client visualization guide](visualization-client.md)
 for rendering and scheduling details, and the [reduction benchmarks](../benchmarks/Nexus.Benchmarks/VisualizationReduction.md)
 for backend kernel implementation and measurements.
 
