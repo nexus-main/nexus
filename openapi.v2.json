@@ -17,11 +17,11 @@
         "tags": [
           "Data"
         ],
-        "summary": "Streams bounded Float32 visualization points and progress in a versioned Arrow contract.",
+        "summary": "Streams bounded Float32 visualization points and progress using a versioned Arrow schema.",
         "operationId": "Data_GetVisualization",
         "requestBody": {
           "x-name": "request",
-          "description": "The domain, resources and up to three views.",
+          "description": "The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.",
           "content": {
             "application/json": {
               "schema": {

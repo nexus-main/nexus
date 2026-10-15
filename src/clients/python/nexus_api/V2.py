@@ -57,7 +57,7 @@ class DataClient:
 
     def get_visualization(self, request: VisualizationRequest) -> Response:
         """
-        Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+        Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
 
         Args:
         """
@@ -140,7 +140,7 @@ class DataAsyncClient:
 
     def get_visualization(self, request: VisualizationRequest) -> Awaitable[Response]:
         """
-        Streams bounded Float32 visualization points and progress in a versioned Arrow contract.
+        Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
 
         Args:
         """

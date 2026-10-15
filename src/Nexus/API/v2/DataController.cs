@@ -21,8 +21,8 @@ internal class DataController(
 {
     private readonly IDataService _dataService = dataService;
 
-    /// <summary>Streams bounded Float32 visualization points and progress in a versioned Arrow contract.</summary>
-    /// <param name="request">The domain, resources and up to three views.</param>
+    /// <summary>Streams bounded Float32 visualization points and progress using a versioned Arrow schema.</summary>
+    /// <param name="request">The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.</param>
     /// <param name="visualization">The visualization service.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The visualization Arrow stream.</returns>
