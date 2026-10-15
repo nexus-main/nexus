@@ -60,6 +60,7 @@ class DataClient:
         Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
 
         Args:
+            request: The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.
         """
 
         __url = "/api/v2/data/visualization"
@@ -71,6 +72,7 @@ class DataClient:
         Streams multiple resources in an Apache Arrow IPC response.
 
         Args:
+            request: The batch stream request.
         """
 
         __url = "/api/v2/data"
@@ -91,6 +93,7 @@ class JobsClient:
         Creates a new export job.
 
         Args:
+            parameters: Export parameters.
         """
 
         __url = "/api/v2/jobs/export"
@@ -143,6 +146,7 @@ class DataAsyncClient:
         Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
 
         Args:
+            request: The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.
         """
 
         __url = "/api/v2/data/visualization"
@@ -154,6 +158,7 @@ class DataAsyncClient:
         Streams multiple resources in an Apache Arrow IPC response.
 
         Args:
+            request: The batch stream request.
         """
 
         __url = "/api/v2/data"
@@ -174,6 +179,7 @@ class JobsAsyncClient:
         Creates a new export job.
 
         Args:
+            parameters: Export parameters.
         """
 
         __url = "/api/v2/jobs/export"
