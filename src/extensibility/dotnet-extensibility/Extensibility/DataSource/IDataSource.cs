@@ -61,7 +61,8 @@ public interface IDataSource
     );
 
     /// <summary>
-    /// Performs a number of read requests.
+    /// Performs a number of read requests. Implementations must be thread-safe because Nexus may call this method
+    /// concurrently on the same data source instance.
     /// </summary>
     /// <param name="begin">The beginning of the period to read.</param>
     /// <param name="end">The end of the period to read.</param>

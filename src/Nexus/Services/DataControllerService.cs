@@ -71,7 +71,7 @@ internal class DataControllerService(
 
             var controller = new DataSourceController(sources.ToArray(), pipeline.Registrations,
                 requestConfiguration, _processingService, _cacheService, _dataOptions,
-                _loggerFactory.CreateLogger<DataSourceController>(), strictReads: true);
+                _loggerFactory.CreateLogger<DataSourceController>());
             var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>();
 
             foreach (var catalog in catalogs)

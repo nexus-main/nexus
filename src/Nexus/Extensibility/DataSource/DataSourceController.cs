@@ -61,8 +61,7 @@ internal class DataSourceController(
     IProcessingService processingService,
     ICacheService cacheService,
     DataOptions dataOptions,
-    ILogger<DataSourceController> logger,
-    bool strictReads = false
+    ILogger<DataSourceController> logger
 ) : IDataSourceController
 {
     private static readonly JsonSerializerOptions _sourceConfigurationJsonOptions = new(JsonSerializerOptions.Web)
@@ -365,11 +364,6 @@ internal class DataSourceController(
 
         readingTasks.Add(originalTask);
 
-        // Independent visualization workers own separate instances. Within an instance,
-        // original and derived reads must never overlap, including different resources.
-        if (strictReads)
-            await originalTask.ConfigureAwait(false);
-
         /* 'Processing' branch
             *  - Read cached data into readUnit.DataWriter
             *  - Read remaining data into readUnit.ReadRequest
@@ -423,9 +417,6 @@ internal class DataSourceController(
                     cancellationToken);
 
             readingTasks.Add(processingTask);
-
-            if (strictReads)
-                await processingTask.ConfigureAwait(false);
         }
 
         /* wait for tasks to finish */
@@ -679,7 +670,7 @@ internal class DataSourceController(
 
             List<Interval> uncachedIntervals;
 
-            var disableCache = strictReads || (_dataOptions.CachePattern is not null && !Regex.IsMatch(cacheItem.Catalog.Id, _dataOptions.CachePattern));
+            var disableCache = _dataOptions.CachePattern is not null && !Regex.IsMatch(cacheItem.Catalog.Id, _dataOptions.CachePattern);
 
             if (disableCache)
             {
@@ -772,9 +763,6 @@ internal class DataSourceController(
         {
             _logger.LogError(ex, "Read aggregation data period {Begin} to {End} failed", begin, end);
 
-            if (strictReads)
-                throw;
-
             targetBuffer.Span.Fill(double.NaN);
         }
         finally
@@ -851,54 +839,45 @@ internal class DataSourceController(
          * length       = 1500 ms == 15 elements
          */
 
-        var container = readUnit.CatalogItemRequest.Container;
-        var isUnrestricted = container is null || (container.MinBegin is null && container.MaxEnd is null);
-
-        var containedRange = new ContainedTimeRange(begin, end);
-
-        if (!isUnrestricted && !container!.TryGetSampleAlignedContainedRange(
-            begin,
-            end,
-            samplePeriod,
-            out containedRange))
-        {
-            if (strictReads)
-            {
-                readUnit.DataWriter.Advance(targetByteCount);
-                await readUnit.DataWriter.FlushAsync(cancellationToken);
-            }
-
-            return;
-        }
-
-        var roundedBegin = isUnrestricted
-            ? begin.RoundDown(baseSamplePeriod)
-            : containedRange.Begin.RoundUp(baseSamplePeriod);
-
-        var roundedEnd = isUnrestricted
-            ? end.RoundUp(baseSamplePeriod)
-            : containedRange.End.RoundDown(baseSamplePeriod);
-
-        if (roundedBegin >= roundedEnd)
-        {
-            if (strictReads)
-            {
-                readUnit.DataWriter.Advance(targetByteCount);
-                await readUnit.DataWriter.FlushAsync(cancellationToken);
-            }
-
-            return;
-        }
-
-        var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
-
-        /* read request */
-        using var readRequestManager = new ReadRequestManager(sourceBaseItem, roundedElementCount, onCompleted: null, cancellationToken);
-        var readRequest = readRequestManager.Request;
+        var roundedBegin = begin;
+        var roundedEnd = end;
 
         /* go */
         try
         {
+            var container = readUnit.CatalogItemRequest.Container;
+            var isUnrestricted = container is null || (container.MinBegin is null && container.MaxEnd is null);
+
+            var containedRange = new ContainedTimeRange(begin, end);
+
+            if (!isUnrestricted && !container!.TryGetSampleAlignedContainedRange(
+                begin,
+                end,
+                samplePeriod,
+                out containedRange))
+            {
+                return;
+            }
+
+            roundedBegin = isUnrestricted
+                ? begin.RoundDown(baseSamplePeriod)
+                : containedRange.Begin.RoundUp(baseSamplePeriod);
+
+            roundedEnd = isUnrestricted
+                ? end.RoundUp(baseSamplePeriod)
+                : containedRange.End.RoundDown(baseSamplePeriod);
+
+            if (roundedBegin >= roundedEnd)
+            {
+                return;
+            }
+
+            var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
+
+            /* read request */
+            using var readRequestManager = new ReadRequestManager(sourceBaseItem, roundedElementCount, onCompleted: null, cancellationToken);
+            var readRequest = readRequestManager.Request;
+
             /* load and process data from source */
             var sourceSamplePeriod = baseSamplePeriod;
             var targetSamplePeriod = samplePeriod;
@@ -947,9 +926,6 @@ internal class DataSourceController(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
-
-            if (strictReads)
-                throw;
 
             FillNaN(targetBuffer, readUnit.Precision);
         }

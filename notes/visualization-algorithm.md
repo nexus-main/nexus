@@ -307,13 +307,12 @@ variables such as `NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREADS`.
 
 Read/compute permits are process-global, not per-request. Each worker creates and
 initializes its own pipeline controllers, reuses them across slices, and batches
-original resources sharing a pipeline. Strict visualization controllers serialize
-original/derived branches within each instance, propagate failures, and bypass the
-older derived cache. No plugin concurrency opt-in is required. Recursive reads
-reauthorize, create independent strict controllers, serialize sibling callbacks,
-and stay inside the owning worker permit to avoid recursive semaphore deadlocks.
-Dependencies are capped at depth eight and their working memory is estimated
-separately from output sizing.
+original resources sharing a pipeline. Data source `ReadAsync` implementations must
+be thread-safe because Nexus may call them concurrently on the same instance.
+Recursive reads reauthorize, create independent controllers, serialize sibling
+callbacks, and stay inside the owning worker permit to avoid recursive semaphore
+deadlocks. Dependencies are capped at depth eight and their working memory is
+estimated separately from output sizing.
 
 Slices align to the absolute sample lattice and base stride 256. Read workers use
 the shared data memory tracker to admit each slice and derive its sample count.

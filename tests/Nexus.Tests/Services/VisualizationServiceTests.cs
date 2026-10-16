@@ -589,7 +589,7 @@ public class VisualizationServiceTests
     }
 
     [Fact]
-    public async Task DerivedReadsBypassLowerCacheAndReuseOuterCache()
+    public async Task DerivedReadsUseLowerCacheAndReuseOuterCache()
     {
         using var fixture = new Fixture();
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]) with
@@ -603,24 +603,25 @@ public class VisualizationServiceTests
         int samples = fixture.Samples;
         await fixture.RunAsync(request);
         Assert.Equal(samples, fixture.Samples);
-        fixture.DerivedCache.VerifyNoOtherCalls();
         fixture.AssertReleased();
     }
 
     [Theory]
     [InlineData("/A/B/C/T1/2_s_mean#base=1_s")]
     [InlineData("/A/B/C/T2/1_s_resampled#base=2_s")]
-    public async Task FailedDerivedReadsAreNotCachedAsGaps(string path)
+    public async Task FailedDerivedReadsEmitGapsWithoutCachingThem(string path)
     {
         using var fixture = new Fixture { Fail = true };
         var request = fixture.Request([fixture.View("main", 0, 65536, 100)]) with
         {
             ResourcePaths = [path]
         };
-        Assert.Equal(3, (await fixture.RunAsync(request, expectError: true)).Last().Kind);
-        Assert.Contains(fixture.Errors, error => error.Message == "source failed");
+        var failedRows = await fixture.RunAsync(request);
+        Assert.Equal(2, failedRows.Last().Kind);
+        Assert.All(failedRows.Where(row => row.Kind == 0).SelectMany(row => row.Values), value => Assert.True(float.IsNaN(value)));
         fixture.AssertReleased();
         fixture.Fail = false;
+        fixture.ReloadCatalogs();
         var rows = await fixture.RunAsync(request);
         Assert.Equal(2, rows.Last().Kind);
         Assert.Contains(rows.Where(row => row.Kind == 0).SelectMany(row => row.Values), float.IsFinite);
@@ -1085,10 +1086,29 @@ public class VisualizationServiceTests
         {
             var options = new DataOptions
             {
-                Visualization = new VisualizationOptions { MaxConcurrentReads = readWorkers,
-                    MaxComputeWorkers = 2, MaxTotalCacheBytes = memoryLimit }
+                Visualization = new VisualizationOptions
+                {
+                    EnableServerSideDecimation = true,
+                    MaxConcurrentReads = readWorkers,
+                    MaxComputeWorkers = 2,
+                    MaxTotalCacheBytes = memoryLimit
+                }
             };
             Cache = new VisualizationCache(Options.Create(options));
+            DerivedCache.Setup(current => current.ReadAsync(
+                    It.IsAny<CatalogItem>(),
+                    It.IsAny<DateTime>(),
+                    It.IsAny<Memory<double>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns<CatalogItem, DateTime, Memory<double>, CancellationToken>((catalogItem, begin, targetBuffer, _) =>
+                    Task.FromResult(new List<Interval> { new(begin, begin + catalogItem.Representation.SamplePeriod * targetBuffer.Length) }));
+            DerivedCache.Setup(current => current.UpdateAsync(
+                    It.IsAny<CatalogItem>(),
+                    It.IsAny<DateTime>(),
+                    It.IsAny<Memory<double>>(),
+                    It.IsAny<List<Interval>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
             _memoryTracker.Setup(current => current.RegisterAllocationAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync<long, long, CancellationToken, IMemoryTracker, AllocationRegistration>((minimum, maximum, token) =>
                 {
@@ -1120,14 +1140,12 @@ public class VisualizationServiceTests
                     async (_, configuration, catalogs, token) =>
                     {
                         Interlocked.Increment(ref Instances);
-                        int reading = 0;
                         var source = new Mock<IDataSource<object?>>();
                         source.As<IDisposable>().Setup(current => current.Dispose()).Callback(() => Interlocked.Increment(ref Disposed));
                         source.Setup(current => current.ReadAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<ReadRequest[]>(),
                                 It.IsAny<ReadDataHandler>(), It.IsAny<IProgress<double>>(), It.IsAny<CancellationToken>()))
                             .Returns<DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress<double>, CancellationToken>(async (from, to, requests, readData, _, ct) =>
                             {
-                                int concurrent = Interlocked.Increment(ref reading);
                                 Interlocked.Increment(ref Calls);
                                 int active = Interlocked.Increment(ref Active);
                                 int previous;
@@ -1137,7 +1155,6 @@ public class VisualizationServiceTests
 
                                 try
                                 {
-                                    Assert.Equal(1, concurrent);
                                     if (minBegin is not null)
                                         Assert.True(from >= Begin.AddSeconds(minBegin.Value));
                                     if (maxEnd is not null)
@@ -1188,12 +1205,11 @@ public class VisualizationServiceTests
                                 finally
                                 {
                                     Interlocked.Decrement(ref Active);
-                                    Interlocked.Decrement(ref reading);
                                 }
                             });
                         var controller = new DataSourceController([source.Object], pipeline.Registrations, configuration,
                             new ProcessingService(Options.Create(options)), DerivedCache.Object, options,
-                            NullLogger<DataSourceController>.Instance, strictReads: true);
+                            NullLogger<DataSourceController>.Instance);
                         await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(catalogs.Select(current => KeyValuePair.Create(current.Id, current))), NullLoggerFactory.Instance, token);
                         return controller;
                     });
@@ -1323,7 +1339,6 @@ public class VisualizationServiceTests
             try
             {
                 AssertReleased();
-                DerivedCache.VerifyNoOtherCalls();
             }
             finally { Cache.Dispose(); }
         }

@@ -15,8 +15,6 @@ using Nexus.Extensibility;
 using Nexus.Services;
 using Nexus.Sources;
 using Nexus.Writers;
-using System.Buffers;
-using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Xunit;
@@ -175,97 +173,6 @@ public class DataControllerServiceTests
             Assert.Equal("registered", source.InitializedContext.SourceConfiguration!["source"]);
             Assert.Equal("captured", source.InitializedContext.RequestConfiguration!["request"].GetString());
         });
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task VisualizationFactoryEnablesSerialUncachedReadsAndPropagatesFailures(bool fail)
-    {
-        VisualizationSource.Instances.Clear();
-        var hive = new Mock<IExtensionHive<IDataSource>>();
-        hive.Setup(current => current.GetExtensionType("source")).Returns(typeof(VisualizationSource));
-        var cache = new Mock<ICacheService>(MockBehavior.Strict);
-        var options = Options.Create(new DataOptions { CachePattern = ".*" });
-        var service = new DataControllerService(new AppState(), default!, hive.Object, default!,
-            new ProcessingService(options), cache.Object, options, NullLoggerFactory.Instance);
-        var pipeline = new DataSourcePipeline([new DataSourceRegistration("source", null,
-            JsonSerializer.SerializeToElement<object?>(null))]);
-        var samplePeriod = TimeSpan.FromSeconds(2);
-        var original = new Representation(NexusDataType.Float64, samplePeriod);
-        var baseRepresentation = new Representation(NexusDataType.Float64, TimeSpan.FromSeconds(1));
-        var aggregate = new Representation(NexusDataType.Float64, samplePeriod, parameters: null, RepresentationKind.Mean);
-        var catalog = new ResourceCatalogBuilder("/TEST")
-            .AddResource(new ResourceBuilder("original").AddRepresentation(original).Build())
-            .AddResource(new ResourceBuilder("derived1").AddRepresentation(baseRepresentation).Build())
-            .AddResource(new ResourceBuilder("derived2").AddRepresentation(baseRepresentation).Build())
-            .Build()
-            .EnsureAndSanitizeMandatoryProperties(pipelinePosition: 0, dataSources: Array.Empty<IDataSource>());
-        using var worker = await service.GetVisualizationDataSourceControllerAsync(pipeline, null, [catalog], CancellationToken.None);
-        var source = Assert.Single(VisualizationSource.Instances);
-        var entered = Enumerable.Range(0, 3).Select(_ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).ToArray();
-        var release = Enumerable.Range(0, 3).Select(_ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).ToArray();
-        var failure = new InvalidOperationException("source read failed");
-        int calls = 0;
-        source.BeforeRead = async () =>
-        {
-            int index = Interlocked.Increment(ref calls) - 1;
-            if (index > 0)
-                Assert.True(release[index - 1].Task.IsCompleted, "Source reads overlapped.");
-            entered[index].SetResult();
-            await release[index].Task;
-            if (fail && index == 2)
-                throw failure;
-        };
-        var pipes = Enumerable.Range(0, 3).Select(_ => new Pipe()).ToArray();
-        var requests = catalog.Resources!.Select((resource, index) =>
-        {
-            var baseItem = new CatalogItem(catalog, resource, index == 0 ? original : baseRepresentation, Parameters: null);
-            var request = index == 0
-                ? new CatalogItemRequest(baseItem, null, null!)
-                : new CatalogItemRequest(baseItem with { Representation = aggregate }, baseItem, null!);
-            return new CatalogItemRequestPipeWriter(request, pipes[index].Writer);
-        }).ToArray();
-        var begin = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var reading = worker.ReadAsync(begin, begin.AddSeconds(4), samplePeriod, Precision.Float64,
-            requests, default!, new Progress<double>(), CancellationToken.None);
-
-        try
-        {
-            // Each source call stays pending until released, exposing overlap without sleeps.
-            for (int i = 0; i < entered.Length; i++)
-            {
-                await entered[i].Task.WaitAsync(TimeSpan.FromSeconds(5));
-                Assert.Equal(i + 1, Volatile.Read(ref calls));
-                Assert.False(reading.IsCompleted);
-                release[i].SetResult();
-            }
-
-            if (fail)
-                Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(() => reading.WaitAsync(TimeSpan.FromSeconds(5))));
-            else
-                await reading.WaitAsync(TimeSpan.FromSeconds(5));
-
-            Assert.Equal(3, calls);
-            cache.VerifyNoOtherCalls();
-            foreach (var pipe in pipes.Take(fail ? 2 : 3))
-            {
-                Assert.True(pipe.Reader.TryRead(out var result));
-                Assert.Equal(new double[] { 7, 7 }, MemoryMarshal.Cast<byte, double>(result.Buffer.ToArray()).ToArray());
-                pipe.Reader.AdvanceTo(result.Buffer.End);
-            }
-        }
-        finally
-        {
-            foreach (var gate in release)
-                gate.TrySetResult();
-            await Record.ExceptionAsync(() => reading.WaitAsync(TimeSpan.FromSeconds(5)));
-            foreach (var pipe in pipes)
-            {
-                await pipe.Writer.CompleteAsync();
-                await pipe.Reader.CompleteAsync();
-            }
-        }
     }
 
     public sealed class VisualizationSource : SimpleDataSource<Dictionary<string, string>?>

@@ -159,7 +159,7 @@ public class VisualizationServiceBenchmarks
                             });
                         var controller = new DataSourceController([source.Object], pipeline.Registrations, configuration,
                             new ProcessingService(Options.Create(options)), Mock.Of<ICacheService>(), options,
-                            NullLogger<DataSourceController>.Instance, strictReads: true);
+                            NullLogger<DataSourceController>.Instance);
                         await controller.InitializeAsync(new ConcurrentDictionary<string, ResourceCatalog>(catalogs.Select(current => KeyValuePair.Create(current.Id, current))), NullLoggerFactory.Instance, token);
                         return controller;
                     });
