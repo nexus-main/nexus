@@ -18,7 +18,7 @@ test('GPU reduction matches canonical projection fixtures', { skip: !process.env
     const shaders = context.window.__nexusChartWebGpu;
 
     try {
-        for (const name of ['shader', 'overviewShader', 'decimationShader', 'pointDecimationShader', 'rangeShader', 'baseSummaryShader', 'parentSummaryShader', 'querySummaryShader']) {
+        for (const name of ['shader', 'decimationShader', 'pointDecimationShader', 'rangeShader', 'baseSummaryShader', 'parentSummaryShader', 'querySummaryShader']) {
             const module = device.createShaderModule({ code: shaders[name] });
             const info = await module.getCompilationInfo();
             assert.deepEqual(info.messages.filter(message => message.type === 'error').map(message => message.message), [], name);
@@ -178,17 +178,14 @@ test('GPU reduction matches canonical projection fixtures', { skip: !process.env
             { name: 'uneven multibucket offsets', first: 7, visibleLength: 773, bucketCount: 3, globalOffset: 1027, outputBucket: 2,
                 values: Array.from({ length: 797 }, (_, i) => i < 7 || i >= 780 ? 10000 : i % 19 === 3 ? NaN : i % 47 - 23) },
         ];
-        for (const { name: fixture, values: input, first = 0, visibleLength = input.length, bucketCount = 1, globalOffset = 0, outputBucket = 0 } of fixtures) {
+        for (const { name: fixture, values: input, first = 0, visibleLength = input.length, bucketCount = 1 } of fixtures) {
             const values = Float32Array.from(input);
             for (const [name, entryPoint, points] of [
-                ['overviewShader', 'reduceOverview', false],
                 ['decimationShader', 'decimate', false],
                 ['pointDecimationShader', 'decimatePoints', true],
             ]) {
-                const overview = name === 'overviewShader';
-                const buckets = overview ? Math.ceil(values.length / 256) : bucketCount;
-                const outputFirst = overview ? outputBucket : 0;
-                const outputSize = (outputFirst + buckets) * 40;
+                const buckets = bucketCount;
+                const outputSize = buckets * 40;
                 const xs = Float32Array.from(input, (_, i) => 17.5 + i * i / 8 + i % 3 / 4);
                 const data = points ? Float32Array.from(input.flatMap((value, i) => [xs[i], value])) : values;
                 const source = device.createBuffer({ size: data.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
@@ -197,7 +194,7 @@ test('GPU reduction matches canonical projection fixtures', { skip: !process.env
                 const readback = device.createBuffer({ size: outputSize, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
                 device.queue.writeBuffer(source, 0, data);
                 device.queue.writeBuffer(output, 0, new Float32Array(outputSize / 4).fill(-12345));
-                device.queue.writeBuffer(params, 0, new Uint32Array(overview ? [globalOffset, values.length, outputBucket, 0] : [first, visibleLength, buckets, values.length]));
+                device.queue.writeBuffer(params, 0, new Uint32Array([first, visibleLength, buckets, values.length]));
                 const pipeline = await device.createComputePipelineAsync({ layout: 'auto', compute: { module: device.createShaderModule({ code: shaders[name] }), entryPoint } });
                 const bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [source, output, params].map((buffer, binding) => ({ binding, resource: { buffer } })) });
                 const encoder = device.createCommandEncoder();
@@ -210,15 +207,15 @@ test('GPU reduction matches canonical projection fixtures', { skip: !process.env
                 device.queue.submit([encoder.finish()]);
                 await readback.mapAsync(GPUMapMode.READ);
                 const actual = [...new Float32Array(readback.getMappedRange())];
-                const expected = new Array(outputFirst * 10).fill(-12345);
+                const expected = [];
                 for (let bucket = 0; bucket < buckets; bucket++) {
                     const width = Math.floor(visibleLength / buckets);
                     const remainder = visibleLength % buckets;
-                    const start = overview ? bucket * 256 : first + bucket * width + Math.min(bucket, remainder);
-                    const end = Math.min(values.length, overview ? start + 256 : first + (bucket + 1) * width + Math.min(bucket + 1, remainder));
+                    const start = first + bucket * width + Math.min(bucket, remainder);
+                    const end = Math.min(values.length, first + (bucket + 1) * width + Math.min(bucket + 1, remainder));
                     const projected = referenceProjection(values.subarray(start, end), start);
                     while (projected.length < 5) projected.push(projected.at(-1));
-                    expected.push(...projected.flatMap(([index, value]) => [overview ? (index + globalOffset) / 256 : points ? xs[index] : index - first, value]));
+                    expected.push(...projected.flatMap(([index, value]) => [points ? xs[index] : index - first, value]));
                 }
                 assert.deepEqual(actual, expected, `${name}: ${fixture}`);
                 readback.unmap();

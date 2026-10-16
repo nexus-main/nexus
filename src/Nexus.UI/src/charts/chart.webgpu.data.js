@@ -3,11 +3,7 @@
   const {
     instances,
     dotNetHelpers,
-    getInstance,
     valueOf,
-    overviewBucketSize,
-    reducedPointsPerBucket,
-    streamChunkLength,
     rawChunkLength,
     rangeWorkgroupSize,
     maxRangeWorkgroups,
@@ -158,138 +154,6 @@
     ns.destroyTrackedBuffer(instance, upload.paramsBuffer);
   }
 
-  async function processUploadedOverviewChunkAsync(
-    instance,
-    transientBuffer,
-    paramsBuffer,
-    bindGroup,
-    offset,
-    count,
-  ) {
-    const range = await calculateSeriesRangeAsync(instance, transientBuffer, count);
-
-    instance.device.queue.writeBuffer(
-      paramsBuffer,
-      0,
-      new Uint32Array([offset, count, Math.floor(offset / overviewBucketSize), 0]),
-    );
-
-    const encoder = instance.device.createCommandEncoder();
-    const pass = encoder.beginComputePass();
-
-    pass.setPipeline(instance.overviewPipeline);
-    pass.setBindGroup(0, bindGroup);
-    pass.dispatchWorkgroups(Math.ceil(count / overviewBucketSize));
-    pass.end();
-    instance.device.queue.submit([encoder.finish()]);
-
-    await instance.device.queue.onSubmittedWorkDone();
-
-    return range;
-  }
-
-  async function beginChunkedSeriesAsync(chartId, id, version, length) {
-    const instance = await getInstance(chartId);
-
-    if (!instance) {
-      throw new Error(`WebGPU instance unavailable for chart ${chartId}`);
-    }
-
-    if (!Number.isSafeInteger(length) || length < 2) {
-      throw new Error(
-        `Chunked series length must be a safe integer of at least 2 (received ${length})`,
-      );
-    }
-
-    const overviewBucketCount = Math.ceil(length / overviewBucketSize);
-    const overviewLength = overviewBucketCount * reducedPointsPerBucket;
-    const overviewBytes = overviewLength * 2 * Float32Array.BYTES_PER_ELEMENT;
-    const transientBytes = Math.min(streamChunkLength, length) * Float32Array.BYTES_PER_ELEMENT;
-    const deviceLimit = Math.min(
-      instance.device.limits.maxBufferSize,
-      instance.device.limits.maxStorageBufferBindingSize,
-    );
-
-    if (overviewBytes > deviceLimit) {
-      throw new Error(
-        `Persistent overview requires ${overviewBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`,
-      );
-    }
-
-    if (transientBytes > deviceLimit) {
-      throw new Error(
-        `Series stream chunk requires ${transientBytes} bytes, exceeding the GPU storage buffer limit of ${deviceLimit} bytes`,
-      );
-    }
-
-    const generation = (instance.uploadGenerations.get(id) ?? 0) + 1;
-
-    instance.uploadGenerations.set(id, generation);
-    removeRawSeries(instance, id);
-
-    for (const [token, upload] of instance.chunkedUploadSessions) {
-      if (upload.id === id) {
-        destroyChunkedUpload(instance, upload);
-        instance.chunkedUploadSessions.delete(token);
-      }
-    }
-
-    const token = ++instance.uploadToken;
-    let transientBuffer = null;
-    let overviewBuffer = null;
-    let paramsBuffer = null;
-
-    try {
-      transientBuffer = ns.createTrackedBuffer(instance, {
-        size: transientBytes,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      });
-
-      overviewBuffer = ns.createTrackedBuffer(instance, {
-        size: overviewBytes,
-        usage: GPUBufferUsage.STORAGE,
-      });
-
-      paramsBuffer = ns.createTrackedBuffer(instance, {
-        size: 16,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-
-      const bindGroup = instance.device.createBindGroup({
-        layout: instance.overviewPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: transientBuffer } },
-          { binding: 1, resource: { buffer: overviewBuffer } },
-          { binding: 2, resource: { buffer: paramsBuffer } },
-        ],
-      });
-
-      instance.chunkedUploadSessions.set(token, {
-        id,
-        version,
-        length,
-        generation,
-        overviewLength,
-        overviewBucketCount,
-        transientBuffer,
-        overviewBuffer,
-        paramsBuffer,
-        bindGroup,
-        writtenLength: 0,
-        rangeHasValue: false,
-        rangeMinimum: 0,
-        rangeMaximum: 0,
-      });
-
-      return token;
-    } catch (error) {
-      ns.destroyTrackedBuffer(instance, transientBuffer);
-      ns.destroyTrackedBuffer(instance, overviewBuffer);
-      ns.destroyTrackedBuffer(instance, paramsBuffer);
-      throw error;
-    }
-  }
-
   function getDataLength(dataLength, availableLength, unit) {
     const actualLength = dataLength ?? availableLength;
 
@@ -425,94 +289,6 @@
     } else {
       instance.device.queue.writeBuffer(upload.transientBuffer, 0, values);
     }
-  }
-
-  async function processChunkedSeriesUploadAsync(chartId, token, offset, count) {
-    const instance = await getInstance(chartId);
-    const upload = instance?.chunkedUploadSessions.get(token);
-
-    if (!upload) {
-      throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
-    }
-
-    if (offset !== upload.writtenLength || offset + count > upload.length) {
-      throw new Error(
-        `Chunked series upload ${token} expected sample offset ${upload.writtenLength}, received ${offset}`,
-      );
-    }
-
-    const range = await processUploadedOverviewChunkAsync(
-      instance,
-      upload.transientBuffer,
-      upload.paramsBuffer,
-      upload.bindGroup,
-      offset,
-      count,
-    );
-
-    if (
-      instances.get(chartId) !== instance ||
-      instance.chunkedUploadSessions.get(token) !== upload
-    ) {
-      throw ns.cancellationError(`Chunked series upload ${token} was superseded`);
-    }
-
-    if (range.hasValue) {
-      upload.rangeMinimum = upload.rangeHasValue
-        ? Math.min(upload.rangeMinimum, range.minimum)
-        : range.minimum;
-
-      upload.rangeMaximum = upload.rangeHasValue
-        ? Math.max(upload.rangeMaximum, range.maximum)
-        : range.maximum;
-
-      upload.rangeHasValue = true;
-    }
-
-    upload.writtenLength += count;
-  }
-
-  async function completeChunkedSeriesAsync(chartId, token) {
-    const instance = await getInstance(chartId);
-    const upload = instance?.chunkedUploadSessions.get(token);
-
-    if (!upload) {
-      throw ns.cancellationError(`Chunked series upload ${token} is no longer active`);
-    }
-
-    if (upload.writtenLength !== upload.length) {
-      throw new Error(`Chunked series upload ${token} is incomplete`);
-    }
-
-    for (const [existingKey, existing] of instance.seriesBuffers) {
-      if (existing.id === upload.id) {
-        destroySeriesBuffer(instance, existing);
-        instance.seriesBuffers.delete(existingKey);
-      }
-    }
-
-    instance.seriesBuffers.set(getSeriesKey(upload.id, upload.version, upload.length), {
-      id: upload.id,
-      version: upload.version,
-      length: upload.length,
-      buffer: upload.overviewBuffer,
-      pointBuffer: upload.overviewBuffer,
-      overviewLength: upload.overviewLength,
-      overviewBucketCount: upload.overviewBucketCount,
-      dataMode: 1,
-      chunked: true,
-      decimations: new Map(),
-    });
-
-    ns.destroyTrackedBuffer(instance, upload.transientBuffer);
-    ns.destroyTrackedBuffer(instance, upload.paramsBuffer);
-    instance.chunkedUploadSessions.delete(token);
-
-    return {
-      hasValue: upload.rangeHasValue,
-      minimum: upload.rangeMinimum,
-      maximum: upload.rangeMaximum,
-    };
   }
 
   function abortChunkedSeries(chartId, token) {
@@ -909,11 +685,8 @@
     removeRawSeries,
     synchronizeSeries,
     destroyChunkedUpload,
-    beginChunkedSeriesAsync,
     appendChunkedSeries,
-    processChunkedSeriesUploadAsync,
     appendSeriesChunk,
-    completeChunkedSeriesAsync,
     abortChunkedSeries,
     getSeriesBuffer,
     getPreviewRenderKey,

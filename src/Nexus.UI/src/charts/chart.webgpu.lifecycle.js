@@ -4,7 +4,6 @@
     shader,
     decimationShader,
     rangeShader,
-    overviewShader,
     pointDecimationShader,
     defaultCacheBudget,
     reducedPointsPerBucket,
@@ -296,7 +295,6 @@
           const module = device.createShaderModule({ code: shader });
           const decimationModule = device.createShaderModule({ code: decimationShader });
           const rangeModule = device.createShaderModule({ code: rangeShader });
-          const overviewModule = device.createShaderModule({ code: overviewShader });
           const pointDecimationModule = device.createShaderModule({ code: pointDecimationShader });
 
           bundle = {
@@ -337,10 +335,6 @@
             rangePipeline: device.createComputePipeline({
               layout: "auto",
               compute: { module: rangeModule, entryPoint: "reduceRange" },
-            }),
-            overviewPipeline: device.createComputePipeline({
-              layout: "auto",
-              compute: { module: overviewModule, entryPoint: "reduceOverview" },
             }),
             pointDecimationPipeline: device.createComputePipeline({
               layout: "auto",

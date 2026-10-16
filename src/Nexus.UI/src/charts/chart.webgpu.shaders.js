@@ -243,98 +243,6 @@ fn projectBucket(start: u32, end: u32, minIndex: u32, maxIndex: u32,
 `;
   }
 
-  const overviewShader = `
-struct Params {
-    globalOffset: u32,
-    sourceLength: u32,
-    outputBucket: u32,
-    _pad: u32,
-};
-
-@group(0) @binding(0) var<storage, read> source: array<f32>;
-@group(0) @binding(1) var<storage, read_write> output: array<vec2f>;
-@group(0) @binding(2) var<uniform> params: Params;
-
-var<workgroup> minimums: array<f32, ${overviewBucketSize}>;
-var<workgroup> maximums: array<f32, ${overviewBucketSize}>;
-var<workgroup> minimumIndices: array<u32, ${overviewBucketSize}>;
-var<workgroup> maximumIndices: array<u32, ${overviewBucketSize}>;
-var<workgroup> valid: array<u32, ${overviewBucketSize}>;
-var<workgroup> nanSeen: array<u32, ${overviewBucketSize}>;
-var<workgroup> nanIndices: array<u32, ${overviewBucketSize}>;
-var<workgroup> invalidCounts: array<u32, ${overviewBucketSize}>;
-
-fn isNonFinite(x: f32) -> bool {
-    let bits = bitcast<u32>(x);
-    return (bits & 0x7f800000u) == 0x7f800000u;
-}
-
-${projectionShader(false)}
-
-@compute @workgroup_size(${overviewBucketSize})
-fn reduceOverview(@builtin(workgroup_id) groupId: vec3u, @builtin(local_invocation_id) localId: vec3u) {
-    let lane = localId.x;
-    let localIndex = groupId.x * ${overviewBucketSize}u + lane;
-    var value = 0.0;
-    var hasValue = 0u;
-    var hasNan = 0u;
-
-    if (localIndex < params.sourceLength) {
-        value = source[localIndex];
-        hasNan = select(0u, 1u, isNonFinite(value));
-        hasValue = select(1u, 0u, isNonFinite(value));
-    }
-
-    minimums[lane] = value;
-    maximums[lane] = value;
-    minimumIndices[lane] = localIndex;
-    maximumIndices[lane] = localIndex;
-    valid[lane] = hasValue;
-    nanSeen[lane] = hasNan;
-    nanIndices[lane] = localIndex;
-    invalidCounts[lane] = hasNan;
-    workgroupBarrier();
-
-    var stride = ${overviewBucketSize / 2}u;
-    while (stride > 0u) {
-        if (lane < stride) {
-            let other = lane + stride;
-            if (valid[other] != 0u) {
-                if (valid[lane] == 0u || minimums[other] < minimums[lane] ||
-                    (minimums[other] == minimums[lane] && minimumIndices[other] < minimumIndices[lane])) {
-                    minimums[lane] = minimums[other];
-                    minimumIndices[lane] = minimumIndices[other];
-                }
-                if (valid[lane] == 0u || maximums[other] > maximums[lane] ||
-                    (maximums[other] == maximums[lane] && maximumIndices[other] < maximumIndices[lane])) {
-                    maximums[lane] = maximums[other];
-                    maximumIndices[lane] = maximumIndices[other];
-                }
-                valid[lane] = 1u;
-            }
-            if (nanSeen[other] != 0u && (nanSeen[lane] == 0u || nanIndices[other] < nanIndices[lane])) {
-                nanIndices[lane] = nanIndices[other];
-            }
-            nanSeen[lane] |= nanSeen[other];
-            invalidCounts[lane] += invalidCounts[other];
-        }
-        workgroupBarrier();
-        stride /= 2u;
-    }
-
-    if (lane == 0u) {
-        let outputIndex = (params.outputBucket + groupId.x) * ${reducedPointsPerBucket}u;
-        let start = groupId.x * ${overviewBucketSize}u;
-        projectBucket(start, min(start + ${overviewBucketSize}u, params.sourceLength),
-            minimumIndices[0], maximumIndices[0], nanIndices[0], invalidCounts[0],
-            outputIndex, 0u, 1.0 / ${overviewBucketSize}.0);
-        for (var i = 0u; i < ${reducedPointsPerBucket}u; i++) {
-            output[outputIndex + i].x += f32(params.globalOffset) / ${overviewBucketSize}.0;
-        }
-    }
-}
-`;
-
   const pointDecimationShader = `
 struct Params {
     first: u32,
@@ -649,7 +557,6 @@ fn reduceRange(
     streamChunkLength,
     rawChunkLength,
     shader,
-    overviewShader,
     pointDecimationShader,
     decimationShader,
     rangeShader,
