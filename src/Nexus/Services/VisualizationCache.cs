@@ -1,11 +1,12 @@
 // MIT License
 // Copyright (c) [2024] [nexus-main]
 
-using System.Runtime.InteropServices;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Utilities;
+using System.ComponentModel.DataAnnotations;
+using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace Nexus.Services;
 
@@ -28,7 +29,7 @@ internal sealed class VisualizationDataset(long begin, long end, int resources)
             long count = last - first + 1;
 
             if (count > int.MaxValue || count > (limit - bytes) / elementBytes)
-                throw new System.ComponentModel.DataAnnotations.ValidationException("The visualization domain exceeds Data:Visualization:MaxDatasetCacheBytes or the supported summary array size.");
+                throw new ValidationException("The visualization domain exceeds Data:Visualization:MaxDatasetCacheBytes or the supported summary array size.");
 
             bytes += count * elementBytes;
 
@@ -141,7 +142,9 @@ internal sealed class VisualizationCache : IDisposable
 
             interest.Cancellation.Cancel();
         });
+
         var registration = token.Register(lease.Dispose);
+
         return (interest, new Lease(null!, () =>
         {
             registration.Dispose();
@@ -164,13 +167,17 @@ internal sealed class VisualizationCache : IDisposable
     {
         Options = options.Value.Visualization;
 
-        if (Options.MaxConcurrentReads < 1 ||
-            Options.MaxComputeWorkers < 1 || Options.MaxComputeWorkers > 64 ||
-            Options.MaxConcurrentRequests < 1 || Options.MaxConcurrentRequests > 64 ||
+        if (
+            Options.MaxConcurrentReads < 1 ||
+            Options.MaxComputeWorkers < 1 || Options.MaxComputeWorkers > 1024 ||
+            Options.MaxConcurrentRequests < 1 || Options.MaxConcurrentRequests > 1024 ||
             Options.MaxDatasetCacheBytes < 65536 || Options.MaxTotalCacheBytes < 0 ||
             Options.CacheTtl <= TimeSpan.Zero || Options.CacheTtl > TimeSpan.FromDays(365) ||
-            Options.MaxAggregatePoints < 5)
+            Options.MaxAggregatePoints < 5
+        )
+        {
             throw new InvalidOperationException("Invalid Data:Visualization limits.");
+        }
 
         Reads = new(Options.MaxConcurrentReads);
         Compute = new(Options.MaxComputeWorkers);
@@ -224,8 +231,10 @@ internal sealed class VisualizationCache : IDisposable
         }
 
         var entry = new Entry(dataset, expires);
+
         _memory[key] = entry;
         _bytes += dataset.Bytes;
+
         return Pin(entry);
     }
 
@@ -247,6 +256,8 @@ internal sealed class VisualizationCache : IDisposable
         Requests.Dispose();
 
         foreach (var gate in Builds)
+        {
             gate.Dispose();
+        }
     }
 }
