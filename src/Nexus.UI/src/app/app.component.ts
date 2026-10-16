@@ -1146,8 +1146,6 @@ export class AppComponent implements OnDestroy {
           (request, signal, onFrame) =>
             this.nexus.loadVisualization(request, BigInt(data.series[0].length), signal, onFrame),
           this.visualizationCacheMiB() * 1024 * 1024,
-          (begin, end, paths, count, signal) =>
-            this.nexus.loadCursor(begin, end, paths, count, signal),
         );
 
         this.visualizationData.set(data);

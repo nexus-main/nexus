@@ -9,7 +9,7 @@ import {
   type VisualizationFrame,
   type VisualizationRequest,
 } from "../../src/Nexus.UI/src/app/charts/remote-visualization.ts";
-import { decodeCursor } from "../../src/Nexus.UI/src/app/charts/exact-cursor.ts";
+import { decodeRawStream } from "../../src/Nexus.UI/src/app/charts/raw-stream-decoder.ts";
 
 // Opt-in integration test: never accepts a URL pointing at an existing server.
 async function main() {
@@ -209,7 +209,7 @@ async function main() {
       views: [
         ...request.views,
         { id: "zoom", begin: at(120000), end: at(140000), maxPoints: 512 },
-        { id: "cursor-neighborhood", begin: at(123456), end: at(123488), maxPoints: 128 },
+        { id: "raw-detail", begin: at(123456), end: at(123488), maxPoints: 128 },
       ],
     };
     const zoomData = await visualization("warm overview + zoom + 32-point detail", zoom);
@@ -224,7 +224,7 @@ async function main() {
       precision: "Float32",
     });
     assert.equal(raw.status, 200);
-    const cursor = await decodeCursor(
+    const rawDetail = await decodeRawStream(
       raw,
       2,
       32,
@@ -235,14 +235,14 @@ async function main() {
         (frame) => frame.resourceIndex === resource && frame.viewIndex === 2,
       )!;
       assert.equal(detail.indices.length, 32);
-      assert.deepEqual(detail.values, cursor[resource]);
+      assert.deepEqual(detail.values, rawDetail[resource]);
       assert.deepEqual(
         [...detail.indices],
         Array.from({ length: 32 }, (_, i) => BigInt(123456 + i)),
       );
     }
     console.log(
-      "Exact cursor: HTTP 200, real frontend decoder, 32 raw samples x 2 exactly equal detail points",
+      "Raw stream decoder: HTTP 200, 32 raw samples x 2 exactly equal detail points",
     );
     const cases: [string, unknown, Record<string, string>, number][] = [
       [

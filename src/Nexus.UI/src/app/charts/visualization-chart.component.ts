@@ -313,7 +313,6 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
   }
 
   private cancelSession(): void {
-    this.activeData?.remote?.cursor?.cancel();
     this.cursorPosition = undefined;
     this.activeData?.remote?.cancel();
 
@@ -505,7 +504,6 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
   cursorLeave(): void {
     this.cursorPosition = undefined;
-    this.data?.remote?.cursor?.cancel();
   }
 
   private drawAuxiliary(x: number, y: number): void {
@@ -516,20 +514,21 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
     const time = this.zoomedBegin + scaleTicks(this.zoomedEnd - this.zoomedBegin, x);
 
     this.cursorPosition = { x, y };
-    const cursor = this.data.remote?.cursor;
-    const period = this.series[0]?.samplePeriod;
-
-    if (cursor && period) {
-      cursor.request((time - this.data.begin + period / 2n) / period);
-    }
+    const remote = this.data.remote;
 
     const updates = this.series.map((series) => {
       const axis = this.axes.get(series.unit)!;
-      const index = Number(
-        (time - this.data!.begin + series.samplePeriod / 2n) / series.samplePeriod,
+      const sampleIndex = (time - this.data!.begin + series.samplePeriod / 2n) / series.samplePeriod;
+      const remotePoint = remote?.nearestPointFor(
+        "main",
+        this.series.indexOf(series),
+        sampleIndex,
+        this.zoomedBegin,
+        this.zoomedEnd,
       );
-      const value = cursor
-        ? cursor.value(this.series.indexOf(series), BigInt(index))
+      const index = Number(remotePoint?.index ?? sampleIndex);
+      const value = remotePoint
+        ? remotePoint.value
         : index >= 0 && index < series.availableLength
           ? series.chunks[Math.floor(index / CHUNK_LENGTH)]?.[index % CHUNK_LENGTH]
           : undefined;
@@ -546,14 +545,7 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
         pointY >= 0 &&
         pointY <= 1;
       const digits = clamp(-roundAway(Math.log10(axis.max - axis.min)) + 2, 0, 100);
-      const text =
-        this.data?.remote && value === undefined
-          ? cursor?.error
-            ? "unavailable"
-            : "pending"
-          : visible
-            ? formatLegendValue(value!, digits)
-            : "--";
+      const text = visible ? formatLegendValue(value!, digits) : "--";
 
       return { id: series.id, visible, x: pointX, y: 1 - pointY, text };
     });

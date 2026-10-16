@@ -1,91 +1,103 @@
 # Visualization Client
 
-See the [visualization algorithm](visualization-algorithm.md) for the
-existing shared backend/GPU algorithm and server execution, memory, and cache limits.
+This document describes how the UI loads, schedules, caches, and renders
+visualization data in local GPU and server-reduced modes. See the
+[visualization algorithm](visualization-algorithm.md) for the shared reduction
+rules, backend endpoint contract, server execution limits, and server cache
+behavior.
+
+## Mode Selection And Loading
 
 The persisted `nexus.visualizationServerReduction` checkbox selects the remote
-provider when constructing a dataset. Local mode still downloads raw Float32
-chunks and uses GPU reduction. Switching modes constructs a new dataset; viewport
+provider when constructing a dataset. Local mode downloads raw Float32 chunks and
+reduces them on the GPU. Switching modes constructs a new dataset. Viewport
 refinement does not change dataset or chart identity, hidden series, colors, or
-vertical zoom. Matching domains, sample periods, and resource identities also
-preserve viewport and hidden-series state across mode switches.
+vertical zoom. Matching domains, sample periods, and resource identities preserve
+viewport and hidden-series state across mode switches.
 
 `NexusService.loadVisualization` uses the same `invoke` path as other service
-requests, including same-origin credentials and the development-role header. No
-additional configuration header is currently installed by `invoke`.
+requests, including same-origin credentials. When Angular dev mode is enabled,
+`invoke` also sends the development-mode role header. No separate visualization
+configuration header is added by `invoke`.
 
-## Transport And Scheduling
+## Remote Transport And Scheduling
 
-- Domain timestamps remain fixed. Main, overview, and visible precision navigator
-  views use sample-aligned bounds with a one-sample halo. Budgets include all
-  points and target four extrema buckets per physical pixel, with five slots per
-  bucket and one boundary bucket. Twofold LOD rounding retains at least two buckets
-  per pixel before caps. Server limits take precedence: 32768 points per view and
-  262144 across resources and three views (the default server aggregate limit).
-- Horizontal gestures coalesce for 50 ms without restarting the timer on each
-  update; each dispatch uses the latest viewport. Vertical-only changes do not
-  schedule requests. One foreground request runs at a time. A running request is
-  retained if it contains the missing main view (or first missing auxiliary view)
-  at no more than twice its canonical stride. Larger resolution changes, uncovered
-  views, explicit cancel, and disposal abort it and advance a generation guarding
-  progress, previews, errors, and cache publication. Immediate requests bypass the
-  coalescing delay but still reuse useful running work.
-- Explicit Reload bypasses same-viewport reuse, aborts active foreground and
-  speculative work, and invalidates every cached resolution covering a requested
-  view. Late results from aborted work cannot restore invalidated coverage.
-  Unrelated cached history remains available.
-- Retained results may provide temporary coverage with clipped boundary buckets;
-  completion rechecks the latest views and schedules any remaining refinement.
-  Boundary-correct cache-hit rules are unchanged. Failed unchanged requests do not
-  retry automatically; if the viewport changed while a retained request ran, its
-  latest missing views receive their own attempt.
-- Arrow schema/types, optional version metadata, identities, list sizes/nulls,
-  ordered domain/view coordinates, progress, errors, and explicit completion are
-  validated. `offset` is validated as a domain sample offset, not added to the
-  already domain-relative indices. EOF is not completion.
-- Partial and completed streaming replacements become previews once every series
-  in the view is present. Cache publication waits for successful explicit stream
-  completion. A viewport supersession can retain one fully delivered view (every
-  resource marked complete) as a display-only fallback, bounded by 32768 points per
-  resource and 262144 resource-points total. It never satisfies a cache hit or
-  suppresses refinement. Incomplete previews are discarded. The fallback is cleared
-  on foreground failure, explicit cancel/disposal, loss of coverage, or when the
-  latest views are satisfied by the completed cache.
-- Foreground progress is monotonic within a load. Finite global ranges publish
-  independently of point-cache completion and survive failure/cancel; speculative
-  and aborted frames do not change them. Completed full-domain points supply a
-  missing range, but never replace an authoritative server range. Nonfinite range
-  frames do not erase a previously published range.
-- The cache retains one full-domain fallback and recent views, targeting at most
-  1024 entries and the cache budget captured when constructing the dataset
-  (the UI's configured cache size, currently 2048 MiB by default). Payload accounting
-  includes Int64 indices and Float32 values, 12 bytes per point. Full-domain and
-  current protected coverage are exempt from eviction, so these are soft limits.
-  Repositioned arrays retain at most one view
-  per target/resource. There is no raw network prefetch or automatic two-million
-  sample download. Exact cursor neighborhoods debounce for 120 ms, use the same
-  authenticated `NexusService.v2.data.getStream` route, and fetch at most 32 samples
-  per resource (12.8 kB for 100 resources). Eight neighborhoods are retained. Cursor
-  motion to another neighborhood or pointer leave cancels the previous read;
-  generation guards reject late results. Pending and failed exact reads are
-  explicitly labeled. The raw decoder checks schema, offsets, counts, nulls,
-  truncation, cancellation and a 1 MiB response ceiling.
-- Integer domain/sample ticks are subtracted before conversion to viewport-local
-  Float32 x coordinates. The existing GPU line/fill pipeline consumes these points
-  directly, without a reduction pass or raw-data callbacks. Progress/cancel/retry
-  controls never cover the plot.
+- **Domains and budgets.** Domain timestamps remain fixed. Main, overview, and
+  visible precision navigator views use sample-aligned bounds with a one-sample
+  halo. Budgets include all points and target four extrema buckets per physical
+  pixel, with five slots per bucket and one boundary bucket. Twofold LOD rounding
+  retains at least two buckets per pixel before caps. Server limits take
+  precedence: 32768 points per view and 262144 across resources and three views
+  (the default server aggregate limit).
+- **Request coalescing.** Horizontal gestures coalesce for 50 ms without restarting
+  the timer on each update; each dispatch uses the latest viewport. Vertical-only
+  changes do not schedule requests. One foreground request runs at a time. A
+  running request is retained if it contains the missing main view (or first missing
+  auxiliary view) at no more than twice its canonical stride. Larger resolution
+  changes, uncovered views, explicit cancel, and disposal abort it and advance a
+  generation guarding progress, previews, errors, and cache publication. Immediate
+  requests bypass the coalescing delay but still reuse useful running work.
+- **Reloads.** Explicit Reload bypasses same-viewport reuse, aborts active foreground
+  and speculative work, and invalidates every cached resolution covering a requested
+  view. Late results from aborted work cannot restore invalidated coverage. Unrelated
+  cached history remains available.
+- **Retained work.** Retained results may provide temporary coverage with clipped
+  boundary buckets; completion rechecks the latest views and schedules any remaining
+  refinement. Boundary-correct cache-hit rules are unchanged. Failed unchanged
+  requests do not retry automatically; if the viewport changed while a retained
+  request ran, its latest missing views receive their own attempt.
+- **Stream validation.** Arrow schema/types, optional version metadata, identities,
+  list sizes/nulls, ordered domain/view coordinates, progress, errors, and explicit
+  completion are validated. `offset` is validated as a domain sample offset, not
+  added to the already domain-relative indices. EOF is not completion.
+- **Previews.** Partial and completed streaming replacements become previews once
+  every series in the view is present. Cache publication waits for successful
+  explicit stream completion. A viewport supersession can retain one fully delivered
+  view (every resource marked complete) as a display-only fallback, bounded by 32768
+  points per resource and 262144 resource-points total. It never satisfies a cache
+  hit or suppresses refinement. Incomplete previews are discarded. The fallback is
+  cleared on foreground failure, explicit cancel/disposal, loss of coverage, or when
+  the latest views are satisfied by the completed cache.
+- **Progress and ranges.** Foreground progress is monotonic within a load. Finite
+  global ranges publish independently of point-cache completion and survive
+  failure/cancel; speculative and aborted frames do not change them. Completed
+  full-domain points supply a missing range, but never replace an authoritative
+  server range. Nonfinite range frames do not erase a previously published range.
+- **Remote cache.** The remote cache is the client-side cache of server-reduced
+  visualization results. It lets remote mode reuse previously loaded views instead
+  of requesting the same coverage from `/api/v2/data/visualization` again. It
+  retains one full-domain fallback and recent views, targeting at most 1024 entries
+  and the cache budget captured when constructing the dataset (the UI's configured
+  cache size, currently 2048 MiB by default). Payload accounting includes Int64
+  indices and Float32 values, 12 bytes per point. Full-domain and current protected
+  coverage are exempt from eviction, so these are soft limits.
+- **Repositioned arrays.** Repositioned arrays retain at most one view per
+  target/resource. There is no raw network prefetch or automatic two-million sample
+  download.
+- **Cursor labels.** Remote cursor labels use the nearest cached visualization point
+  from the rendered main view. They report nearest rendered/reduced values rather
+  than exact raw samples, so cursor motion does not issue additional raw-data
+  requests.
+- **Rendering handoff.** Remote responses carry integer sample indices so the UI
+  can avoid converting large absolute timestamps directly to GPU floats. For each
+  point, the chart subtracts the current view start first, then converts the small
+  view-relative offset into a Float32 x coordinate for the viewport. These
+  server-reduced points then go straight into the existing GPU line/fill renderer:
+  the client does not run another reduction pass and cursor movement does not call
+  back for raw samples. Progress, cancel, and retry controls stay outside the plot
+  area so they do not cover the data while a remote view is loading.
 
 ## Zoom Prefetch
 
 After the latest foreground views complete (or are already cached), a 250 ms idle
 delay starts a bounded speculative queue for the main chart. There is no active
 prefetch lane competing with missing foreground views. The queue predicts half,
-quarter, double, and quadruple spans around the anchor inferred from consecutive horizontal viewports,
-using the center when there is no zoom history or the gesture is a pan. Predictions
-include 10% padding on each side, align to samples, and shift/clamp to the dataset
-domain. Only one speculative request runs at a time; any new viewport, foreground
-request, cancel, or disposal aborts it and invalidates late results. This is
-client-side scheduling priority, not a server priority queue.
+quarter, double, and quadruple spans around the anchor inferred from consecutive
+horizontal viewports, using the center when there is no zoom history or the gesture
+is a pan. Predictions include 10% padding on each side, align to samples, and
+shift/clamp to the dataset domain. Only one speculative request runs at a time; any
+new viewport, foreground request, cancel, or disposal aborts it and invalidates late
+results. This is client-side scheduling priority, not a server priority queue.
 
 Each prediction receives enough points to preserve its intended canonical stride
 despite padding. The 32768-point view cap and a total 262144 resource-points per
@@ -95,15 +107,15 @@ still read small unresolved boundary fragments. The dataset-wide summary pyramid
 already exists after the foreground load, subject to normal server cache eviction.
 
 Prefetch never changes foreground progress or publishes incomplete previews/errors.
-Successfully completed results notify chart subscribers and share the configured cache. Speculative
-entries are evicted before visited history; current coverage and the full-domain
-fallback remain protected. Within either class, narrower views are evicted before
-broader coverage. Before each speculative request, capacity is checked
+Successfully completed results notify chart subscribers and share the configured
+cache. Speculative entries are evicted before visited history; current coverage and
+the full-domain fallback remain protected. Within either class, narrower views are
+evicted before broader coverage. Before each speculative request, capacity is checked
 using its worst-case point payload, excluding replaceable unvisited speculative
 entries. A full history cache therefore suppresses prefetch before network dispatch
-(`prefetch-stop-capacity`), rather than downloading a result only to evict it.
-The queue stops on failure or when its result cannot be retained, without retrying
-until another viewport change.
+(`prefetch-stop-capacity`), rather than downloading a result only to evict it. The
+queue stops on failure or when its result cannot be retained, without retrying until
+another viewport change.
 
 Rendering chooses the finest canonical cached stride, not nominal points per
 tick. Prefetched coverage is available immediately during a later gesture. Exact
@@ -112,7 +124,7 @@ clipped reduced boundary buckets still trigger foreground refinement so gap
 summaries cannot permanently hide finite boundary samples. This improves warm
 navigation but does not guarantee request-free or latency-free continuous zoom.
 
-## Canonical Semantics And Deviations
+## Local GPU Semantics
 
 The production local GPU pyramid uses the same summary and projection rules as
 the server: first/last samples,
@@ -122,10 +134,10 @@ nonfinite samples emit NaN only at the first invalid index. Below 50%, endpoints
 finite extrema, and the first gap marker are retained, even for multiple gaps.
 Exact invalid counts are summed during merges; the final query bucket uses
 `invalidCount >= count - invalidCount`, including partial buckets. This fixed
-rule is independent of `Data:AggregationNaNThreshold`. Fixed GPU output uses five slots and repeats the
-last point to pad; the server emits a variable number of unique points. Padding
-adds only zero-length segments. Extrema ties, including signed zero, choose the
-earliest source index.
+rule is independent of `Data:AggregationNaNThreshold`. Fixed GPU output uses five
+slots and repeats the last point to pad; the server emits a variable number of
+unique points. Padding adds only zero-length segments. Extrema ties, including
+signed zero, choose the earliest source index.
 
 `chart.webgpu.pyramid.js` replaces the local chunked overview path. Base summaries
 are reduced in 256-thread workgroups using adjacent ordered merges; split upload
@@ -137,10 +149,10 @@ alignment so a pan cannot coarsen LOD. Budgets fitting only one summary must use
 actual alignment instead. Raw samples are emitted when they fit the point budget.
 Local budgets use each target's physical plot width, not the main canvas CSS width
 or the server aggregate cap, targeting four buckets per pixel capped at 8192
-buckets plus one boundary bucket. Query planning descends retained levels for partial boundaries and
-uploads only unresolved raw fragments from existing local CPU chunks. Coarse
-queries need at most 510 raw boundary samples; fine queries remain point-budget
-bounded. No production parent or viewport summary is built from drawing points.
+buckets plus one boundary bucket. Query planning descends retained levels for
+partial boundaries and uploads only unresolved raw fragments from existing local
+CPU chunks. Coarse queries need at most 510 raw boundary samples; fine queries
+remain point-budget bounded. No production parent or viewport summary is built from drawing points.
 All reductions, including boundary fragments, run on the GPU. Three target query
 outputs are cached; vertical-only zoom reuses them.
 
@@ -150,8 +162,7 @@ only after subtracting a local integer origin. Local indices are bounded to
 4,294,966,784 samples and device storage limits, with an explicit error directing
 larger domains to server mode. The server supports larger domains subject to its
 own configured limits. GPU driver signed-zero/subnormal behavior still requires
-numerical hardware verification. The old point reducers remain as legacy helper
-implementations but are not used by production chunked-series rendering.
+numerical hardware verification.
 
 ## Local Memory Limits
 
@@ -204,13 +215,13 @@ and memory-lifetime tests, plus direct remote point uploads and interactions.
 specified by `NEXUS_WEBGPU_MODULE` (absolute module URL). CI installs the locked
 runtime in `tests/js/webgpu` and runs this suite with Mesa lavapipe in a Node 24
 Debian Trixie container before permitting the build/publish job. Local runs without
-the module variable explicitly skip numerical verification. It compares all three GPU
-reducers and the actual production pyramid upload/parent/query path to canonical
-fixtures. Numerical execution has also been verified locally using Dawn 0.6.2
-with Mesa 25 lavapipe.
+the module variable explicitly skip numerical verification. It compares all three
+GPU reducers and the actual production pyramid upload/parent/query path to canonical
+fixtures. Numerical execution has also been verified locally using Dawn 0.6.2 with
+Mesa 25 lavapipe.
 This includes split uploads, five absolute origins (one beyond Number's safe
 integer range), multiple strides and clipped boundaries, plus an artificial 4 KiB
 binding/allocation cap forcing multi-page parents, queries and transient uploads.
-It is software Vulkan
-execution, not a physical-GPU throughput measurement. Live desktop/mobile browser
-interaction and backend-to-browser smoke testing remain unverified.
+It is software Vulkan execution, not a physical-GPU throughput measurement. Live
+desktop/mobile browser interaction and backend-to-browser smoke testing remain
+unverified.
