@@ -190,8 +190,8 @@ cap (ordinary 128 MiB and larger tiers readily fit the 32768-point request cap).
 Total GPU budget, host memory, and u32 local-index limits still apply; sharding
 does not reduce total summary memory or promise that the driver can supply it.
 
-Local mode still retains the entire raw dataset in CPU chunks. On an integrated
-GPU these chunks and GPU allocations compete for system memory: 10 GiB raw plus
+Local mode retains the raw dataset in CPU chunks. On an integrated GPU these
+chunks and GPU allocations compete for system memory: 10 GiB raw plus
 roughly 640 MiB summaries, up to 16 MiB transient storage per concurrent series
 upload, bounded query outputs/scratch, and browser/driver overhead. The chart's GPU
 budget does not include CPU chunks or driver allocations. Fine queries reread and
@@ -202,26 +202,30 @@ reads are prevented from republishing GPU query buffers after target release.
 
 ## Verification
 
-`npm test` includes fragmented multi-batch Arrow, version/schema/count/coordinate/
-error/completion checks, resource-major multi-view decoder/provider integration,
-cancellation, large-coordinate, preview rollback, latest-wins, force reload,
-progress/ranges, and byte/entry cache limits. Provider scheduling tests advance
-mocked timers and drain promise continuations rather than sleeping in real time.
-`node --test tests/js/*.test.js` includes CPU-oracle query/merge tests across huge
-absolute origins, boundary gaps, ties and levels, production pyramid upload/query
-and memory-lifetime tests, plus direct remote point uploads and interactions.
+The `src/Nexus.UI` `npm test` script type-checks the UI test project and runs the
+TypeScript UI tests from `tests/Nexus.UI.Tests/app`, including the chart
+decoder/provider tests under `tests/Nexus.UI.Tests/app/charts/*.test.ts`. Those
+tests cover fragmented multi-batch Arrow decoding,
+version/schema/count/coordinate/error/completion validation, resource-major
+multi-view decoder/provider integration, cancellation,
+large coordinates, preview rollback, latest-wins, force reload, progress/ranges,
+and byte/entry cache limits. Provider scheduling tests use mocked timers and drain
+promise continuations instead of sleeping in real time.
 
-`tests/js/chart.webgpu.numeric.test.js` uses the Dawn `webgpu` Node module
-specified by `NEXUS_WEBGPU_MODULE` (absolute module URL). CI installs the locked
-runtime in `tests/js/webgpu` and runs this suite with Mesa lavapipe in a Node 24
-Debian Trixie container before permitting the build/publish job. Local runs without
-the module variable explicitly skip numerical verification. It compares all three
-GPU reducers and the actual production pyramid upload/parent/query path to canonical
-fixtures. Numerical execution has also been verified locally using Dawn 0.6.2 with
-Mesa 25 lavapipe.
-This includes split uploads, five absolute origins (one beyond Number's safe
-integer range), multiple strides and clipped boundaries, plus an artificial 4 KiB
-binding/allocation cap forcing multi-page parents, queries and transient uploads.
-It is software Vulkan execution, not a physical-GPU throughput measurement. Live
-desktop/mobile browser interaction and backend-to-browser smoke testing remain
-unverified.
+`node --test tests/js/*.test.js` is a separate JavaScript chart test suite. It
+covers query/merge results checked against a straightforward CPU reference
+implementation across large absolute origins, boundary gaps, ties and levels,
+production pyramid upload/query and memory-lifetime paths, and chart interaction
+behavior.
+
+`tests/js/chart.webgpu.numeric.test.js` uses the Dawn `webgpu` Node module when
+`NEXUS_WEBGPU_MODULE` points to an absolute module URL. Without that variable, the
+numerical WebGPU checks are skipped. When enabled, the suite compares the GPU
+reducers and production pyramid upload/parent/query path against canonical
+fixtures, including split uploads, five absolute origins, multiple strides,
+clipped boundaries, and an artificial 4 KiB binding/allocation cap that forces
+multi-page parents, queries, and transient uploads. This is software Vulkan
+execution, not a physical-GPU throughput measurement.
+
+Live desktop/mobile browser interaction and full backend-to-browser rendering
+smoke testing are not covered by these commands.
