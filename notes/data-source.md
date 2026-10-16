@@ -31,7 +31,7 @@ Task ReadAsync(...);
 
 When the database is reloaded, the user-defined data source registrations are used to instantiate `IDataSources` are instantiated and then asked to provided available catalog identifiers. The catalogs itself are lazy-loaded upon the first access.
 
-When, for instance, a user later asks for the data availability of a catalog, the `IDataSource` is instantiated again.
+When, for instance, a user later asks for the data availability of a catalog, the `IDataSource` is instantiated again. Nexus may call `GetAvailabilityAsync` concurrently on the same `IDataSource` instance, so `GetAvailabilityAsync` implementations must be thread-safe.
 
 A read operation may be triggered by either streaming or exporting of the data of one or multiple catalog items. Grouped by the corresponding `IDataSource`, all read requests first arrive in a static method called `ReadAsync`, which is located in the `DataSourceController` type. From there the method distributes the read requests to the actual `DataSourceController` instances which forward it to the wrapped IDataSource instance. To keep the memory consumption low, the controller may decide to reduce the time period per request and repeat the reading step until all data has been loaded.
 
