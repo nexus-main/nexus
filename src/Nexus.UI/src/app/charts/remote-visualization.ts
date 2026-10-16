@@ -4,7 +4,7 @@ import { formatTime } from "./chart-math.ts";
 import type { GpuRange } from "./chart-interop.ts";
 import { dateTicks } from "../resource-selection.ts";
 
-export interface VisualizationView {
+interface VisualizationView {
   id: string;
   begin: string;
   end: string;
