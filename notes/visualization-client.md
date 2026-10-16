@@ -190,8 +190,8 @@ cap (ordinary 128 MiB and larger tiers readily fit the 32768-point request cap).
 Total GPU budget, host memory, and u32 local-index limits still apply; sharding
 does not reduce total summary memory or promise that the driver can supply it.
 
-Local mode retains the raw dataset in CPU chunks. On an integrated GPU these
-chunks and GPU allocations compete for system memory: 10 GiB raw plus
+Local mode still retains the entire raw dataset in CPU chunks. On an integrated
+GPU these chunks and GPU allocations compete for system memory: 10 GiB raw plus
 roughly 640 MiB summaries, up to 16 MiB transient storage per concurrent series
 upload, bounded query outputs/scratch, and browser/driver overhead. The chart's GPU
 budget does not include CPU chunks or driver allocations. Fine queries reread and
