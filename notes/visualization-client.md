@@ -200,6 +200,83 @@ physical-iGPU upload/query throughput has not been benchmarked. Mode switches
 dispose the old chart and release raw chunks or remote caches; pending target
 reads are prevented from republishing GPU query buffers after target release.
 
+## Server Decimation Flow
+
+When server-side decimation is enabled, the browser does not run the
+server-decimated view through the normal raw-series WebGPU upload path again.
+The GPU is still used to draw the chart, but not to reduce the already reduced
+view data a second time.
+
+```text
+┌──────────────────────────────────────────────────────────────────────┐
+│                        User Selects Visualization                     │
+└──────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      v
+                    ┌────────────────────────────────┐
+                    │ Server-side decimation enabled? │
+                    └────────────────────────────────┘
+                         │                         │
+                         │ yes                     │ no
+                         v                         v
+┌──────────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ Server-Decimated Remote Path          │   │ Browser Raw-Series Path              │
+├──────────────────────────────────────┤   ├──────────────────────────────────────┤
+│ app.component.ts                      │   │ app.component.ts                      │
+│ creates: data.remote                  │   │ creates: VisualizationBuffers         │
+│ returns before raw buffer loading     │   │ calls: loadResourcesIntoBuffers       │
+└──────────────────────────────────────┘   └──────────────────────────────────────┘
+                         │                         │
+                         v                         v
+┌──────────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ RemoteVisualization                   │   │ Raw resource samples                  │
+├──────────────────────────────────────┤   ├──────────────────────────────────────┤
+│ Requests view-shaped data             │   │ Loaded into Float32Array chunks       │
+│ from server                           │   │ in VisualizationSeries.chunks         │
+└──────────────────────────────────────┘   └──────────────────────────────────────┘
+                         │                         │
+                         v                         v
+┌──────────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ Server                               │   │ visualization-chart.component.ts       │
+├──────────────────────────────────────┤   ├──────────────────────────────────────┤
+│ Reads raw data                        │   │ ensureUploads() runs                  │
+│ Reduces to requested view budget      │   │ uploadSeries(...) sends chunks        │
+│ Returns reduced points                │   │ to WebGPU upload path                 │
+└──────────────────────────────────────┘   └──────────────────────────────────────┘
+                         │                         │
+                         v                         v
+┌──────────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ Browser remote view cache             │   │ WebGPU series buffers                 │
+├──────────────────────────────────────┤   ├──────────────────────────────────────┤
+│ Stores server-produced views          │   │ Full raw series are buffered/uploaded │
+│ May reuse coarser server views        │   │ for client-side chart rendering       │
+│ May request refined server views      │   │                                      │
+└──────────────────────────────────────┘   └──────────────────────────────────────┘
+                         │                         │
+                         v                         v
+┌──────────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ Chart renders remote points           │   │ Chart renders uploaded series         │
+├──────────────────────────────────────┤   ├──────────────────────────────────────┤
+│ No browser/GPU decimation pass        │   │ Browser/GPU path handles raw series   │
+│ over server-reduced data              │   │                                      │
+└──────────────────────────────────────┘   └──────────────────────────────────────┘
+```
+
+Short flow summary:
+
+```text
+Server decimation ON
+┌──────────┐   ┌─────────────────────┐   ┌───────────────┐   ┌──────────────┐
+│ Raw data │ → │ Server reduces view │ → │ Remote cache  │ → │ Chart draws  │
+└──────────┘   └─────────────────────┘   └───────────────┘   └──────────────┘
+                                                        no second reduction
+
+Server decimation OFF
+┌──────────┐   ┌─────────────────────┐   ┌───────────────┐   ┌──────────────┐
+│ Raw data │ → │ Browser buffers it  │ → │ WebGPU upload │ → │ Chart draws  │
+└──────────┘   └─────────────────────┘   └───────────────┘   └──────────────┘
+```
+
 ## Verification
 
 The `src/Nexus.UI` `npm test` script type-checks the UI test project and runs the
