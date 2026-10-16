@@ -145,6 +145,10 @@ jobs:
           npm run typecheck
           npm test
 
+      - name: Visualization smoke
+        working-directory: src/Nexus.UI
+        run: NEXUS_SMOKE_APP=app npm run test:integration-smoke
+
       - name: API
         run: |
           dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi_new.json
@@ -152,10 +156,6 @@ jobs:
           diff --strip-trailing-cr openapi.v2.json openapi_new.v2.json
           # Fail if generated clients changed, which means committed client sources are stale.
           test -z "$(git status --porcelain -- src/clients/dotnet src/clients/python/nexus_api src/clients/typescript)"
-
-      - name: Visualization smoke
-        working-directory: src/Nexus.UI
-        run: NEXUS_SMOKE_APP=app npm run test:integration-smoke
 
       # --- Docker last: it is the slowest step and only matters if everything above passed ---
 
