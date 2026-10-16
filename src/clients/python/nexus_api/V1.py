@@ -2194,6 +2194,7 @@ class SystemResponse:
         application_name: The application name.
         help_link: The help link.
         logout_url: The logout URL.
+        decimation_available: Whether server-side visualization decimation is available.
     """
 
     version: str
@@ -2207,6 +2208,9 @@ class SystemResponse:
 
     logout_url: Optional[str]
     """The logout URL."""
+
+    decimation_available: bool
+    """Whether server-side visualization decimation is available."""
 
 
 @dataclass(frozen=True)

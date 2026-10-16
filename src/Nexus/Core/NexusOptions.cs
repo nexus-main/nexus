@@ -71,6 +71,9 @@ internal record DataOptions() : NexusOptionsBase
 
 internal record VisualizationOptions
 {
+    /// <summary>Enables server-side visualization decimation and exposes the UI option to use it.</summary>
+    public bool EnableServerSideDecimation { get; set; } = false;
+
     /// <summary>Maximum number of source-read workers used by one visualization scan.</summary>
     public int MaxConcurrentReads { get; set; } = 8;
 

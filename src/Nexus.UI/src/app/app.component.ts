@@ -434,6 +434,10 @@ export class AppComponent implements OnDestroy {
   readonly helpLink = computed(() => this.nexus.system()?.helpLink ?? null);
   readonly logoutUrl = computed(() => this.nexus.system()?.logoutUrl ?? null);
   readonly nexusVersion = computed(() => this.nexus.system()?.version ?? "");
+  readonly decimationAvailable = computed(() => this.nexus.system()?.decimationAvailable === true);
+  readonly useServerSideDecimation = computed(
+    () => this.decimationAvailable() && this.visualizationServerReduction(),
+  );
   readonly userInitials = computed(() => getInitials(this.userName()));
 
   changeDevAuthMode(mode: DevAuthMode) {
@@ -1135,7 +1139,7 @@ export class AppComponent implements OnDestroy {
         data.navigation = existing.navigation;
       }
 
-      if (this.visualizationServerReduction()) {
+      if (this.useServerSideDecimation()) {
         releaseVisualizationData(existing);
 
         data.remote = new RemoteVisualization(
@@ -1287,6 +1291,13 @@ export class AppComponent implements OnDestroy {
   }
 
   setVisualizationServerReduction(value: boolean): void {
+    if (!this.decimationAvailable()) {
+      this.visualizationServerReduction.set(false);
+      this.storage.setJson("nexus.visualizationServerReduction", false);
+
+      return;
+    }
+
     this.visualizationServerReduction.set(value);
     this.storage.setJson("nexus.visualizationServerReduction", value);
     void this.visualize(false);

@@ -213,11 +213,13 @@ public record MeResponse(
 /// <param name="ApplicationName">The application name.</param>
 /// <param name="HelpLink">The help link.</param>
 /// <param name="LogoutUrl">The logout URL.</param>
+/// <param name="DecimationAvailable">Whether server-side visualization decimation is available.</param>
 public record SystemResponse(
     string Version,
     string? ApplicationName,
     string? HelpLink,
-    string? LogoutUrl
+    string? LogoutUrl,
+    bool DecimationAvailable
 );
 
 /// <summary>

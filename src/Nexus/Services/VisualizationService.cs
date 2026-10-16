@@ -599,6 +599,9 @@ internal sealed class VisualizationService(
 
     internal static void ValidateRequest(VisualizationRequest request, VisualizationOptions options)
     {
+        if (!options.EnableServerSideDecimation)
+            throw new ValidationException("Server-side visualization decimation is disabled.");
+
         if (request is null)
             throw new ValidationException("A visualization request body is required.");
 

@@ -3360,7 +3360,8 @@ public record DataSourceRegistration(string Type, Uri? ResourceLocator, JsonElem
 /// <param name="ApplicationName">The application name.</param>
 /// <param name="HelpLink">The help link.</param>
 /// <param name="LogoutUrl">The logout URL.</param>
-public record SystemResponse(string Version, string? ApplicationName, string? HelpLink, string? LogoutUrl);
+/// <param name="DecimationAvailable">Whether server-side visualization decimation is available.</param>
+public record SystemResponse(string Version, string? ApplicationName, string? HelpLink, string? LogoutUrl, bool DecimationAvailable);
 
 /// <summary>
 /// A me response.

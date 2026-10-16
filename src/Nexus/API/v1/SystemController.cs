@@ -19,6 +19,7 @@ namespace Nexus.Controllers.V1;
 [Route("api/v{version:apiVersion}/[controller]")]
 internal class SystemController(
     IOptions<GeneralOptions> generalOptions,
+    IOptions<DataOptions> dataOptions,
     IOptions<SecurityOptions> securityOptions,
     AppState appState,
     IWebHostEnvironment environment
@@ -30,6 +31,8 @@ internal class SystemController(
     // GET      /api/system
 
     private readonly GeneralOptions _generalOptions = generalOptions.Value;
+
+    private readonly DataOptions _dataOptions = dataOptions.Value;
 
     private readonly SecurityOptions _securityOptions = securityOptions.Value;
 
@@ -47,7 +50,8 @@ internal class SystemController(
             _appState.Version,
             _generalOptions.ApplicationName,
             _generalOptions.HelpLink ?? (_environment.IsDevelopment() ? DEVELOPMENT_HELP_LINK : null),
-            _securityOptions.LogoutUrl ?? (_environment.IsDevelopment() ? "/" : null)
+            _securityOptions.LogoutUrl ?? (_environment.IsDevelopment() ? "/" : null),
+            _dataOptions.Visualization.EnableServerSideDecimation
         );
     }
 }
