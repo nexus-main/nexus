@@ -12,6 +12,12 @@ dotnet build src/Nexus/Nexus.csproj --no-restore -v minimal
 node tests/integration/visualization-smoke.ts
 ```
 
+To reuse an existing published app directory instead of the default debug build:
+
+```sh
+NEXUS_SMOKE_APP=app node tests/integration/visualization-smoke.ts
+```
+
 Node 24 runs the TypeScript harness directly. Install the UI dependencies first
 (`npm ci --prefix src/Nexus.UI`); the production decoders use its Apache Arrow package.
 
@@ -28,10 +34,13 @@ The default parent is the repository's ignored `artifacts/` directory.
 
 ## Isolation
 
-- Copies the debug build to the unique run directory, excluding all appsettings
-  files, and launches that DLL directly without launch profiles on an OS-assigned
-  loopback port. Build first to avoid testing stale binaries; the copy also avoids
-  changing assemblies under the running host during another agent's build.
+- Copies the selected app directory to the unique run directory, excluding all
+  appsettings files, and launches that DLL directly without launch profiles on an
+  OS-assigned loopback port. By default the selected app is the debug build under
+  `artifacts/bin/Nexus/debug`; `NEXUS_SMOKE_APP` can point at an existing published
+  app directory such as CI's `app/`. Build first to avoid testing stale binaries;
+  the copy also avoids changing assemblies under the running host during another
+  agent's build.
 - Uses an allowlisted child environment, isolated HOME, settings, config,
   catalogs, caches, packages, and artifacts. Generates a minimal `appsettings.json`
   beside the copied DLL rather than loading build-output settings.
@@ -73,24 +82,7 @@ token is valid, so this harness does not claim unauthenticated 401 coverage.
 Browser rendering is separate from this transport check; desktop/mobile rendering,
 pointer interaction and mode switching are not asserted by this harness.
 
-## Verification
-
-The October 7 run used an earlier cache/read-budget implementation and does not
-validate this harness. Current runs print their unique artifact directory, individual
-checks and final status; retain `host.log` with the tested revision when recording a
-result. Elapsed times include transport, decoding, assertions and timing-log delivery.
-They are smoke diagnostics for a sample plugin, not storage or browser benchmarks.
-
-On October 15, 2026, the revised harness passed against the worktree based on
-`50a33b6`, using a freshly built isolated debug host and Node 24.14.1. All listed
-checks ran, including multi-slice/cold-miss timing, warm-hit overview equality,
-cursor equality, HTTP errors and cancellation/recovery. The owned host exited 0.
-Local evidence: `artifacts/nexus-visualization-W0fYsZ/host.log`.
-
-A separate interruption check suspended only that check's newly spawned host after
-startup, then sent SIGTERM to its harness. The request aborted, SIGKILL escalation
-stopped the unresponsive owned host after five seconds, and the harness exited
-nonzero with no child remaining. Local evidence:
-`artifacts/nexus-visualization-l0vNRj/host.log`. This exercises the shared watchdog/
-signal stop path, not a full two-minute deadline wait. No deployed service or
-container was involved in either verification.
+Current runs print their unique artifact directory, individual checks and final
+status. Retain `host.log` with the tested revision when recording a result. Elapsed
+times include transport, decoding, assertions and timing-log delivery. They are
+smoke diagnostics for a sample plugin, not storage or browser benchmarks.

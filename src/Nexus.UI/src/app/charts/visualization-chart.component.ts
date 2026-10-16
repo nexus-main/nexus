@@ -518,7 +518,8 @@ export class VisualizationChartComponent implements AfterViewInit, OnChanges, On
 
     const updates = this.series.map((series) => {
       const axis = this.axes.get(series.unit)!;
-      const sampleIndex = (time - this.data!.begin + series.samplePeriod / 2n) / series.samplePeriod;
+      const sampleIndex =
+        (time - this.data!.begin + series.samplePeriod / 2n) / series.samplePeriod;
       const remotePoint = remote?.nearestPointFor(
         "main",
         this.series.indexOf(series),
