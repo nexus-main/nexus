@@ -4,7 +4,6 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -619,6 +618,7 @@ internal class DataSourceController(
         var samplePeriod = item.Representation.SamplePeriod;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
         var targetElementCount = targetByteCount / (int)readUnit.Precision;
+
         /* target buffer */
         Memory<double> targetBuffer;
         IMemoryOwner<double>? poolBuffer = null;
@@ -847,14 +847,17 @@ internal class DataSourceController(
         {
             var container = readUnit.CatalogItemRequest.Container;
             var isUnrestricted = container is null || (container.MinBegin is null && container.MaxEnd is null);
-
             var containedRange = new ContainedTimeRange(begin, end);
 
-            if (!isUnrestricted && !container!.TryGetSampleAlignedContainedRange(
-                begin,
-                end,
-                samplePeriod,
-                out containedRange))
+            if
+            (
+                !isUnrestricted && !container!.TryGetSampleAlignedContainedRange(
+                    begin,
+                    end,
+                    samplePeriod,
+                    out containedRange
+                )
+            )
             {
                 return;
             }
@@ -868,9 +871,7 @@ internal class DataSourceController(
                 : containedRange.End.RoundDown(baseSamplePeriod);
 
             if (roundedBegin >= roundedEnd)
-            {
                 return;
-            }
 
             var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
 
@@ -919,16 +920,19 @@ internal class DataSourceController(
                     ? NexusUtilities.Scale(begin - roundedBegin, targetSamplePeriod)
                     : 0);
         }
+
         catch (OutOfMemoryException)
         {
             throw;
         }
+
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
 
             FillNaN(targetBuffer, readUnit.Precision);
         }
+
         finally
         {
             /* update progress */
@@ -1165,6 +1169,7 @@ internal class DataSourceController(
                     var currentEnd = currentBegin + currentPeriod;
 
                     logger.LogTrace("Process period {CurrentBegin} to {CurrentEnd}", currentBegin, currentEnd);
+
                     var dataSourceProgress = new Progress<double>();
 
                     dataSourceProgress.ProgressChanged += (sender, progressValue) =>
@@ -1193,6 +1198,7 @@ internal class DataSourceController(
                         readDataHandler,
                         dataSourceProgress,
                         cancellationToken).ConfigureAwait(false);
+
                     consumedPeriod += currentPeriod;
                     remainingPeriod -= currentPeriod;
 
