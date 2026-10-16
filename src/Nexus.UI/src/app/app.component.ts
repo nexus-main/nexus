@@ -37,6 +37,7 @@ import { ToastModule } from "primeng/toast";
 import { AppTooltipDirective } from "./app-tooltip.directive";
 import { DrawerPassThrough } from "primeng/types/drawer";
 import { BrowserStorageService } from "./services/browser-storage.service";
+import { RemoteVisualization } from "./charts/remote-visualization";
 import { VisualizationChartComponent } from "./charts/visualization-chart.component";
 import {
   VisualizationBuffers,
@@ -250,6 +251,7 @@ export class AppComponent implements OnDestroy {
   private restoreHistory: (() => void) | null = null;
   private acceptedHistoryNavigation = false;
   private readonly resourceMatrix = viewChild(ResourceMatrixComponent);
+  private readonly visualizationChart = viewChild(VisualizationChartComponent);
   readonly revealResourceKey = signal("");
   readonly revealResourceSequence = signal(0);
   readonly selectionLoading = signal(true);
@@ -303,6 +305,9 @@ export class AppComponent implements OnDestroy {
   readonly visualizationProgress = signal(0);
   readonly visualizationError = signal("");
   readonly visualizationBeginAtZero = signal(false);
+  readonly visualizationServerReduction = signal(
+    this.storage.getJson<unknown>("nexus.visualizationServerReduction", false) === true,
+  );
   readonly visualizationCacheMiB = signal(2048);
   private visualizationController?: AbortController;
   private visualizationBuffers?: VisualizationBuffers;
@@ -429,6 +434,10 @@ export class AppComponent implements OnDestroy {
   readonly helpLink = computed(() => this.nexus.system()?.helpLink ?? null);
   readonly logoutUrl = computed(() => this.nexus.system()?.logoutUrl ?? null);
   readonly nexusVersion = computed(() => this.nexus.system()?.version ?? "");
+  readonly decimationAvailable = computed(() => this.nexus.system()?.decimationAvailable === true);
+  readonly useServerSideDecimation = computed(
+    () => this.decimationAvailable() && this.visualizationServerReduction(),
+  );
   readonly userInitials = computed(() => getInitials(this.userName()));
 
   changeDevAuthMode(mode: DevAuthMode) {
@@ -1117,8 +1126,41 @@ export class AppComponent implements OnDestroy {
 
       controller.signal.throwIfAborted();
 
+      if (
+        existing &&
+        existing.begin === data.begin &&
+        existing.end === data.end &&
+        existing.series.length === data.series.length &&
+        existing.series.every(
+          (series, i) =>
+            series.id === data.series[i].id && series.samplePeriod === data.series[i].samplePeriod,
+        )
+      ) {
+        data.navigation = existing.navigation;
+      }
+
+      if (this.useServerSideDecimation()) {
+        releaseVisualizationData(existing);
+
+        data.remote = new RemoteVisualization(
+          data.begin,
+          data.end,
+          samplePeriod,
+          descriptors.map((item) => item.id),
+          (request, signal, onFrame) =>
+            this.nexus.loadVisualization(request, BigInt(data.series[0].length), signal, onFrame),
+          this.visualizationCacheMiB() * 1024 * 1024,
+        );
+
+        this.visualizationData.set(data);
+        this.loadedVisualizationKey.set(key);
+
+        return;
+      }
+
       const canIncremental =
         !!existing &&
+        !existing.remote &&
         existing.begin === data.begin &&
         existing.end === data.end &&
         existing.series[0]?.samplePeriod === samplePeriod;
@@ -1248,10 +1290,33 @@ export class AppComponent implements OnDestroy {
     this.visualizationError.set(message);
   }
 
+  setVisualizationServerReduction(value: boolean): void {
+    if (!this.decimationAvailable()) {
+      this.visualizationServerReduction.set(false);
+      this.storage.setJson("nexus.visualizationServerReduction", false);
+
+      return;
+    }
+
+    this.visualizationServerReduction.set(value);
+    this.storage.setJson("nexus.visualizationServerReduction", value);
+    void this.visualize(false);
+  }
+
   setVisualizationCache(value: number | null) {
     if (value !== null && Number.isFinite(value) && value >= 16) {
       this.visualizationCacheMiB.set(Math.floor(value));
     }
+  }
+
+  reloadVisualizationView(): void {
+    if (this.visualizationData()?.remote) {
+      this.visualizationChart()?.requestRemoteViews(true, true);
+
+      return;
+    }
+
+    void this.visualize(false);
   }
 
   ngOnDestroy() {

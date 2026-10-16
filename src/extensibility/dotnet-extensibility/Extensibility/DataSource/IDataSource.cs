@@ -46,7 +46,8 @@ public interface IDataSource
     );
 
     /// <summary>
-    /// Gets the availability of the <see cref="ResourceCatalog"/>.
+    /// Gets the availability of the <see cref="ResourceCatalog"/>. Implementations must be thread-safe because
+    /// Nexus may call this method concurrently on the same data source instance.
     /// </summary>
     /// <param name="catalogId">The catalog identifier.</param>
     /// <param name="begin">The begin of the availability period.</param>
@@ -61,7 +62,8 @@ public interface IDataSource
     );
 
     /// <summary>
-    /// Performs a number of read requests.
+    /// Performs a number of read requests. Implementations must be thread-safe because Nexus may call this method
+    /// concurrently on the same data source instance.
     /// </summary>
     /// <param name="begin">The beginning of the period to read.</param>
     /// <param name="end">The end of the period to read.</param>

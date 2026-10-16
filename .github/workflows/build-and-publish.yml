@@ -18,8 +18,35 @@ permissions:
   contents: read
 
 jobs:
+  webgpu-numeric:
+    name: WebGPU Numerical Tests
+    runs-on: ubuntu-latest
+    container: node:24-trixie
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install software Vulkan and Dawn
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+          npm ci --prefix tests/js/webgpu --no-audit --no-fund
+
+      - name: Execute WebGPU numerical tests
+        run: |
+          set -eu
+          set -- /usr/share/vulkan/icd.d/lvp_icd*.json
+          test "$#" -eq 1
+          test -f "$1"
+          export VK_DRIVER_FILES="$1"
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          export NEXUS_WEBGPU_MODULE="$(node -p 'require("node:url").pathToFileURL(require("node:path").resolve("tests/js/webgpu/node_modules/webgpu/index.js")).href')"
+          node --test tests/js/*.test.js
+
   build:
     name: Build
+    needs: webgpu-numeric
     runs-on: ubuntu-latest
 
     steps:
@@ -55,7 +82,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       # Explicit cache instead of the `cache:` inputs of the setup actions, because
       # those require lock files (and the TS steps use --no-package-lock).
@@ -83,10 +110,15 @@ jobs:
           npm install --no-package-lock
           npm run typecheck
 
-      - name: Fast checks (JS tests, pyright)
+      - name: Type-check Python
+        run: pyright
+
+      - name: Test UI and type-check smoke harness
+        working-directory: src/Nexus.UI
         run: |
-          node --test tests/js/*.test.js
-          pyright
+          npm ci
+          npm test
+          npm run test:integration-types
 
       # --- Build ---
 
@@ -112,6 +144,10 @@ jobs:
           npm install --no-package-lock --legacy-peer-deps
           npm run typecheck
           npm test
+
+      - name: Visualization smoke
+        working-directory: src/Nexus.UI
+        run: NEXUS_SMOKE_APP=app npm run test:integration-smoke
 
       - name: API
         run: |

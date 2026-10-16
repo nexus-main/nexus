@@ -7,12 +7,12 @@
     "types": ["node"]
   },
   "files": [
-    "../../tests/Nexus.UI.Tests/app/resource-selection.test.ts",
-    "../../tests/Nexus.UI.Tests/app/resource-matrix.test.ts",
-    "../../tests/Nexus.UI.Tests/app/json-schema.test.ts",
-    "../../tests/Nexus.UI.Tests/app/data-source-pipelines.test.ts",
-    "../../tests/Nexus.UI.Tests/app/yaml-monaco.test.ts",
-    "../../tests/Nexus.UI.Tests/app/nexus-ui-setup.test.ts"
+    "../../tests/Nexus.UI.Tests/resource-selection.test.ts",
+    "../../tests/Nexus.UI.Tests/resource-matrix.test.ts",
+    "../../tests/Nexus.UI.Tests/json-schema.test.ts",
+    "../../tests/Nexus.UI.Tests/data-source-pipelines.test.ts",
+    "../../tests/Nexus.UI.Tests/yaml-monaco.test.ts",
+    "../../tests/Nexus.UI.Tests/nexus-ui-setup.test.ts"
   ],
-  "include": ["../../tests/Nexus.UI.Tests/app/charts/*.test.ts"]
+  "include": ["../../tests/Nexus.UI.Tests/charts/*.test.ts"]
 }

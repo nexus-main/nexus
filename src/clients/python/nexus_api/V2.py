@@ -55,11 +55,24 @@ class DataClient:
     def __init__(self, invoke: HttpRequestHandler):
         self.___invoke = invoke
 
+    def get_visualization(self, request: VisualizationRequest) -> Response:
+        """
+        Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
+
+        Args:
+            request: The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.
+        """
+
+        __url = "/api/v2/data/visualization"
+
+        return self.___invoke(Response, "POST", __url, "application/vnd.apache.arrow.stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
     def get_stream(self, request: BatchStreamRequest) -> Response:
         """
         Streams multiple resources in an Apache Arrow IPC response.
 
         Args:
+            request: The batch stream request.
         """
 
         __url = "/api/v2/data"
@@ -80,6 +93,7 @@ class JobsClient:
         Creates a new export job.
 
         Args:
+            parameters: Export parameters.
         """
 
         __url = "/api/v2/jobs/export"
@@ -127,11 +141,24 @@ class DataAsyncClient:
     def __init__(self, invoke: HttpRequestHandlerAsync):
         self.___invoke = invoke
 
+    def get_visualization(self, request: VisualizationRequest) -> Awaitable[Response]:
+        """
+        Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
+
+        Args:
+            request: The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.
+        """
+
+        __url = "/api/v2/data/visualization"
+
+        return self.___invoke(Response, "POST", __url, "application/vnd.apache.arrow.stream", "application/json", json.dumps(JsonEncoder.encode(request, _json_encoder_options)))
+
     def get_stream(self, request: BatchStreamRequest) -> Awaitable[Response]:
         """
         Streams multiple resources in an Apache Arrow IPC response.
 
         Args:
+            request: The batch stream request.
         """
 
         __url = "/api/v2/data"
@@ -152,12 +179,63 @@ class JobsAsyncClient:
         Creates a new export job.
 
         Args:
+            parameters: Export parameters.
         """
 
         __url = "/api/v2/jobs/export"
 
         return self.___invoke(Job, "POST", __url, "application/json", "application/json", json.dumps(JsonEncoder.encode(parameters, _json_encoder_options)))
 
+
+
+@dataclass(frozen=True)
+class VisualizationRequest:
+    """
+    A Float32 visualization request over a common, half-open sample domain.
+
+    Args:
+        begin: The domain start.
+        end: The exclusive domain end.
+        resource_paths: The resources, all with the same sample period.
+        views: The requested replacement views.
+    """
+
+    begin: datetime
+    """The domain start."""
+
+    end: datetime
+    """The exclusive domain end."""
+
+    resource_paths: list[str]
+    """The resources, all with the same sample period."""
+
+    views: list[VisualizationView]
+    """The requested replacement views."""
+
+
+@dataclass(frozen=True)
+class VisualizationView:
+    """
+    Defines one caller-supplied half-open time viewport and the maximum number of decimated points to return for it.
+
+    Args:
+        id: The caller-supplied view identifier that is echoed on the corresponding response view.
+        begin: The viewport start.
+        end: The exclusive viewport end.
+        max_points: The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit.
+    """
+
+    id: str
+    """The caller-supplied view identifier that is echoed on the corresponding response view."""
+
+    begin: datetime
+    """The viewport start."""
+
+    end: datetime
+    """The exclusive viewport end."""
+
+    max_points: int
+    """The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit."""
 
 
 @dataclass(frozen=True)

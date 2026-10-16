@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   fitLegendName,
   formatLegendValue,
-} from "../../../../src/Nexus.UI/src/app/charts/legend-text.ts";
+} from "../../../src/Nexus.UI/src/app/charts/legend-text.ts";
 
 describe("legend text", () => {
   it("keeps full names when they fit and shortens the middle when they do not", () => {

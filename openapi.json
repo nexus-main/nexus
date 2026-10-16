@@ -2271,6 +2271,10 @@
             "type": "string",
             "description": "The logout URL.",
             "nullable": true
+          },
+          "decimationAvailable": {
+            "type": "boolean",
+            "description": "Whether server-side visualization decimation is available."
           }
         }
       },

@@ -2,6 +2,12 @@ import { Injectable, isDevMode, signal } from "@angular/core";
 import { NexusClient, type BufferProvider } from "@nexus-api/_client";
 import * as V1 from "@nexus-api/V1";
 import * as V2 from "@nexus-api/V2";
+import { requestError } from "../request-error";
+import {
+  decodeVisualization,
+  type VisualizationRequest,
+  type VisualizationFrame,
+} from "../charts/remote-visualization";
 
 export type CatalogNode = V1.CatalogInfo & {
   nodeKey: string;
@@ -200,6 +206,25 @@ export class NexusService {
     return result;
   }
 
+  async loadVisualization(
+    request: VisualizationRequest,
+    sampleCount: bigint,
+    signal: AbortSignal,
+    onFrame: (frame: VisualizationFrame) => void,
+  ): Promise<void> {
+    const response = await this.invoke<Response>(
+      "POST",
+      "/api/v2/data/visualization",
+      "application/vnd.apache.arrow.stream",
+      "application/json",
+      JSON.stringify(request),
+      signal,
+    );
+
+    await decodeVisualization(response, request, sampleCount, signal, onFrame);
+    this.apiAvailable.set(true);
+  }
+
   private async invoke<T>(
     method: string,
     url: string,
@@ -225,7 +250,7 @@ export class NexusService {
     const response = await fetch(`${this.endpoint}${url}`, { method, headers, body, signal });
 
     if (!response.ok) {
-      throw new Error(`Nexus request failed: ${response.status} ${response.statusText}`);
+      throw await requestError(response);
     }
 
     if (accept === "application/octet-stream" || accept === "application/vnd.apache.arrow.stream") {

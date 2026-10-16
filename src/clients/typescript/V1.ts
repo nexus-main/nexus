@@ -1489,6 +1489,8 @@ export interface SystemResponse {
     helpLink?: string | null;
     /** The logout URL. */
     logoutUrl?: string | null;
+    /** Whether server-side visualization decimation is available. */
+    decimationAvailable?: boolean | undefined;
 }
 
 

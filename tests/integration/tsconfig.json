@@ -1,0 +1,12 @@
+{
+  "extends": "../../src/Nexus.UI/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../..",
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "typeRoots": ["../../src/Nexus.UI/node_modules/@types"]
+  },
+  "files": ["visualization-smoke.ts"],
+  "include": []
+}

@@ -1,10 +1,13 @@
 import { CHUNK_LENGTH } from "./chart-math.ts";
+import type { RemoteVisualization } from "./remote-visualization.ts";
+import type { Viewport } from "./chart-math.ts";
 
 export interface VisualizationSeries {
   id: string;
   name: string;
   unit: string;
   samplePeriod: bigint;
+  sampleOrigin?: bigint;
   length: number;
   chunks: Float32Array[];
   availableLength: number;
@@ -13,6 +16,8 @@ export interface VisualizationSeries {
 }
 
 export interface VisualizationData {
+  navigation?: { viewport: Viewport; hidden: Set<string> };
+  remote?: RemoteVisualization;
   begin: bigint;
   end: bigint;
   series: VisualizationSeries[];
@@ -58,6 +63,7 @@ export function createVisualizationData(
       name,
       unit,
       samplePeriod,
+      sampleOrigin: begin / samplePeriod,
       length: Number(length),
       chunks: [],
       availableLength: 0,
@@ -71,6 +77,8 @@ export function releaseVisualizationData(
   data: VisualizationData | null,
   preservedChunks: ReadonlySet<readonly Float32Array[]> = new Set(),
 ): void {
+  data?.remote?.dispose();
+
   for (const series of data?.series ?? []) {
     if (preservedChunks.has(series.chunks)) {
       continue;

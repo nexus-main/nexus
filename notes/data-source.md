@@ -31,11 +31,11 @@ Task ReadAsync(...);
 
 When the database is reloaded, the user-defined data source registrations are used to instantiate `IDataSources` are instantiated and then asked to provided available catalog identifiers. The catalogs itself are lazy-loaded upon the first access.
 
-When, for instance, a user later asks for the data availability of a catalog, the `IDataSource` is instantiated again.
+When, for instance, a user later asks for the data availability of a catalog, the `IDataSource` is instantiated again. Nexus may call `GetAvailabilityAsync` concurrently on the same `IDataSource` instance, so `GetAvailabilityAsync` implementations must be thread-safe.
 
 A read operation may be triggered by either streaming or exporting of the data of one or multiple catalog items. Grouped by the corresponding `IDataSource`, all read requests first arrive in a static method called `ReadAsync`, which is located in the `DataSourceController` type. From there the method distributes the read requests to the actual `DataSourceController` instances which forward it to the wrapped IDataSource instance. To keep the memory consumption low, the controller may decide to reduce the time period per request and repeat the reading step until all data has been loaded.
 
-The implementation may load requests sequentially or in parallel. It may call `CompleteAsync()` as each request is populated to stream that resource before `ReadAsync` returns; otherwise Nexus flushes it after `ReadAsync` returns. Completion is idempotent: concurrent calls share one completion callback, and a failed completion is cached and rethrown to later callers.
+The implementation may load requests sequentially or in parallel. Nexus may also call `ReadAsync` concurrently on the same `IDataSource` instance, so `ReadAsync` implementations must be thread-safe. It may call `CompleteAsync()` as each request is populated to stream that resource before `ReadAsync` returns; otherwise Nexus flushes it after `ReadAsync` returns. Completion is idempotent: concurrent calls share one completion callback, and a failed completion is cached and rethrown to later callers.
 
 (1) A `IDataSource` instance is disposed automatically by Nexus when it implements the `IDisposable` interface.
 

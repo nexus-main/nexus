@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ResourceRow } from "../../../src/Nexus.UI/src/app/services/nexus.service";
+import type { ResourceRow } from "../../src/Nexus.UI/src/app/services/nexus.service";
 import {
   alignRangeEndpoint,
   defaultKind,
@@ -20,12 +20,12 @@ import {
   selectionKey,
   storeSelectionReference,
   toTimeSpan,
-} from "../../../src/Nexus.UI/src/app/resource-selection.ts";
+} from "../../src/Nexus.UI/src/app/resource-selection.ts";
 import type {
   ResourceSelection,
   StoredSelectionReference,
   StoredSelectionState,
-} from "../../../src/Nexus.UI/src/app/resource-selection.ts";
+} from "../../src/Nexus.UI/src/app/resource-selection.ts";
 
 const second = 10000000n;
 const maxTicks = 9223372036854775807n;

@@ -102,7 +102,7 @@ npm run dev
 
 Then open http://localhost:4200. The dev server proxies `/api` to the backend at `http://localhost:5000`.
 
-___________
+---
 
 > [!Note]
 > A more comprehensive documentation follows soon. In the meantime, if you are interested in how to setup Nexus and it's data sources, please open a new issue describing your use case.
