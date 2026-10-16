@@ -3,7 +3,6 @@ import type { Schema } from "apache-arrow";
 import { formatTime } from "./chart-math.ts";
 import type { GpuRange } from "./chart-interop.ts";
 import { dateTicks } from "../resource-selection.ts";
-import { ExactCursor, type CursorTransport } from "./exact-cursor.ts";
 
 export interface VisualizationView {
   id: string;
@@ -148,6 +147,7 @@ export async function decodeVisualization(
     await reader.open({ autoDestroy: false });
     signal.throwIfAborted();
     validateSchema(reader.schema);
+
     for await (const batch of reader) {
       validateSchema(batch.schema);
 
@@ -319,7 +319,6 @@ export function positionVisualizationPoints(
 }
 
 export class RemoteVisualization {
-  readonly cursor?: ExactCursor;
   loading = false;
   progress = 0;
   error = "";
@@ -359,7 +358,6 @@ export class RemoteVisualization {
     resourcePaths: string[],
     transport: VisualizationTransport,
     cacheBudgetBytes: number,
-    cursorTransport?: CursorTransport,
   ) {
     this.begin = begin;
     this.end = end;
@@ -367,12 +365,6 @@ export class RemoteVisualization {
     this.resourcePaths = resourcePaths;
     this.transport = transport;
     this.cacheBudgetBytes = cacheBudgetBytes;
-
-    if (cursorTransport) {
-      this.cursor = new ExactCursor(begin, end, samplePeriod, resourcePaths, cursorTransport, () =>
-        this.notify(),
-      );
-    }
   }
 
   subscribe(listener: () => void): () => void {
@@ -410,7 +402,6 @@ export class RemoteVisualization {
   }
 
   dispose(): void {
-    this.cursor?.dispose();
     this.cancel();
     this.listeners.clear();
     this.cache.clear();
@@ -439,13 +430,11 @@ export class RemoteVisualization {
       this.controller?.abort();
       this.controller = undefined;
       this.foregroundViews = [];
-      let invalidatedEntries = 0;
 
       for (const [cacheKey, cached] of this.cache) {
         if (views.some((view) => cached.begin <= view.begin && cached.end >= view.end)) {
           this.cache.delete(cacheKey);
           this.protectedViews.delete(cached);
-          invalidatedEntries++;
         }
       }
 
@@ -837,6 +826,7 @@ export class RemoteVisualization {
   ): Promise<boolean> {
     const controller = new AbortController();
     const requested = this.requestedViews;
+
     if (prefetch) {
       if (this.prefetchController) {
         this.prefetchController.abort();
@@ -1062,12 +1052,12 @@ export class RemoteVisualization {
     }
   }
 
-  pointsFor(
+  private sourceFor(
     target: string,
     resourceIndex: number,
     begin: bigint,
     end: bigint,
-  ): Float32Array | undefined {
+  ): VisualizationPoints | undefined {
     // Use requested sample-aligned halo bounds when selecting completed coverage,
     // not the fractional viewport bounds used only for positioning the points.
     const requested = this.requestedViews.find(
@@ -1089,7 +1079,61 @@ export class RemoteVisualization {
           ) ||
           Number(a.end - a.begin - (b.end - b.begin)),
       );
-    const source = candidates[0]?.points[resourceIndex];
+
+    return candidates[0]?.points[resourceIndex];
+  }
+
+  nearestPointFor(
+    target: string,
+    resourceIndex: number,
+    index: bigint,
+    begin: bigint,
+    end: bigint,
+  ): { index: bigint; value: number } | undefined {
+    const source = this.sourceFor(target, resourceIndex, begin, end);
+
+    if (!source || source.indices.length === 0) {
+      return undefined;
+    }
+
+    let lower = 0;
+    let upper = source.indices.length;
+
+    while (lower < upper) {
+      const middle = Math.floor((lower + upper) / 2);
+
+      if (source.indices[middle] < index) {
+        lower = middle + 1;
+      } else {
+        upper = middle;
+      }
+    }
+
+    if (lower <= 0) {
+      return { index: source.indices[0], value: source.values[0] };
+    }
+
+    if (lower >= source.indices.length) {
+      return {
+        index: source.indices[source.indices.length - 1],
+        value: source.values[source.values.length - 1],
+      };
+    }
+
+    const previous = source.indices[lower - 1];
+    const next = source.indices[lower];
+    const nearest = index - previous <= next - index ? lower - 1 : lower;
+
+    return { index: source.indices[nearest], value: source.values[nearest] };
+  }
+
+  pointsFor(
+    target: string,
+    resourceIndex: number,
+    begin: bigint,
+    end: bigint,
+  ): Float32Array | undefined {
+    const source = this.sourceFor(target, resourceIndex, begin, end);
 
 
     if (!source) {

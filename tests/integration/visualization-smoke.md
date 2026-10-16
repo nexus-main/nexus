@@ -1,7 +1,7 @@
 # Live Visualization Smoke
 
 Opt-in cross-stack verification using a real local Nexus host and the production
-`decodeVisualization` / `decodeCursor` frontend parsers. No deployed server URL
+`decodeVisualization` / `decodeRawStream` frontend parsers. No deployed server URL
 is accepted. Only built-in, in-process sample catalogs are requested.
 
 From the repository root:
@@ -57,7 +57,7 @@ The default parent is the repository's ignored `artifacts/` directory.
   report a cold miss and warm hit in the memory-only summary cache, plus successful
   request completion. Warm raw-detail reads are expected; their exact count remains
   covered by instrumented service unit tests, not this smoke.
-- Raw `POST /api/v2/data` Float32 cursor read through the real cursor parser:
+- Raw `POST /api/v2/data` Float32 detail read through the real raw stream parser:
   all 32 samples of both resources must exactly equal the detail view.
 - Unix-time values and full-domain minimum/maximum are checked against an independent
   timestamp formula. Every point must lie within its reported range, and overview
