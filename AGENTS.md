@@ -1,12 +1,14 @@
 # Agent Notes
 
 ## Repo Shape
+
 - This is a .NET 9 solution, not a Node workspace; Tailwind CSS v4 uses CSS-first config (`@theme` in `src/Nexus.UI/src/index.css`), no JS config file.
 - `Nexus.sln` contains the server, Angular UI, generated clients, extensibility contracts/analyzers, and their test projects.
 - Root MSBuild policy lives in `Directory.Build.props`: .NET target is `net9.0`, central artifacts go under `artifacts/`, code style is enforced during build, and an extra MyGet source is configured.
 - Central .NET package versions are in `Directory.Packages.props`; project files intentionally omit package versions.
 
 ## Important Paths
+
 - `src/Nexus/Nexus.csproj` / `src/Nexus/Program.cs`: ASP.NET Core host, REST API, auth, OpenAPI, extension package management, SQLite user DB setup, and app initialization. Serves the Angular production bundle from `wwwroot/` as static files with SPA fallback.
 - `src/Nexus/API/v1/`: REST controllers; API surface changes here usually require regenerating clients and `openapi.json`.
 - `src/Nexus/Core/`: shared server models/options/auth/OpenAPI helpers; `Models_Public_v1.cs` affects generated client contracts.
@@ -33,11 +35,13 @@
 - `openapi.json`: checked-in generated API document; CI verifies it is fresh.
 
 ## Setup And Run
+
 - Run the app with `dotnet run --project src/Nexus/Nexus.csproj`, then open `http://localhost:5000`.
 - For UI development, run the Angular dev server: `(cd src/Nexus.UI && npm ci && npm start)`, then open `http://localhost:4200`.
 - The Docker image expects a published `app/` folder from `dotnet publish`; the Dockerfile copies `app .` and uses the .NET SDK image so runtime extension compilation works.
 
 ## Verification
+
 - Full CI-equivalent core checks: `dotnet test -c Release /p:BuildProjectReferences=false`, then `pyright`, then `pytest`.
 - UI lint: `(cd src/Nexus.UI && npm run eslint)` runs ESLint from the repo root against both `src/Nexus.UI/src` and `tests/Nexus.UI.Tests/app`; `npm run eslint:fix` auto-fixes. `npm run lint` runs the Angular dev build then `eslint` then `prettier --check` on both `src/` and test files. The enforced rules are `padding-line-between-statements` (blank-line padding between const/let runs, if/for/while/switch/try, return, and multiline expressions), `curly: "all"` (require braces on every `if`/`else`/`for`/`while`), and `@typescript-eslint/no-unused-vars` (`^_` prefix exempt); the first two only insert linebreaks/blank lines, so fixes are semantically inert. Prettier handles all other formatting (indentation, quotes, semicolons, line wrapping, trailing commas) via `npm run format:fix` (`prettier --write` on both `src/` and test files). Run `npm run eslint:fix && npm run format:fix` after edits that touch `src/**/*.{ts,js}` or `tests/Nexus.UI.Tests/app/**/*.ts` before committing.
 - Focus a single .NET test project with `dotnet test tests/Nexus.Tests/Nexus.Tests.csproj` or the specific project under `tests/`.
@@ -45,37 +49,29 @@
 - `pytest` covers only `tests/clients/python-tests` and `tests/extensibility/python-extensibility-tests`; `src/` is intentionally excluded from recursion.
 
 ## Generated Artifacts
+
 - If API surface changes, regenerate clients and `openapi.json` with `dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi.json`.
 - CI verifies OpenAPI freshness with `dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi_new.json` followed by `diff --strip-trailing-cr openapi.json openapi_new.json`.
 - The Angular production bundle is built during `dotnet publish` via an MSBuild target in `Nexus.csproj` that runs `npm ci` + `npm run build` and copies `dist/nexus-ui/browser/` into `wwwroot/`.
 
 ## Packaging Notes
+
 - Python package builds rely on metadata environment variables emitted by `python build/print_solution.py` and version values from `python build/print_version.py`.
 - CI builds wheels with `python -m build --wheel --outdir artifacts/package --no-isolation src/clients/python` and the same command for `src/extensibility/python-extensibility`.
 - Central .NET package versions are in `Directory.Packages.props`; projects intentionally omit package versions.
 
 ## Configuration Quirks
+
 - App configuration loads `appsettings.json`, optional `appsettings.{ASPNETCORE_ENVIRONMENT}.json`, optional settings from `NEXUS_PATHS__SETTINGS`, then `NEXUS_` environment variables, then command-line args.
 - Default per-user settings path is `~/.local/share/nexus/settings.json` on Linux and `%LOCALAPPDATA%/nexus/settings.json` on Windows.
 
 ## Style
+
 - C# uses file-scoped namespaces; `IDE0161` and `IDE1006` are build errors because `EnforceCodeStyleInBuild` is enabled.
 - Private instance fields use `_camelCase`; `var` is preferred only when the type is apparent or not a built-in type.
 
-## Local Backend Iteration (Development Container)
-- The local dev backend runs as rootful Podman container `nexus-local-dev` on `127.0.0.1:5000` (image `localhost/nexus-local-dev:feature-server-side-decimation`, build context `artifacts/nexus-local-dev-image/`). It is separate from the production `nexus` container — never stop, remove, or modify the production container.
-- Sudo password is stored at `/home/wilvin/.nexus-dev/sudo-password` (never echo it into logs or repo files). Authorize per command with:
-  `printf "%s\n" "$(cat /home/wilvin/.nexus-dev/sudo-password)" | sudo -S -p '' podman <cmd>`
-- Rebuild/restart loop after server code changes:
-  1. `dotnet build src/Nexus/Nexus.csproj -c Release --no-restore`
-  2. Sync build output from `artifacts/bin/Nexus/release/` into `artifacts/nexus-local-dev-image/app/`
-  3. `sudo podman build -t localhost/nexus-local-dev:feature-server-side-decimation artifacts/nexus-local-dev-image`
-  4. `sudo podman rm -f nexus-local-dev && sudo podman run -d --name nexus-local-dev ...` (keep existing port/env/mount flags)
-  5. Read logs with `sudo podman logs nexus-local-dev`; smoke-test with `curl http://127.0.0.1:5000/api/v1/system`.
-- The temp Dockerfile must keep the `RUN mkdir -p` lines creating both static-webassets ContentRoots (see `Nexus.staticwebassets.runtime.json`), or startup crashes in Development.
-- Container mounts share production settings (`/mnt/data/nexus`, read-write): never run destructive operations (user management, package installs) and never modify measurement data (`/mnt/data/shared/read` is mounted read-only).
-
 ## UI Best Practices
+
 - **Reuse before creating**: always check for an existing component (in `src/Nexus.UI/src/app/components/`, `Controls/`, `Charts/`) before building a new one; extract a shared component when the same UI pattern appears in two or more places.
 - **PrimeNG first**: prefer PrimeNG components (`p-toast`, `p-dialog`, `p-confirmdialog`, `p-button`, `p-checkbox`, `p-inputtext`, etc.) over hand-rolled HTML/CSS equivalents so theming, accessibility, and dark-mode come for free.
 - **Tailwind for layout, PrimeNG for color**: use Tailwind utility classes for layout only (flex, grid, gap, sizing, padding, spacing). For all colors, use the custom `@theme` tokens (`bg-surface`, `text-ink`, `text-ink-muted`, `border-surface-border`, `bg-overlay`, `text-key`, `bg-key`, `text-rose-accent`, etc.) which map to PrimeNG `var(--p-*)` variables and adapt to the active theme automatically. Do not use Tailwind color classes (`text-slate-*`, `bg-slate-*`, `border-white/`, etc.) or `dark:` color variants. Never hardcode raw hex values.
