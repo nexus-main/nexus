@@ -11,21 +11,36 @@ public class VisualizationReductionTests
     [Fact]
     public void EmptyIsAnIdentity()
     {
-        var empty = VisualizationReduction.Summarize([], long.MaxValue);
+        // Arrange
         var summary = VisualizationReduction.Summarize([3, float.NaN, 2], 42);
 
+        // Act
+        var empty = VisualizationReduction.Summarize([], long.MaxValue);
+        var emptyProjection = VisualizationReduction.Project(empty);
+        var emptyThenSummary = VisualizationReduction.Merge(empty, summary);
+        var summaryThenEmpty = VisualizationReduction.Merge(summary, empty);
+        var emptyThenEmpty = VisualizationReduction.Merge(empty, empty);
+        var shiftedEmptyThenSummary = VisualizationReduction.Merge(empty with { Start = 999 }, summary);
+
+        // Assert
         Assert.Equal(default, empty);
-        Assert.Empty(VisualizationReduction.Project(empty));
-        AssertSummary(summary, VisualizationReduction.Merge(empty, summary));
-        AssertSummary(summary, VisualizationReduction.Merge(summary, empty));
-        AssertSummary(empty, VisualizationReduction.Merge(empty, empty));
-        AssertSummary(summary, VisualizationReduction.Merge(empty with { Start = 999 }, summary));
+        Assert.Empty(emptyProjection);
+        AssertSummary(summary, emptyThenSummary);
+        AssertSummary(summary, summaryThenEmpty);
+        AssertSummary(empty, emptyThenEmpty);
+        AssertSummary(summary, shiftedEmptyThenSummary);
     }
 
     [Fact]
     public void BaseStrideMatchesPyramidBucketContract()
     {
-        Assert.Equal(256, VisualizationReduction.BaseStride);
+        // Arrange
+
+        // Act
+        var actual = VisualizationReduction.BaseStride;
+
+        // Assert
+        Assert.Equal(256, actual);
     }
 
     [Theory]
@@ -33,19 +48,31 @@ public class VisualizationReductionTests
     [InlineData(true)]
     public void EndpointsExtremaAndGapAreSortedAndDeduplicated(bool useSimd)
     {
+        // Arrange
         float[] values = [3, 10, 2, float.PositiveInfinity, 1, -10, 4, 5, 6];
+
+        // Act
         var summary = VisualizationReduction.Summarize(values, 100, useSimd);
+        var points = VisualizationReduction.Project(summary);
+        var threePointSummary = VisualizationReduction.Summarize([2, 3, 4], 5, useSimd);
+        var singlePointSummary = VisualizationReduction.Summarize([2], 5, useSimd);
 
+        // Assert
         AssertSummary(Reference(values, 100), summary);
-        Assert.Equal(new VisualizationPoint[]
-        {
+        Assert.Equal(
+        [
             new(100, 3), new(101, 10), new(103, float.NaN), new(105, -10), new(108, 6)
-        }, VisualizationReduction.Project(summary));
+        ], points);
 
-        Assert.Equal(new VisualizationPoint[] { new(5, 2), new(7, 4) },
-            VisualizationReduction.Project(VisualizationReduction.Summarize([2, 3, 4], 5, useSimd)));
-        Assert.Equal(new VisualizationPoint[] { new(5, 2) },
-            VisualizationReduction.Project(VisualizationReduction.Summarize([2], 5, useSimd)));
+        Assert.Equal(
+            [new(5, 2), new(7, 4)],
+            VisualizationReduction.Project(threePointSummary)
+        );
+
+        Assert.Equal(
+            [new(5, 2)],
+            VisualizationReduction.Project(singlePointSummary)
+        );
     }
 
     [Theory]
@@ -55,22 +82,34 @@ public class VisualizationReductionTests
     {
         foreach (float first in new[] { 0f, -0f })
         {
+            // Arrange
             var values = Enumerable.Repeat(-first, 41).ToArray();
             values[0] = float.NaN;
             values[1] = first;
+
+            // Act
             var summary = VisualizationReduction.Summarize(values, 1L << 54, useSimd);
 
+            var merged = VisualizationReduction.Merge(
+                VisualizationReduction.Summarize(values.AsSpan(0, 7), 1L << 54, useSimd),
+                VisualizationReduction.Summarize(values.AsSpan(7), (1L << 54) + 7, useSimd));
+
+            // Assert
             Assert.Equal((1L << 54) + 1, summary.MinIndex);
             Assert.Equal(summary.MinIndex, summary.MaxIndex);
+
             AssertBits(first, summary.Min);
             AssertBits(first, summary.Max);
-            AssertSummary(summary, VisualizationReduction.Merge(
-                VisualizationReduction.Summarize(values.AsSpan(0, 7), 1L << 54, useSimd),
-                VisualizationReduction.Summarize(values.AsSpan(7), (1L << 54) + 7, useSimd)));
+            AssertSummary(summary, merged);
         }
 
+        // Arrange
         float[] ties = [1, 8, -8, 8, -8, 1, 8, -8, 8, -8, 1];
+
+        // Act
         var tied = VisualizationReduction.Summarize(ties, 0, useSimd);
+
+        // Assert
         Assert.Equal(1, tied.MaxIndex);
         Assert.Equal(2, tied.MinIndex);
     }
@@ -78,6 +117,7 @@ public class VisualizationReductionTests
     [Fact]
     public void AtLeastHalfInvalidNeverEmitsFinitePoints()
     {
+        // Arrange
         float nan = BitConverter.Int32BitsToSingle(unchecked((int)0xffc01234));
         float[][] cases =
         [
@@ -90,9 +130,13 @@ public class VisualizationReductionTests
 
         foreach (var values in cases)
         {
+            // Act
             var summary = VisualizationReduction.Summarize(values, 800);
+            var points = VisualizationReduction.Project(summary);
+
+            // Assert
             AssertSummary(Reference(values, 800), summary);
-            var point = Assert.Single(VisualizationReduction.Project(summary));
+            var point = Assert.Single(points);
             Assert.Equal(summary.FirstGapIndex, point.Index);
             Assert.True(float.IsNaN(point.Value));
             AssertBits(values[0], summary.First);
@@ -103,10 +147,17 @@ public class VisualizationReductionTests
     [Fact]
     public void SparseGapsAtEitherBoundaryPreserveFinitePoints()
     {
-        Assert.Equal(new VisualizationPoint[] { new(0, float.NaN), new(2, 2), new(4, 4) },
-            VisualizationReduction.Project(VisualizationReduction.Summarize([float.NegativeInfinity, float.NaN, 2, 3, 4], 0)));
-        Assert.Equal(new VisualizationPoint[] { new(0, 4), new(2, 2), new(3, float.NaN), new(4, float.NaN) },
-            VisualizationReduction.Project(VisualizationReduction.Summarize([4, 3, 2, float.NaN, float.PositiveInfinity], 0)));
+        // Arrange
+        float[] leftGap = [float.NegativeInfinity, float.NaN, 2, 3, 4];
+        float[] rightGap = [4, 3, 2, float.NaN, float.PositiveInfinity];
+
+        // Act
+        var leftGapPoints = VisualizationReduction.Project(VisualizationReduction.Summarize(leftGap, 0));
+        var rightGapPoints = VisualizationReduction.Project(VisualizationReduction.Summarize(rightGap, 0));
+
+        // Assert
+        Assert.Equal([new(0, float.NaN), new(2, 2), new(4, 4)], leftGapPoints);
+        Assert.Equal([new(0, 4), new(2, 2), new(3, float.NaN), new(4, float.NaN)], rightGapPoints);
     }
 
     [Theory]
@@ -118,15 +169,19 @@ public class VisualizationReductionTests
         {
             foreach (int invalidCount in new[] { (length - 1) / 2, (length + 1) / 2, length })
             {
+                // Arrange
                 var values = Enumerable.Range(0, length).Select(i => (float)i).ToArray();
 
                 // Scatter invalid samples rather than creating one contiguous gap.
                 for (int i = 0; i < invalidCount; i++)
                     values[(i * 2) % length + (i * 2 >= length && length % 2 == 0 ? 1 : 0)] = float.NaN;
 
+                // Act
                 var summary = VisualizationReduction.Summarize(values, 42, useSimd);
-                Assert.Equal(invalidCount, summary.InvalidCount);
                 var points = VisualizationReduction.Project(summary);
+
+                // Assert
+                Assert.Equal(invalidCount, summary.InvalidCount);
 
                 if (invalidCount >= length - invalidCount)
                     Assert.True(float.IsNaN(Assert.Single(points).Value));
@@ -142,19 +197,27 @@ public class VisualizationReductionTests
     [Fact]
     public void ThresholdDoesNotOverflowAtInt64Limit()
     {
+        // Arrange
         var summary = VisualizationReduction.Summarize([1, float.NaN, 2], 0) with
         {
             Count = long.MaxValue,
             InvalidCount = long.MaxValue / 2
         };
-        Assert.Contains(VisualizationReduction.Project(summary), point => float.IsFinite(point.Value));
-        Assert.True(float.IsNaN(Assert.Single(VisualizationReduction.Project(
-            summary with { InvalidCount = long.MaxValue / 2 + 1 })).Value));
+        var mostlyInvalid = summary with { InvalidCount = long.MaxValue / 2 + 1 };
+
+        // Act
+        var mostlyValidPoints = VisualizationReduction.Project(summary);
+        var mostlyInvalidPoints = VisualizationReduction.Project(mostlyInvalid);
+
+        // Assert
+        Assert.Contains(mostlyValidPoints, point => float.IsFinite(point.Value));
+        Assert.True(float.IsNaN(Assert.Single(mostlyInvalidPoints).Value));
     }
 
     [Fact]
     public void EveryGapPatternAndSplitMatchesDirectReduction()
     {
+        // Arrange
         const int length = 10;
 
         for (int mask = 0; mask < 1 << length; mask++)
@@ -162,13 +225,22 @@ public class VisualizationReductionTests
             var values = Enumerable.Range(0, length)
                 .Select(i => (mask & (1 << i)) != 0 ? float.NaN : (float)i).ToArray();
             var expected = Reference(values, -5);
-            AssertSummary(expected, VisualizationReduction.Summarize(values, -5));
+
+            // Act
+            var direct = VisualizationReduction.Summarize(values, -5);
+
+            // Assert
+            AssertSummary(expected, direct);
 
             for (int split = 0; split <= length; split++)
             {
+                // Act
                 var left = VisualizationReduction.Summarize(values.AsSpan(0, split), -5);
                 var right = VisualizationReduction.Summarize(values.AsSpan(split), -5 + split);
-                AssertSummary(expected, VisualizationReduction.Merge(left, right));
+                var merged = VisualizationReduction.Merge(left, right);
+
+                // Assert
+                AssertSummary(expected, merged);
             }
         }
     }
@@ -182,11 +254,18 @@ public class VisualizationReductionTests
             {
                 foreach (float value in new[] { float.NaN, float.PositiveInfinity, float.NegativeInfinity, -99f, 99f, -0f })
                 {
+                    // Arrange
                     var storage = new float[length + 3];
                     var values = storage.AsSpan(3); // Deliberately unaligned vector loads.
                     values.Fill(0);
                     values[special] = value;
-                    AssertSummary(Reference(values, 123), VisualizationReduction.Summarize(values, 123));
+                    var expected = Reference(values, 123);
+
+                    // Act
+                    var summary = VisualizationReduction.Summarize(values, 123);
+
+                    // Assert
+                    AssertSummary(expected, summary);
                 }
             }
         }
@@ -195,6 +274,7 @@ public class VisualizationReductionTests
     [Fact]
     public void InvalidVectorsWithFiniteTailsAndExtremeFloatsMatchReference()
     {
+        // Arrange
         float[][] cases =
         [
             [float.MaxValue, float.MinValue, float.Epsilon, -float.Epsilon, 0, -0f, 1, -1, float.MinValue, float.MaxValue],
@@ -205,23 +285,38 @@ public class VisualizationReductionTests
         {
             var values = Enumerable.Repeat(float.NegativeInfinity, 16 + tail).ToArray();
             values[^1] = tail % 2 == 0 ? -0f : float.Epsilon;
-            AssertSummary(Reference(values, 0), VisualizationReduction.Summarize(values, 0));
+            var expected = Reference(values, 0);
+
+            // Act
+            var summary = VisualizationReduction.Summarize(values, 0);
+
+            // Assert
+            AssertSummary(expected, summary);
         }
 
         foreach (var values in cases)
         {
-            AssertSummary(Reference(values, 0), VisualizationReduction.Summarize(values, 0, false));
-            AssertSummary(Reference(values, 0), VisualizationReduction.Summarize(values, 0, true));
+            var expected = Reference(values, 0);
+
+            // Act
+            var scalar = VisualizationReduction.Summarize(values, 0, false);
+            var vectorized = VisualizationReduction.Summarize(values, 0, true);
+
+            // Assert
+            AssertSummary(expected, scalar);
+            AssertSummary(expected, vectorized);
         }
     }
 
     [Fact]
     public void RandomizedPartitionsAndMergeTreesAreCanonical()
     {
+        // Arrange
         var random = new Random(34721);
 
         for (int iteration = 0; iteration < 500; iteration++)
         {
+            // Arrange
             int length = random.Next(0, 2049);
             var values = new float[length];
 
@@ -238,10 +333,12 @@ public class VisualizationReductionTests
 
             long start = (1L << 54) + random.Next(1000);
             var expected = Reference(values, start);
-            AssertSummary(expected, VisualizationReduction.Summarize(values, start, false));
-            AssertSummary(expected, VisualizationReduction.Summarize(values, start, true));
             var chunks = new List<VisualizationSummary>();
             var folded = default(VisualizationSummary);
+
+            // Act
+            var scalar = VisualizationReduction.Summarize(values, start, false);
+            var vectorized = VisualizationReduction.Summarize(values, start, true);
 
             for (int offset = 0; offset < length;)
             {
@@ -252,6 +349,9 @@ public class VisualizationReductionTests
                 offset += count;
             }
 
+            // Assert
+            AssertSummary(expected, scalar);
+            AssertSummary(expected, vectorized);
             AssertSummary(expected, folded);
 
             while (chunks.Count > 1)
@@ -261,8 +361,10 @@ public class VisualizationReductionTests
                 chunks.RemoveAt(index + 1);
             }
 
-            AssertSummary(expected, chunks.Count == 0 ? default : chunks[0]);
+            var merged = chunks.Count == 0 ? default : chunks[0];
             var points = VisualizationReduction.Project(folded);
+
+            AssertSummary(expected, merged);
             Assert.InRange(points.Length, 0, 5);
 
             for (int i = 0; i < points.Length; i++)
@@ -281,6 +383,7 @@ public class VisualizationReductionTests
     [Fact]
     public void FourWayPyramidIncludingPartialBucketsMatchesDirect()
     {
+        // Arrange
         var values = Enumerable.Range(0, 256 * 70 + 19).Select(i => (float)Math.Sin(i)).ToArray();
         Array.Fill(values, float.NaN, 250, 300);
         var level = new List<VisualizationSummary>();
@@ -288,6 +391,7 @@ public class VisualizationReductionTests
         for (int i = 0; i < values.Length; i += VisualizationReduction.BaseStride)
             level.Add(VisualizationReduction.Summarize(values.AsSpan(i, Math.Min(256, values.Length - i)), i));
 
+        // Act
         while (level.Count > 1)
         {
             var parents = new List<VisualizationSummary>();
@@ -306,27 +410,43 @@ public class VisualizationReductionTests
             level = parents;
         }
 
-        AssertSummary(Reference(values, 0), Assert.Single(level));
+        var summary = Assert.Single(level);
+
+        // Assert
+        AssertSummary(Reference(values, 0), summary);
     }
 
     [Fact]
     public void CoordinatesAndCountsAreCheckedWithoutNarrowing()
     {
+        // Arrange
         var end = VisualizationReduction.Summarize([1, 2], long.MaxValue - 1);
-        Assert.Equal(long.MaxValue, VisualizationReduction.Project(end)[^1].Index);
-        AssertSummary(end, VisualizationReduction.Merge(
+        var mergedEnd = VisualizationReduction.Merge(
             VisualizationReduction.Summarize([1], long.MaxValue - 1),
-            VisualizationReduction.Summarize([2], long.MaxValue)));
+            VisualizationReduction.Summarize([2], long.MaxValue));
+
+        // Act
+        var projectedEnd = VisualizationReduction.Project(end);
+
+        // Assert
+        Assert.Equal(long.MaxValue, projectedEnd[^1].Index);
+        AssertSummary(end, mergedEnd);
         Assert.Throws<OverflowException>(() => VisualizationReduction.Summarize(new float[3], long.MaxValue - 1));
 
+        // Arrange
         var left = VisualizationReduction.Summarize([1, 2], 0);
+
+        // Assert
         Assert.Throws<ArgumentException>(() => VisualizationReduction.Merge(left, VisualizationReduction.Summarize([3], 1)));
         Assert.Throws<ArgumentException>(() => VisualizationReduction.Merge(left, VisualizationReduction.Summarize([3], 3)));
         Assert.Throws<ArgumentException>(() => VisualizationReduction.Merge(left, VisualizationReduction.Summarize([3], -1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => VisualizationReduction.Merge(left with { Count = -1 }, default));
 
+        // Arrange
         var huge = left with { Start = long.MinValue, Count = long.MaxValue };
         var next = VisualizationReduction.Summarize([3], -1);
+
+        // Assert
         Assert.Throws<OverflowException>(() => VisualizationReduction.Merge(huge, next));
     }
 

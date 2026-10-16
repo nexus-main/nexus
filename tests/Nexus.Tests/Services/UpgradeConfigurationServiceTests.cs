@@ -4,7 +4,6 @@
 using System.Text.Json;
 using Apollo3zehn.PackageManagement.Services;
 using DataSource;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nexus.Core.V1;
