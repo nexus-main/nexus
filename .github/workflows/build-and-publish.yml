@@ -113,7 +113,7 @@ jobs:
       - name: Type-check Python
         run: pyright
 
-      - name: Test UI and type-check integration smoke
+      - name: Test UI and type-check smoke harness
         working-directory: src/Nexus.UI
         run: |
           npm ci
