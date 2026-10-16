@@ -33,8 +33,6 @@ When you copy the path from within the UI, the path is suffixed like this: `/SAM
 
 To visualize data, select one or more resources and edit the settings on the left to your needs. When the settings are valid, the button `Visualize` will be become available. Click on that button to load and plot the requested data.
 
-See the [visualization algorithm](notes/visualization-algorithm.md) for the shared backend/GPU reduction algorithm, server limits, and memory-only cache configuration.
-
 ![Graphs](doc/images/image_2.png)
 
 ## Export
@@ -104,7 +102,7 @@ npm run dev
 
 Then open http://localhost:4200. The dev server proxies `/api` to the backend at `http://localhost:5000`.
 
-___________
+---
 
 > [!Note]
 > A more comprehensive documentation follows soon. In the meantime, if you are interested in how to setup Nexus and it's data sources, please open a new issue describing your use case.
