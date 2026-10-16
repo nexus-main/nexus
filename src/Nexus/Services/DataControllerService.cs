@@ -67,25 +67,41 @@ internal class DataControllerService(
         try
         {
             foreach (var registration in pipeline.Registrations)
+            {
                 sources.Add((IDataSource)Activator.CreateInstance(_sourcesExtensionHive.GetExtensionType(registration.Type))!);
+            }
 
             var controller = new DataSourceController(sources.ToArray(), pipeline.Registrations,
                 requestConfiguration, _processingService, _cacheService, _dataOptions,
                 _loggerFactory.CreateLogger<DataSourceController>());
+
             var catalogCache = new ConcurrentDictionary<string, ResourceCatalog>();
 
             foreach (var catalog in catalogs)
+            {
                 catalogCache[catalog.Id] = catalog;
+            }
 
             await controller.InitializeAsync(catalogCache, _loggerFactory, cancellationToken);
+
             return controller;
         }
+
         catch
         {
             foreach (var source in sources.OfType<IDisposable>())
             {
-                try { source.Dispose(); }
-                catch (Exception ex) { _loggerFactory.CreateLogger<DataControllerService>().LogWarning(ex, "Disposing failed visualization source failed"); }
+                try
+                {
+                    source.Dispose();
+                }
+
+                catch (Exception ex)
+                {
+                    _loggerFactory
+                        .CreateLogger<DataControllerService>()
+                        .LogWarning(ex, "Disposing failed visualization source failed");
+                }
             }
 
             throw;
