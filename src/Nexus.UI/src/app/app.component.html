@@ -309,7 +309,7 @@
                 [saveMetadata]="saveResourceMetadata"
                 (toggle)="toggleResource($event)"
                 (activate)="activateResource($event)"
-                (visualize)="visualize()"
+                (visualize)="openVisualizationLauncher()"
                 (exportRequested)="isExportOpen.set(true)"
                 [catalogProperties]="selectedCatalog()?.properties ?? null"
                 [selectedBegin]="exportBegin()"
@@ -515,7 +515,7 @@
                 type="button"
                 size="small"
                 [outlined]="true"
-                (click)="visualize(false)"
+                (click)="openVisualizationLauncher()"
               >
                 {{ visualizationStale() ? "Update" : "Visualize" }}
               </button>
@@ -555,6 +555,101 @@
       [ngTemplateOutletContext]="{ $implicit: true }"
     ></ng-container>
   }
+</p-dialog>
+
+<p-dialog
+  appRestoreFocus
+  header="Visualize selection"
+  [visible]="visualizationLauncherOpen()"
+  (visibleChange)="visualizationLauncherOpen.set($event)"
+  [modal]="true"
+  [blockScroll]="true"
+  [dismissableMask]="true"
+  [closeOnEscape]="true"
+  [draggable]="false"
+  [resizable]="false"
+  appendTo="body"
+  [closeButtonProps]="{
+    ariaLabel: 'Close visualization launcher',
+    severity: 'secondary',
+    text: true,
+    rounded: true,
+  }"
+  [style]="visualizationLauncherStyle()"
+>
+  <ng-template #closeicon><svg lucideX class="h-4 w-4" aria-hidden="true"></svg></ng-template>
+  <div class="space-y-5 text-ink">
+    <div class="space-y-1">
+      <p class="text-xs uppercase tracking-[0.24em] text-lime-accent/80">rendering mode</p>
+      <p class="text-sm text-ink-muted">
+        Choose how Nexus prepares the selected data before opening the chart.
+      </p>
+      @if (visualizationByteCountLabel()) {
+        <p class="text-sm text-ink-muted">
+          Estimated client-side download:
+          <span class="font-medium text-ink">{{ visualizationByteCountLabel() }}</span>
+        </p>
+      }
+    </div>
+
+    <div class="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Visualization mode">
+      <button
+        type="button"
+        class="rounded-sm border border-surface-border bg-surface/70 p-4 text-left transition hover:border-key/70 hover:bg-overlay/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-key"
+        [class.border-key]="visualizationServerReduction()"
+        [class.ring-2]="visualizationServerReduction()"
+        [class.ring-key]="visualizationServerReduction()"
+        [attr.aria-checked]="visualizationServerReduction()"
+        role="radio"
+        (click)="selectVisualizationServerReduction(true)"
+      >
+        <span class="block text-sm font-semibold text-ink">Server decimation</span>
+        <span class="mt-2 block text-sm text-ink-muted">
+          Stream reduced points for the visible chart view. This keeps large selections responsive
+          and avoids downloading the full raw range.
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="rounded-sm border border-surface-border bg-surface/70 p-4 text-left transition hover:border-key/70 hover:bg-overlay/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-key"
+        [class.border-key]="!visualizationServerReduction()"
+        [class.ring-2]="!visualizationServerReduction()"
+        [class.ring-key]="!visualizationServerReduction()"
+        [attr.aria-checked]="!visualizationServerReduction()"
+        role="radio"
+        (click)="selectVisualizationServerReduction(false)"
+      >
+        <span class="block text-sm font-semibold text-ink">Client decimation</span>
+        <span class="mt-2 block text-sm text-ink-muted">
+          Download Float32 samples to the browser first, then render locally. This is useful for
+          smaller selections or repeated local interaction.
+        </span>
+      </button>
+    </div>
+
+    <label class="flex items-center gap-2 text-sm text-ink-muted"
+      ><p-checkbox
+        [binary]="true"
+        [ngModel]="visualizationBeginAtZero()"
+        (ngModelChange)="visualizationBeginAtZero.set($event)"
+        ariaLabel="Begin value axes at zero"
+      />Begin value axes at zero</label
+    >
+
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+      <button
+        pButton
+        type="button"
+        severity="secondary"
+        [outlined]="true"
+        (click)="openAdvancedVisualization()"
+      >
+        Advanced
+      </button>
+      <button pButton type="button" (click)="startVisualizationFromLauncher()">Visualize</button>
+    </div>
+  </div>
 </p-dialog>
 
 <p-drawer

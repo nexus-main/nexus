@@ -264,7 +264,6 @@ export async function decodeVisualization(
     if (!complete || completedViews.size !== request.resourcePaths.length * request.views.length) {
       throw new Error("Visualization stream ended before explicit completion of all views.");
     }
-
   } finally {
     signal.removeEventListener("abort", cancel);
     cancel();
@@ -382,7 +381,6 @@ export class RemoteVisualization {
   }
 
   cancel(): void {
-
     this.generation++;
     clearTimeout(this.foregroundTimer);
     this.foregroundTimer = undefined;
@@ -413,7 +411,6 @@ export class RemoteVisualization {
     const key = views.map(keyOf).join("|");
 
     if (key === this.viewportKey && !force) {
-
       return;
     }
 
@@ -441,7 +438,6 @@ export class RemoteVisualization {
       this.positioned.clear();
       this.retainedPreview = undefined;
       this.previews.clear();
-
     }
 
     const retainedPreview = this.retainedPreview;
@@ -474,7 +470,6 @@ export class RemoteVisualization {
       const velocity = Math.log2(ratio) / elapsed;
 
       this.zoomVelocity = Number.isFinite(velocity) ? velocity : 0;
-
     }
 
     this.mainView = main;
@@ -554,7 +549,6 @@ export class RemoteVisualization {
 
     const generation = this.generation;
 
-
     if (!missing.length) {
       this.retainedPreview = undefined;
       clearTimeout(this.foregroundTimer);
@@ -580,7 +574,6 @@ export class RemoteVisualization {
 
   private scheduleForeground(immediate = false): void {
     if (this.controller) {
-
       return;
     }
 
@@ -599,7 +592,6 @@ export class RemoteVisualization {
         const generation = this.generation;
         const requested = this.requestedViews;
         const stillMissing = this.requestedViews.filter((view) => !this.cachedView(view));
-
 
         if (!stillMissing.length) {
           if (generation === this.generation) {
@@ -682,7 +674,6 @@ export class RemoteVisualization {
 
   private schedulePrefetch(main: RequestedView | undefined, generation: number): void {
     if (!main || generation !== this.generation || this.loading) {
-
       return;
     }
 
@@ -693,7 +684,6 @@ export class RemoteVisualization {
     // Keep speculative queries above base-summary resolution; only the small
     // boundary fragments may require raw reads, never a whole fine-detail view.
     if (span <= (BigInt(main.maxPoints) * 256n) / 5n) {
-
       return;
     }
 
@@ -737,7 +727,6 @@ export class RemoteVisualization {
             (entry) => entry.begin === this.begin && entry.end === this.end,
           ))
       ) {
-
         continue;
       }
 
@@ -753,7 +742,6 @@ export class RemoteVisualization {
         this.cachedView(view) ||
         predictions.some((other) => other.begin === view.begin && other.end === view.end)
       ) {
-
         continue;
       }
 
@@ -762,20 +750,16 @@ export class RemoteVisualization {
     }
 
     if (!predictions.length) {
-
       return;
     }
 
     clearTimeout(this.prefetchTimer);
     const viewportKey = this.viewportKey;
 
-
     this.prefetchTimer = setTimeout(() => {
-
       void (async () => {
         for (const view of predictions) {
           if (generation !== this.generation || viewportKey !== this.viewportKey || this.loading) {
-
             break;
           }
 
@@ -804,13 +788,10 @@ export class RemoteVisualization {
               retained.length >= maxRemoteVisualizationCacheEntries ||
               retainedBytes + reservedBytes > this.cacheBudgetBytes
             ) {
-
               break;
             }
 
-
             if (!(await this.load([view], generation, true)) || !this.cachedView(view)) {
-
               break;
             }
           }
@@ -857,12 +838,10 @@ export class RemoteVisualization {
         controller.signal,
         (frame) => {
           if (generation !== this.generation || controller.signal.aborted) {
-
             return;
           }
 
           if (frame.kind === "data") {
-
             published.set(`${frame.viewIndex}:${frame.resourceIndex}`, frame);
 
             if (frame.complete) {
@@ -892,7 +871,6 @@ export class RemoteVisualization {
           } else if (!prefetch) {
             this.progress = Math.max(this.progress, frame.progress);
 
-
             if (frame.resourceIndex >= 0 && frame.range) {
               this.ranges.set(frame.resourceIndex, frame.range);
             }
@@ -903,7 +881,6 @@ export class RemoteVisualization {
       );
 
       if (generation !== this.generation || controller.signal.aborted) {
-
         return false;
       }
 
@@ -952,7 +929,6 @@ export class RemoteVisualization {
 
         this.cache.set(`${view.begin}:${view.end}:${view.budget}`, view);
 
-
         if (!prefetch) {
           this.protectedViews.add(view);
         }
@@ -993,7 +969,6 @@ export class RemoteVisualization {
 
         this.cache.delete(key);
 
-
         bytes -= view.points.reduce(
           (n, point) => n + point.indices.byteLength + point.values.byteLength,
           0,
@@ -1006,10 +981,8 @@ export class RemoteVisualization {
         this.notify();
       }
 
-
       return true;
     } catch (error) {
-
       if (!prefetch && generation === this.generation) {
         this.retainedPreview = undefined;
       }
@@ -1048,7 +1021,6 @@ export class RemoteVisualization {
           this.notify();
         }
       }
-
     }
   }
 
@@ -1134,7 +1106,6 @@ export class RemoteVisualization {
     end: bigint,
   ): Float32Array | undefined {
     const source = this.sourceFor(target, resourceIndex, begin, end);
-
 
     if (!source) {
       return undefined;

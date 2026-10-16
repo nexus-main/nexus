@@ -291,6 +291,7 @@ export class AppComponent implements OnDestroy {
   readonly visualizationPanelVisible = computed(
     () => this.wideLayout() && !this.resourceMatrix()?.editing(),
   );
+  readonly visualizationLauncherOpen = signal(false);
   readonly visualizationDialogStyle = computed(() =>
     this.compactLayout()
       ? { width: "100vw", height: "100dvh", maxHeight: "100dvh", margin: "0", borderRadius: "0" }
@@ -299,6 +300,11 @@ export class AppComponent implements OnDestroy {
           height: "calc(100dvh - 2rem)",
           maxHeight: "calc(100dvh - 2rem)",
         },
+  );
+  readonly visualizationLauncherStyle = computed(() =>
+    this.compactLayout()
+      ? { width: "100vw", maxHeight: "100dvh", margin: "0", borderRadius: "0" }
+      : { width: "min(38rem, calc(100vw - 2rem))" },
   );
   readonly visualizationData = signal<VisualizationData | null>(null);
   readonly visualizationLoading = signal(false);
@@ -1252,6 +1258,25 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  openVisualizationLauncher(): void {
+    this.visualizationLauncherOpen.set(true);
+  }
+
+  openAdvancedVisualization(): void {
+    this.visualizationLauncherOpen.set(false);
+    this.visualizationOpen.set(true);
+  }
+
+  startVisualizationFromLauncher(): void {
+    this.visualizationLauncherOpen.set(false);
+    void this.visualize();
+  }
+
+  selectVisualizationServerReduction(value: boolean): void {
+    this.visualizationServerReduction.set(value);
+    this.storage.setJson("nexus.visualizationServerReduction", value);
+  }
+
   cancelVisualization() {
     this.visualizationController?.abort();
     this.visualizationController = undefined;
@@ -1287,8 +1312,7 @@ export class AppComponent implements OnDestroy {
   }
 
   setVisualizationServerReduction(value: boolean): void {
-    this.visualizationServerReduction.set(value);
-    this.storage.setJson("nexus.visualizationServerReduction", value);
+    this.selectVisualizationServerReduction(value);
     void this.visualize(false);
   }
 
