@@ -3,6 +3,7 @@
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Engines;
 using Nexus.Utilities;
 using System.Runtime.Intrinsics.X86;
 
@@ -14,6 +15,7 @@ namespace Nexus.Benchmarks;
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 public class VisualizationReductionBenchmarks
 {
+    private readonly Consumer _consumer = new();
     private float[] _values = null!;
 
     [Params(256, 131_072)]
@@ -38,21 +40,29 @@ public class VisualizationReductionBenchmarks
                 : random.NextSingle() * 200 - 100;
         }
 
-        if (SummarizeScalar() != SummarizeSimd() || BaseBucketsScalar() != BaseBucketsSimd())
+        if (SummarizeScalarCore() != SummarizeSimdCore() || BaseBucketsScalarCore() != BaseBucketsSimdCore())
             throw new InvalidOperationException("Scalar/SIMD summaries differ.");
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("Summarize")]
-    public VisualizationSummary SummarizeScalar() => VisualizationReduction.Summarize(_values, 0, false);
+    public void SummarizeScalar() => _consumer.Consume(SummarizeScalarCore());
 
     [Benchmark, BenchmarkCategory("Summarize")]
-    public VisualizationSummary SummarizeSimd() => VisualizationReduction.Summarize(_values, 0, true);
+    public void SummarizeSimd() => _consumer.Consume(SummarizeSimdCore());
 
     [Benchmark(Baseline = true), BenchmarkCategory("BaseBuckets")]
-    public VisualizationSummary BaseBucketsScalar() => BaseBuckets(false);
+    public void BaseBucketsScalar() => _consumer.Consume(BaseBucketsScalarCore());
 
     [Benchmark, BenchmarkCategory("BaseBuckets")]
-    public VisualizationSummary BaseBucketsSimd() => BaseBuckets(true);
+    public void BaseBucketsSimd() => _consumer.Consume(BaseBucketsSimdCore());
+
+    private VisualizationSummary SummarizeScalarCore() => VisualizationReduction.Summarize(_values, 0, false);
+
+    private VisualizationSummary SummarizeSimdCore() => VisualizationReduction.Summarize(_values, 0, true);
+
+    private VisualizationSummary BaseBucketsScalarCore() => BaseBuckets(false);
+
+    private VisualizationSummary BaseBucketsSimdCore() => BaseBuckets(true);
 
     private VisualizationSummary BaseBuckets(bool useSimd)
     {

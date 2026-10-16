@@ -8,36 +8,29 @@ using System.Runtime.Intrinsics.X86;
 
 namespace Nexus.Utilities;
 
-/// <summary>A drawing point at an exact source sample coordinate.</summary>
-/// <param name="Index">Absolute sample index, not a uniformly spaced output index.</param>
-/// <param name="Value">Source Float32 value, or NaN to break continuity.</param>
-public readonly record struct VisualizationPoint(long Index, float Value);
+// A drawing point at an exact source sample coordinate. Index is the absolute sample index,
+// not a uniformly spaced output index. Value is the source Float32 value, or NaN to break continuity.
+internal readonly record struct VisualizationPoint(long Index, float Value);
 
-/// <summary>
-/// Summary of a contiguous sample interval. InvalidCount counts nonfinite samples; First/Last
-/// retain source bits, including nonfinite values. With no finite samples, extrema
-/// are NaN and their indices are -1. FirstGapIndex is -1 when InvalidCount is zero.
-/// Count == 0 (including default) is the empty identity; its other fields are ignored.
-/// </summary>
-public readonly record struct VisualizationSummary(
+// Summary of a contiguous sample interval. InvalidCount counts nonfinite samples; First/Last
+// retain source bits, including nonfinite values. With no finite samples, extrema
+// are NaN and their indices are -1. FirstGapIndex is -1 when InvalidCount is zero.
+// Count == 0 (including default) is the empty identity; its other fields are ignored.
+internal readonly record struct VisualizationSummary(
     long Start, long Count, float First, float Last,
     float Min, long MinIndex, float Max, long MaxIndex,
     long FirstGapIndex, long InvalidCount, bool HasFinite);
 
-/// <summary>
-/// Canonical Float32 chart reduction. Merge summaries, never projected points,
-/// to build coarser levels. Callers own bucket alignment and cancellation.
-/// </summary>
-public static class VisualizationReduction
+// Canonical Float32 chart reduction. Merge summaries, never projected points, to build coarser
+// levels. Callers own bucket alignment and cancellation.
+internal static class VisualizationReduction
 {
-    /// <summary>Number of source samples in a complete base pyramid bucket.</summary>
+    // Number of source samples in a complete base pyramid bucket.
     public const int BaseStride = 256;
 
-    /// <summary>
-    /// Reduces any contiguous fragment. Extrema ties select the earliest sample,
-    /// preserving its original bits (also for signed zero). NaN and infinities are gaps.
-    /// The inclusive last coordinate must fit in Int64; empty input returns default.
-    /// </summary>
+    // Reduces any contiguous fragment. Extrema ties select the earliest sample, preserving its
+    // original bits (also for signed zero). NaN and infinities are gaps. The inclusive last
+    // coordinate must fit in Int64; empty input returns default.
     public static VisualizationSummary Summarize(ReadOnlySpan<float> values, long startIndex, bool useSimd = true)
     {
         if (values.IsEmpty)
@@ -79,6 +72,7 @@ public static class VisualizationReduction
 
                 vectorMin = Avx.Min(vectorMin, Avx.BlendVariable(
                     Vector256.Create(float.PositiveInfinity), vector, finite));
+
                 vectorMax = Avx.Max(vectorMax, Avx.BlendVariable(
                     Vector256.Create(float.NegativeInfinity), vector, finite));
             }
@@ -146,16 +140,16 @@ public static class VisualizationReduction
 
         bool hasFinite = minIndex >= 0;
 
-        return new VisualizationSummary(startIndex, values.Length, values[0], values[^1],
+        return new VisualizationSummary(
+            startIndex, values.Length, values[0], values[^1],
             hasFinite ? min : float.NaN, hasFinite ? startIndex + minIndex : -1,
             hasFinite ? max : float.NaN, hasFinite ? startIndex + maxIndex : -1,
-            firstGap >= 0 ? startIndex + firstGap : -1, invalidCount, hasFinite);
+            firstGap >= 0 ? startIndex + firstGap : -1, invalidCount, hasFinite
+        );
     }
 
-    /// <summary>
-    /// Merges adjacent, ordered summaries produced by this kernel. Empty operands
-    /// are identities irrespective of Start. Nonadjacent intervals are rejected.
-    /// </summary>
+    // Merges adjacent, ordered summaries produced by this kernel. Empty operands are identities
+    // irrespective of Start. Nonadjacent intervals are rejected.
     public static VisualizationSummary Merge(VisualizationSummary left, VisualizationSummary right)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(left.Count);
@@ -170,11 +164,11 @@ public static class VisualizationReduction
         if (checked(left.Start + left.Count) != right.Start)
             throw new ArgumentException("Summary intervals must be contiguous and ordered.", nameof(right));
 
-        long count = checked(left.Count + right.Count);
+        var count = checked(left.Count + right.Count);
         _ = checked(left.Start + (count - 1));
-        bool useLeftMin = left.HasFinite && (!right.HasFinite || left.Min <= right.Min);
-        bool useLeftMax = left.HasFinite && (!right.HasFinite || left.Max >= right.Max);
-        long invalidCount = checked(left.InvalidCount + right.InvalidCount);
+        var useLeftMin = left.HasFinite && (!right.HasFinite || left.Min <= right.Min);
+        var useLeftMax = left.HasFinite && (!right.HasFinite || left.Max >= right.Max);
+        var invalidCount = checked(left.InvalidCount + right.InvalidCount);
 
         return new VisualizationSummary(left.Start, count, left.First, right.Last,
             useLeftMin ? left.Min : right.Min, useLeftMin ? left.MinIndex : right.MinIndex,
@@ -183,11 +177,9 @@ public static class VisualizationReduction
             invalidCount, left.HasFinite || right.HasFinite);
     }
 
-    /// <summary>
-    /// Emits at most five sorted, index-deduplicated points: endpoints, finite
-    /// extrema, and the first gap. Nonfinite values become NaN. Intervals with at least
-    /// 50% nonfinite samples emit only a NaN at FirstGapIndex.
-    /// </summary>
+    // Emits at most five sorted, index-deduplicated points: endpoints, finite extrema, and the
+    // first gap. Nonfinite values become NaN. Intervals with at least 50% nonfinite samples emit
+    // only a NaN at FirstGapIndex.
     public static VisualizationPoint[] Project(VisualizationSummary summary)
     {
         Span<VisualizationPoint> points = stackalloc VisualizationPoint[5];
@@ -195,10 +187,8 @@ public static class VisualizationReduction
         return points[..count].ToArray();
     }
 
-    /// <summary>
-    /// Writes at most five sorted, index-deduplicated projected points to <paramref name="points" />.
-    /// </summary>
-    /// <returns>The number of points written.</returns>
+    // Writes at most five sorted, index-deduplicated projected points to the provided span.
+    // Returns the number of points written.
     public static int Project(VisualizationSummary summary, Span<VisualizationPoint> points)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(summary.Count);
@@ -220,6 +210,7 @@ public static class VisualizationReduction
         points[1] = new(checked(summary.Start + (summary.Count - 1)), float.IsFinite(summary.Last) ? summary.Last : float.NaN);
         points[2] = new(summary.MinIndex, summary.Min);
         points[3] = new(summary.MaxIndex, summary.Max);
+
         int count = 4;
 
         if (summary.InvalidCount != 0)
@@ -228,7 +219,7 @@ public static class VisualizationReduction
         for (int i = 1; i < count; i++)
         {
             var point = points[i];
-            int j = i;
+            var j = i;
 
             while (j > 0 && points[j - 1].Index > point.Index)
             {
