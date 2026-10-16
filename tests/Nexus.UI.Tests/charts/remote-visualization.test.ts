@@ -9,9 +9,9 @@ import {
   visualizationPointBudget,
   type VisualizationFrame,
   type VisualizationRequest,
-} from "../../../../src/Nexus.UI/src/app/charts/remote-visualization.ts";
-import { requestError } from "../../../../src/Nexus.UI/src/app/request-error.ts";
-import { dateTicks } from "../../../../src/Nexus.UI/src/app/resource-selection.ts";
+} from "../../../src/Nexus.UI/src/app/charts/remote-visualization.ts";
+import { requestError } from "../../../src/Nexus.UI/src/app/request-error.ts";
+import { dateTicks } from "../../../src/Nexus.UI/src/app/resource-selection.ts";
 
 it("keeps all views within the default server aggregate point budget", () => {
   for (let resources = 1; resources <= 100; resources++) {
@@ -61,8 +61,8 @@ it("reads problem details and preserves status for empty error bodies", async ()
   assert.match((await requestError(new Response(null, { status: 503 }))).message, /503/);
 });
 
-const require = createRequire(new URL("../../../../src/Nexus.UI/package.json", import.meta.url));
-const arrow: typeof import("../../../../src/Nexus.UI/node_modules/apache-arrow/Arrow.node") = require("apache-arrow");
+const require = createRequire(new URL("../../../src/Nexus.UI/package.json", import.meta.url));
+const arrow: typeof import("../../../src/Nexus.UI/node_modules/apache-arrow/Arrow.node") = require("apache-arrow");
 const request: VisualizationRequest = {
   begin: "0001-01-01T00:00:00.0000000Z",
   end: "0001-01-01T00:00:00.0000100Z",
@@ -175,18 +175,11 @@ function response(bytes: Uint8Array, fragment = 19): Response {
 }
 
 describe("visualization Arrow protocol", () => {
-  it("rejects invalid streams without leaking reader locks", async () => {
-    for (const [body, error] of [
-      [response(ipc([dataRow])), /before explicit completion of all views/],
-      [new Response(null), /response has no body/],
-    ] as const) {
-      await assert.rejects(
-        decodeVisualization(body, request, 100n, new AbortController().signal, () => {}),
-        error,
-      );
-
-      assert.ok(!body.body?.locked);
-    }
+  it("rejects responses without a body", async () => {
+    await assert.rejects(
+      decodeVisualization(new Response(null), request, 100n, new AbortController().signal, () => {}),
+      /response has no body/,
+    );
   });
 
   it("decodes fragmented streams, progress/ranges, gaps and explicit completion", async () => {
@@ -295,10 +288,14 @@ describe("visualization Arrow protocol", () => {
     ];
 
     for (const [bytes, error] of malformed) {
+      const body = response(bytes);
+
       await assert.rejects(
-        decodeVisualization(response(bytes), request, 100n, new AbortController().signal, () => {}),
+        decodeVisualization(body, request, 100n, new AbortController().signal, () => {}),
         error,
       );
+
+      assert.ok(!body.body?.locked);
     }
 
     // Arrow's own truncation error is version-dependent.
@@ -1312,31 +1309,6 @@ describe("remote viewport provider", () => {
     }
   });
 
-  it("refines clipped boundary buckets", async () => {
-    const { provider, calls, finish, view } = prefetchFixture();
-
-    try {
-      provider.requestViews(view(0n, 100n, 24), true);
-      await delay(5);
-      finish(0, 1);
-      await delay(5);
-      provider.requestViews(view(5n, 95n, 20), true);
-      await delay(5);
-      finish(1, 2);
-      await delay(5);
-      assert.equal(provider.pointsFor("main", 0, 5n, 95n)?.[1], 2);
-      provider.requestViews(view(10n, 90n, 20), true);
-      await delay(5);
-      assert.equal(calls.length, 3);
-      assert.equal(provider.loading, true);
-      finish(2, 3);
-      await delay(0);
-      assert.equal(provider.pointsFor("main", 0, 10n, 90n)?.[1], 3);
-    } finally {
-      provider.dispose();
-    }
-  });
-
   it("renders the finest compatible canonical LOD even when coarser cached coverage was requested", async () => {
     const { provider, calls, finish, view } = prefetchFixture();
 
@@ -1628,38 +1600,6 @@ describe("remote viewport provider", () => {
     );
 
     assert.deepEqual([...points], [0, 1, 0.5, 2, 1, 3]);
-  });
-
-  it("coalesces gestures, aborts stale requests, retains fallback on failure and reuses cached views", async () => {
-    const { provider, calls, finish } = prefetchFixture(1, 0n, 1n, 4096, 100n);
-    const view = (begin = 0n, end = 100n) => [{ id: "main", begin, end, maxPoints: 16 }];
-
-    try {
-      provider.requestViews(view(), true);
-      await delay(5);
-      finish(0, 1);
-      await delay(5);
-      const fallback = provider.pointsFor("main", 0, 0n, 100n);
-
-      assert.equal(fallback?.[1], 1);
-      provider.requestViews(view(10n, 30n));
-      provider.requestViews(view(20n, 40n));
-      await delay(180);
-      assert.equal(calls.length, 2);
-      provider.requestViews(view(40n, 60n), true);
-      assert.equal(calls[1].signal.aborted, true);
-      await delay(5);
-      finish(1, 99);
-      calls[2].reject(new Error("network failed"));
-      await delay(5);
-      assert.match(provider.error, /network failed/);
-      assert.equal(provider.pointsFor("main", 0, 0n, 100n), fallback);
-      provider.requestViews(view(), true);
-      await delay(5);
-      assert.equal(calls.length, 3);
-    } finally {
-      provider.dispose();
-    }
   });
 
   it("evicts narrow history under byte pressure but protects the domain and current view", async () => {

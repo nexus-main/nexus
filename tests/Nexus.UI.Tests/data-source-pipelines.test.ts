@@ -13,7 +13,7 @@ import {
   resolveUnsavedChoice,
   sourceSchema,
   updateRegistration,
-} from "../../../src/Nexus.UI/src/app/data-source-pipelines.ts";
+} from "../../src/Nexus.UI/src/app/data-source-pipelines.ts";
 import type { DataSourcePipeline, ExtensionDescription } from "@nexus-api/V1";
 
 const schema = {

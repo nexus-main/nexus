@@ -203,8 +203,8 @@ reads are prevented from republishing GPU query buffers after target release.
 ## Verification
 
 The `src/Nexus.UI` `npm test` script type-checks the UI test project and runs the
-TypeScript UI tests from `tests/Nexus.UI.Tests/app`, including the chart
-decoder/provider tests under `tests/Nexus.UI.Tests/app/charts/*.test.ts`. Those
+TypeScript UI tests from `tests/Nexus.UI.Tests`, including the chart
+decoder/provider tests under `tests/Nexus.UI.Tests/charts/*.test.ts`. Those
 tests cover fragmented multi-batch Arrow decoding,
 version/schema/count/coordinate/error/completion validation, resource-major
 multi-view decoder/provider integration, cancellation,

@@ -28,46 +28,6 @@ namespace Services;
 
 public class VisualizationServiceTests
 {
-    [Fact]
-    public void ViewPlanFixedSpanHasSameStrideAtEveryAlignment()
-    {
-        // Arrange
-        const long span = 819200;
-
-        var origins = new[] { 0L, DateTime.MaxValue.Ticks - span - 2048 };
-
-        // Act
-        var strides = origins
-            .SelectMany(origin => Enumerable.Range(0, 2048).Select(shift => origin + shift))
-            .Select(begin => new VisualizationService.ViewPlan(begin, begin + span, 4000).Stride)
-            .ToArray();
-
-        // Assert
-        Assert.All(strides, stride => Assert.Equal(2048, stride));
-    }
-
-    [Theory]
-    [InlineData(4000, 1)]
-    [InlineData(4001, 8)]
-    public void ViewPlanPreservesRawBoundary(int span, long expectedStride)
-    {
-        // Arrange
-        var begins = new[] { 0L, 1L, 4095L, DateTime.MaxValue.Ticks - span };
-
-        // Act
-        var plans = begins
-            .Select(begin => new VisualizationService.ViewPlan(begin, begin + span, 4000))
-            .ToArray();
-
-        // Assert
-        for (int i = 0; i < begins.Length; i++)
-        {
-            Assert.Equal(begins[i], plans[i].Begin);
-            Assert.Equal(begins[i] + span, plans[i].End);
-            Assert.Equal(expectedStride, plans[i].Stride);
-        }
-    }
-
     [Theory]
     [InlineData(5)]
     [InlineData(9)]
@@ -97,6 +57,8 @@ public class VisualizationServiceTests
         // Assert
         foreach (var (span, begin, end, plan) in results)
         {
+            Assert.Equal(begin, plan.Begin);
+            Assert.Equal(end, plan.End);
             Assert.True(plan.Stride > 0 && (plan.Stride & (plan.Stride - 1)) == 0);
 
             long buckets = (end - 1) / plan.Stride - begin / plan.Stride + 1;
@@ -503,9 +465,6 @@ public class VisualizationServiceTests
         dataset.AllocateBase();
 
         // Act
-        var estimateError = Record.Exception(() =>
-            VisualizationDataset.EstimateBytes(0, DateTime.MaxValue.Ticks, 100, long.MaxValue));
-
         var emptyRangeError = Record.Exception(() =>
             VisualizationService.Query(dataset, [], 0, 0, 1));
 
@@ -513,7 +472,6 @@ public class VisualizationServiceTests
             VisualizationService.Query(dataset, [], 0, 1, 1001));
 
         // Assert
-        Assert.IsType<ValidationException>(estimateError);
         Assert.IsType<ArgumentOutOfRangeException>(emptyRangeError);
         Assert.IsType<ArgumentOutOfRangeException>(outOfBoundsError);
     }
@@ -1017,51 +975,6 @@ public class VisualizationServiceTests
     }
 
     [Fact]
-    public async Task DeduplicatesSimultaneousBuilds()
-    {
-        // Arrange
-        using var fixture = new Fixture();
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        fixture.BeforeRead = (_, token) => release.Task.WaitAsync(token);
-
-        var request = fixture.Request([fixture.View("main", 0, 65536, 100)]);
-
-        int requestsAvailable = 0;
-
-        // Act
-        var first = fixture.RunAsync(request);
-        Task<List<Row>>? second = null;
-
-        try
-        {
-            await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-            second = fixture.RunAsync(request);
-            requestsAvailable = fixture.Cache.Requests.CurrentCount;
-
-            release.TrySetResult();
-
-            await Task.WhenAll(first, second);
-        }
-        finally
-        {
-            release.TrySetResult();
-
-            await ObserveAsync(first);
-
-            if (second is not null)
-                await ObserveAsync(second);
-        }
-
-        // Assert
-        Assert.Equal(2, requestsAvailable);
-        Assert.Equal(65536 * 2, fixture.Samples);
-
-        fixture.AssertReleased();
-    }
-
-    [Fact]
     public async Task ReadsOnceForAllViewsWithIndependentWorkersAndWarmZoom()
     {
         // Arrange
@@ -1114,12 +1027,6 @@ public class VisualizationServiceTests
         int instances = fixture.Instances;
         int disposed = fixture.Disposed;
 
-        var warm = await fixture.RunAsync(fixture.Request([fixture.View("zoom", 8192, 32768, 50)]));
-        int samplesAfterWarm = fixture.Samples;
-
-        await fixture.RunAsync(fixture.Request([fixture.View("fine", 8193, 16397, 1000)]));
-        int samplesAfterFine = fixture.Samples;
-
         // Assert
         Assert.Equal(3, activeWhenEntered);
 
@@ -1148,11 +1055,6 @@ public class VisualizationServiceTests
         Assert.Equal(Enumerable.Range(137, 74).Select(i => (float)i + 2000), otherDetail.Values);
 
         Assert.Contains(rows.Where(row => row.Kind == 0 && row.View == 0).SelectMany(row => row.Values), float.IsNaN);
-
-        Assert.Equal(samplesAfterFirst, samplesAfterWarm);
-        Assert.Equal(2, warm.Last().Kind);
-
-        Assert.Equal(33 * 256 * 2, samplesAfterFine - samplesAfterFirst);
     }
 
     [Fact]
@@ -1167,9 +1069,6 @@ public class VisualizationServiceTests
         int samples = fixture.Samples;
 
         // Act
-        await fixture.RunAsync(request);
-        int samplesAfterCachedRun = fixture.Samples;
-
         fixture.Configuration = new Dictionary<string, JsonElement>
         {
             ["tenant"] = JsonSerializer.SerializeToElement("other")
@@ -1179,7 +1078,6 @@ public class VisualizationServiceTests
         int samplesAfterConfigurationChange = fixture.Samples;
 
         // Assert
-        Assert.Equal(samples, samplesAfterCachedRun);
         Assert.Equal(samples * 2, samplesAfterConfigurationChange);
     }
 

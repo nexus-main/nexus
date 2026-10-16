@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { setImmediate as settle } from "node:timers/promises";
 import { it } from "node:test";
-import { decodeRawStream } from "../../../../src/Nexus.UI/src/app/charts/raw-stream-decoder.ts";
+import { decodeRawStream } from "../../../src/Nexus.UI/src/app/charts/raw-stream-decoder.ts";
 
-const require = createRequire(new URL("../../../../src/Nexus.UI/package.json", import.meta.url));
-const arrow: typeof import("../../../../src/Nexus.UI/node_modules/apache-arrow/Arrow.node") = require("apache-arrow");
+const require = createRequire(new URL("../../../src/Nexus.UI/package.json", import.meta.url));
+const arrow: typeof import("../../../src/Nexus.UI/node_modules/apache-arrow/Arrow.node") = require("apache-arrow");
 
 interface Row {
   resource: number | null;

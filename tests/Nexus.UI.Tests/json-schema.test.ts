@@ -7,12 +7,12 @@ import {
   parseConfigurationText,
   parseJsonSafely,
   validateConfiguration,
-} from "../../../src/Nexus.UI/src/app/json-schema.ts";
+} from "../../src/Nexus.UI/src/app/json-schema.ts";
 
 const draft4 = "http://json-schema.org/draft-04/schema#";
 const serverSchemas = JSON.parse(
   readFileSync(
-    new URL("../../Nexus.Tests/API/v1/fixtures/source-configuration-schemas.json", import.meta.url),
+    new URL("../Nexus.Tests/API/v1/fixtures/source-configuration-schemas.json", import.meta.url),
     "utf8",
   ),
 ) as Record<string, unknown>;

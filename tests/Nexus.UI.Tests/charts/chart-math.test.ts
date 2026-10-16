@@ -23,7 +23,7 @@ import {
   setViewport,
   toEngineering,
   toTime,
-} from "../../../../src/Nexus.UI/src/app/charts/chart-math.ts";
+} from "../../../src/Nexus.UI/src/app/charts/chart-math.ts";
 
 describe("bigint .NET time", () => {
   it("formats the full DateTime range with all seven fraction digits in UTC", () => {
