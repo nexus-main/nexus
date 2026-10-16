@@ -231,7 +231,7 @@ internal class DataService(
                 _loggerFactory.CreateLogger<DataSourceController>(),
                 cts.Token);
 
-            var outputWriting = WriteArrowStreamAsync(dataReaders, outputPipe.Writer, request.Precision, reading, _logger, cts.Token);
+            var outputWriting = WriteArrowStreamAsync(dataReaders, outputPipe.Writer, request.Precision, reading, cts.Token);
 
             _ = CompleteAndLogAsync(reading, outputWriting, readingGroups, dataReaders, outputPipe.Writer, cts);
             return outputPipe.Reader.AsStream();
@@ -288,7 +288,6 @@ internal class DataService(
             PipeWriter output,
             Precision precision,
             Task reading,
-            ILogger logger,
             CancellationToken cancellationToken)
         {
             var readerStates = readers
