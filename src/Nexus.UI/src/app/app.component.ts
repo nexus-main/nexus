@@ -8,6 +8,7 @@ import {
   inject,
   isDevMode,
   signal,
+  untracked,
   viewChild,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
@@ -961,6 +962,17 @@ export class AppComponent implements OnDestroy {
         automaticPeriod: this.automaticPeriod(),
         selections: this.selectionReferences(),
       });
+    });
+
+    effect(() => {
+      this.samplePeriod();
+      this.selectedResourceRows();
+
+      if (!this.selectedResourcesRestored() || this.selectionLoading()) {
+        return;
+      }
+
+      untracked(() => this.replaceInvalidSelectionKinds());
     });
 
     effect(() => {
@@ -2423,6 +2435,43 @@ export class AppComponent implements OnDestroy {
       current.map((reference) =>
         this.referenceMatches(reference, selection) ? storeSelectionReference(updated) : reference,
       ),
+    );
+  }
+
+  private replaceInvalidSelectionKinds() {
+    const period = this.samplePeriod();
+    let changed = false;
+    const next = new Map(this.selectedResourceRows());
+
+    for (const [key, selection] of next) {
+      const replacement = defaultKind(period, selection.basePeriod);
+
+      if (!kindValid(replacement, period, selection.basePeriod)) {
+        continue;
+      }
+
+      const validKinds = selection.kinds.filter((kind) =>
+        kindValid(kind, period, selection.basePeriod),
+      );
+
+      if (validKinds.length === selection.kinds.length) {
+        continue;
+      }
+
+      const kinds = validKinds.includes(replacement) ? validKinds : [...validKinds, replacement];
+
+      changed = true;
+      next.set(key, { ...selection, kinds });
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    this.selectedResourceRows.set(next);
+
+    this.selectionReferences.set(
+      Array.from(next.values()).map((selection) => storeSelectionReference(selection)),
     );
   }
 
