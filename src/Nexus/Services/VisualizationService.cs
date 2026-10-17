@@ -752,7 +752,7 @@ internal sealed class VisualizationService(
 
     internal static void ValidateRequest(VisualizationRequest request, VisualizationOptions options)
     {
-        if (!options.EnableServerSideDecimation)
+        if (!IsServerSideDecimationEnabled(options))
             throw new ValidationException("Server-side visualization decimation is disabled.");
 
         if (request is null)
@@ -981,5 +981,14 @@ internal sealed class VisualizationService(
             new FloatArray.Builder().Append(maximum).Build(),
             new StringArray.Builder().Append(message).Build()
         ], 1);
+    }
+
+    private static bool IsServerSideDecimationEnabled(VisualizationOptions options)
+    {
+        return options.EnableServerSideDecimation ||
+            string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                "Development",
+                StringComparison.OrdinalIgnoreCase);
     }
 }

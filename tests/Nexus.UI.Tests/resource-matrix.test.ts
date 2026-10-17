@@ -6,10 +6,7 @@ import {
   groupResourceRows,
   mergeResourceMetadata,
 } from "../../src/Nexus.UI/src/app/resource-matrix.ts";
-import type {
-  MetadataDrafts,
-  MetadataField,
-} from "../../src/Nexus.UI/src/app/resource-matrix.ts";
+import type { MetadataDrafts, MetadataField } from "../../src/Nexus.UI/src/app/resource-matrix.ts";
 import { representationRows } from "../../src/Nexus.UI/src/app/resource-selection.ts";
 
 function resource(

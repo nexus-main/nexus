@@ -51,7 +51,7 @@ internal class SystemController(
             _generalOptions.ApplicationName,
             _generalOptions.HelpLink ?? (_environment.IsDevelopment() ? DEVELOPMENT_HELP_LINK : null),
             _securityOptions.LogoutUrl ?? (_environment.IsDevelopment() ? "/" : null),
-            _dataOptions.Visualization.EnableServerSideDecimation
+            _dataOptions.Visualization.EnableServerSideDecimation || _environment.IsDevelopment()
         );
     }
 }

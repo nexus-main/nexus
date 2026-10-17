@@ -474,27 +474,59 @@
         <div
           class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-surface/80 p-6 backdrop-blur-sm"
         >
-          <div
-            class="w-full max-w-sm space-y-4 text-center text-ink"
-            role="status"
-            aria-live="polite"
-          >
-            <p>Loading data...</p>
-            <p-progressbar
-              class="nexus-progress-immediate block"
-              [value]="visualizationProgress()"
-              ariaLabel="Loading time series data"
-            />
-            <button
-              pButton
-              type="button"
-              size="small"
-              severity="secondary"
-              [text]="true"
-              (click)="cancelVisualization()"
+          <div class="w-full max-w-md text-center text-ink" role="status" aria-live="polite">
+            <div class="space-y-3">
+              <p>Loading data...</p>
+              <p-progressbar
+                class="nexus-progress-immediate block"
+                [value]="visualizationProgress()"
+                ariaLabel="Loading time series data"
+              />
+            </div>
+            <div class="mt-3 min-h-10 text-xs leading-5 text-ink-muted">
+              @if (visualizationServerDecimationOfferVisible()) {
+                <p>
+                  Taking longer than expected. Switch to server-side decimation to speed up loading?
+                </p>
+              }
+            </div>
+            <div
+              class="mt-2 grid min-h-9 items-center gap-2"
+              [ngClass]="
+                visualizationServerDecimationOfferVisible() ? 'grid-cols-2' : 'grid-cols-1'
+              "
             >
-              Cancel
-            </button>
+              <div
+                class="flex"
+                [ngClass]="
+                  visualizationServerDecimationOfferVisible() ? 'justify-end' : 'justify-center'
+                "
+              >
+                <button
+                  pButton
+                  type="button"
+                  size="small"
+                  severity="secondary"
+                  [outlined]="true"
+                  (click)="cancelVisualization()"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div class="flex justify-start">
+                @if (visualizationServerDecimationOfferVisible()) {
+                  <button
+                    pButton
+                    type="button"
+                    size="small"
+                    severity="primary"
+                    (click)="acceptVisualizationServerDecimationOffer()"
+                  >
+                    Switch
+                  </button>
+                }
+              </div>
+            </div>
           </div>
         </div>
       } @else if (visualizationError() || !visualizationData() || visualizationStale()) {

@@ -305,12 +305,15 @@ export class AppComponent implements OnDestroy {
   readonly visualizationProgress = signal(0);
   readonly visualizationError = signal("");
   readonly visualizationBeginAtZero = signal(false);
+  readonly visualizationServerDecimationOfferVisible = signal(false);
   readonly visualizationServerReduction = signal(
     this.storage.getJson<unknown>("nexus.visualizationServerReduction", false) === true,
   );
   readonly visualizationCacheMiB = signal(2048);
   private visualizationController?: AbortController;
   private visualizationBuffers?: VisualizationBuffers;
+  private visualizationServerDecimationOfferTimer?: ReturnType<typeof setTimeout>;
+  private visualizationServerDecimationOfferDismissed = false;
   private exportController?: AbortController;
   private readonly loadedVisualizationKey = signal("");
   private readonly systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -1109,6 +1112,7 @@ export class AppComponent implements OnDestroy {
     this.visualizationData.set(null);
     this.visualizationProgress.set(0);
     this.visualizationLoading.set(true);
+    this.scheduleVisualizationServerDecimationOffer(controller);
 
     try {
       const data = createVisualizationData(
@@ -1250,6 +1254,7 @@ export class AppComponent implements OnDestroy {
       }
     } finally {
       if (this.visualizationController === controller) {
+        this.clearVisualizationServerDecimationOffer();
         this.visualizationLoading.set(false);
         this.visualizationController = undefined;
       }
@@ -1257,6 +1262,7 @@ export class AppComponent implements OnDestroy {
   }
 
   cancelVisualization() {
+    this.clearVisualizationServerDecimationOffer();
     this.visualizationController?.abort();
     this.visualizationController = undefined;
     this.visualizationBuffers?.dispose();
@@ -1288,6 +1294,51 @@ export class AppComponent implements OnDestroy {
 
     this.cancelVisualization();
     this.visualizationError.set(message);
+  }
+
+  acceptVisualizationServerDecimationOffer(): void {
+    this.visualizationServerDecimationOfferVisible.set(false);
+
+    if (!this.decimationAvailable()) {
+      return;
+    }
+
+    this.setVisualizationServerReduction(true);
+  }
+
+  private scheduleVisualizationServerDecimationOffer(controller: AbortController): void {
+    this.clearVisualizationServerDecimationOffer();
+
+    if (!this.decimationAvailable() || this.useServerSideDecimation()) {
+      return;
+    }
+
+    this.visualizationServerDecimationOfferDismissed = false;
+
+    this.visualizationServerDecimationOfferTimer = setTimeout(() => {
+      this.visualizationServerDecimationOfferTimer = undefined;
+
+      if (
+        this.visualizationController !== controller ||
+        controller.signal.aborted ||
+        !this.visualizationLoading() ||
+        this.useServerSideDecimation() ||
+        this.visualizationServerDecimationOfferDismissed
+      ) {
+        return;
+      }
+
+      this.visualizationServerDecimationOfferVisible.set(true);
+    }, 15_000);
+  }
+
+  private clearVisualizationServerDecimationOffer(): void {
+    if (this.visualizationServerDecimationOfferTimer) {
+      clearTimeout(this.visualizationServerDecimationOfferTimer);
+      this.visualizationServerDecimationOfferTimer = undefined;
+    }
+
+    this.visualizationServerDecimationOfferVisible.set(false);
   }
 
   setVisualizationServerReduction(value: boolean): void {

@@ -177,7 +177,13 @@ function response(bytes: Uint8Array, fragment = 19): Response {
 describe("visualization Arrow protocol", () => {
   it("rejects responses without a body", async () => {
     await assert.rejects(
-      decodeVisualization(new Response(null), request, 100n, new AbortController().signal, () => {}),
+      decodeVisualization(
+        new Response(null),
+        request,
+        100n,
+        new AbortController().signal,
+        () => {},
+      ),
       /response has no body/,
     );
   });
