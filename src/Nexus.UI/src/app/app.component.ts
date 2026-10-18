@@ -310,6 +310,7 @@ export class AppComponent implements OnDestroy {
   readonly visualizationServerReduction = signal(
     this.storage.getJson<unknown>("nexus.visualizationServerReduction", false) === true,
   );
+  private readonly visualizationServerDecimationForCurrentLoad = signal(false);
   readonly visualizationCacheMiB = signal(2048);
   private visualizationController?: AbortController;
   private visualizationBuffers?: VisualizationBuffers;
@@ -440,7 +441,9 @@ export class AppComponent implements OnDestroy {
   readonly nexusVersion = computed(() => this.nexus.system()?.version ?? "");
   readonly decimationAvailable = computed(() => this.nexus.system()?.decimationAvailable === true);
   readonly useServerSideDecimation = computed(
-    () => this.decimationAvailable() && this.visualizationServerReduction(),
+    () =>
+      this.decimationAvailable() &&
+      (this.visualizationServerReduction() || this.visualizationServerDecimationForCurrentLoad()),
   );
   readonly userInitials = computed(() => getInitials(this.userName()));
 
@@ -1084,7 +1087,7 @@ export class AppComponent implements OnDestroy {
     return value.toPrecision(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
   }
 
-  async visualize(open = true) {
+  async visualize(open = true, serverDecimationForCurrentLoad = false) {
     if (open) {
       this.isMobileCatalogOpen.set(false);
       this.visualizationOpen.set(true);
@@ -1095,10 +1098,12 @@ export class AppComponent implements OnDestroy {
     }
 
     this.cancelVisualization();
+    this.visualizationServerDecimationForCurrentLoad.set(serverDecimationForCurrentLoad);
     this.visualizationError.set("");
 
     if (this.visualizationValidation()) {
       this.visualizationError.set(this.visualizationValidation());
+      this.visualizationServerDecimationForCurrentLoad.set(false);
 
       return;
     }
@@ -1267,6 +1272,7 @@ export class AppComponent implements OnDestroy {
     } finally {
       if (this.visualizationController === controller) {
         this.clearVisualizationServerDecimationOffer();
+        this.visualizationServerDecimationForCurrentLoad.set(false);
         this.visualizationLoading.set(false);
         this.visualizationController = undefined;
       }
@@ -1275,6 +1281,7 @@ export class AppComponent implements OnDestroy {
 
   cancelVisualization() {
     this.clearVisualizationServerDecimationOffer();
+    this.visualizationServerDecimationForCurrentLoad.set(false);
     this.visualizationController?.abort();
     this.visualizationController = undefined;
     this.visualizationBuffers?.dispose();
@@ -1315,7 +1322,7 @@ export class AppComponent implements OnDestroy {
       return;
     }
 
-    this.setVisualizationServerReduction(true);
+    void this.visualize(false, true);
   }
 
   private scheduleVisualizationServerDecimationOffer(controller: AbortController): void {
