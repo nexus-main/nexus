@@ -99,6 +99,7 @@ jobs:
 
       - name: Install
         run: |
+          dotnet tool install -g docfx --version 2.81.0
           npm install -g pyright@1.1.369
           python -m pip install frictionless==4.40.9 build wheel httpx pyarrow pytest pytest-asyncio
 
@@ -164,6 +165,13 @@ jobs:
           diff --strip-trailing-cr openapi.v2.json openapi_new.v2.json
           # Fail if generated clients changed, which means committed client sources are stale.
           test -z "$(git status --porcelain -- src/clients/dotnet src/clients/python/nexus_api src/clients/typescript)"
+
+      - name: Documentation
+        run: |
+          docfx doc/docfx.json
+          rm -rf app/wwwroot/docs
+          mkdir -p app/wwwroot/docs
+          cp -a doc/_site/. app/wwwroot/docs/
 
       # --- Docker last: it is the slowest step and only matters if everything above passed ---
 

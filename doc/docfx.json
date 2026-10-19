@@ -1,0 +1,64 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "../",
+          "files": [
+            "src/extensibility/dotnet-extensibility/dotnet-extensibility.csproj",
+            "src/clients/dotnet/client.csproj"
+          ]
+        }
+      ],
+      "dest": "api/dotnet",
+      "namespaceLayout": "flattened",
+      "memberLayout": "samePage",
+      "includePrivateMembers": false,
+      "disableGitFeatures": false,
+      "disableDefaultFilter": false,
+      "noRestore": false
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "api/**.yml"
+        ]
+      },
+      {
+        "files": [
+          "clients/**.md",
+          "clients/**/toc.yml",
+          "configuration/**.md",
+          "configuration/**/toc.yml",
+          "extensibility/**.md",
+          "extensibility/**/toc.yml",
+          "toc.yml",
+          "*.md"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**"
+        ]
+      }
+    ],
+    "output": "_site",
+    "globalMetadata": {
+      "_appTitle": "Nexus Documentation",
+      "_appFooter": "Copyright © 2026 Apollo3zehn. Supported by code contributions from Fraunhofer IWES.",
+      "_appFaviconPath": "images/icon.svg",
+      "_appLogoPath": "images/icon.svg"
+    },
+    "template": [
+      "default",
+      "modern"
+    ],
+    "postProcessors": [],
+    "keepFileLink": false,
+    "disableGitFeatures": false
+  }
+}
