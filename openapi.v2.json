@@ -12,6 +12,71 @@
     }
   ],
   "paths": {
+    "/api/v2/data/visualization": {
+      "post": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Streams bounded Float32 visualization points and progress using a versioned Arrow schema.",
+        "operationId": "Data_GetVisualization",
+        "requestBody": {
+          "x-name": "request",
+          "description": "The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisualizationRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "The visualization Arrow stream.",
+            "content": {
+              "application/vnd.apache.arrow.stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/data": {
       "post": {
         "tags": [
@@ -114,6 +179,63 @@
   },
   "components": {
     "schemas": {
+      "VisualizationRequest": {
+        "type": "object",
+        "description": "A Float32 visualization request over a common, half-open sample domain.",
+        "additionalProperties": false,
+        "properties": {
+          "begin": {
+            "type": "string",
+            "description": "The domain start.",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "description": "The exclusive domain end.",
+            "format": "date-time"
+          },
+          "resourcePaths": {
+            "type": "array",
+            "description": "The resources, all with the same sample period.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "views": {
+            "type": "array",
+            "description": "The requested replacement views.",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationView"
+            }
+          }
+        }
+      },
+      "VisualizationView": {
+        "type": "object",
+        "description": "Defines one caller-supplied half-open time viewport and the maximum number of decimated points to return for it.",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The caller-supplied view identifier that is echoed on the corresponding response view."
+          },
+          "begin": {
+            "type": "string",
+            "description": "The viewport start.",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "description": "The exclusive viewport end.",
+            "format": "date-time"
+          },
+          "maxPoints": {
+            "type": "integer",
+            "description": "The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit.",
+            "format": "int32"
+          }
+        }
+      },
       "BatchStreamRequest": {
         "type": "object",
         "description": "A request to stream multiple resources.",

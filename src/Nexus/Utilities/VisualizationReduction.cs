@@ -1,0 +1,243 @@
+// MIT License
+// Copyright (c) [2024] [nexus-main]
+
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
+
+namespace Nexus.Utilities;
+
+// A drawing point at an exact source sample coordinate. Index is the absolute sample index,
+// not a uniformly spaced output index. Value is the source Float32 value, or NaN to break continuity.
+internal readonly record struct VisualizationPoint(long Index, float Value);
+
+// Summary of a contiguous sample interval. InvalidCount counts nonfinite samples; First/Last
+// retain source bits, including nonfinite values. With no finite samples, extrema
+// are NaN and their indices are -1. FirstGapIndex is -1 when InvalidCount is zero.
+// Count == 0 (including default) is the empty identity; its other fields are ignored.
+internal readonly record struct VisualizationSummary(
+    long Start, long Count, float First, float Last,
+    float Min, long MinIndex, float Max, long MaxIndex,
+    long FirstGapIndex, long InvalidCount, bool HasFinite);
+
+// Canonical Float32 chart reduction. Merge summaries, never projected points, to build coarser
+// levels. Callers own bucket alignment and cancellation.
+internal static class VisualizationReduction
+{
+    // Number of source samples in a complete base pyramid bucket.
+    public const int BaseStride = 256;
+
+    // Reduces any contiguous fragment. Extrema ties select the earliest sample, preserving its
+    // original bits (also for signed zero). NaN and infinities are gaps. The inclusive last
+    // coordinate must fit in Int64; empty input returns default.
+    public static VisualizationSummary Summarize(ReadOnlySpan<float> values, long startIndex, bool useSimd = true)
+    {
+        if (values.IsEmpty)
+            return default;
+
+        _ = checked(startIndex + (values.Length - 1L));
+
+        float min = float.PositiveInfinity;
+        float max = float.NegativeInfinity;
+        int minIndex = -1;
+        int maxIndex = -1;
+        int firstGap = -1;
+        long invalidCount = 0;
+        int offset = 0;
+
+        if (useSimd && Avx2.IsSupported && values.Length >= Vector256<float>.Count)
+        {
+            ref float source = ref MemoryMarshal.GetReference(values);
+            var vectorMin = Vector256.Create(float.PositiveInfinity);
+            var vectorMax = Vector256.Create(float.NegativeInfinity);
+            var magnitudeMask = Vector256.Create(int.MaxValue);
+            var infinityBits = Vector256.Create(0x7f800000);
+            int vectorLength = values.Length - values.Length % Vector256<float>.Count;
+
+            for (; offset < vectorLength; offset += Vector256<float>.Count)
+            {
+                var vector = Vector256.LoadUnsafe(ref source, (nuint)offset);
+                var finite = Avx2.CompareGreaterThan(infinityBits,
+                    Avx2.And(vector.AsInt32(), magnitudeMask)).AsSingle();
+                uint gaps = (uint)(~Avx.MoveMask(finite) & 0xff);
+
+                if (gaps != 0)
+                {
+                    if (firstGap < 0)
+                        firstGap = offset + BitOperations.TrailingZeroCount(gaps);
+
+                    invalidCount += BitOperations.PopCount(gaps);
+                }
+
+                vectorMin = Avx.Min(vectorMin, Avx.BlendVariable(
+                    Vector256.Create(float.PositiveInfinity), vector, finite));
+
+                vectorMax = Avx.Max(vectorMax, Avx.BlendVariable(
+                    Vector256.Create(float.NegativeInfinity), vector, finite));
+            }
+
+            for (int lane = 0; lane < Vector256<float>.Count; lane++)
+            {
+                min = Math.Min(min, vectorMin.GetElement(lane));
+                max = Math.Max(max, vectorMax.GetElement(lane));
+            }
+
+            if (float.IsFinite(min))
+            {
+                var minTarget = Vector256.Create(min);
+                var maxTarget = Vector256.Create(max);
+
+                // A second vector pass avoids per-lane index bookkeeping in the hot
+                // reduction loop. Stop once both earliest matches have been found.
+                for (int i = 0; i < vectorLength && (minIndex < 0 || maxIndex < 0); i += Vector256<float>.Count)
+                {
+                    var vector = Vector256.LoadUnsafe(ref source, (nuint)i);
+                    uint minMatches = (uint)Avx.MoveMask(Avx.CompareEqual(vector, minTarget));
+                    uint maxMatches = (uint)Avx.MoveMask(Avx.CompareEqual(vector, maxTarget));
+
+                    if (minIndex < 0 && minMatches != 0)
+                        minIndex = i + BitOperations.TrailingZeroCount(minMatches);
+
+                    if (maxIndex < 0 && maxMatches != 0)
+                        maxIndex = i + BitOperations.TrailingZeroCount(maxMatches);
+                }
+
+                // SIMD min/max may choose a later signed zero. Recover source bits.
+                min = values[minIndex];
+                max = values[maxIndex];
+            }
+        }
+
+        // Scalar reference when SIMD is disabled/unavailable, otherwise only the tail.
+        for (; offset < values.Length; offset++)
+        {
+            float value = values[offset];
+            bool gap = !float.IsFinite(value);
+
+            if (gap)
+            {
+                if (firstGap < 0)
+                    firstGap = offset;
+
+                invalidCount++;
+            }
+            else
+            {
+                if (value < min)
+                {
+                    min = value;
+                    minIndex = offset;
+                }
+
+                if (value > max)
+                {
+                    max = value;
+                    maxIndex = offset;
+                }
+            }
+        }
+
+        bool hasFinite = minIndex >= 0;
+
+        return new VisualizationSummary(
+            startIndex, values.Length, values[0], values[^1],
+            hasFinite ? min : float.NaN, hasFinite ? startIndex + minIndex : -1,
+            hasFinite ? max : float.NaN, hasFinite ? startIndex + maxIndex : -1,
+            firstGap >= 0 ? startIndex + firstGap : -1, invalidCount, hasFinite
+        );
+    }
+
+    // Merges adjacent, ordered summaries produced by this kernel. Empty operands are identities
+    // irrespective of Start. Nonadjacent intervals are rejected.
+    public static VisualizationSummary Merge(VisualizationSummary left, VisualizationSummary right)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(left.Count);
+        ArgumentOutOfRangeException.ThrowIfNegative(right.Count);
+
+        if (left.Count == 0)
+            return right;
+
+        if (right.Count == 0)
+            return left;
+
+        if (checked(left.Start + left.Count) != right.Start)
+            throw new ArgumentException("Summary intervals must be contiguous and ordered.", nameof(right));
+
+        var count = checked(left.Count + right.Count);
+        _ = checked(left.Start + (count - 1));
+        var useLeftMin = left.HasFinite && (!right.HasFinite || left.Min <= right.Min);
+        var useLeftMax = left.HasFinite && (!right.HasFinite || left.Max >= right.Max);
+        var invalidCount = checked(left.InvalidCount + right.InvalidCount);
+
+        return new VisualizationSummary(left.Start, count, left.First, right.Last,
+            useLeftMin ? left.Min : right.Min, useLeftMin ? left.MinIndex : right.MinIndex,
+            useLeftMax ? left.Max : right.Max, useLeftMax ? left.MaxIndex : right.MaxIndex,
+            left.InvalidCount != 0 ? left.FirstGapIndex : right.FirstGapIndex,
+            invalidCount, left.HasFinite || right.HasFinite);
+    }
+
+    // Emits at most five sorted, index-deduplicated points: endpoints, finite extrema, and the
+    // first gap. Nonfinite values become NaN. Intervals with at least 50% nonfinite samples emit
+    // only a NaN at FirstGapIndex.
+    public static VisualizationPoint[] Project(VisualizationSummary summary)
+    {
+        Span<VisualizationPoint> points = stackalloc VisualizationPoint[5];
+        int count = Project(summary, points);
+        return points[..count].ToArray();
+    }
+
+    // Writes at most five sorted, index-deduplicated projected points to the provided span.
+    // Returns the number of points written.
+    public static int Project(VisualizationSummary summary, Span<VisualizationPoint> points)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(summary.Count);
+
+        if (points.Length < 5)
+            throw new ArgumentException("Projection requires space for five points.", nameof(points));
+
+        if (summary.Count == 0)
+            return 0;
+
+        // Compare invalid and valid counts without multiplying (counts can reach Int64.MaxValue).
+        if (!summary.HasFinite || summary.InvalidCount >= summary.Count - summary.InvalidCount)
+        {
+            points[0] = new VisualizationPoint(summary.FirstGapIndex, float.NaN);
+            return 1;
+        }
+
+        points[0] = new(summary.Start, float.IsFinite(summary.First) ? summary.First : float.NaN);
+        points[1] = new(checked(summary.Start + (summary.Count - 1)), float.IsFinite(summary.Last) ? summary.Last : float.NaN);
+        points[2] = new(summary.MinIndex, summary.Min);
+        points[3] = new(summary.MaxIndex, summary.Max);
+
+        int count = 4;
+
+        if (summary.InvalidCount != 0)
+            points[count++] = new(summary.FirstGapIndex, float.NaN);
+
+        for (int i = 1; i < count; i++)
+        {
+            var point = points[i];
+            var j = i;
+
+            while (j > 0 && points[j - 1].Index > point.Index)
+            {
+                points[j] = points[j - 1];
+                j--;
+            }
+
+            points[j] = point;
+        }
+
+        int uniqueCount = 1;
+
+        for (int i = 1; i < count; i++)
+        {
+            if (points[i].Index != points[uniqueCount - 1].Index)
+                points[uniqueCount++] = points[i];
+        }
+
+        return uniqueCount;
+    }
+}

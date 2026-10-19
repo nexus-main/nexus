@@ -305,7 +305,6 @@ internal class DataService(
 
             await using var stream = output.AsStream(leaveOpen: true);
             using var arrowWriter = new ArrowStreamWriter(stream, schema);
-
             try
             {
                 await arrowWriter.WriteStartAsync(cancellationToken).ConfigureAwait(false);
@@ -361,6 +360,7 @@ internal class DataService(
 
                             await arrowWriter.WriteRecordBatchAsync(recordBatch, cancellationToken).ConfigureAwait(false);
                             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+
                             offsets[readerState.Index] += valueCount;
                         }
                     }

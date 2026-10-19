@@ -1,0 +1,14 @@
+- name: Overview
+  href: index.md
+
+- name: API clients
+  href: clients/
+
+- name: Extensibility
+  href: extensibility/
+
+- name: Configuration
+  href: configuration/
+
+- name: .NET API reference
+  href: api/dotnet/

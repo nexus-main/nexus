@@ -1,0 +1,14 @@
+- name: Overview
+  href: index.md
+
+- name: Data source plugins
+  href: data-source-plugins.md
+
+- name: Data writer plugins
+  href: data-writer-plugins.md
+
+- name: Plugin lifecycle
+  href: lifecycle.md
+
+- name: Package references
+  href: package-references.md

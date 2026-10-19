@@ -21,6 +21,53 @@ internal class DataController(
 {
     private readonly IDataService _dataService = dataService;
 
+    /// <summary>Streams bounded Float32 visualization points and progress using a versioned Arrow schema.</summary>
+    /// <param name="request">The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.</param>
+    /// <param name="visualization">The visualization service.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The visualization Arrow stream.</returns>
+    [HttpPost("visualization")]
+    [Produces("application/vnd.apache.arrow.stream")]
+    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult> GetVisualizationAsync(
+        [FromBody] VisualizationRequest request,
+        [FromServices] IVisualizationService visualization,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var write = await visualization.PrepareAsync(request, cancellationToken);
+            Response.ContentType = "application/vnd.apache.arrow.stream";
+            Response.Headers.CacheControl = "no-store";
+            await write(Response.Body, cancellationToken);
+            return new EmptyResult();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Superseded zooms are expected client aborts, not server failures.
+            // Abort started Arrow responses rather than completing a truncated stream.
+            if (!Response.HasStarted)
+                Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+            HttpContext.Abort();
+            return new EmptyResult();
+        }
+        catch (ValidationException ex) when (!Response.HasStarted)
+        {
+            return new ContentResult { StatusCode = StatusCodes.Status422UnprocessableEntity, ContentType = "text/plain", Content = ex.Message };
+        }
+        catch (Exception ex) when (!Response.HasStarted && ex.Message.StartsWith("Could not find resource path"))
+        {
+            return new ContentResult { StatusCode = StatusCodes.Status404NotFound, ContentType = "text/plain", Content = ex.Message };
+        }
+        catch (Exception ex) when (!Response.HasStarted && ex.Message.StartsWith("The current user is not permitted to access the catalog"))
+        {
+            return new ContentResult { StatusCode = StatusCodes.Status403Forbidden, ContentType = "text/plain", Content = ex.Message };
+        }
+    }
+
     /// <summary>
     /// Streams multiple resources in an Apache Arrow IPC response.
     /// </summary>

@@ -52,8 +52,10 @@
           >
             <div class="relative p-4 sm:p-5">
               <div class="relative flex min-w-0 flex-col gap-3">
-                <div class="flex min-w-0 items-start justify-between gap-3">
-                  <div class="min-w-0 flex-1">
+                <div
+                  class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+                >
+                  <div class="order-1 min-w-0 flex-1">
                     <div
                       class="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.24em] text-ink-muted"
                     >
@@ -63,12 +65,22 @@
                         >
                       }
                     </div>
-                    <div class="mt-2 flex min-w-0 items-start gap-1">
+                    <div class="mt-2 flex min-w-0 items-center gap-1">
                       <h1
-                        class="catalog-title min-w-0 break-words font-mono text-base font-semibold tracking-[-0.03em] text-ink sm:text-lg"
+                        class="catalog-title min-w-0 flex-1 break-words font-mono text-base font-semibold tracking-[-0.03em] text-ink sm:text-lg"
                       >
                         {{ selectedCatalogDisplayPath() }}
                       </h1>
+                      <span class="grid h-4 w-4 shrink-0 place-items-center" aria-hidden="true">
+                        @if (catalogLoading()) {
+                          <svg
+                            lucideLoaderCircle
+                            class="h-4 w-4 animate-spin text-cyan-accent"
+                            aria-hidden="true"
+                            focusable="false"
+                          ></svg>
+                        }
+                      </span>
                       <button
                         pButton
                         type="button"
@@ -83,22 +95,11 @@
                       >
                         <svg lucideCopy class="h-4 w-4" aria-hidden="true"></svg>
                       </button>
-                      <span
-                        class="mt-2 grid h-4 w-4 shrink-0 place-items-center"
-                        aria-hidden="true"
-                      >
-                        @if (catalogLoading()) {
-                          <svg
-                            lucideLoaderCircle
-                            class="h-4 w-4 animate-spin text-cyan-accent"
-                            aria-hidden="true"
-                            focusable="false"
-                          ></svg>
-                        }
-                      </span>
                     </div>
                   </div>
-                  <div class="flex shrink-0 items-center gap-1 pt-2">
+                  <div
+                    class="order-2 flex w-full shrink-0 items-center justify-between gap-1 sm:w-auto sm:justify-start sm:pt-2"
+                  >
                     @if (selectedCatalogReadme()) {
                       <button
                         pButton
@@ -409,6 +410,20 @@
 <ng-template #visualizationContent let-breakout>
   <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 pt-3 sm:pt-4">
     <div class="flex flex-wrap items-center gap-3 px-3 text-xs sm:px-4">
+      @if (decimationAvailable()) {
+        <label
+          class="flex items-center gap-2"
+          pTooltip="Useful for large or high-rate selections: the server sends only the points needed for the current view, reducing download time and browser memory use. Remote cursor labels use nearest rendered points."
+          tooltipPosition="top"
+        >
+          <p-checkbox
+            [binary]="true"
+            [ngModel]="visualizationServerReduction()"
+            (ngModelChange)="setVisualizationServerReduction($event)"
+            ariaLabel="Reduce visualization data on the server"
+          />Server decimation
+        </label>
+      }
       <label class="flex items-center gap-2"
         ><p-checkbox
           [binary]="true"
@@ -428,6 +443,19 @@
           [ngModel]="visualizationCacheMiB()"
           (ngModelChange)="setVisualizationCache($event)"
       /></label>
+      @if (visualizationData()) {
+        <button
+          pButton
+          type="button"
+          size="small"
+          severity="secondary"
+          [outlined]="true"
+          class="ml-auto"
+          (click)="reloadVisualizationView()"
+        >
+          Reload
+        </button>
+      }
     </div>
     <div
       class="chart-surface relative min-w-0 flex-1 bg-surface/60 text-ink-muted ring-1 ring-surface-border"
@@ -447,27 +475,59 @@
         <div
           class="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-surface/80 p-6 backdrop-blur-sm"
         >
-          <div
-            class="w-full max-w-sm space-y-4 text-center text-ink"
-            role="status"
-            aria-live="polite"
-          >
-            <p>Loading data...</p>
-            <p-progressbar
-              class="nexus-progress-immediate block"
-              [value]="visualizationProgress()"
-              ariaLabel="Loading time series data"
-            />
-            <button
-              pButton
-              type="button"
-              size="small"
-              severity="secondary"
-              [text]="true"
-              (click)="cancelVisualization()"
+          <div class="w-full max-w-md text-center text-ink" role="status" aria-live="polite">
+            <div class="space-y-3">
+              <p>Loading data...</p>
+              <p-progressbar
+                class="nexus-progress-immediate block"
+                [value]="visualizationProgress()"
+                ariaLabel="Loading time series data"
+              />
+            </div>
+            <div class="mt-3 min-h-10 text-xs leading-5 text-ink-muted">
+              @if (visualizationServerDecimationOfferVisible()) {
+                <p>
+                  Taking longer than expected. Switch to server-side decimation to speed up loading?
+                </p>
+              }
+            </div>
+            <div
+              class="mt-2 grid min-h-9 items-center gap-2"
+              [ngClass]="
+                visualizationServerDecimationOfferVisible() ? 'grid-cols-2' : 'grid-cols-1'
+              "
             >
-              Cancel
-            </button>
+              <div
+                class="flex"
+                [ngClass]="
+                  visualizationServerDecimationOfferVisible() ? 'justify-end' : 'justify-center'
+                "
+              >
+                <button
+                  pButton
+                  type="button"
+                  size="small"
+                  severity="secondary"
+                  [outlined]="true"
+                  (click)="cancelVisualization()"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div class="flex justify-start">
+                @if (visualizationServerDecimationOfferVisible()) {
+                  <button
+                    pButton
+                    type="button"
+                    size="small"
+                    severity="primary"
+                    (click)="acceptVisualizationServerDecimationOffer()"
+                  >
+                    Switch
+                  </button>
+                }
+              </div>
+            </div>
           </div>
         </div>
       } @else if (visualizationError() || !visualizationData() || visualizationStale()) {

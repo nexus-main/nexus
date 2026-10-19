@@ -479,7 +479,6 @@ internal class DataSourceController(
                             default:
                                 throw new NotSupportedException($"The precision {readUnit.Precision} is not supported.");
                         }
-
                         _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", byteCount);
                         dataWriter.Advance(byteCount);
                         var flushResult = await dataWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -492,6 +491,7 @@ internal class DataSourceController(
 
                         elementOffset += elementCount;
                     }
+
                 };
 
                 var sourceItem = catalogItemRequest.SourceItem ?? catalogItemRequest.Item;
@@ -598,6 +598,7 @@ internal class DataSourceController(
             {
                 tuple.manager.Dispose();
             }
+
         }
     }
 
@@ -617,6 +618,7 @@ internal class DataSourceController(
         var samplePeriod = item.Representation.SamplePeriod;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
         var targetElementCount = targetByteCount / (int)readUnit.Precision;
+
         /* target buffer */
         Memory<double> targetBuffer;
         IMemoryOwner<double>? poolBuffer = null;
@@ -766,24 +768,30 @@ internal class DataSourceController(
         finally
         {
             /* convert double buffer to Float32 pipe bytes if needed */
-            if (readUnit.Precision == Precision.Float32)
+            try
             {
-                var buffer = readUnit.DataWriter
-                    .GetMemory(targetByteCount)[..targetByteCount];
+                if (readUnit.Precision == Precision.Float32)
+                {
+                    var buffer = readUnit.DataWriter
+                        .GetMemory(targetByteCount)[..targetByteCount];
 
-                var sourceSpan = targetBuffer.Span;
-                var targetSpan = MemoryMarshal.Cast<byte, float>(buffer.Span);
+                    var sourceSpan = targetBuffer.Span;
+                    var targetSpan = MemoryMarshal.Cast<byte, float>(buffer.Span);
 
-                for (int i = 0; i < targetElementCount; i++)
-                    targetSpan[i] = (float)sourceSpan[i];
+                    for (int i = 0; i < targetElementCount; i++)
+                        targetSpan[i] = (float)sourceSpan[i];
+                }
+
+                /* update progress */
+                _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
+                readUnit.DataWriter.Advance(targetByteCount);
+                await readUnit.DataWriter.FlushAsync(cancellationToken);
+            }
+            finally
+            {
+                poolBuffer?.Dispose();
             }
 
-            /* update progress */
-            _logger.LogTrace("Advance data pipe writer by {DataLength} bytes", targetByteCount);
-            readUnit.DataWriter.Advance(targetByteCount);
-            await readUnit.DataWriter.FlushAsync(cancellationToken);
-
-            poolBuffer?.Dispose();
         }
     }
 
@@ -831,40 +839,46 @@ internal class DataSourceController(
          * length       = 1500 ms == 15 elements
          */
 
-        var container = readUnit.CatalogItemRequest.Container;
-        var isUnrestricted = container is null || (container.MinBegin is null && container.MaxEnd is null);
-
-        var containedRange = new ContainedTimeRange(begin, end);
-
-        if (!isUnrestricted && !container!.TryGetSampleAlignedContainedRange(
-            begin,
-            end,
-            samplePeriod,
-            out containedRange))
-        {
-            return;
-        }
-
-        var roundedBegin = isUnrestricted
-            ? begin.RoundDown(baseSamplePeriod)
-            : containedRange.Begin.RoundUp(baseSamplePeriod);
-
-        var roundedEnd = isUnrestricted
-            ? end.RoundUp(baseSamplePeriod)
-            : containedRange.End.RoundDown(baseSamplePeriod);
-
-        if (roundedBegin >= roundedEnd)
-            return;
-
-        var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
-
-        /* read request */
-        using var readRequestManager = new ReadRequestManager(sourceBaseItem, roundedElementCount, onCompleted: null, cancellationToken);
-        var readRequest = readRequestManager.Request;
+        var roundedBegin = begin;
+        var roundedEnd = end;
 
         /* go */
         try
         {
+            var container = readUnit.CatalogItemRequest.Container;
+            var isUnrestricted = container is null || (container.MinBegin is null && container.MaxEnd is null);
+            var containedRange = new ContainedTimeRange(begin, end);
+
+            if
+            (
+                !isUnrestricted && !container!.TryGetSampleAlignedContainedRange(
+                    begin,
+                    end,
+                    samplePeriod,
+                    out containedRange
+                )
+            )
+            {
+                return;
+            }
+
+            roundedBegin = isUnrestricted
+                ? begin.RoundDown(baseSamplePeriod)
+                : containedRange.Begin.RoundUp(baseSamplePeriod);
+
+            roundedEnd = isUnrestricted
+                ? end.RoundUp(baseSamplePeriod)
+                : containedRange.End.RoundDown(baseSamplePeriod);
+
+            if (roundedBegin >= roundedEnd)
+                return;
+
+            var roundedElementCount = ExtensibilityUtilities.CalculateElementCountInt32(roundedBegin, roundedEnd, baseSamplePeriod);
+
+            /* read request */
+            using var readRequestManager = new ReadRequestManager(sourceBaseItem, roundedElementCount, onCompleted: null, cancellationToken);
+            var readRequest = readRequestManager.Request;
+
             /* load and process data from source */
             var sourceSamplePeriod = baseSamplePeriod;
             var targetSamplePeriod = samplePeriod;
@@ -906,16 +920,19 @@ internal class DataSourceController(
                     ? NexusUtilities.Scale(begin - roundedBegin, targetSamplePeriod)
                     : 0);
         }
+
         catch (OutOfMemoryException)
         {
             throw;
         }
+
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read resampling data period {Begin} to {End} failed", roundedBegin, roundedEnd);
 
             FillNaN(targetBuffer, readUnit.Precision);
         }
+
         finally
         {
             /* update progress */

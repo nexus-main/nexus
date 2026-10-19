@@ -8,6 +8,7 @@ import {
   inject,
   isDevMode,
   signal,
+  untracked,
   viewChild,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
@@ -37,6 +38,7 @@ import { ToastModule } from "primeng/toast";
 import { AppTooltipDirective } from "./app-tooltip.directive";
 import { DrawerPassThrough } from "primeng/types/drawer";
 import { BrowserStorageService } from "./services/browser-storage.service";
+import { RemoteVisualization } from "./charts/remote-visualization";
 import { VisualizationChartComponent } from "./charts/visualization-chart.component";
 import {
   VisualizationBuffers,
@@ -250,6 +252,7 @@ export class AppComponent implements OnDestroy {
   private restoreHistory: (() => void) | null = null;
   private acceptedHistoryNavigation = false;
   private readonly resourceMatrix = viewChild(ResourceMatrixComponent);
+  private readonly visualizationChart = viewChild(VisualizationChartComponent);
   readonly revealResourceKey = signal("");
   readonly revealResourceSequence = signal(0);
   readonly selectionLoading = signal(true);
@@ -303,9 +306,16 @@ export class AppComponent implements OnDestroy {
   readonly visualizationProgress = signal(0);
   readonly visualizationError = signal("");
   readonly visualizationBeginAtZero = signal(false);
+  readonly visualizationServerDecimationOfferVisible = signal(false);
+  readonly visualizationServerReduction = signal(
+    this.storage.getJson<unknown>("nexus.visualizationServerReduction", false) === true,
+  );
+  private readonly visualizationServerDecimationForCurrentLoad = signal(false);
   readonly visualizationCacheMiB = signal(2048);
   private visualizationController?: AbortController;
   private visualizationBuffers?: VisualizationBuffers;
+  private visualizationServerDecimationOfferTimer?: ReturnType<typeof setTimeout>;
+  private visualizationServerDecimationOfferDismissed = false;
   private exportController?: AbortController;
   private readonly loadedVisualizationKey = signal("");
   private readonly systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -429,6 +439,12 @@ export class AppComponent implements OnDestroy {
   readonly helpLink = computed(() => this.nexus.system()?.helpLink ?? null);
   readonly logoutUrl = computed(() => this.nexus.system()?.logoutUrl ?? null);
   readonly nexusVersion = computed(() => this.nexus.system()?.version ?? "");
+  readonly decimationAvailable = computed(() => this.nexus.system()?.decimationAvailable === true);
+  readonly useServerSideDecimation = computed(
+    () =>
+      this.decimationAvailable() &&
+      (this.visualizationServerReduction() || this.visualizationServerDecimationForCurrentLoad()),
+  );
   readonly userInitials = computed(() => getInitials(this.userName()));
 
   changeDevAuthMode(mode: DevAuthMode) {
@@ -952,6 +968,17 @@ export class AppComponent implements OnDestroy {
     });
 
     effect(() => {
+      this.samplePeriod();
+      this.selectedResourceRows();
+
+      if (!this.selectedResourcesRestored() || this.selectionLoading()) {
+        return;
+      }
+
+      untracked(() => this.replaceInvalidSelectionKinds());
+    });
+
+    effect(() => {
       const catalogId = this.selectedCatalogId();
       const apiAvailable = this.apiAvailable();
 
@@ -1060,7 +1087,7 @@ export class AppComponent implements OnDestroy {
     return value.toPrecision(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
   }
 
-  async visualize(open = true) {
+  async visualize(open = true, serverDecimationForCurrentLoad = false) {
     if (open) {
       this.isMobileCatalogOpen.set(false);
       this.visualizationOpen.set(true);
@@ -1071,10 +1098,12 @@ export class AppComponent implements OnDestroy {
     }
 
     this.cancelVisualization();
+    this.visualizationServerDecimationForCurrentLoad.set(serverDecimationForCurrentLoad);
     this.visualizationError.set("");
 
     if (this.visualizationValidation()) {
       this.visualizationError.set(this.visualizationValidation());
+      this.visualizationServerDecimationForCurrentLoad.set(false);
 
       return;
     }
@@ -1100,6 +1129,7 @@ export class AppComponent implements OnDestroy {
     this.visualizationData.set(null);
     this.visualizationProgress.set(0);
     this.visualizationLoading.set(true);
+    this.scheduleVisualizationServerDecimationOffer(controller);
 
     try {
       const data = createVisualizationData(
@@ -1117,8 +1147,41 @@ export class AppComponent implements OnDestroy {
 
       controller.signal.throwIfAborted();
 
+      if (
+        existing &&
+        existing.begin === data.begin &&
+        existing.end === data.end &&
+        existing.series.length === data.series.length &&
+        existing.series.every(
+          (series, i) =>
+            series.id === data.series[i].id && series.samplePeriod === data.series[i].samplePeriod,
+        )
+      ) {
+        data.navigation = existing.navigation;
+      }
+
+      if (this.useServerSideDecimation()) {
+        releaseVisualizationData(existing);
+
+        data.remote = new RemoteVisualization(
+          data.begin,
+          data.end,
+          samplePeriod,
+          descriptors.map((item) => item.id),
+          (request, signal, onFrame) =>
+            this.nexus.loadVisualization(request, BigInt(data.series[0].length), signal, onFrame),
+          this.visualizationCacheMiB() * 1024 * 1024,
+        );
+
+        this.visualizationData.set(data);
+        this.loadedVisualizationKey.set(key);
+
+        return;
+      }
+
       const canIncremental =
         !!existing &&
+        !existing.remote &&
         existing.begin === data.begin &&
         existing.end === data.end &&
         existing.series[0]?.samplePeriod === samplePeriod;
@@ -1208,6 +1271,8 @@ export class AppComponent implements OnDestroy {
       }
     } finally {
       if (this.visualizationController === controller) {
+        this.clearVisualizationServerDecimationOffer();
+        this.visualizationServerDecimationForCurrentLoad.set(false);
         this.visualizationLoading.set(false);
         this.visualizationController = undefined;
       }
@@ -1215,6 +1280,8 @@ export class AppComponent implements OnDestroy {
   }
 
   cancelVisualization() {
+    this.clearVisualizationServerDecimationOffer();
+    this.visualizationServerDecimationForCurrentLoad.set(false);
     this.visualizationController?.abort();
     this.visualizationController = undefined;
     this.visualizationBuffers?.dispose();
@@ -1248,10 +1315,78 @@ export class AppComponent implements OnDestroy {
     this.visualizationError.set(message);
   }
 
+  acceptVisualizationServerDecimationOffer(): void {
+    this.visualizationServerDecimationOfferVisible.set(false);
+
+    if (!this.decimationAvailable()) {
+      return;
+    }
+
+    void this.visualize(false, true);
+  }
+
+  private scheduleVisualizationServerDecimationOffer(controller: AbortController): void {
+    this.clearVisualizationServerDecimationOffer();
+
+    if (!this.decimationAvailable() || this.useServerSideDecimation()) {
+      return;
+    }
+
+    this.visualizationServerDecimationOfferDismissed = false;
+
+    this.visualizationServerDecimationOfferTimer = setTimeout(() => {
+      this.visualizationServerDecimationOfferTimer = undefined;
+
+      if (
+        this.visualizationController !== controller ||
+        controller.signal.aborted ||
+        !this.visualizationLoading() ||
+        this.useServerSideDecimation() ||
+        this.visualizationServerDecimationOfferDismissed
+      ) {
+        return;
+      }
+
+      this.visualizationServerDecimationOfferVisible.set(true);
+    }, 15_000);
+  }
+
+  private clearVisualizationServerDecimationOffer(): void {
+    if (this.visualizationServerDecimationOfferTimer) {
+      clearTimeout(this.visualizationServerDecimationOfferTimer);
+      this.visualizationServerDecimationOfferTimer = undefined;
+    }
+
+    this.visualizationServerDecimationOfferVisible.set(false);
+  }
+
+  setVisualizationServerReduction(value: boolean): void {
+    if (!this.decimationAvailable()) {
+      this.visualizationServerReduction.set(false);
+      this.storage.setJson("nexus.visualizationServerReduction", false);
+
+      return;
+    }
+
+    this.visualizationServerReduction.set(value);
+    this.storage.setJson("nexus.visualizationServerReduction", value);
+    void this.visualize(false);
+  }
+
   setVisualizationCache(value: number | null) {
     if (value !== null && Number.isFinite(value) && value >= 16) {
       this.visualizationCacheMiB.set(Math.floor(value));
     }
+  }
+
+  reloadVisualizationView(): void {
+    if (this.visualizationData()?.remote) {
+      this.visualizationChart()?.requestRemoteViews(true, true);
+
+      return;
+    }
+
+    void this.visualize(false);
   }
 
   ngOnDestroy() {
@@ -2307,6 +2442,43 @@ export class AppComponent implements OnDestroy {
       current.map((reference) =>
         this.referenceMatches(reference, selection) ? storeSelectionReference(updated) : reference,
       ),
+    );
+  }
+
+  private replaceInvalidSelectionKinds() {
+    const period = this.samplePeriod();
+    let changed = false;
+    const next = new Map(this.selectedResourceRows());
+
+    for (const [key, selection] of next) {
+      const replacement = defaultKind(period, selection.basePeriod);
+
+      if (!kindValid(replacement, period, selection.basePeriod)) {
+        continue;
+      }
+
+      const validKinds = selection.kinds.filter((kind) =>
+        kindValid(kind, period, selection.basePeriod),
+      );
+
+      if (validKinds.length === selection.kinds.length) {
+        continue;
+      }
+
+      const kinds = validKinds.includes(replacement) ? validKinds : [...validKinds, replacement];
+
+      changed = true;
+      next.set(key, { ...selection, kinds });
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    this.selectedResourceRows.set(next);
+
+    this.selectionReferences.set(
+      Array.from(next.values()).map((selection) => storeSelectionReference(selection)),
     );
   }
 

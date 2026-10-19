@@ -12,14 +12,13 @@ internal class AppState
 {
     public AppState()
     {
-        var entryAssembly = Assembly.GetEntryAssembly()!;
-
-        var informationalVersion = entryAssembly
+        var nexusAssembly = typeof(AppState).Assembly;
+        var informationalVersion = nexusAssembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
 
-        Version = informationalVersion?.Split('+')[0]
-            ?? entryAssembly.GetName().Version!.ToString();
+        Version = informationalVersion
+            ?? nexusAssembly.GetName().Version!.ToString();
     }
 
     public ConcurrentDictionary<CatalogContainer, Task<Resource[]>> ResourceCache { get; }

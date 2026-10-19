@@ -1,110 +1,342 @@
 # Nexus
 
-[![GitHub Actions](https://github.com/nexus-main/nexus/actions/workflows/build-and-publish.yml/badge.svg?branch=master)](https://github.com/nexus-main/nexus/actions)
+[![GitHub Actions](https://github.com/nexus-main/nexus/actions/workflows/build-and-publish.yml/badge.svg?branch=master)](https://github.com/nexus-main/nexus/actions) [![Preview version](https://img.shields.io/github/v/release/nexus-main/nexus?include_prereleases&label=preview)](https://github.com/nexus-main/nexus/releases)
 
-Nexus is an extensible user interface for your time-series data lake with REST API support. It allows the end users access to any kind of equidistant and one-dimensional time-series data. Nexus relies on data sources which are able to read the underlying data format (e.g. a certain file format, databases, other Nexus instances, ...). Please check out the current [ecosystem](notes/ecosystem.md) to see which data sources are available. That document also shows the three distinct ways to create a new data source.
+Nexus provides visibility into time-series data and gives users unified ways to access, visualize, export, and reuse it.
 
-Nexus allows streaming data directly into the UI or into Python, C# or Matlab clients. Additionally, Nexus supports exporting the data into a specific file format. Supported formats are CSV, HDF5, Matlab (v7.3) and Famos. Like for data sources, it is possible to create and register new custom data writers.
+Experienced users often know how to work with the available data directly. For new users, students, or new scientists, the same data can be much harder to approach: raw files may be poorly documented, spread across historically grown storage systems, and stored in vendor-specific formats that require proprietary tooling. Nexus addresses this with plugins that can read data from different structures and systems, so users do not need to learn every underlying format before they can work with the data. Without a shared access layer, each new user often has to repeat the same work just to understand what data exists and how to read it.
 
-# Batch Streaming
+Nexus provides unified interfaces for that data: a web UI, a REST API, and generated clients for common programming environments. Users can browse measurement campaigns, inspect available signals, visualize data, export it, or load it directly into their own scripts and applications. The data itself can stay where it already is.
 
-The v2 API streams up to 100 resources through one framed response from `POST /api/v2/data`. Reverse proxies should disable response buffering for these streaming responses to preserve end-to-end back-pressure. Buffering makes the proxy read and store the response independently of the downstream client, so Nexus can continue producing data even when the client is slow or disconnected. With buffering disabled, slow clients naturally slow the server-side stream and cancellation propagates promptly.
+For documentation and user-facing guides, visit the GitHub Pages site:
 
-# Usage
+<https://nexus-main.github.io/nexus/docs/>
 
-The main elements presented in Nexus are called `catalogs`. These catalogs are often equivalent to a measurement campaign. Within a catalog, there are `resources` (e.g. channels of a data acquisition device) which comprise a unique name, arbitrary properties (metadata) and one or more `representations`. A representation defines the sample period (e.g. `100 ms`) and optional parameters of the associated resource.
+<p align="center">
+  <img src="doc/images/overview.png" alt="Nexus web interface overview">
+</p>
 
-![Resources](doc/images/image_1.png)
+## What Nexus helps with
 
-Individual catalog items are identified by their resource path. For the resource `T1` of catalog `/SAMPLE/LOCAL` the path identifying the `1 s` representation is equal to `/SAMPLE/LOCAL/T1/1_s`.
+Nexus is useful when measurement data exists, but finding and using it still takes too much manual work. It helps answer everyday questions such as:
 
-## Aggregation
+- What data is available for a measurement campaign, test run, or project?
+- Which signals, sample periods, and time ranges exist?
+- Can I inspect the data before writing an analysis script?
+- Can I access the same data from the browser, Python, C#, TypeScript, or Matlab?
+- Can I work with vendor-specific files without installing every vendor tool locally?
+- Can users get access without copying large raw data files around?
+- Can I export a selected time range in a format another tool understands?
 
-In case you need aggregated data, in the UI, simply select a sample period larger than the original sample period. If you already had selected a catalog item and you change the sample period, it will become red. The UI offers you to select an appropriate aggregation method as shown on the right. When you select a sample period of 10 min and the `Mean` aggregation method, the resource path becomes `/SAMPLE/LOCAL/T1/10_min_mean`.
+The goal is to make data access predictable. Nexus gives users a common way to discover, inspect, visualize, export, and stream data, while the original files and systems can stay where they are.
 
-![aggregation](doc/images/aggregation.png)
+## What Nexus provides
 
-When you copy the path from within the UI, the path is suffixed like this: `/SAMPLE/LOCAL/T1/10_min_mean#base=1_s`. The `base` parameter is only relevant when there are multiple representations per resource so that Nexus knows which representation to use for aggregation.
+### A shared view of time-series data
 
-> [!Note]
-> Data will be aggregated on the fly but the results will be cached, so it is much faster the next time you request the same piece of data. A set of preselected data will aggregated on every night to further speed-up the access.
+Nexus organizes data into catalogs, resources, and representations. In practice, a catalog is often a measurement campaign, a resource is a signal or channel, and a representation describes how that signal can be read, for example at a certain sample period.
 
-## Visualization
+Users can browse this structure in the web interface instead of searching through folders or asking which file contains which signal.
 
-To visualize data, select one or more resources and edit the settings on the left to your needs. When the settings are valid, the button `Visualize` will be become available. Click on that button to load and plot the requested data.
+<p align="center">
+  <img src="doc/images/catalog-browser.png" alt="Nexus catalog and resource browser" width="300">
+</p>
 
-![Graphs](doc/images/image_2.png)
+### Fast inspection and visualization
 
-## Export
+Selected signals can be plotted directly in the browser. Nexus is designed for large time-series data and supports progressive loading, GPU-based rendering, efficient streaming, and hardware-accelerated server-side decimation for heavy visualization requests.
 
-If you prefer to export the data as `.csv` files or to other formats for further processing, please adjust the settings on the right to your liking. If the settings are valid, the button on the lower right will be enabled. A click on that button starts the export process. The progress will be indicated by a circle which fills itself from 0% to 100%. When the export was successful, you will be able to click on that button to download the data. You can run multiple exports at the same time.
+These viewing features are meant for data sets that are too large to handle comfortably with a naive plot. One example is electrical measurement data recorded with microsecond sample periods. During interactive viewing, Nexus can decimate data on the server and render efficiently in the browser, making it possible to inspect tens of gigabytes of time-series data without first downloading the full data set. Full export or download still transfers the selected data in full.
 
-# Personal Access Tokens
+This makes it possible to inspect data before deciding whether it should be exported or processed further.
 
-Both clients - Python and Matlab - require that you create a token which authenticates your script or application against Nexus.
+<p align="center">
+  <img src="doc/images/plot.png" alt="Nexus visualization view" width="650">
+</p>
 
-You get this token in the Nexus UI's user menu as shown below. Once you have the token, you need to copy it into the scripts shown below (replace the `<token>` placeholder).
+### Export for everyday tools
 
-Tokens cannot access any catalogs by default (except public catalogs). Enter the catalog path the token needs access to as shown in the screenshot. This value is a regex pattern so you can cover more complex scenarios as well.
+Nexus can export selected data into common formats such as CSV, HDF5, Matlab v7.3, and Famos. Exports can include the related license information where available.
 
-![Personal access token](doc/images/pat.png)
+Custom data writers can be added when a project needs another output format.
 
-# Python
+<p align="center">
+  <img src="doc/images/export.png" alt="Nexus export workflow" width="470">
+</p>
 
-## Load
+### Direct access from code
 
-The following Jupyter Notebooks show how to load the data directly into Python’s memory:
+For analysis and automation, data can be streamed directly into client applications. Nexus provides generated clients for:
 
-[Synchronous version](https://github.com/nexus-main/nexus/blob/dev/samples/python/sample_load.ipynb)
+- Python: [`nexus-api`](https://pypi.org/project/nexus-api/) on PyPI
+- C# / .NET: [`Nexus.Api`](https://www.nuget.org/packages/Nexus.Api) on NuGet
+- TypeScript: [`@apollo3zehn/nexus-api`](https://www.npmjs.com/package/@apollo3zehn/nexus-api) on npm
+- Matlab (limited)
 
-[Asynchronous version](https://github.com/nexus-main/nexus/blob/dev/samples/python/sample_load_async.ipynb)
+This allows users to work interactively in notebooks, automate exports, or integrate Nexus access into existing software.
 
-## Export
+### Extensible data sources
 
-The following Jupyter Notebooks export the data into a `.csv` file, downloads it as `.zip` file including the license (if available) and extracts the data to your local disk:
+Nexus does not require all data to be converted into one central file format. Instead, plugins teach Nexus how to read from existing systems and expose them through the same UI, API, and generated clients.
 
-[Synchronous version](https://github.com/nexus-main/nexus/blob/dev/samples/python/sample_export.ipynb)
+These plugins can provide access to different kinds of sources, including:
 
-[Asynchronous version](https://github.com/nexus-main/nexus/blob/dev/samples/python/sample_export_async.ipynb)
+- Files in open or vendor-specific formats
+- Databases
+- Remote services and APIs
+- Other Nexus instances
+- Project- or organization-specific storage structures
 
-# Matlab
+Additional plugins can be developed for new source types without changing how users browse and access the data through Nexus. See the [extension ecosystem](notes/ecosystem.md) for the available extension types and examples.
 
-- [This script](https://github.com/nexus-main/nexus/blob/dev/samples/matlab/sample_load.m) loads the data directly into Matlab’s memory
+### Controlled access
 
-- [This script](https://github.com/nexus-main/nexus/blob/dev/samples/matlab/sample_export.m) exports the data into a `.csv` file, downloads it as `.zip` file including the license (if available) and extracts the data to your local disk
+Nexus supports user access, personal access tokens, and catalog-level permissions. Tokens can be limited to the catalogs they need, which makes them suitable for scripts and automated workflows.
 
-# Develop
+For interactive users, Nexus is usually placed behind a trusted authentication proxy. The proxy forwards identity, groups, and catalog permissions through configured `X-Forwarded-*` headers. See the [deployment notes](https://nexus-main.github.io/nexus/docs/configuration/deployment-notes.html) for the supported authentication and authorization headers.
+
+## Main features
+
+- Web interface for browsing, searching, selecting, and inspecting time-series resources
+- GPU-based browser visualization for large time-series data
+- Hardware-accelerated server-side visualization decimation for slow or very large requests
+- Interactive viewing of very large measurements, including high-frequency electrical data, without downloading the full data set first
+- Export to common data formats
+- REST API for automation and integration
+- Generated clients for Python, C#, TypeScript, and Matlab (limited)
+- Extensible data source and data writer model
+- Personal access tokens for scripts and applications
+- Catalog aliases and range handling
+- Git-backed configuration history
+- Angular-based UI served by the Nexus server
+
+## Basic concepts
+
+Nexus uses a small set of terms throughout the UI and API.
+
+### Catalog
+
+A catalog groups related data. This is often a measurement campaign, test run, simulation run, or project data set.
+
+Example:
+
+```text
+/SAMPLE/LOCAL
+```
+
+### Resource
+
+A resource is a named signal or channel inside a catalog. It can have metadata such as unit, description, location, sensor information, or project-specific properties.
+
+Example:
+
+```text
+/SAMPLE/LOCAL/T1
+```
+
+### Representation
+
+A representation describes how a resource can be read. For time-series data, this usually includes the sample period.
+
+Example:
+
+```text
+/SAMPLE/LOCAL/T1/1_s
+```
+
+### Aggregation
+
+Nexus can aggregate data on demand. For example, a signal stored at `1 s` can be requested as a `10 min` mean value:
+
+```text
+/SAMPLE/LOCAL/T1/10_min_mean
+```
+
+When there are multiple base representations, Nexus can include a `base` parameter so the aggregation source is unambiguous:
+
+```text
+/SAMPLE/LOCAL/T1/10_min_mean#base=1_s
+```
+
+Aggregated results can be cached so repeated requests are faster.
+
+## Using Nexus from scripts
+
+Scripts and applications usually authenticate with a personal access token. Tokens are created in the Nexus web interface and can be restricted to the catalog paths they should access.
+
+Sample notebooks and scripts are available in this repository.
+
+### Python
+
+Load data directly into Python:
+
+- [Synchronous notebook](https://github.com/nexus-main/nexus/blob/dev/samples/python/sample_load.ipynb)
+- [Asynchronous notebook](https://github.com/nexus-main/nexus/blob/dev/samples/python/sample_load_async.ipynb)
+
+Export data from Python:
+
+- [Synchronous notebook](https://github.com/nexus-main/nexus/blob/dev/samples/python/sample_export.ipynb)
+- [Asynchronous notebook](https://github.com/nexus-main/nexus/blob/dev/samples/python/sample_export_async.ipynb)
+
+### Matlab
+
+- [Load data into Matlab](https://github.com/nexus-main/nexus/blob/dev/samples/matlab/sample_load.m)
+- [Export data from Matlab](https://github.com/nexus-main/nexus/blob/dev/samples/matlab/sample_export.m)
+
+### C# and TypeScript
+
+Generated clients are available under:
+
+- `src/clients/dotnet/`
+- `src/clients/typescript/`
+
+## REST API and streaming
+
+Nexus exposes a REST API for browsing catalogs, reading and streaming data, managing jobs, handling package references, and administering configured sources.
+
+For reverse proxies, response buffering should be disabled for streaming endpoints. With buffering disabled, slow clients naturally slow down the server-side stream and cancellation propagates promptly. With buffering enabled, the proxy may continue reading and storing data even after the downstream client has slowed down or disconnected.
+
+When Nexus is running, the API documentation is available at:
+
+```text
+http://localhost:5000/api
+```
+
+## Running Nexus locally
+
+Clone the repository and start the server:
 
 ```bash
 git clone https://github.com/nexus-main/nexus
 cd nexus
-dotnet workload restore
 dotnet run --project src/Nexus/Nexus.csproj
 ```
 
-In a browser, navigate to http://localhost:5000.
+Then open:
 
-Install the UI dependencies once on a new checkout or machine:
+```text
+http://localhost:5000
+```
+
+## UI development
+
+Install the Angular dependencies once on a new checkout or machine:
 
 ```bash
 cd src/Nexus.UI
 npm ci
 ```
 
-The Visual Studio Code F5 launch configuration uses these local dependencies to start the Angular dev server; it does not install them automatically. The Angular CLI is provided by `npm ci` and does not need to be installed globally.
+Start the Angular development server:
 
-To start the UI manually instead of using F5, run:
+```bash
+npm start
+```
+
+Then open:
+
+```text
+http://localhost:4200
+```
+
+The development server proxies `/api` to the backend at `http://localhost:5000`.
+
+## Building and testing
+
+Common checks during development:
+
+```bash
+dotnet test -c Release /p:BuildProjectReferences=false
+```
+
+For UI linting and formatting:
 
 ```bash
 cd src/Nexus.UI
-npm run dev
+npm run eslint
+npm run lint
 ```
 
-Then open http://localhost:4200. The dev server proxies `/api` to the backend at `http://localhost:5000`.
+If the REST API surface changes, regenerate the clients and OpenAPI document:
 
-___________
+```bash
+dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi.json
+```
 
-> [!Note]
-> A more comprehensive documentation follows soon. In the meantime, if you are interested in how to setup Nexus and it's data sources, please open a new issue describing your use case.
+## Extending Nexus
 
-:sparkles: Supported by code contributions from Fraunhofer IWES
+Nexus can be extended in two main ways:
+
+1. Add a data source so Nexus can read another storage system or file format.
+2. Add a data writer so Nexus can export into another format.
+
+Extension contracts are available for .NET and Python under:
+
+- `src/extensibility/dotnet-extensibility/`
+- `src/extensibility/python-extensibility/`
+
+Built-in data sources and writers are under:
+
+- `src/Nexus/Extensions/Sources/`
+- `src/Nexus/Extensions/Writers/`
+
+## More information
+
+- Documentation site: <https://nexus-main.github.io/nexus/docs/>
+- Ecosystem overview: [notes/ecosystem.md](notes/ecosystem.md)
+- API document: [openapi.json](openapi.json)
+- Design notes: [notes/](notes/)
+- Samples: [samples/](samples/)
+
+## Build and run locally
+
+Required tools:
+
+- .NET SDK 9
+- Node.js 24 with npm, for UI development
+
+Start the Nexus server from a local checkout:
+
+```bash
+git clone https://github.com/nexus-main/nexus
+cd nexus
+dotnet run --project src/Nexus/Nexus.csproj
+```
+
+Then open:
+
+```text
+http://localhost:5000
+```
+
+For UI development, install the Angular dependencies with `npm ci` and start the development server:
+
+```bash
+cd src/Nexus.UI
+npm ci
+npm start
+```
+
+Then open:
+
+```text
+http://localhost:4200
+```
+
+The Angular development server proxies `/api` to the Nexus backend at `http://localhost:5000`.
+
+Common development checks are:
+
+```bash
+dotnet test -c Release /p:BuildProjectReferences=false
+```
+
+```bash
+cd src/Nexus.UI
+npm run eslint
+npm run lint
+```
+
+---
+
+Supported by code contributions from Fraunhofer IWES.

@@ -1,8 +1,10 @@
 import { createRequire } from "module";
 
 // ESLint flat config at the repo root. A single config covers both the Angular
-// app source (src/Nexus.UI/src/**) and the UI integration tests
-// (tests/Nexus.UI.Tests/app/**). ESLint v10 uses CWD as base path, so this
+// app source (src/Nexus.UI/src/**), the UI integration tests
+// (tests/Nexus.UI.Tests/**), the chart JavaScript tests
+// (tests/js/**), and the live integration harness
+// (tests/integration/**). ESLint v10 uses CWD as base path, so this
 // config must be invoked from the repo root — the npm scripts in
 // src/Nexus.UI/package.json `cd ../..` before running ESLint.
 //
@@ -50,7 +52,12 @@ const noUnusedVars = [
   },
 ];
 
-const uiFiles = ["src/Nexus.UI/src/**/*.{ts,js}", "tests/Nexus.UI.Tests/app/**/*.{ts,js}"];
+const uiFiles = [
+  "src/Nexus.UI/src/**/*.{ts,js}",
+  "tests/Nexus.UI.Tests/**/*.{ts,js}",
+  "tests/js/**/*.js",
+  "tests/integration/**/*.{ts,js}",
+];
 
 export default tseslint.config(
   {

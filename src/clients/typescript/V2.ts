@@ -30,6 +30,13 @@ export class V2 implements IV2 {
  */
 export interface IDataClient {
     /**
+     * Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
+     * @param request The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.
+     * @param signal The signal to cancel the current operation.
+     */
+    getVisualization(request: VisualizationRequest, signal?: AbortSignal): Promise<Response>;
+
+    /**
      * Streams multiple resources in an Apache Arrow IPC response.
      * @param request The batch stream request.
      * @param signal The signal to cancel the current operation.
@@ -46,6 +53,17 @@ export class DataClient implements IDataClient {
 
     constructor(invoke: HttpRequestHandler) {
         this._invoke = invoke;
+    }
+
+    /**
+     * Streams bounded Float32 visualization points and progress using a versioned Arrow schema.
+     * @param request The domain, resources, and one to three replacement views, typically overview, main viewport, and optional detail viewport.
+     * @param signal The signal to cancel the current operation.
+     */
+    public async getVisualization(request: VisualizationRequest, signal?: AbortSignal): Promise<Response> {
+        let __url = "/api/v2/data/visualization";
+
+        return this._invoke<Response>("POST", __url, "application/vnd.apache.arrow.stream", "application/json", JSON.stringify(request), signal);
     }
 
     /**
@@ -95,6 +113,36 @@ export class JobsClient implements IJobsClient {
         return this._invoke<Job>("POST", __url, "application/json", "application/json", JSON.stringify(parameters), signal);
     }
 
+}
+
+
+/**
+ * A Float32 visualization request over a common, half-open sample domain.
+ */
+export interface VisualizationRequest {
+    /** The domain start. */
+    begin?: string | undefined;
+    /** The exclusive domain end. */
+    end?: string | undefined;
+    /** The resources, all with the same sample period. */
+    resourcePaths?: string[] | undefined;
+    /** The requested replacement views. */
+    views?: VisualizationView[] | undefined;
+}
+
+
+/**
+ * Defines one caller-supplied half-open time viewport and the maximum number of decimated points to return for it.
+ */
+export interface VisualizationView {
+    /** The caller-supplied view identifier that is echoed on the corresponding response view. */
+    id?: string | undefined;
+    /** The viewport start. */
+    begin?: string | undefined;
+    /** The exclusive viewport end. */
+    end?: string | undefined;
+    /** The maximum number of points to return for this view (5 through 32768). Aggregate buckets may emit first and last samples, finite minimum and maximum values, and a NaN gap marker; all emitted points count toward this limit. */
+    maxPoints?: number | undefined;
 }
 
 

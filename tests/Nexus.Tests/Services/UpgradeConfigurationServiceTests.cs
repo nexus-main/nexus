@@ -4,7 +4,6 @@
 using System.Text.Json;
 using Apollo3zehn.PackageManagement.Services;
 using DataSource;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nexus.Core.V1;
@@ -20,8 +19,6 @@ public class UpgradeConfigurationServiceTests
     public async Task CanUpgrade()
     {
         // Arrange
-        const string USER_ID = "UserA";
-
         var registration = new DataSourceRegistration(
             Type: typeof(TestSource).FullName!,
             ResourceLocator: new Uri("", UriKind.Relative),

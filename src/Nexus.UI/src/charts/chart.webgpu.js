@@ -97,6 +97,13 @@
     trimDrawResources(instance, target, 0);
     releaseCanvasContext(instance, target);
     destroyTargetDecimations(instance, target);
+
+    for (const [key, source] of instance.seriesBuffers) {
+      if (source.remoteTarget === target) {
+        ns.destroySeriesBuffer(instance, source);
+        instance.seriesBuffers.delete(key);
+      }
+    }
   }
 
   function getDrawResources(instance, seriesBuffer, drawIndex, target, protectedRawKeys) {
@@ -442,6 +449,60 @@
     }
   }
 
+  function getRemoteRenderItem(instance, series, target, plot) {
+    const points = valueOf(series, "RemotePoints");
+    const id = valueOf(series, "Id");
+    const key = JSON.stringify(["remote", target, id]);
+    let source = instance.seriesBuffers.get(key);
+
+    if (!(points instanceof Float32Array) || points.length % 2 || points.length > 32768 * 2) {
+      throw new Error("Invalid remote visualization points.");
+    }
+
+    if (source?.remotePoints !== points) {
+      for (let i = 0; i < points.length; i += 2) {
+        if (!Number.isFinite(points[i]) || (i > 0 && points[i] < points[i - 2])) {
+          throw new Error("Invalid remote visualization coordinates.");
+        }
+      }
+
+      const buffer = createTrackedBuffer(instance, {
+        size: Math.max(8, points.byteLength),
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+
+      if (points.length) {
+        instance.device.queue.writeBuffer(buffer, 0, points);
+      }
+
+      if (source) {
+        ns.destroySeriesBuffer(instance, source);
+      }
+
+      source = {
+        id,
+        buffer,
+        pointBuffer: buffer,
+        dataMode: 1,
+        remoteTarget: target,
+        remotePoints: points,
+      };
+
+      instance.seriesBuffers.set(key, source);
+    }
+
+    return {
+      seriesBuffer: source,
+      zoomInfo: {
+        first: 0,
+        segmentCount: Math.max(0, points.length / 2 - 1),
+        zoomedLeft: plot.plotLeft,
+        dx: plot.plotWidth,
+        xOrigin: 0,
+      },
+    };
+  }
+
   async function renderSeriesAsync(chartId, payload, renderState = null, renderGeneration = 0) {
     const instance = await getInstance(chartId);
 
@@ -475,7 +536,10 @@
     instance.lastPayloads.set(target, payload);
     let previewRenderKey = null;
 
-    if (isPreview) {
+    if (
+      isPreview &&
+      !(valueOf(payload, "Series") ?? []).some((series) => valueOf(series, "RemotePoints"))
+    ) {
       previewRenderKey = getPreviewRenderKey(instance, payload, width, height);
 
       if (instance.previewRenderKeys.get(target) === previewRenderKey) {
@@ -493,7 +557,23 @@
     if (plot) {
       const seriesList = valueOf(payload, "Series") ?? [];
 
+      for (const [key, source] of instance.seriesBuffers) {
+        if (
+          source.remoteTarget === target &&
+          !seriesList.some((series) => valueOf(series, "Id") === source.id)
+        ) {
+          ns.destroySeriesBuffer(instance, source);
+          instance.seriesBuffers.delete(key);
+        }
+      }
+
       for (const series of seriesList) {
+        if (valueOf(series, "RemotePoints")) {
+          // Server points are already projected. Never reduce them or request raw GPU chunks.
+          renderItems.push({ series, ...getRemoteRenderItem(instance, series, target, plot) });
+          continue;
+        }
+
         const cached = getSeriesBuffer(instance, series);
 
         if (!cached) {
@@ -503,6 +583,37 @@
         cached.chartId = chartId;
         cached.generation = instance.uploadGenerations.get(cached.id);
         cached.lifecycleEpoch = getLifecycleEpoch(chartId);
+
+        if (cached.pyramid) {
+          const item = await ns.getPyramidRenderItem(
+            instance,
+            cached,
+            series,
+            payload,
+            plot,
+            target,
+            () =>
+              !renderState ||
+              (!renderState.pending &&
+                renderState.generation === renderGeneration &&
+                renderStates.get(renderStateKey(chartId, target)) === renderState),
+          );
+
+          if (
+            renderState &&
+            (renderState.pending ||
+              renderState.generation !== renderGeneration ||
+              renderStates.get(renderStateKey(chartId, target)) !== renderState)
+          ) {
+            return;
+          }
+
+          if (item) {
+            renderItems.push({ series, ...item });
+          }
+
+          continue;
+        }
 
         if (cached.chunked) {
           const rawItems = getRawRenderItems(
@@ -730,9 +841,9 @@
         synchronizeSeries(instance, activeIds);
       }
     },
-    beginChunkedSeries(chartId, id, version, length) {
+    beginChunkedSeries(chartId, id, version, length, origin, readRange) {
       return runRuntimeOperation(chartId, "WebGPU upload failed", () =>
-        beginChunkedSeriesAsync(chartId, id, version, length),
+        beginChunkedSeriesAsync(chartId, id, version, length, origin, readRange),
       );
     },
     appendChunkedSeries(chartId, token, offset, dataReference, dataLength) {
@@ -837,6 +948,7 @@
       getTimeWindow,
       getZoomInfo,
       getOverviewZoom,
+      getRemoteRenderItem,
       getRawRenderItems,
       scheduleRender,
       releaseTarget,

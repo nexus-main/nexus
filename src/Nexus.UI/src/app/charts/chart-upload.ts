@@ -81,7 +81,27 @@ export async function uploadSeries(
       return { hasValue: false, minimum: 0, maximum: 0 };
     }
 
-    token = await api.beginChunkedSeries(chartId, series.id, version, series.length);
+    token = await api.beginChunkedSeries(
+      chartId,
+      series.id,
+      version,
+      series.length,
+      series.sampleOrigin ?? 0n,
+      async (offset, count) => {
+        await waitForRange(series, offset, count, signal);
+        const result = new Float32Array(count);
+
+        for (let written = 0; written < count;) {
+          const values = seriesSegment(series, offset + written, count - written);
+
+          result.set(values, written);
+          written += values.length;
+        }
+
+        return result;
+      },
+    );
+
     signal.throwIfAborted();
 
     for (let offset = 0; offset < series.length;) {
