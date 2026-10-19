@@ -1,5 +1,11 @@
 import { Injectable, isDevMode, signal } from "@angular/core";
-import { NexusClient, type BufferProvider, type ResourceInfo } from "@nexus-api/_client";
+import {
+  NexusClient,
+  type BufferProvider,
+  type DataResponse,
+  type INexusClient,
+  type ResourceInfo,
+} from "@nexus-api/_client";
 import * as V1 from "@nexus-api/V1";
 import * as V2 from "@nexus-api/V2";
 import { requestError } from "../request-error";
@@ -76,10 +82,10 @@ export class NexusService {
   readonly system = signal<V1.SystemResponse | null>(null);
   readonly currentUser = signal<V1.MeResponse | null>(null);
   readonly devAuthMode = signal<DevAuthMode>(getInitialDevAuthMode());
-  private readonly demoMode = isGitHubPagesDemo();
-  private readonly client = new NexusClient(this.endpoint);
-  readonly v1 = new V1.V1(this.invoke.bind(this));
-  readonly v2 = new V2.V2(this.invoke.bind(this));
+  private readonly demoClient = isGitHubPagesDemo() ? new DemoNexusClient() : undefined;
+  private readonly client: INexusClient = this.demoClient ?? new NexusClient(this.endpoint);
+  readonly v1 = this.demoClient?.v1 ?? new V1.V1(this.invoke.bind(this));
+  readonly v2 = this.demoClient?.v2 ?? new V2.V2(this.invoke.bind(this));
 
   async getCatalogChildren(catalogId = "/") {
     const children = await this.v1.catalogs.getChildCatalogInfos(catalogId);
@@ -194,22 +200,6 @@ export class NexusService {
     onProgress?: ((progress: number) => void) | undefined,
     signal?: AbortSignal,
   ) {
-    if (this.demoMode) {
-      const result = loadDemoResourcesIntoBuffers(
-        begin,
-        end,
-        resourcePaths,
-        precision,
-        bufferProvider,
-        onProgress,
-        signal,
-      );
-
-      this.apiAvailable.set(true);
-
-      return result;
-    }
-
     const result = await this.client.load(
       begin,
       end,
@@ -252,15 +242,6 @@ export class NexusService {
     body?: BodyInit | null,
     signal?: AbortSignal,
   ): Promise<T> {
-    if (this.demoMode) {
-      signal?.throwIfAborted();
-      const result = await handleDemoRequest(method, url, body, signal);
-
-      this.apiAvailable.set(true);
-
-      return result as T;
-    }
-
     const headers = new Headers();
 
     if (accept) {
@@ -432,138 +413,325 @@ function isGitHubPagesDemo() {
   );
 }
 
-async function handleDemoRequest(
-  method: string,
-  url: string,
-  body?: BodyInit | null,
-  signal?: AbortSignal,
-) {
-  const [path, query = ""] = url.split("?");
-  const parameters = new URLSearchParams(query);
+class DemoNexusClient implements INexusClient {
+  readonly v1 = createDemoV1Client();
+  readonly v2 = createDemoV2Client();
 
-  await Promise.resolve();
-  signal?.throwIfAborted();
-
-  if (method === "GET" && path === "/api/v1/system") {
-    return getDemoSystem();
+  get isAuthenticated() {
+    return true;
   }
 
-  if (method === "GET" && path === "/api/v1/users/me") {
-    return getDemoUser();
+  signIn(_accessToken: string): void {}
+
+  attachConfiguration(_configuration: unknown): { dispose(): void } {
+    return { dispose: () => undefined };
   }
 
-  if (method === "GET" && path === "/api/v1/users/tokens") {
-    return {};
-  }
+  clearConfiguration(): void {}
 
-  if (method === "POST" && path === "/api/v1/users/tokens/create") {
-    throw new Error("Personal access tokens are not available in the static GitHub Pages demo.");
-  }
+  load(
+    begin: string,
+    end: string,
+    resourcePaths: string[],
+    precision: V2.Precision,
+    onProgress?: ((progress: number) => void) | undefined,
+    signal?: AbortSignal,
+  ): Promise<Record<string, DataResponse>>;
 
-  if (method === "DELETE" && path.startsWith("/api/v1/users/tokens/")) {
-    return undefined;
-  }
+  load(
+    begin: string,
+    end: string,
+    resourcePaths: string[],
+    precision: V2.Precision,
+    bufferProvider: BufferProvider,
+    onProgress?: ((progress: number) => void) | undefined,
+    signal?: AbortSignal,
+  ): Promise<Record<string, ResourceInfo>>;
 
-  if (method === "GET" && path === "/api/v1/writers/descriptions") {
-    return [getDemoWriter()];
-  }
+  async load(
+    begin: string,
+    end: string,
+    resourcePaths: string[],
+    precision: V2.Precision,
+    bufferProviderOrOnProgress?: BufferProvider | ((progress: number) => void) | undefined,
+    onProgressOrSignal?: ((progress: number) => void) | AbortSignal | undefined,
+    signal?: AbortSignal,
+  ): Promise<Record<string, DataResponse> | Record<string, ResourceInfo>> {
+    const bufferProvider =
+      typeof bufferProviderOrOnProgress === "function" && bufferProviderOrOnProgress.length >= 3
+        ? (bufferProviderOrOnProgress as BufferProvider)
+        : undefined;
+    const onProgress = bufferProvider
+      ? (onProgressOrSignal as ((progress: number) => void) | undefined)
+      : (bufferProviderOrOnProgress as ((progress: number) => void) | undefined);
+    const actualSignal = bufferProvider ? signal : (onProgressOrSignal as AbortSignal | undefined);
 
-  if (method === "GET" && path === "/api/v1/jobs") {
-    return [];
-  }
+    if (bufferProvider) {
+      return loadDemoResourcesIntoBuffers(
+        begin,
+        end,
+        resourcePaths,
+        precision,
+        bufferProvider,
+        onProgress,
+        actualSignal,
+      );
+    }
 
-  if (method === "POST" && (path === "/api/v1/jobs/export" || path === "/api/v2/jobs/export")) {
-    throw new Error("Exports are not available in the static GitHub Pages demo.");
-  }
+    const arrays = new Map<string, Float32Array | Float64Array>();
+    const resourceInfos = loadDemoResourcesIntoBuffers(
+      begin,
+      end,
+      resourcePaths,
+      precision,
+      (resourcePath, chunkLength) => {
+        const array =
+          precision === V2.Precision.Float64
+            ? new Float64Array(chunkLength)
+            : new Float32Array(chunkLength);
 
-  if (method === "POST" && path === "/api/v1/jobs/refresh-database") {
-    throw new Error("Database refresh is not available in the static GitHub Pages demo.");
-  }
+        arrays.set(resourcePath, array);
 
-  if (method === "GET" && path === "/api/v1/sources/descriptions") {
-    return [];
-  }
-
-  if (method === "GET" && path === "/api/v1/sources/pipelines") {
-    return {};
-  }
-
-  if (method === "GET" && path === "/api/v1/packagereferences") {
-    return {};
-  }
-
-  if (method === "POST" && path === "/api/v1/catalogs/search-items") {
-    const resourcePaths = JSON.parse(String(body ?? "[]")) as string[];
+        return array;
+      },
+      onProgress,
+      actualSignal,
+    );
 
     return Object.fromEntries(
-      resourcePaths.map((resourcePath) => [resourcePath, getDemoCatalogItem(resourcePath)]),
+      resourcePaths.map((resourcePath) => [
+        resourcePath,
+        { info: resourceInfos[resourcePath], values: arrays.get(resourcePath)! },
+      ]),
     );
   }
 
-  const catalogChildMatch = path.match(/^\/api\/v1\/catalogs\/(.*)\/child-catalog-infos$/);
-
-  if (method === "GET" && catalogChildMatch) {
-    const catalogId = decodeURIComponent(catalogChildMatch[1]);
-
-    return catalogId === "/" ? [getDemoCatalogInfo()] : [];
+  export(): Promise<void> {
+    return Promise.reject(new Error("Exports are not available in the static GitHub Pages demo."));
   }
+}
 
-  const catalogTimeRangeMatch = path.match(/^\/api\/v1\/catalogs\/(.*)\/timerange$/);
+function createDemoV1Client(): V1.IV1 {
+  return {
+    artifacts: {
+      download: async () => unsupportedDemoFeature(),
+    },
+    catalogs: {
+      searchCatalogItems: async (resourcePaths, signal) => {
+        signal?.throwIfAborted();
 
-  if (method === "GET" && catalogTimeRangeMatch) {
-    return getDemoTimeRange();
-  }
+        return Object.fromEntries(
+          resourcePaths.map((resourcePath) => [resourcePath, getDemoCatalogItem(resourcePath)]),
+        );
+      },
+      get: async (catalogId, signal) => {
+        signal?.throwIfAborted();
 
-  const catalogAvailabilityMatch = path.match(/^\/api\/v1\/catalogs\/(.*)\/availability$/);
+        if (catalogId !== demoCatalogId) {
+          throw new Error(`The demo catalog does not contain catalog '${catalogId}'.`);
+        }
 
-  if (method === "GET" && catalogAvailabilityMatch) {
-    const begin = parameters.get("begin") ?? getDemoTimeRange().begin!;
-    const end = parameters.get("end") ?? getDemoTimeRange().end!;
-    const step = parameters.get("step") ?? demoSamplePeriod;
+        return getDemoCatalog();
+      },
+      getChildCatalogInfos: async (catalogId, signal) => {
+        signal?.throwIfAborted();
 
-    return getDemoAvailability(begin, end, step);
-  }
+        return catalogId === "/" ? [getDemoCatalogInfo()] : [];
+      },
+      getTimeRange: async (_catalogId, signal) => {
+        signal?.throwIfAborted();
 
-  const catalogLicenseMatch = path.match(/^\/api\/v1\/catalogs\/(.*)\/license$/);
+        return getDemoTimeRange();
+      },
+      getAvailability: async (_catalogId, begin, end, step, signal) => {
+        signal?.throwIfAborted();
 
-  if (method === "GET" && catalogLicenseMatch) {
-    return "";
-  }
+        return getDemoAvailability(begin, end, step);
+      },
+      getLicense: async (_catalogId, signal) => {
+        signal?.throwIfAborted();
 
-  const catalogAcceptLicenseMatch = path.match(/^\/api\/v1\/catalogs\/(.*)\/accept-license$/);
+        return "";
+      },
+      acceptLicense: async (_catalogId, signal) => {
+        signal?.throwIfAborted();
 
-  if (method === "POST" && catalogAcceptLicenseMatch) {
-    return undefined;
-  }
+        return okDemoResponse();
+      },
+      getAttachments: async (_catalogId, signal) => {
+        signal?.throwIfAborted();
 
-  const catalogAttachmentsMatch = path.match(/^\/api\/v1\/catalogs\/(.*)\/attachments$/);
+        return [];
+      },
+      uploadAttachment: async () =>
+        unsupportedDemoFeature("Attachments are not available in the static GitHub Pages demo."),
+      deleteAttachment: async () =>
+        unsupportedDemoFeature("Attachments are not available in the static GitHub Pages demo."),
+      getAttachmentStream: async () =>
+        unsupportedDemoFeature("Attachments are not available in the static GitHub Pages demo."),
+      getMetadata: async (_catalogId, signal) => {
+        signal?.throwIfAborted();
 
-  if (method === "GET" && catalogAttachmentsMatch) {
-    return [];
-  }
+        return {
+          contact: null,
+          groupMemberships: [],
+          overrides: null,
+        } satisfies V1.CatalogMetadata;
+      },
+      setMetadata: async () =>
+        unsupportedDemoFeature(
+          "Catalog metadata editing is not available in the static GitHub Pages demo.",
+        ),
+    },
+    data: {
+      getStream: async () =>
+        unsupportedDemoFeature("Raw data streaming requires a running Nexus API backend."),
+    },
+    git: {
+      getConfig: async () => unsupportedDemoFeature(),
+      getStatus: async () => unsupportedDemoFeature(),
+      getHistory: async () => unsupportedDemoFeature(),
+      getDiff: async () => unsupportedDemoFeature(),
+      restore: async () => unsupportedDemoFeature(),
+    },
+    jobs: {
+      getJobs: async (signal) => {
+        signal?.throwIfAborted();
 
-  const catalogMetadataMatch = path.match(/^\/api\/v1\/catalogs\/(.*)\/metadata$/);
+        return [];
+      },
+      cancelJob: async (_jobId, signal) => {
+        signal?.throwIfAborted();
 
-  if (method === "GET" && catalogMetadataMatch) {
-    return { contact: null, groupMemberships: [], overrides: null } satisfies V1.CatalogMetadata;
-  }
+        return okDemoResponse();
+      },
+      getJobStatus: async (_jobId, signal) => {
+        signal?.throwIfAborted();
 
-  if (method === "PUT" && catalogMetadataMatch) {
-    throw new Error("Catalog metadata editing is not available in the static GitHub Pages demo.");
-  }
+        return { status: V1.TaskStatus.RanToCompletion, progress: 1 } satisfies V1.JobStatus;
+      },
+      export: async () =>
+        unsupportedDemoFeature("Exports are not available in the static GitHub Pages demo."),
+      refreshDatabase: async () =>
+        unsupportedDemoFeature(
+          "Database refresh is not available in the static GitHub Pages demo.",
+        ),
+      clearCache: async () => unsupportedDemoFeature(),
+      syncGit: async () => unsupportedDemoFeature(),
+    },
+    packageReferences: {
+      get: async (signal) => {
+        signal?.throwIfAborted();
 
-  const catalogMatch = path.match(/^\/api\/v1\/catalogs\/(.*)$/);
+        return {};
+      },
+      create: async () =>
+        unsupportedDemoFeature(
+          "Package references are not available in the static GitHub Pages demo.",
+        ),
+      update: async () =>
+        unsupportedDemoFeature(
+          "Package references are not available in the static GitHub Pages demo.",
+        ),
+      delete: async () =>
+        unsupportedDemoFeature(
+          "Package references are not available in the static GitHub Pages demo.",
+        ),
+      getVersions: async () =>
+        unsupportedDemoFeature(
+          "Package references are not available in the static GitHub Pages demo.",
+        ),
+    },
+    sources: {
+      getDescriptions: async (signal) => {
+        signal?.throwIfAborted();
 
-  if (method === "GET" && catalogMatch) {
-    const catalogId = decodeURIComponent(catalogMatch[1]);
+        return [];
+      },
+      getPipelines: async (signal) => {
+        signal?.throwIfAborted();
 
-    if (catalogId === demoCatalogId) {
-      return getDemoCatalog();
-    }
-  }
+        return {};
+      },
+      createPipeline: async () =>
+        unsupportedDemoFeature(
+          "Data source pipelines are not available in the static GitHub Pages demo.",
+        ),
+      updatePipeline: async () =>
+        unsupportedDemoFeature(
+          "Data source pipelines are not available in the static GitHub Pages demo.",
+        ),
+      deletePipeline: async () =>
+        unsupportedDemoFeature(
+          "Data source pipelines are not available in the static GitHub Pages demo.",
+        ),
+    },
+    system: {
+      get: async (signal) => {
+        signal?.throwIfAborted();
 
+        return getDemoSystem();
+      },
+    },
+    users: {
+      deleteTokenByValue: async (_value, signal) => {
+        signal?.throwIfAborted();
+
+        return okDemoResponse();
+      },
+      getMe: async (signal) => {
+        signal?.throwIfAborted();
+
+        return getDemoUser();
+      },
+      getTokens: async (signal) => {
+        signal?.throwIfAborted();
+
+        return {};
+      },
+      createToken: async () =>
+        unsupportedDemoFeature(
+          "Personal access tokens are not available in the static GitHub Pages demo.",
+        ),
+      deleteToken: async (_tokenId, signal) => {
+        signal?.throwIfAborted();
+
+        return okDemoResponse();
+      },
+    },
+    writers: {
+      getDescriptions: async (signal) => {
+        signal?.throwIfAborted();
+
+        return [getDemoWriter()];
+      },
+    },
+  };
+}
+
+function createDemoV2Client(): V2.IV2 {
+  return {
+    data: {
+      getVisualization: async () =>
+        unsupportedDemoFeature("Server-side visualization requires a running Nexus API backend."),
+      getStream: async () =>
+        unsupportedDemoFeature("Raw data streaming requires a running Nexus API backend."),
+    },
+    jobs: {
+      export: async () =>
+        unsupportedDemoFeature("Exports are not available in the static GitHub Pages demo."),
+    },
+  };
+}
+
+function okDemoResponse() {
+  return new Response(null, { status: 204 });
+}
+
+function unsupportedDemoFeature(message?: string): never {
   throw new Error(
-    "This feature requires a running Nexus API backend and is not available in the static GitHub Pages demo.",
+    message ??
+      "This feature requires a running Nexus API backend and is not available in the static GitHub Pages demo.",
   );
 }
 
