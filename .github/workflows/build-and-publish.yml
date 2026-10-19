@@ -169,9 +169,11 @@ jobs:
       - name: Documentation
         run: |
           docfx doc/docfx.json
-          rm -rf app/wwwroot/docs
-          mkdir -p app/wwwroot/docs
-          cp -a doc/_site/. app/wwwroot/docs/
+          if [ -d app-pages/wwwroot ]; then
+            rm -rf app-pages/wwwroot/docs
+            mkdir -p app-pages/wwwroot/docs
+            cp -a doc/_site/. app-pages/wwwroot/docs/
+          fi
 
       # --- Docker last: it is the slowest step and only matters if everything above passed ---
 

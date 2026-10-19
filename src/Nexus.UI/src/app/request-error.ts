@@ -1,4 +1,11 @@
 export async function requestError(response: Response): Promise<Error> {
+  if (isGitHubPagesMissingApi(response)) {
+    return new Error(
+      "This static GitHub Pages build does not include a running Nexus API backend. " +
+        "The frontend is hosted for deployment testing; run Nexus locally or deploy the server to use catalogs, visualization, and exports.",
+    );
+  }
+
   const status = `Nexus request failed: ${response.status} ${response.statusText}`;
   let detail = "";
 
@@ -15,4 +22,14 @@ export async function requestError(response: Response): Promise<Error> {
   }
 
   return new Error(detail ? `${status}: ${detail}` : status);
+}
+
+function isGitHubPagesMissingApi(response: Response) {
+  if (response.status !== 404) {
+    return false;
+  }
+
+  const url = new URL(response.url);
+
+  return url.hostname.endsWith("github.io") && url.pathname.startsWith("/api/");
 }

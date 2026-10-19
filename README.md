@@ -8,9 +8,10 @@ Experienced users often know how to work with the available data directly. For n
 
 Nexus provides unified interfaces for that data: a web UI, a REST API, and generated clients for common programming environments. Users can browse measurement campaigns, inspect available signals, visualize data, export it, or load it directly into their own scripts and applications. The data itself can stay where it already is.
 
-For documentation and user-facing guides, visit the GitHub Pages site:
+Useful links:
 
-<https://nexus-main.github.io/nexus/docs/>
+- [Nexus documentation](https://nexus-main.github.io/nexus/docs/)
+- [GitHub Pages UI test instance](https://nexus-main.github.io/nexus/) — static frontend deployment; API-backed features require a running Nexus server.
 
 <p align="center">
   <img src="doc/images/overview.png" alt="Nexus web interface overview">
@@ -282,7 +283,8 @@ Built-in data sources and writers are under:
 
 ## More information
 
-- Documentation site: <https://nexus-main.github.io/nexus/docs/>
+- [Nexus documentation](https://nexus-main.github.io/nexus/docs/)
+- [GitHub Pages UI test instance](https://nexus-main.github.io/nexus/) — static frontend deployment; API-backed features require a running Nexus server.
 - Ecosystem overview: [notes/ecosystem.md](notes/ecosystem.md)
 - API document: [openapi.json](openapi.json)
 - Design notes: [notes/](notes/)
