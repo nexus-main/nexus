@@ -943,9 +943,28 @@ function createDemoResourceInfo(resourcePath: string): ResourceInfo {
 }
 
 function demoValue(resourcePath: string, index: number) {
-  const noise = deterministicNoise(index, resourcePath.includes("temperature") ? 17 : 41);
+  return resourcePath.includes("temperature") ? demoTemperature(index) : demoWindSpeed(index);
+}
 
-  return resourcePath.includes("temperature") ? 7 + noise * 0.3 : 12 + noise * 3;
+function demoTemperature(index: number) {
+  const dayProgress = (index % 1440) / 1440;
+  const slowWeatherProgress = index / (1440 * 5);
+  const dailyCycle = Math.sin(2 * Math.PI * (dayProgress - 0.28));
+  const slowWeather = Math.sin(2 * Math.PI * slowWeatherProgress) * 0.8;
+  const smallNoise = (deterministicNoise(index, 17) - 0.5) * 0.35;
+
+  return 12 + dailyCycle * 3.2 + slowWeather + smallNoise;
+}
+
+function demoWindSpeed(index: number) {
+  const dayProgress = (index % 1440) / 1440;
+  const synopticProgress = index / (1440 * 3);
+  const diurnalMixing = Math.max(0, Math.sin(2 * Math.PI * (dayProgress - 0.18))) * 1.3;
+  const synopticVariation = 2.2 + Math.sin(2 * Math.PI * synopticProgress) * 1.1;
+  const turbulentNoise = deterministicNoise(index, 41) * 1.4;
+  const gust = Math.pow(deterministicNoise(Math.floor(index / 12), 73), 7) * 5.5;
+
+  return Math.max(0, synopticVariation + diurnalMixing + turbulentNoise + gust);
 }
 
 function deterministicNoise(index: number, seed: number) {
