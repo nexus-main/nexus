@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "ng serve --host 127.0.0.1 --proxy-config proxy.conf.cjs",
     "build": "ng build",
+    "build:github-pages": "ng build --configuration github-pages",
     "lint": "ng build --configuration development && npm run eslint && prettier --check . \"../../tests/Nexus.UI.Tests/**/*.ts\" \"../../tests/js/**/*.{js,json}\" \"../../tests/integration/**/*.{ts,md}\"",
     "eslint": "cd ../.. && node src/Nexus.UI/node_modules/eslint/bin/eslint.js src/Nexus.UI/src tests/Nexus.UI.Tests tests/js tests/integration",
     "eslint:fix": "cd ../.. && node src/Nexus.UI/node_modules/eslint/bin/eslint.js src/Nexus.UI/src tests/Nexus.UI.Tests tests/js tests/integration --fix",

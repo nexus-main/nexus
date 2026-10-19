@@ -44,6 +44,11 @@
             "production": {
               "outputHashing": "all"
             },
+            "github-pages": {
+              "outputHashing": "all",
+              "baseHref": "/nexus/",
+              "deployUrl": "/nexus/"
+            },
             "development": {
               "optimization": false,
               "extractLicenses": false,

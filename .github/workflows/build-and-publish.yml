@@ -149,6 +149,14 @@ jobs:
         working-directory: src/Nexus.UI
         run: NEXUS_SMOKE_APP=app npm run test:integration-smoke
 
+      - name: Build GitHub Pages content
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        working-directory: src/Nexus.UI
+        run: |
+          npm run build:github-pages
+          mkdir --parents ../../app-pages/wwwroot
+          cp --archive dist/nexus-ui/browser/. ../../app-pages/wwwroot/
+
       - name: API
         run: |
           dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi_new.json
@@ -179,7 +187,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: github-pages-content
-          path: app/wwwroot
+          path: app-pages/wwwroot
 
     outputs:
       is_release: ${{ env.IS_RELEASE }}
