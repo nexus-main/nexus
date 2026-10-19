@@ -172,7 +172,7 @@ This documentation focuses on the technical parts that are useful when integrati
 - [Configuration](configuration/index.md)
 - <xref:Nexus.Api>
 
-## Build and run locally
+## Build, run, and test locally
 
 Required tools:
 
@@ -219,6 +219,12 @@ dotnet test -c Release /p:BuildProjectReferences=false
 cd src/Nexus.UI
 npm run eslint
 npm run lint
+```
+
+If the REST API surface changes, regenerate the clients and OpenAPI document:
+
+```bash
+dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi.json
 ```
 
 ---

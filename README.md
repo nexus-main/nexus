@@ -203,67 +203,6 @@ When Nexus is running, the API documentation is available at:
 http://localhost:5000/api
 ```
 
-## Running Nexus locally
-
-Clone the repository and start the server:
-
-```bash
-git clone https://github.com/nexus-main/nexus
-cd nexus
-dotnet run --project src/Nexus/Nexus.csproj
-```
-
-Then open:
-
-```text
-http://localhost:5000
-```
-
-## UI development
-
-Install the Angular dependencies once on a new checkout or machine:
-
-```bash
-cd src/Nexus.UI
-npm ci
-```
-
-Start the Angular development server:
-
-```bash
-npm start
-```
-
-Then open:
-
-```text
-http://localhost:4200
-```
-
-The development server proxies `/api` to the backend at `http://localhost:5000`.
-
-## Building and testing
-
-Common checks during development:
-
-```bash
-dotnet test -c Release /p:BuildProjectReferences=false
-```
-
-For UI linting and formatting:
-
-```bash
-cd src/Nexus.UI
-npm run eslint
-npm run lint
-```
-
-If the REST API surface changes, regenerate the clients and OpenAPI document:
-
-```bash
-dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi.json
-```
-
 ## Extending Nexus
 
 Nexus can be extended in two main ways:
@@ -290,7 +229,7 @@ Built-in data sources and writers are under:
 - Design notes: [notes/](notes/)
 - Samples: [samples/](samples/)
 
-## Build and run locally
+## Build, run, and test locally
 
 Required tools:
 
@@ -337,6 +276,12 @@ dotnet test -c Release /p:BuildProjectReferences=false
 cd src/Nexus.UI
 npm run eslint
 npm run lint
+```
+
+If the REST API surface changes, regenerate the clients and OpenAPI document:
+
+```bash
+dotnet run --project src/Nexus.ClientGenerator/Nexus.ClientGenerator.csproj -- ./ openapi.json
 ```
 
 ---
