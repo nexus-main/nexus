@@ -1,3 +1,11 @@
+## v2.0.0-beta.60 - 2026-10-19
+- Added server-side visualization decimation for slow or large time-series views, including a new v2 visualization endpoint, visualization cache, reduction algorithms, and client-side remote visualization support.
+- Improved visualization performance and robustness with WebGPU pyramid rendering, raw stream decoding, visualization smoke tests, and additional chart/decimation test coverage.
+- Added a DocFX documentation site with API client, extensibility, configuration, deployment, authentication, and Git-backed configuration history docs.
+- Added GitHub Pages deployment support for the static Nexus UI and documentation under `/docs/`.
+- Added a static GitHub Pages demo client with sample catalog data for the backend-less UI test instance.
+- Improved the README and documentation overview, including clearer local build/run instructions and unified data access messaging.
+
 ## v2.0.0-beta.59 - 2026-10-15
 - New SSH host keys are now auto-accepted.
 
