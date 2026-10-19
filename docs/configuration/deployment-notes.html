@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Deployment notes | Nexus Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Deployment notes | Nexus Documentation ">
+      
+      
+      <link rel="icon" href="../images/icon.svg">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/nexus-main/nexus/blob/master/doc/configuration/deployment-notes.md/#L1">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../images/icon.svg" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="deployment-notes">Deployment notes</h1>
+
+<p>This page collects deployment-specific notes that are not part of the full option reference.</p>
+<p>For the complete list of Nexus settings, default values, JSON paths, environment-variable names, and the default <code>settings.json</code> location, see <a href="options.html">Configuration options</a>.</p>
+<h2 id="reverse-proxies">Reverse proxies</h2>
+<p>For streaming endpoints, disable response buffering in the reverse proxy. Buffering can cause the proxy to keep reading data after a downstream client has slowed down or disconnected. With buffering disabled, back-pressure and cancellation propagate correctly.</p>
+<p>This is important for:</p>
+<ul>
+<li>data streaming,</li>
+<li>large exports,</li>
+<li>long-running client downloads,</li>
+<li>cancellation when a browser, notebook, or script disconnects.</li>
+</ul>
+<h2 id="authentication-and-authorization-headers">Authentication and authorization headers</h2>
+<p>Nexus can run behind a trusted authentication proxy. In that setup, the proxy authenticates the user and forwards identity and authorization information to Nexus through HTTP headers.</p>
+<p>Only trust these headers when they are set by infrastructure you control. Do not expose a deployment where external clients can send or spoof these headers directly.</p>
+<p>By default, Nexus listens to these headers:</p>
+<table>
+<thead>
+<tr>
+<th>Purpose</th>
+<th>Default header</th>
+<th>Matching option</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>User identity</td>
+<td><code>X-Forwarded-User</code></td>
+<td><code>Security:UserHeader</code></td>
+</tr>
+<tr>
+<td>Display name</td>
+<td><code>X-Forwarded-Preferred-Username</code></td>
+<td><code>Security:NameHeader</code></td>
+</tr>
+<tr>
+<td>User groups</td>
+<td><code>X-Forwarded-Groups</code></td>
+<td><code>Security:GroupsHeader</code></td>
+</tr>
+<tr>
+<td>Enabled catalog pattern</td>
+<td><code>X-Forwarded-EnabledCatalogsPattern</code></td>
+<td><code>Security:EnabledCatalogsPatternHeader</code></td>
+</tr>
+<tr>
+<td>Readable catalog pattern</td>
+<td><code>X-Forwarded-CanReadCatalog</code></td>
+<td><code>Security:CanReadCatalogHeader</code></td>
+</tr>
+<tr>
+<td>Writable catalog pattern</td>
+<td><code>X-Forwarded-CanWriteCatalog</code></td>
+<td><code>Security:CanWriteCatalogHeader</code></td>
+</tr>
+<tr>
+<td>Group-readable catalog pattern</td>
+<td><code>X-Forwarded-CanReadCatalogGroup</code></td>
+<td><code>Security:CanReadCatalogGroupHeader</code></td>
+</tr>
+<tr>
+<td>Group-writable catalog pattern</td>
+<td><code>X-Forwarded-CanWriteCatalogGroup</code></td>
+<td><code>Security:CanWriteCatalogGroupHeader</code></td>
+</tr>
+</tbody>
+</table>
+<p>Nexus treats users as administrators when their forwarded group list contains the configured administrator group. The default administrator group is <code>admins</code> and is configured with <code>Security:AdministratorGroup</code>.</p>
+<p>Catalog permission headers contain catalog path patterns. Deployments can use them to restrict which parts of the catalog tree a user may see, read, or write.</p>
+<p>One common setup is to put Nexus behind Nginx and OAuth2 Proxy, with Keycloak as the identity provider:</p>
+<pre><code class="lang-text"> +---------+                                +------------+
+ | Browser |                                |  Keycloak  |
+ +---------+                                +------------+
+      |                                           ^
+      |                                           |
+      | HTTPS                                     | OIDC
+      |                                           |
+      v                                           v
+ +---------+                               +--------------+
+ |         |         auth_request          |              |
+ |         |         /oauth2/auth          |              |
+ |  Nginx  | ----------------------------&gt; | OAuth2 Proxy |
+ |         | &lt;---------------------------- |              |
+ |         |     user, groups, claims      |              |
+ +---------+                               +--------------+
+      |
+      |
+      |
+      | adds trusted X-Forwarded-* headers
+      |
+      v
+ +---------+
+ |  Nexus  |
+ +---------+
+</code></pre>
+<p>In this model, external clients can only reach Nexus through Nginx. OAuth2 Proxy validates the login session against Keycloak. Nginx then forwards only trusted identity and permission headers to Nexus, for example <code>X-Forwarded-User</code>, <code>X-Forwarded-Groups</code>, and the catalog permission headers listed above.</p>
+<p>The exact mapping depends on the deployment. For example, Keycloak roles or groups can be mapped by OAuth2 Proxy or Nginx into <code>X-Forwarded-Groups</code>, while catalog-specific permissions can be provided through the <code>X-Forwarded-CanReadCatalog</code> and <code>X-Forwarded-CanWriteCatalog</code> headers.</p>
+<h2 id="persistent-storage">Persistent storage</h2>
+<p>Production deployments should use persistent storage for Nexus configuration and package state. At minimum, review the configured <code>Paths</code> values for:</p>
+<ul>
+<li>configuration,</li>
+<li>cache,</li>
+<li>catalogs,</li>
+<li>export artifacts,</li>
+<li>restored extension packages.</li>
+</ul>
+<p>The configuration directory is especially important when Git-backed configuration history is enabled, because it is the directory that Nexus tracks and commits.</p>
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/nexus-main/nexus/blob/master/doc/configuration/deployment-notes.md/#L1" class="edit-link">Edit this page</a>
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2026 Apollo3zehn. Supported by code contributions from Fraunhofer IWES.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Class PackageReferencesClient | Nexus Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Class PackageReferencesClient | Nexus Documentation ">
+      
+      <meta name="description" content="Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.">
+      <link rel="icon" href="../../images/icon.svg">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/nexus-main/nexus/new/master/apiSpec/new?filename=Nexus_Api_V1_PackageReferencesClient.md&amp;value=---%0Auid%3A%20Nexus.Api.V1.PackageReferencesClient%0Asummary%3A%20&#39;*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax&#39;%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="ManagedReference">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/icon.svg" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="Nexus.Api.V1.PackageReferencesClient">
+
+
+
+  <h1 id="Nexus_Api_V1_PackageReferencesClient" data-uid="Nexus.Api.V1.PackageReferencesClient" class="text-break">
+Class PackageReferencesClient  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2408"><i class="bi bi-code-slash"></i></a>
+  </h1>
+
+  <div class="facts text-secondary">
+    <dl><dt>Namespace</dt><dd><span class="xref">Nexus</span>.<a class="xref" href="Nexus.Api.html">Api</a>.<a class="xref" href="Nexus.Api.V1.html">V1</a></dd></dl>
+  <dl><dt>Assembly</dt><dd>Nexus.Api.dll</dd></dl>
+  </div>
+
+  <div class="markdown summary"><p>Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>
+</div>
+  <div class="markdown conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public class PackageReferencesClient : IPackageReferencesClient</code></pre>
+  </div>
+
+
+
+
+  <dl class="typelist inheritance">
+    <dt>Inheritance</dt>
+    <dd>
+      <div><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object">object</a></div>
+      <div><span class="xref">PackageReferencesClient</span></div>
+    </dd>
+  </dl>
+
+  <dl class="typelist implements">
+    <dt>Implements</dt>
+    <dd>
+      <div><a class="xref" href="Nexus.Api.V1.IPackageReferencesClient.html">IPackageReferencesClient</a></div>
+    </dd>
+  </dl>
+
+
+  <dl class="typelist inheritedMembers">
+    <dt>Inherited Members</dt>
+    <dd>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)">object.Equals(object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)">object.Equals(object, object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.gethashcode">object.GetHashCode()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.gettype">object.GetType()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone">object.MemberwiseClone()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.referenceequals">object.ReferenceEquals(object, object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.tostring">object.ToString()</a>
+    </div>
+  </dd></dl>
+
+
+
+
+
+
+  <h2 class="section" id="methods">Methods
+</h2>
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_Create_" data-uid="Nexus.Api.V1.PackageReferencesClient.Create*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_Create_Nexus_Api_V1_PackageReference_" data-uid="Nexus.Api.V1.PackageReferencesClient.Create(Nexus.Api.V1.PackageReference)">
+  Create(PackageReference)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2438"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Creates a package reference.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Guid Create(PackageReference packageReference)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>packageReference</code> <a class="xref" href="Nexus.Api.V1.PackageReference.html">PackageReference</a></dt>
+    <dd><p>The package reference to create.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a></dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_CreateAsync_" data-uid="Nexus.Api.V1.PackageReferencesClient.CreateAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_CreateAsync_Nexus_Api_V1_PackageReference_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.PackageReferencesClient.CreateAsync(Nexus.Api.V1.PackageReference,System.Threading.CancellationToken)">
+  CreateAsync(PackageReference, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2448"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Creates a package reference.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Task&lt;Guid&gt; CreateAsync(PackageReference packageReference, CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>packageReference</code> <a class="xref" href="Nexus.Api.V1.PackageReference.html">PackageReference</a></dt>
+    <dd><p>The package reference to create.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_Delete_" data-uid="Nexus.Api.V1.PackageReferencesClient.Delete*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_Delete_System_Guid_" data-uid="Nexus.Api.V1.PackageReferencesClient.Delete(System.Guid)">
+  Delete(Guid)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2494"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Deletes a package reference.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public void Delete(Guid id)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>id</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a></dt>
+    <dd><p>The ID of the package reference.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_DeleteAsync_" data-uid="Nexus.Api.V1.PackageReferencesClient.DeleteAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_DeleteAsync_System_Guid_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.PackageReferencesClient.DeleteAsync(System.Guid,System.Threading.CancellationToken)">
+  DeleteAsync(Guid, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2505"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Deletes a package reference.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>id</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a></dt>
+    <dd><p>The ID of the package reference.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task">Task</a></dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_Get_" data-uid="Nexus.Api.V1.PackageReferencesClient.Get*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_Get" data-uid="Nexus.Api.V1.PackageReferencesClient.Get">
+  Get()
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2418"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the list of package references.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public IReadOnlyDictionary&lt;string, PackageReference&gt; Get()</code></pre>
+  </div>
+
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2">IReadOnlyDictionary</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a>, <a class="xref" href="Nexus.Api.V1.PackageReference.html">PackageReference</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_GetAsync_" data-uid="Nexus.Api.V1.PackageReferencesClient.GetAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_GetAsync_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.PackageReferencesClient.GetAsync(System.Threading.CancellationToken)">
+  GetAsync(CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2428"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the list of package references.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Task&lt;IReadOnlyDictionary&lt;string, PackageReference&gt;&gt; GetAsync(CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2">IReadOnlyDictionary</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a>, <a class="xref" href="Nexus.Api.V1.PackageReference.html">PackageReference</a>&gt;&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_GetVersions_" data-uid="Nexus.Api.V1.PackageReferencesClient.GetVersions*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_GetVersions_Nexus_Api_V1_PackageReference_" data-uid="Nexus.Api.V1.PackageReferencesClient.GetVersions(Nexus.Api.V1.PackageReference)">
+  GetVersions(PackageReference)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2516"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets package versions.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public IReadOnlyList&lt;string&gt; GetVersions(PackageReference packageReference)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>packageReference</code> <a class="xref" href="Nexus.Api.V1.PackageReference.html">PackageReference</a></dt>
+    <dd><p>The package reference to get versions for.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1">IReadOnlyList</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_GetVersionsAsync_" data-uid="Nexus.Api.V1.PackageReferencesClient.GetVersionsAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_GetVersionsAsync_Nexus_Api_V1_PackageReference_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.PackageReferencesClient.GetVersionsAsync(Nexus.Api.V1.PackageReference,System.Threading.CancellationToken)">
+  GetVersionsAsync(PackageReference, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2526"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets package versions.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Task&lt;IReadOnlyList&lt;string&gt;&gt; GetVersionsAsync(PackageReference packageReference, CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>packageReference</code> <a class="xref" href="Nexus.Api.V1.PackageReference.html">PackageReference</a></dt>
+    <dd><p>The package reference to get versions for.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1">IReadOnlyList</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a>&gt;&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_Update_" data-uid="Nexus.Api.V1.PackageReferencesClient.Update*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_Update_Nexus_Api_V1_PackageReference_System_Nullable_System_Guid__" data-uid="Nexus.Api.V1.PackageReferencesClient.Update(Nexus.Api.V1.PackageReference,System.Nullable{System.Guid})">
+  Update(PackageReference, Guid?)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2458"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Updates a package reference.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public HttpResponseMessage Update(PackageReference packageReference, Guid? id = null)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>packageReference</code> <a class="xref" href="Nexus.Api.V1.PackageReference.html">PackageReference</a></dt>
+    <dd><p>The new package reference.</p>
+</dd>
+    <dt><code>id</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a>?</dt>
+    <dd><p>The identifier of the package reference to update.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.net.http.httpresponsemessage">HttpResponseMessage</a></dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_PackageReferencesClient_UpdateAsync_" data-uid="Nexus.Api.V1.PackageReferencesClient.UpdateAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_PackageReferencesClient_UpdateAsync_Nexus_Api_V1_PackageReference_System_Nullable_System_Guid__System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.PackageReferencesClient.UpdateAsync(Nexus.Api.V1.PackageReference,System.Nullable{System.Guid},System.Threading.CancellationToken)">
+  UpdateAsync(PackageReference, Guid?, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2476"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Updates a package reference.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Task&lt;HttpResponseMessage&gt; UpdateAsync(PackageReference packageReference, Guid? id = null, CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>packageReference</code> <a class="xref" href="Nexus.Api.V1.PackageReference.html">PackageReference</a></dt>
+    <dd><p>The new package reference.</p>
+</dd>
+    <dt><code>id</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a>?</dt>
+    <dd><p>The identifier of the package reference to update.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.net.http.httpresponsemessage">HttpResponseMessage</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2408" class="edit-link">Edit this page</a>
+        </div>
+
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2026 Apollo3zehn. Supported by code contributions from Fraunhofer IWES.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

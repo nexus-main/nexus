@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Data source plugins | Nexus Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Data source plugins | Nexus Documentation ">
+      
+      
+      <link rel="icon" href="../images/icon.svg">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/nexus-main/nexus/blob/master/doc/extensibility/data-source-plugins.md/#L1">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../images/icon.svg" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="data-source-plugins">Data source plugins</h1>
+
+<p>A data source plugin implements the <code>IDataSource&lt;T&gt;</code> contract. It contributes catalog registrations, enriches catalogs with resources and metadata, reports time ranges and availability, and reads sample data when Nexus streams or exports a selection.</p>
+<p>Reference pages:</p>
+<ul>
+<li><a class="xref" href="../api/dotnet/Nexus.Extensibility.IDataSource.html">IDataSource</a></li>
+<li><a class="xref" href="../api/dotnet/Nexus.Extensibility.IDataSource-1.html">IDataSource&lt;T&gt;</a></li>
+<li><a class="xref" href="../api/dotnet/Nexus.Extensibility.SimpleDataSource-1.html">SimpleDataSource&lt;T&gt;</a></li>
+</ul>
+<h2 id="contract-overview">Contract overview</h2>
+<p>Important methods are:</p>
+<ul>
+<li><code>SetContextAsync(...)</code>: receives the resource locator, source configuration, request configuration, and logger.</li>
+<li><code>GetCatalogRegistrationsAsync(path, ...)</code>: returns child catalogs below a parent path.</li>
+<li><code>EnrichCatalogAsync(catalog, ...)</code>: adds resources, representations, metadata, readme text, and other catalog details.</li>
+<li><code>GetTimeRangeAsync(catalogId, ...)</code>: returns the covered time range.</li>
+<li><code>GetAvailabilityAsync(catalogId, begin, end, ...)</code>: returns availability for a requested interval.</li>
+<li><code>ReadAsync(begin, end, requests, readData, progress, ...)</code>: fills the requested data buffers.</li>
+</ul>
+<h2 id="simpledatasource">SimpleDataSource<t></t></h2>
+<p><a class="xref" href="../api/dotnet/Nexus.Extensibility.SimpleDataSource-1.html">SimpleDataSource&lt;T&gt;</a> is a small convenience base class for very simple data sources or for sources with fully custom discovery and read logic. It is not meant to be the default base for every file-based plugin.</p>
+<p><code>SimpleDataSource&lt;T&gt;</code> handles the repetitive setup work:</p>
+<ul>
+<li>it implements <code>SetContextAsync(...)</code>,</li>
+<li>it stores the typed source context in <code>Context</code>,</li>
+<li>it stores the logger in <code>Logger</code>,</li>
+<li>it provides default implementations for optional behavior such as time range and availability.</li>
+</ul>
+<p>The type parameter <code>T</code> is the source configuration type. Use <code>object?</code> if the source has no custom configuration yet. A plugin still overrides the methods that define its actual behavior, especially <code>GetCatalogRegistrationsAsync(...)</code>, <code>EnrichCatalogAsync(...)</code>, and <code>ReadAsync(...)</code>.</p>
+<p>For regularly organized structured files, <a href="https://github.com/nexus-main/nexus-sources-structured-file"><code>nexus-sources-structured-file</code></a> is usually a better starting point. It provides a base for readers where files are arranged by time-based folder or file-name patterns. Derived sources implement the actual parsing, while the structured-file base handles file discovery, time-range slicing, file-source selection, offsets, and read-buffer metadata.</p>
+<h2 id="catalog-registrations">Catalog registrations</h2>
+<p>Catalog registrations define where the plugin mounts data in the Nexus catalog tree. A plugin can return registrations only below the requested parent path. This allows large catalog trees to be discovered lazily instead of loading every child at startup.</p>
+<p>For example, a source may return <code>/MEASUREMENTS/2026</code> below <code>/</code>, and later return <code>/MEASUREMENTS/2026/RUN_001</code> when Nexus asks for children below <code>/MEASUREMENTS/2026</code>.</p>
+<h2 id="catalog-enrichment">Catalog enrichment</h2>
+<p><code>EnrichCatalogAsync</code> receives a catalog shell and returns a catalog with details. This is where the plugin adds resources and representations.</p>
+<p>Resources usually represent signals or channels. Representations describe how the signal can be read, for example at a particular sample period and data type.</p>
+<h2 id="reading-data">Reading data</h2>
+<p><code>ReadAsync</code> receives one or more <code>ReadRequest</code> objects. Each request contains a data buffer and a status buffer. The plugin fills the buffers for the requested time range.</p>
+<p>The status buffer marks valid values. Invalid or missing values should be marked as invalid so Nexus can expose them as missing data instead of silently returning wrong values.</p>
+<p>Nexus may call <code>ReadAsync</code> and <code>GetAvailabilityAsync</code> concurrently on the same data source instance. Implementations must therefore be thread-safe.</p>
+<h2 id="minimal-data-source-shape">Minimal data source shape</h2>
+<p>Most data source plugins follow this shape:</p>
+<ol>
+<li>reference the language-specific extensibility package,</li>
+<li>expose one class that implements the data source contract,</li>
+<li>return catalog registrations for the part of the tree that was requested,</li>
+<li>enrich a catalog with resources and representations,</li>
+<li>fill the buffers in read requests.</li>
+</ol>
+<p>The following C# example is intentionally small. It shows the structure, not production-quality parsing or buffering:</p>
+<pre><code class="lang-csharp">using Nexus.DataModel;
+using Nexus.Extensibility;
+
+[ExtensionDescription(
+    &quot;Example data source&quot;,
+    &quot;https://github.com/nexus-contrib&quot;,
+    &quot;https://github.com/nexus-contrib/example-source&quot;)]
+public sealed class ExampleSource : SimpleDataSource&lt;object?&gt;
+{
+    public override Task&lt;CatalogRegistration[]&gt; GetCatalogRegistrationsAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var registrations = path == &quot;/&quot;
+            ? [new CatalogRegistration(&quot;/EXAMPLE&quot;, &quot;Example measurements&quot;)]
+            : [];
+
+        return Task.FromResult(registrations);
+    }
+
+    public override Task&lt;ResourceCatalog&gt; EnrichCatalogAsync(
+        ResourceCatalog catalog,
+        CancellationToken cancellationToken)
+    {
+        var resource = new ResourceBuilder(&quot;voltage&quot;)
+            .WithProperty(&quot;unit&quot;, &quot;V&quot;)
+            .AddRepresentation(new Representation(NexusDataType.Float32, TimeSpan.FromMilliseconds(1)))
+            .Build();
+
+        var enriched = new ResourceCatalogBuilder(catalog.Id)
+            .AddResource(resource)
+            .Build();
+
+        return Task.FromResult(enriched);
+    }
+
+    public override async Task ReadAsync(
+        DateTime begin,
+        DateTime end,
+        ReadRequest[] requests,
+        ReadDataHandler readData,
+        IProgress&lt;double&gt; progress,
+        CancellationToken cancellationToken)
+    {
+        foreach (var request in requests)
+        {
+            request.Data.Span.Clear();
+            request.Status.Span.Fill(0x01);
+            await request.CompleteAsync();
+        }
+
+        progress.Report(1.0);
+    }
+}
+</code></pre>
+<p>This sample skips important production details, especially time ranges, availability, thread safety, source configuration, request configuration, and correct conversion into the requested data buffer.</p>
+<h2 id="completing-resources-early">Completing resources early</h2>
+<p>Read requests can be completed individually by calling <a class="xref" href="../api/dotnet/Nexus.Extensibility.ReadRequest.html#Nexus_Extensibility_ReadRequest_CompleteAsync">CompleteAsync()</a>. This allows Nexus to stream one resource before the whole batch has finished. Use this when a source reads many resources and some are ready earlier than others.</p>
+<h2 id="configuration">Configuration</h2>
+<p>The source configuration belongs to the data source pipeline and is controlled by administrators. Request configuration can be supplied per request, for example for user-specific credentials to an external system.</p>
+<p>Do not store user passwords or long-lived secrets in catalog metadata. Use request configuration or a deployment-specific secret mechanism.</p>
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/nexus-main/nexus/blob/master/doc/extensibility/data-source-plugins.md/#L1" class="edit-link">Edit this page</a>
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2026 Apollo3zehn. Supported by code contributions from Fraunhofer IWES.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

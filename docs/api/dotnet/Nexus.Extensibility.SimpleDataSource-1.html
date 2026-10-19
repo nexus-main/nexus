@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Class SimpleDataSource&lt;T&gt; | Nexus Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Class SimpleDataSource&lt;T&gt; | Nexus Documentation ">
+      
+      <meta name="description" content="A simple implementation of a data source.">
+      <link rel="icon" href="../../images/icon.svg">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/nexus-main/nexus/new/master/apiSpec/new?filename=Nexus_Extensibility_SimpleDataSource_1.md&amp;value=---%0Auid%3A%20Nexus.Extensibility.SimpleDataSource%601%0Asummary%3A%20&#39;*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax&#39;%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="ManagedReference">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/icon.svg" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="Nexus.Extensibility.SimpleDataSource`1">
+
+
+
+  <h1 id="Nexus_Extensibility_SimpleDataSource_1" data-uid="Nexus.Extensibility.SimpleDataSource`1" class="text-break">
+Class SimpleDataSource&lt;T&gt;  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L12"><i class="bi bi-code-slash"></i></a>
+  </h1>
+
+  <div class="facts text-secondary">
+    <dl><dt>Namespace</dt><dd><span class="xref">Nexus</span>.<a class="xref" href="Nexus.Extensibility.html">Extensibility</a></dd></dl>
+  <dl><dt>Assembly</dt><dd>Nexus.Extensibility.dll</dd></dl>
+  </div>
+
+  <div class="markdown summary"><p>A simple implementation of a data source.</p>
+</div>
+  <div class="markdown conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public abstract class SimpleDataSource&lt;T&gt; : IDataSource&lt;T&gt;, IDataSource</code></pre>
+  </div>
+
+
+
+  <h4 class="section">Type Parameters</h4>
+  <dl class="parameters">
+    <dt><code>T</code></dt>
+    <dd></dd>
+  </dl>
+
+  <dl class="typelist inheritance">
+    <dt>Inheritance</dt>
+    <dd>
+      <div><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object">object</a></div>
+      <div><span class="xref">SimpleDataSource&lt;T&gt;</span></div>
+    </dd>
+  </dl>
+
+  <dl class="typelist implements">
+    <dt>Implements</dt>
+    <dd>
+      <div><a class="xref" href="Nexus.Extensibility.IDataSource-1.html">IDataSource</a>&lt;T&gt;</div>
+      <div><a class="xref" href="Nexus.Extensibility.IDataSource.html">IDataSource</a></div>
+    </dd>
+  </dl>
+
+
+  <dl class="typelist inheritedMembers">
+    <dt>Inherited Members</dt>
+    <dd>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)">object.Equals(object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)">object.Equals(object, object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.gethashcode">object.GetHashCode()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.gettype">object.GetType()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone">object.MemberwiseClone()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.referenceequals">object.ReferenceEquals(object, object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.tostring">object.ToString()</a>
+    </div>
+  </dd></dl>
+
+
+
+
+
+
+  <h2 class="section" id="properties">Properties
+</h2>
+
+
+  <a id="Nexus_Extensibility_SimpleDataSource_1_Context_" data-uid="Nexus.Extensibility.SimpleDataSource`1.Context*"></a>
+
+  <h3 id="Nexus_Extensibility_SimpleDataSource_1_Context" data-uid="Nexus.Extensibility.SimpleDataSource`1.Context">
+  Context
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L17"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the data source context. This property is not accessible from within class constructors as it will bet set later.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">protected DataSourceContext&lt;T&gt; Context { get; }</code></pre>
+  </div>
+
+
+
+
+
+  <h4 class="section">Property Value</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="Nexus.Extensibility.DataSourceContext-1.html">DataSourceContext</a>&lt;T&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+  <a id="Nexus_Extensibility_SimpleDataSource_1_Logger_" data-uid="Nexus.Extensibility.SimpleDataSource`1.Logger*"></a>
+
+  <h3 id="Nexus_Extensibility_SimpleDataSource_1_Logger" data-uid="Nexus.Extensibility.SimpleDataSource`1.Logger">
+  Logger
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L22"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the data logger. This property is not accessible from within class constructors as it will bet set later.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">protected ILogger Logger { get; }</code></pre>
+  </div>
+
+
+
+
+
+  <h4 class="section">Property Value</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger">ILogger</a></dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+  <h2 class="section" id="methods">Methods
+</h2>
+
+
+  <a id="Nexus_Extensibility_SimpleDataSource_1_EnrichCatalogAsync_" data-uid="Nexus.Extensibility.SimpleDataSource`1.EnrichCatalogAsync*"></a>
+
+  <h3 id="Nexus_Extensibility_SimpleDataSource_1_EnrichCatalogAsync_Nexus_DataModel_ResourceCatalog_System_Threading_CancellationToken_" data-uid="Nexus.Extensibility.SimpleDataSource`1.EnrichCatalogAsync(Nexus.DataModel.ResourceCatalog,System.Threading.CancellationToken)">
+  EnrichCatalogAsync(ResourceCatalog, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L44"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Enriches the provided <a class="xref" href="Nexus.DataModel.ResourceCatalog.html">ResourceCatalog</a>.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public abstract Task&lt;ResourceCatalog&gt; EnrichCatalogAsync(ResourceCatalog catalog, CancellationToken cancellationToken)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>catalog</code> <a class="xref" href="Nexus.DataModel.ResourceCatalog.html">ResourceCatalog</a></dt>
+    <dd><p>The catalog to enrich.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>A token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="Nexus.DataModel.ResourceCatalog.html">ResourceCatalog</a>&gt;</dt>
+    <dd><p>The catalog request task.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Extensibility_SimpleDataSource_1_GetAvailabilityAsync_" data-uid="Nexus.Extensibility.SimpleDataSource`1.GetAvailabilityAsync*"></a>
+
+  <h3 id="Nexus_Extensibility_SimpleDataSource_1_GetAvailabilityAsync_System_String_System_DateTime_System_DateTime_System_Threading_CancellationToken_" data-uid="Nexus.Extensibility.SimpleDataSource`1.GetAvailabilityAsync(System.String,System.DateTime,System.DateTime,System.Threading.CancellationToken)">
+  GetAvailabilityAsync(string, DateTime, DateTime, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L59"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the availability of the <a class="xref" href="Nexus.DataModel.ResourceCatalog.html">ResourceCatalog</a>. Implementations must be thread-safe because
+Nexus may call this method concurrently on the same data source instance.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public virtual Task&lt;double&gt; GetAvailabilityAsync(string catalogId, DateTime begin, DateTime end, CancellationToken cancellationToken)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>catalogId</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a></dt>
+    <dd><p>The catalog identifier.</p>
+</dd>
+    <dt><code>begin</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.datetime">DateTime</a></dt>
+    <dd><p>The begin of the availability period.</p>
+</dd>
+    <dt><code>end</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.datetime">DateTime</a></dt>
+    <dd><p>The end of the availability period.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>A token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.double">double</a>&gt;</dt>
+    <dd><p>The availability task.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Extensibility_SimpleDataSource_1_GetCatalogRegistrationsAsync_" data-uid="Nexus.Extensibility.SimpleDataSource`1.GetCatalogRegistrationsAsync*"></a>
+
+  <h3 id="Nexus_Extensibility_SimpleDataSource_1_GetCatalogRegistrationsAsync_System_String_System_Threading_CancellationToken_" data-uid="Nexus.Extensibility.SimpleDataSource`1.GetCatalogRegistrationsAsync(System.String,System.Threading.CancellationToken)">
+  GetCatalogRegistrationsAsync(string, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L38"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the catalog registrations that are located under <code class="paramref">path</code>.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public abstract Task&lt;CatalogRegistration[]&gt; GetCatalogRegistrationsAsync(string path, CancellationToken cancellationToken)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>path</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a></dt>
+    <dd><p>The parent path for which to return catalog registrations.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>A token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="Nexus.DataModel.CatalogRegistration.html">CatalogRegistration</a>[]&gt;</dt>
+    <dd><p>The catalog identifiers task.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Extensibility_SimpleDataSource_1_GetTimeRangeAsync_" data-uid="Nexus.Extensibility.SimpleDataSource`1.GetTimeRangeAsync*"></a>
+
+  <h3 id="Nexus_Extensibility_SimpleDataSource_1_GetTimeRangeAsync_System_String_System_Threading_CancellationToken_" data-uid="Nexus.Extensibility.SimpleDataSource`1.GetTimeRangeAsync(System.String,System.Threading.CancellationToken)">
+  GetTimeRangeAsync(string, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L50"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the time range of the <a class="xref" href="Nexus.DataModel.ResourceCatalog.html">ResourceCatalog</a>.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public virtual Task&lt;CatalogTimeRange&gt; GetTimeRangeAsync(string catalogId, CancellationToken cancellationToken)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>catalogId</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a></dt>
+    <dd><p>The catalog identifier.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>A token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="Nexus.Extensibility.CatalogTimeRange.html">CatalogTimeRange</a>&gt;</dt>
+    <dd><p>The time range task.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Extensibility_SimpleDataSource_1_ReadAsync_" data-uid="Nexus.Extensibility.SimpleDataSource`1.ReadAsync*"></a>
+
+  <h3 id="Nexus_Extensibility_SimpleDataSource_1_ReadAsync_System_DateTime_System_DateTime_Nexus_Extensibility_ReadRequest___Nexus_Extensibility_ReadDataHandler_System_IProgress_System_Double__System_Threading_CancellationToken_" data-uid="Nexus.Extensibility.SimpleDataSource`1.ReadAsync(System.DateTime,System.DateTime,Nexus.Extensibility.ReadRequest[],Nexus.Extensibility.ReadDataHandler,System.IProgress{System.Double},System.Threading.CancellationToken)">
+  ReadAsync(DateTime, DateTime, ReadRequest[], ReadDataHandler, IProgress&lt;double&gt;, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L69"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Performs a number of read requests. Implementations must be thread-safe because Nexus may call this method
+concurrently on the same data source instance.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public abstract Task ReadAsync(DateTime begin, DateTime end, ReadRequest[] requests, ReadDataHandler readData, IProgress&lt;double&gt; progress, CancellationToken cancellationToken)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>begin</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.datetime">DateTime</a></dt>
+    <dd><p>The beginning of the period to read.</p>
+</dd>
+    <dt><code>end</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.datetime">DateTime</a></dt>
+    <dd><p>The end of the period to read.</p>
+</dd>
+    <dt><code>requests</code> <a class="xref" href="Nexus.Extensibility.ReadRequest.html">ReadRequest</a>[]</dt>
+    <dd><p>The array of read requests.</p>
+</dd>
+    <dt><code>readData</code> <a class="xref" href="Nexus.Extensibility.ReadDataHandler.html">ReadDataHandler</a></dt>
+    <dd><p>A delegate to asynchronously read data from Nexus.</p>
+</dd>
+    <dt><code>progress</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.iprogress-1">IProgress</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.double">double</a>&gt;</dt>
+    <dd><p>An object to report the read progress between 0.0 and 1.0.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>A token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task">Task</a></dt>
+    <dd><p>The task.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Extensibility_SimpleDataSource_1_SetContextAsync_" data-uid="Nexus.Extensibility.SimpleDataSource`1.SetContextAsync*"></a>
+
+  <h3 id="Nexus_Extensibility_SimpleDataSource_1_SetContextAsync_Nexus_Extensibility_DataSourceContext__0__Microsoft_Extensions_Logging_ILogger_System_Threading_CancellationToken_" data-uid="Nexus.Extensibility.SimpleDataSource`1.SetContextAsync(Nexus.Extensibility.DataSourceContext{`0},Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)">
+  SetContextAsync(DataSourceContext&lt;T&gt;, ILogger, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L25"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Invoked by Nexus right after construction to provide the context.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Task SetContextAsync(DataSourceContext&lt;T&gt; context, ILogger logger, CancellationToken cancellationToken)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>context</code> <a class="xref" href="Nexus.Extensibility.DataSourceContext-1.html">DataSourceContext</a>&lt;T&gt;</dt>
+    <dd><p>The context.</p>
+</dd>
+    <dt><code>logger</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger">ILogger</a></dt>
+    <dd><p>The logger.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>A token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task">Task</a></dt>
+    <dd><p>The task.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/nexus-main/nexus/blob/master/src/extensibility/dotnet-extensibility/Extensibility/DataSource/SimpleDataSource.cs/#L12" class="edit-link">Edit this page</a>
+        </div>
+
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2026 Apollo3zehn. Supported by code contributions from Fraunhofer IWES.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

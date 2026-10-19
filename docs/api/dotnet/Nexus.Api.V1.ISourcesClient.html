@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Interface ISourcesClient | Nexus Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Interface ISourcesClient | Nexus Documentation ">
+      
+      <meta name="description" content="Provides methods to interact with sources.">
+      <link rel="icon" href="../../images/icon.svg">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/nexus-main/nexus/new/master/apiSpec/new?filename=Nexus_Api_V1_ISourcesClient.md&amp;value=---%0Auid%3A%20Nexus.Api.V1.ISourcesClient%0Asummary%3A%20&#39;*You%20can%20override%20summary%20for%20the%20API%20here%20using%20*MARKDOWN*%20syntax&#39;%0A---%0A%0A*Please%20type%20below%20more%20information%20about%20this%20API%3A*%0A%0A">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="ManagedReference">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/icon.svg" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="Nexus.Api.V1.ISourcesClient">
+
+
+
+  <h1 id="Nexus_Api_V1_ISourcesClient" data-uid="Nexus.Api.V1.ISourcesClient" class="text-break">
+Interface ISourcesClient  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2540"><i class="bi bi-code-slash"></i></a>
+  </h1>
+
+  <div class="facts text-secondary">
+    <dl><dt>Namespace</dt><dd><span class="xref">Nexus</span>.<a class="xref" href="Nexus.Api.html">Api</a>.<a class="xref" href="Nexus.Api.V1.html">V1</a></dd></dl>
+  <dl><dt>Assembly</dt><dd>Nexus.Api.dll</dd></dl>
+  </div>
+
+  <div class="markdown summary"><p>Provides methods to interact with sources.</p>
+</div>
+  <div class="markdown conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public interface ISourcesClient</code></pre>
+  </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <h2 class="section" id="methods">Methods
+</h2>
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_CreatePipeline_" data-uid="Nexus.Api.V1.ISourcesClient.CreatePipeline*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_CreatePipeline_Nexus_Api_V1_DataSourcePipeline_" data-uid="Nexus.Api.V1.ISourcesClient.CreatePipeline(Nexus.Api.V1.DataSourcePipeline)">
+  CreatePipeline(DataSourcePipeline)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2568"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Creates a data source pipeline.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">Guid CreatePipeline(DataSourcePipeline pipeline)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>pipeline</code> <a class="xref" href="Nexus.Api.V1.DataSourcePipeline.html">DataSourcePipeline</a></dt>
+    <dd><p>The pipeline to create.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a></dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_CreatePipelineAsync_" data-uid="Nexus.Api.V1.ISourcesClient.CreatePipelineAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_CreatePipelineAsync_Nexus_Api_V1_DataSourcePipeline_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.ISourcesClient.CreatePipelineAsync(Nexus.Api.V1.DataSourcePipeline,System.Threading.CancellationToken)">
+  CreatePipelineAsync(DataSourcePipeline, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2575"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Creates a data source pipeline.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">Task&lt;Guid&gt; CreatePipelineAsync(DataSourcePipeline pipeline, CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>pipeline</code> <a class="xref" href="Nexus.Api.V1.DataSourcePipeline.html">DataSourcePipeline</a></dt>
+    <dd><p>The pipeline to create.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_DeletePipeline_" data-uid="Nexus.Api.V1.ISourcesClient.DeletePipeline*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_DeletePipeline_System_Guid_" data-uid="Nexus.Api.V1.ISourcesClient.DeletePipeline(System.Guid)">
+  DeletePipeline(Guid)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2596"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Deletes a data source pipeline.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">HttpResponseMessage DeletePipeline(Guid pipelineId)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>pipelineId</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a></dt>
+    <dd><p>The identifier of the pipeline to delete.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.net.http.httpresponsemessage">HttpResponseMessage</a></dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_DeletePipelineAsync_" data-uid="Nexus.Api.V1.ISourcesClient.DeletePipelineAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_DeletePipelineAsync_System_Guid_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.ISourcesClient.DeletePipelineAsync(System.Guid,System.Threading.CancellationToken)">
+  DeletePipelineAsync(Guid, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2603"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Deletes a data source pipeline.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">Task&lt;HttpResponseMessage&gt; DeletePipelineAsync(Guid pipelineId, CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>pipelineId</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a></dt>
+    <dd><p>The identifier of the pipeline to delete.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.net.http.httpresponsemessage">HttpResponseMessage</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_GetDescriptions_" data-uid="Nexus.Api.V1.ISourcesClient.GetDescriptions*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_GetDescriptions" data-uid="Nexus.Api.V1.ISourcesClient.GetDescriptions">
+  GetDescriptions()
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2545"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the list of source descriptions.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">IReadOnlyList&lt;ExtensionDescription&gt; GetDescriptions()</code></pre>
+  </div>
+
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1">IReadOnlyList</a>&lt;<a class="xref" href="Nexus.Api.V1.ExtensionDescription.html">ExtensionDescription</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_GetDescriptionsAsync_" data-uid="Nexus.Api.V1.ISourcesClient.GetDescriptionsAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_GetDescriptionsAsync_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.ISourcesClient.GetDescriptionsAsync(System.Threading.CancellationToken)">
+  GetDescriptionsAsync(CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2551"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the list of source descriptions.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">Task&lt;IReadOnlyList&lt;ExtensionDescription&gt;&gt; GetDescriptionsAsync(CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1">IReadOnlyList</a>&lt;<a class="xref" href="Nexus.Api.V1.ExtensionDescription.html">ExtensionDescription</a>&gt;&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_GetPipelines_" data-uid="Nexus.Api.V1.ISourcesClient.GetPipelines*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_GetPipelines" data-uid="Nexus.Api.V1.ISourcesClient.GetPipelines">
+  GetPipelines()
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2556"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the list of data source pipelines.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">IReadOnlyDictionary&lt;string, DataSourcePipeline&gt; GetPipelines()</code></pre>
+  </div>
+
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2">IReadOnlyDictionary</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a>, <a class="xref" href="Nexus.Api.V1.DataSourcePipeline.html">DataSourcePipeline</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_GetPipelinesAsync_" data-uid="Nexus.Api.V1.ISourcesClient.GetPipelinesAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_GetPipelinesAsync_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.ISourcesClient.GetPipelinesAsync(System.Threading.CancellationToken)">
+  GetPipelinesAsync(CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2562"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Gets the list of data source pipelines.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">Task&lt;IReadOnlyDictionary&lt;string, DataSourcePipeline&gt;&gt; GetPipelinesAsync(CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2">IReadOnlyDictionary</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a>, <a class="xref" href="Nexus.Api.V1.DataSourcePipeline.html">DataSourcePipeline</a>&gt;&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_UpdatePipeline_" data-uid="Nexus.Api.V1.ISourcesClient.UpdatePipeline*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_UpdatePipeline_System_Guid_Nexus_Api_V1_DataSourcePipeline_" data-uid="Nexus.Api.V1.ISourcesClient.UpdatePipeline(System.Guid,Nexus.Api.V1.DataSourcePipeline)">
+  UpdatePipeline(Guid, DataSourcePipeline)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2582"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Updates a data source pipeline.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">HttpResponseMessage UpdatePipeline(Guid pipelineId, DataSourcePipeline pipeline)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>pipelineId</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a></dt>
+    <dd><p>The identifier of the pipeline to update.</p>
+</dd>
+    <dt><code>pipeline</code> <a class="xref" href="Nexus.Api.V1.DataSourcePipeline.html">DataSourcePipeline</a></dt>
+    <dd><p>The new pipeline.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.net.http.httpresponsemessage">HttpResponseMessage</a></dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+  <a id="Nexus_Api_V1_ISourcesClient_UpdatePipelineAsync_" data-uid="Nexus.Api.V1.ISourcesClient.UpdatePipelineAsync*"></a>
+
+  <h3 id="Nexus_Api_V1_ISourcesClient_UpdatePipelineAsync_System_Guid_Nexus_Api_V1_DataSourcePipeline_System_Threading_CancellationToken_" data-uid="Nexus.Api.V1.ISourcesClient.UpdatePipelineAsync(System.Guid,Nexus.Api.V1.DataSourcePipeline,System.Threading.CancellationToken)">
+  UpdatePipelineAsync(Guid, DataSourcePipeline, CancellationToken)
+  <a class="header-action link-secondary" title="View source" href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2590"><i class="bi bi-code-slash"></i></a>
+  </h3>
+
+  <div class="markdown level1 summary"><p>Updates a data source pipeline.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">Task&lt;HttpResponseMessage&gt; UpdatePipelineAsync(Guid pipelineId, DataSourcePipeline pipeline, CancellationToken cancellationToken = default)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>pipelineId</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.guid">Guid</a></dt>
+    <dd><p>The identifier of the pipeline to update.</p>
+</dd>
+    <dt><code>pipeline</code> <a class="xref" href="Nexus.Api.V1.DataSourcePipeline.html">DataSourcePipeline</a></dt>
+    <dd><p>The new pipeline.</p>
+</dd>
+    <dt><code>cancellationToken</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken">CancellationToken</a></dt>
+    <dd><p>The token to cancel the current operation.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.net.http.httpresponsemessage">HttpResponseMessage</a>&gt;</dt>
+    <dd></dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/nexus-main/nexus/blob/master/src/clients/dotnet/NexusClient.g.cs/#L2540" class="edit-link">Edit this page</a>
+        </div>
+
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2026 Apollo3zehn. Supported by code contributions from Fraunhofer IWES.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

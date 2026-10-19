@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Data writer plugins | Nexus Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Data writer plugins | Nexus Documentation ">
+      
+      
+      <link rel="icon" href="../images/icon.svg">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/nexus-main/nexus/blob/master/doc/extensibility/data-writer-plugins.md/#L1">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../images/icon.svg" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="data-writer-plugins">Data writer plugins</h1>
+
+<p>A data writer plugin implements <code>IDataWriter</code>. It receives selected catalog items and writes export files into a target folder provided by Nexus.</p>
+<p>Reference page: <a class="xref" href="../api/dotnet/Nexus.Extensibility.IDataWriter.html">IDataWriter</a>.</p>
+<h2 id="contract-overview">Contract overview</h2>
+<p>Important methods are:</p>
+<ul>
+<li><code>SetContextAsync(...)</code>: receives the writer context and logger.</li>
+<li><code>OpenAsync(fileBegin, filePeriod, samplePeriod, catalogItems, ...)</code>: prepares the output file or files for a time slice.</li>
+<li><code>WriteAsync(fileOffset, requests, progress, ...)</code>: writes data buffers for the current slice.</li>
+<li><code>CloseAsync(...)</code>: flushes and closes output.</li>
+</ul>
+<h2 id="writer-descriptions">Writer descriptions</h2>
+<p>Writers can expose options to the UI. The built-in CSV writer uses a JSON description to define settings such as timestamp format and significant figures. Keep option labels understandable for users, because they appear in export workflows.</p>
+<p>Example: the built-in <a href="https://github.com/nexus-main/nexus/blob/master/src/Nexus/Extensions/Writers/Csv.cs">CSV writer</a> shows how a writer implements <code>IDataWriter</code>, exposes UI options with <code>DataWriterDescription</code>, prepares output in <code>OpenAsync(...)</code>, writes buffers in <code>WriteAsync(...)</code>, and closes the generated files in <code>CloseAsync(...)</code>.</p>
+<h2 id="output-expectations">Output expectations</h2>
+<p>A writer should produce files that can be archived and downloaded by Nexus. If possible, include metadata that helps downstream tools understand units, resource names, sample periods, and catalog context.</p>
+<h2 id="when-to-write-a-writer">When to write a writer</h2>
+<p>Write a writer when an organization needs a specific exchange format or when downstream tools expect a format not built into Nexus.</p>
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/nexus-main/nexus/blob/master/doc/extensibility/data-writer-plugins.md/#L1" class="edit-link">Edit this page</a>
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2026 Apollo3zehn. Supported by code contributions from Fraunhofer IWES.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

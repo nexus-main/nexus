@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Configuration options | Nexus Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Configuration options | Nexus Documentation ">
+      
+      
+      <link rel="icon" href="../images/icon.svg">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/nexus-main/nexus/blob/master/doc/configuration/options.md/#L1">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../images/icon.svg" alt="">
+            
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="configuration-options">Configuration options</h1>
+
+<p>This page lists the Nexus server options that can be set in <code>settings.json</code>, an INI file, environment variables, or command-line arguments.</p>
+<p>Nexus uses the ASP.NET Core configuration system. Nested configuration sections are written with <code>:</code> in JSON paths and with double underscores in environment variables.</p>
+<p>For example, the JSON setting:</p>
+<pre><code class="lang-json">{
+  &quot;Paths&quot;: {
+    &quot;Config&quot;: &quot;/var/lib/nexus/config&quot;
+  }
+}
+</code></pre>
+<p>is the same as this environment variable:</p>
+<pre><code class="lang-bash">NEXUS_PATHS__CONFIG=/var/lib/nexus/config
+</code></pre>
+<h2 id="loading-order">Loading order</h2>
+<p>Configuration is loaded in this order. Later sources override earlier sources:</p>
+<ol>
+<li><code>appsettings.json</code></li>
+<li><code>appsettings.{ASPNETCORE_ENVIRONMENT}.json</code></li>
+<li>optional settings file selected by <code>NEXUS_PATHS__SETTINGS</code></li>
+<li>environment variables prefixed with <code>NEXUS_</code></li>
+<li>command-line arguments</li>
+</ol>
+<p>If <code>NEXUS_PATHS__SETTINGS</code> is not set, Nexus uses the platform-specific default settings file:</p>
+<ul>
+<li>Linux: <code>~/.local/share/nexus/settings.json</code></li>
+<li>Windows: <code>%LOCALAPPDATA%/nexus/settings.json</code></li>
+</ul>
+<p>This means that on a default Linux installation, users can put their <code>settings.json</code> at:</p>
+<pre><code class="lang-text">/home/&lt;user&gt;/.local/share/nexus/settings.json
+</code></pre>
+<p>On Windows, users can put their <code>settings.json</code> at:</p>
+<pre><code class="lang-text">%LOCALAPPDATA%\nexus\settings.json
+</code></pre>
+<p>The settings file can be JSON or INI. The file extension decides which parser is used.</p>
+<h2 id="environment-variable-naming">Environment variable naming</h2>
+<p>Use these rules:</p>
+<ul>
+<li>prefix Nexus options with <code>NEXUS_</code>,</li>
+<li>replace <code>:</code> with <code>__</code> for nested sections,</li>
+<li>use the same option names as in JSON.</li>
+</ul>
+<p>Examples:</p>
+<pre><code class="lang-bash">NEXUS_GENERAL__APPLICATIONNAME=&quot;Production Nexus&quot;
+NEXUS_PATHS__CONFIG=/var/lib/nexus/config
+NEXUS_DATA__VISUALIZATION__ENABLESERVERSIDEDECIMATION=true
+NEXUS_GIT__REMOTEURL=https://example.invalid/nexus-config.git
+NEXUS_SECURITY__ADMINISTRATORGROUP=nexus-admins
+</code></pre>
+<h2 id="example-settingsjson">Example settings.json</h2>
+<pre><code class="lang-json">{
+  &quot;General&quot;: {
+    &quot;ApplicationName&quot;: &quot;Production Nexus&quot;,
+    &quot;HelpLink&quot;: &quot;https://example.org/nexus-help&quot;,
+    &quot;DisableSampleCatalog&quot;: true
+  },
+  &quot;Paths&quot;: {
+    &quot;Config&quot;: &quot;/var/lib/nexus/config&quot;,
+    &quot;Cache&quot;: &quot;/var/cache/nexus&quot;,
+    &quot;Catalogs&quot;: &quot;/var/lib/nexus/catalogs&quot;,
+    &quot;Artifacts&quot;: &quot;/var/lib/nexus/artifacts&quot;,
+    &quot;Packages&quot;: &quot;/var/lib/nexus/packages&quot;
+  },
+  &quot;Data&quot;: {
+    &quot;TotalBufferMemoryConsumption&quot;: 1073741824,
+    &quot;AggregationNaNThreshold&quot;: 0.99,
+    &quot;Visualization&quot;: {
+      &quot;EnableServerSideDecimation&quot;: true,
+      &quot;MaxConcurrentReads&quot;: 8,
+      &quot;MaxComputeWorkers&quot;: 2,
+      &quot;MaxConcurrentRequests&quot;: 4,
+      &quot;MaxAggregatePoints&quot;: 262144,
+      &quot;MaxDatasetCacheBytes&quot;: 1073741824,
+      &quot;MaxTotalCacheBytes&quot;: 1073741824,
+      &quot;CacheTtl&quot;: &quot;00:10:00&quot;
+    }
+  },
+  &quot;Git&quot;: {
+    &quot;Branch&quot;: &quot;main&quot;,
+    &quot;CommitThrottleSeconds&quot;: 300,
+    &quot;RemoteUrl&quot;: &quot;https://example.invalid/nexus-config.git&quot;,
+    &quot;CommitAuthorName&quot;: &quot;Nexus&quot;,
+    &quot;CommitAuthorEmail&quot;: &quot;nexus@localhost&quot;
+  },
+  &quot;Security&quot;: {
+    &quot;UserHeader&quot;: &quot;X-Forwarded-User&quot;,
+    &quot;NameHeader&quot;: &quot;X-Forwarded-Preferred-Username&quot;,
+    &quot;GroupsHeader&quot;: &quot;X-Forwarded-Groups&quot;,
+    &quot;AdministratorGroup&quot;: &quot;admins&quot;
+  }
+}
+</code></pre>
+<h2 id="general">General</h2>
+<p>Options under <code>General</code> control basic UI and sample-catalog behavior.</p>
+<table>
+<thead>
+<tr>
+<th>JSON path</th>
+<th>Environment variable</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>General:ApplicationName</code></td>
+<td><code>NEXUS_GENERAL__APPLICATIONNAME</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Optional application name shown by the server/UI.</td>
+</tr>
+<tr>
+<td><code>General:HelpLink</code></td>
+<td><code>NEXUS_GENERAL__HELPLINK</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Optional help/documentation link exposed by the server/UI.</td>
+</tr>
+<tr>
+<td><code>General:DisableSampleCatalog</code></td>
+<td><code>NEXUS_GENERAL__DISABLESAMPLECATALOG</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Disables the built-in sample catalog.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="paths">Paths</h2>
+<p>Options under <code>Paths</code> control where Nexus stores configuration, caches, catalog attachments, export artifacts, and restored extension packages.</p>
+<p>The defaults are based on a platform-specific Nexus root:</p>
+<ul>
+<li>Linux root: <code>~/.local/share/nexus</code></li>
+<li>Windows root: <code>%LOCALAPPDATA%/nexus</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>JSON path</th>
+<th>Environment variable</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Paths:Config</code></td>
+<td><code>NEXUS_PATHS__CONFIG</code></td>
+<td>string</td>
+<td><code>{root}/config</code></td>
+<td>Administrative configuration directory. This is the directory tracked by Git history.</td>
+</tr>
+<tr>
+<td><code>Paths:Cache</code></td>
+<td><code>NEXUS_PATHS__CACHE</code></td>
+<td>string</td>
+<td><code>{root}/cache</code></td>
+<td>Cache directory.</td>
+</tr>
+<tr>
+<td><code>Paths:Catalogs</code></td>
+<td><code>NEXUS_PATHS__CATALOGS</code></td>
+<td>string</td>
+<td><code>{root}/catalogs</code></td>
+<td>Directory for catalog-related stored files.</td>
+</tr>
+<tr>
+<td><code>Paths:Artifacts</code></td>
+<td><code>NEXUS_PATHS__ARTIFACTS</code></td>
+<td>string</td>
+<td><code>{root}/artifacts</code></td>
+<td>Directory for generated export artifacts.</td>
+</tr>
+<tr>
+<td><code>Paths:Packages</code></td>
+<td><code>NEXUS_PATHS__PACKAGES</code></td>
+<td>string</td>
+<td><code>{root}/packages</code></td>
+<td>Directory for restored extension packages.</td>
+</tr>
+<tr>
+<td>special: settings file path</td>
+<td><code>NEXUS_PATHS__SETTINGS</code></td>
+<td>string</td>
+<td>platform default settings path</td>
+<td>Selects the optional JSON or INI settings file loaded before environment variables. This is read before <code>Paths</code> is bound and is not stored as a normal <code>Paths</code> option.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="data">Data</h2>
+<p>Options under <code>Data</code> control data reading, aggregation, cache behavior, and visualization-related memory limits.</p>
+<table>
+<thead>
+<tr>
+<th>JSON path</th>
+<th>Environment variable</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Data:CachePattern</code></td>
+<td><code>NEXUS_DATA__CACHEPATTERN</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Optional cache pattern used by data/cache services.</td>
+</tr>
+<tr>
+<td><code>Data:TotalBufferMemoryConsumption</code></td>
+<td><code>NEXUS_DATA__TOTALBUFFERMEMORYCONSUMPTION</code></td>
+<td>integer bytes</td>
+<td><code>1073741824</code></td>
+<td>Total buffer memory budget, default 1 GiB.</td>
+</tr>
+<tr>
+<td><code>Data:AggregationNaNThreshold</code></td>
+<td><code>NEXUS_DATA__AGGREGATIONNANTHRESHOLD</code></td>
+<td>number</td>
+<td><code>0.99</code></td>
+<td>Threshold used when aggregating data with missing/invalid values.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="data-visualization">Data visualization</h2>
+<p>Options under <code>Data:Visualization</code> control server-side visualization decimation and its cache/scheduling limits.</p>
+<table>
+<thead>
+<tr>
+<th>JSON path</th>
+<th>Environment variable</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Data:Visualization:EnableServerSideDecimation</code></td>
+<td><code>NEXUS_DATA__VISUALIZATION__ENABLESERVERSIDEDECIMATION</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Enables server-side visualization decimation and exposes the UI option to use it.</td>
+</tr>
+<tr>
+<td><code>Data:Visualization:MaxConcurrentReads</code></td>
+<td><code>NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREADS</code></td>
+<td>integer</td>
+<td><code>8</code></td>
+<td>Maximum number of source-read workers used by one visualization scan.</td>
+</tr>
+<tr>
+<td><code>Data:Visualization:MaxComputeWorkers</code></td>
+<td><code>NEXUS_DATA__VISUALIZATION__MAXCOMPUTEWORKERS</code></td>
+<td>integer</td>
+<td><code>2</code></td>
+<td>Maximum number of CPU workers used for summary reduction, parent construction, and view projection.</td>
+</tr>
+<tr>
+<td><code>Data:Visualization:MaxConcurrentRequests</code></td>
+<td><code>NEXUS_DATA__VISUALIZATION__MAXCONCURRENTREQUESTS</code></td>
+<td>integer</td>
+<td><code>4</code></td>
+<td>Maximum number of visualization requests admitted concurrently.</td>
+</tr>
+<tr>
+<td><code>Data:Visualization:MaxAggregatePoints</code></td>
+<td><code>NEXUS_DATA__VISUALIZATION__MAXAGGREGATEPOINTS</code></td>
+<td>integer</td>
+<td><code>262144</code></td>
+<td>Maximum total number of projected visualization points accepted across all views and resources in one request.</td>
+</tr>
+<tr>
+<td><code>Data:Visualization:MaxDatasetCacheBytes</code></td>
+<td><code>NEXUS_DATA__VISUALIZATION__MAXDATASETCACHEBYTES</code></td>
+<td>integer bytes</td>
+<td><code>1073741824</code></td>
+<td>Maximum retained visualization cache bytes for one dataset, including summaries and raw detail.</td>
+</tr>
+<tr>
+<td><code>Data:Visualization:MaxTotalCacheBytes</code></td>
+<td><code>NEXUS_DATA__VISUALIZATION__MAXTOTALCACHEBYTES</code></td>
+<td>integer bytes</td>
+<td><code>1073741824</code></td>
+<td>Maximum retained visualization cache bytes shared by all datasets in this server process.</td>
+</tr>
+<tr>
+<td><code>Data:Visualization:CacheTtl</code></td>
+<td><code>NEXUS_DATA__VISUALIZATION__CACHETTL</code></td>
+<td>duration</td>
+<td><code>00:10:00</code></td>
+<td>Time after last use before a visualization cache entry is eligible for expiration.</td>
+</tr>
+</tbody>
+</table>
+<p>Durations are parsed by .NET. In JSON, use strings such as <code>&quot;00:10:00&quot;</code> for ten minutes or <code>&quot;1.00:00:00&quot;</code> for one day.</p>
+<h2 id="git">Git</h2>
+<p>Options under <code>Git</code> control Git-backed configuration history. See also <a href="git-history.html">Git-backed configuration history</a>.</p>
+<table>
+<thead>
+<tr>
+<th>JSON path</th>
+<th>Environment variable</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Git:Branch</code></td>
+<td><code>NEXUS_GIT__BRANCH</code></td>
+<td>string</td>
+<td><code>main</code></td>
+<td>Branch used for the configuration repository.</td>
+</tr>
+<tr>
+<td><code>Git:CommitThrottleSeconds</code></td>
+<td><code>NEXUS_GIT__COMMITTHROTTLESECONDS</code></td>
+<td>integer seconds</td>
+<td><code>300</code></td>
+<td>Delay used to group rapid configuration changes into one commit.</td>
+</tr>
+<tr>
+<td><code>Git:RemoteUrl</code></td>
+<td><code>NEXUS_GIT__REMOTEURL</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Optional remote repository URL for pushing configuration history.</td>
+</tr>
+<tr>
+<td><code>Git:Username</code></td>
+<td><code>NEXUS_GIT__USERNAME</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Optional username for remote authentication.</td>
+</tr>
+<tr>
+<td><code>Git:Token</code></td>
+<td><code>NEXUS_GIT__TOKEN</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Optional token/password for remote authentication. Treat this as a secret.</td>
+</tr>
+<tr>
+<td><code>Git:SshPrivateKey</code></td>
+<td><code>NEXUS_GIT__SSHPRIVATEKEY</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Optional SSH private key for remote authentication. Treat this as a secret.</td>
+</tr>
+<tr>
+<td><code>Git:CommitAuthorName</code></td>
+<td><code>NEXUS_GIT__COMMITAUTHORNAME</code></td>
+<td>string</td>
+<td><code>Nexus</code></td>
+<td>Author name used for automatic commits.</td>
+</tr>
+<tr>
+<td><code>Git:CommitAuthorEmail</code></td>
+<td><code>NEXUS_GIT__COMMITAUTHOREMAIL</code></td>
+<td>string</td>
+<td><code>nexus@localhost</code></td>
+<td>Author email used for automatic commits.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="security">Security</h2>
+<p>Options under <code>Security</code> define which reverse-proxy headers Nexus reads for user identity, groups, and catalog permissions.</p>
+<table>
+<thead>
+<tr>
+<th>JSON path</th>
+<th>Environment variable</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Security:UserHeader</code></td>
+<td><code>NEXUS_SECURITY__USERHEADER</code></td>
+<td>string</td>
+<td><code>X-Forwarded-User</code></td>
+<td>Header containing the authenticated user identifier.</td>
+</tr>
+<tr>
+<td><code>Security:NameHeader</code></td>
+<td><code>NEXUS_SECURITY__NAMEHEADER</code></td>
+<td>string</td>
+<td><code>X-Forwarded-Preferred-Username</code></td>
+<td>Header containing the display/preferred user name.</td>
+</tr>
+<tr>
+<td><code>Security:GroupsHeader</code></td>
+<td><code>NEXUS_SECURITY__GROUPSHEADER</code></td>
+<td>string</td>
+<td><code>X-Forwarded-Groups</code></td>
+<td>Header containing user groups.</td>
+</tr>
+<tr>
+<td><code>Security:AdministratorGroup</code></td>
+<td><code>NEXUS_SECURITY__ADMINISTRATORGROUP</code></td>
+<td>string</td>
+<td><code>admins</code></td>
+<td>Group whose members receive administrator permissions.</td>
+</tr>
+<tr>
+<td><code>Security:EnabledCatalogsPattern</code></td>
+<td><code>NEXUS_SECURITY__ENABLEDCATALOGSPATTERN</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Default enabled-catalogs pattern. Empty means all catalogs.</td>
+</tr>
+<tr>
+<td><code>Security:EnabledCatalogsPatternHeader</code></td>
+<td><code>NEXUS_SECURITY__ENABLEDCATALOGSPATTERNHEADER</code></td>
+<td>string</td>
+<td><code>X-Forwarded-EnabledCatalogsPattern</code></td>
+<td>Header that can provide the enabled-catalogs pattern for a request.</td>
+</tr>
+<tr>
+<td><code>Security:CanReadCatalogHeader</code></td>
+<td><code>NEXUS_SECURITY__CANREADCATALOGHEADER</code></td>
+<td>string</td>
+<td><code>X-Forwarded-CanReadCatalog</code></td>
+<td>Header used for per-catalog read permissions.</td>
+</tr>
+<tr>
+<td><code>Security:CanWriteCatalogHeader</code></td>
+<td><code>NEXUS_SECURITY__CANWRITECATALOGHEADER</code></td>
+<td>string</td>
+<td><code>X-Forwarded-CanWriteCatalog</code></td>
+<td>Header used for per-catalog write permissions.</td>
+</tr>
+<tr>
+<td><code>Security:CanReadCatalogGroupHeader</code></td>
+<td><code>NEXUS_SECURITY__CANREADCATALOGGROUPHEADER</code></td>
+<td>string</td>
+<td><code>X-Forwarded-CanReadCatalogGroup</code></td>
+<td>Header used for group-based catalog read permissions.</td>
+</tr>
+<tr>
+<td><code>Security:CanWriteCatalogGroupHeader</code></td>
+<td><code>NEXUS_SECURITY__CANWRITECATALOGGROUPHEADER</code></td>
+<td>string</td>
+<td><code>X-Forwarded-CanWriteCatalogGroup</code></td>
+<td>Header used for group-based catalog write permissions.</td>
+</tr>
+<tr>
+<td><code>Security:LogoutUrl</code></td>
+<td><code>NEXUS_SECURITY__LOGOUTURL</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Optional logout URL used by the UI.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="other-application-configuration">Other application configuration</h2>
+<p>The same configuration system also sees standard ASP.NET Core and Serilog settings, such as <code>AllowedHosts</code> and <code>Serilog</code>. Those settings are not Nexus-specific options, but they can be provided in the same files or through environment variables according to the normal ASP.NET Core rules.</p>
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/nexus-main/nexus/blob/master/doc/configuration/options.md/#L1" class="edit-link">Edit this page</a>
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2026 Apollo3zehn. Supported by code contributions from Fraunhofer IWES.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

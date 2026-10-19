@@ -1,0 +1,1697 @@
+{
+  "docfx_version": "2.81.0+ba844df625370a6bd7c1ecab0d0ec4d1d9128ac4",
+  "source_base_path": "/home/runner/work/nexus/nexus/doc",
+  "xrefmap": "xrefmap.yml",
+  "files": [
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.DataResponse-1.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.DataResponse-1.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.DataResponse<T>",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.DataResponse-1.yml\" sourcestartlinenumber=\"1\">Result of a data request with a certain resource path.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.INexusClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.INexusClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.INexusClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.INexusClient.yml\" sourcestartlinenumber=\"1\">A client for the Nexus system.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.NexusClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.NexusClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.NexusClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.NexusClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.NexusException.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.NexusException.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.NexusException",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.NexusException.yml\" sourcestartlinenumber=\"1\">A NexusException.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.ResourceInfo.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.ResourceInfo.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.ResourceInfo",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.ResourceInfo.yml\" sourcestartlinenumber=\"1\">Metadata for a data resource.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.ArtifactsClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.ArtifactsClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.ArtifactsClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.ArtifactsClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.CatalogAvailability.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.CatalogAvailability.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.CatalogAvailability",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.CatalogAvailability.yml\" sourcestartlinenumber=\"1\">The catalog availability.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.CatalogInfo.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.CatalogInfo.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.CatalogInfo",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.CatalogInfo.yml\" sourcestartlinenumber=\"1\">A structure for catalog information.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.CatalogItem.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.CatalogItem.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.CatalogItem",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.CatalogItem.yml\" sourcestartlinenumber=\"1\">A catalog item consists of a catalog, a resource and a representation.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.CatalogMetadata.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.CatalogMetadata.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.CatalogMetadata",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.CatalogMetadata.yml\" sourcestartlinenumber=\"1\">A structure for catalog metadata.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.CatalogTimeRange.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.CatalogTimeRange.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.CatalogTimeRange",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.CatalogTimeRange.yml\" sourcestartlinenumber=\"1\">A catalog time range.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.CatalogsClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.CatalogsClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.CatalogsClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.CatalogsClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.CreateTokenRequest.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.CreateTokenRequest.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.CreateTokenRequest",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.CreateTokenRequest.yml\" sourcestartlinenumber=\"1\">A request to create a personal access token.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.DataClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.DataClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.DataClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.DataClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.DataSourcePipeline.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.DataSourcePipeline.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.DataSourcePipeline",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.DataSourcePipeline.yml\" sourcestartlinenumber=\"1\">A data source pipeline.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.DataSourceRegistration.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.DataSourceRegistration.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.DataSourceRegistration",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.DataSourceRegistration.yml\" sourcestartlinenumber=\"1\">A data source registration.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.ExportParameters.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.ExportParameters.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.ExportParameters",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.ExportParameters.yml\" sourcestartlinenumber=\"1\">A structure for export parameters.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.ExtensionDescription.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.ExtensionDescription.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.ExtensionDescription",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.ExtensionDescription.yml\" sourcestartlinenumber=\"1\">An extension description.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitConfigResponse.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitConfigResponse.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitConfigResponse",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitConfigResponse.yml\" sourcestartlinenumber=\"1\">The effective Git configuration without secret values.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitDiffFile.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitDiffFile.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitDiffFile",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitDiffFile.yml\" sourcestartlinenumber=\"1\">A changed file in a Git commit.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitHistoryEntry.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitHistoryEntry.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitHistoryEntry",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitHistoryEntry.yml\" sourcestartlinenumber=\"1\">A Git commit in the configuration history.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitPushStatus.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitPushStatus.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitPushStatus",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitPushStatus.yml\" sourcestartlinenumber=\"1\">The result of pushing configuration history to a remote Git repository.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitRestoreRequest.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitRestoreRequest.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitRestoreRequest",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitRestoreRequest.yml\" sourcestartlinenumber=\"1\">A request to restore configuration from a commit.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitRestoreResponse.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitRestoreResponse.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitRestoreResponse",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitRestoreResponse.yml\" sourcestartlinenumber=\"1\">The result of restoring configuration from a commit.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitStatusResponse.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitStatusResponse.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitStatusResponse",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitStatusResponse.yml\" sourcestartlinenumber=\"1\">The current Git repository and push status required by the admin UI.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.GitSyncRequest.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.GitSyncRequest.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.GitSyncRequest",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.GitSyncRequest.yml\" sourcestartlinenumber=\"1\">A request to synchronize local configuration history with the configured remote.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.IArtifactsClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.IArtifactsClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.IArtifactsClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.IArtifactsClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with artifacts.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.ICatalogsClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.ICatalogsClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.ICatalogsClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.ICatalogsClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with catalogs.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.IDataClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.IDataClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.IDataClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.IDataClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with data.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.IGitClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.IGitClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.IGitClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.IGitClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with git.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.IJobsClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.IJobsClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.IJobsClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.IJobsClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with jobs.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.IPackageReferencesClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.IPackageReferencesClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.IPackageReferencesClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.IPackageReferencesClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with package references.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.ISourcesClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.ISourcesClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.ISourcesClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.ISourcesClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with sources.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.ISystemClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.ISystemClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.ISystemClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.ISystemClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with system.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.IUsersClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.IUsersClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.IUsersClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.IUsersClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with users.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.IV1.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.IV1.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.IV1",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.IV1.yml\" sourcestartlinenumber=\"1\">A client for version V1.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.IWritersClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.IWritersClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.IWritersClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.IWritersClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with writers.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.Job.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.Job.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.Job",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.Job.yml\" sourcestartlinenumber=\"1\">Description of a job.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.JobStatus.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.JobStatus.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.JobStatus",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.JobStatus.yml\" sourcestartlinenumber=\"1\">Describes the status of the job.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.JobsClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.JobsClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.JobsClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.JobsClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.MeResponse.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.MeResponse.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.MeResponse",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.MeResponse.yml\" sourcestartlinenumber=\"1\">A me response.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.NexusDataType.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.NexusDataType.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.NexusDataType",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.NexusDataType.yml\" sourcestartlinenumber=\"1\">Specifies the Nexus data type.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.PackageReference.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.PackageReference.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.PackageReference",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.PackageReference.yml\" sourcestartlinenumber=\"1\">A package reference.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.PackageReferencesClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.PackageReferencesClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.PackageReferencesClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.PackageReferencesClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.PersonalAccessToken.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.PersonalAccessToken.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.PersonalAccessToken",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.PersonalAccessToken.yml\" sourcestartlinenumber=\"1\">A personal access token.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.PipelineInfo.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.PipelineInfo.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.PipelineInfo",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.PipelineInfo.yml\" sourcestartlinenumber=\"1\">A structure for pipeline information.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.Representation.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.Representation.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.Representation",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.Representation.yml\" sourcestartlinenumber=\"1\">A representation is part of a resource.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.Resource.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.Resource.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.Resource",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.Resource.yml\" sourcestartlinenumber=\"1\">A resource is part of a resource catalog and holds a list of representations.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.ResourceCatalog.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.ResourceCatalog.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.ResourceCatalog",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.ResourceCatalog.yml\" sourcestartlinenumber=\"1\">A catalog is a top level element and holds a list of resources.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.SourcesClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.SourcesClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.SourcesClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.SourcesClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.SystemClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.SystemClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.SystemClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.SystemClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.SystemResponse.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.SystemResponse.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.SystemResponse",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.SystemResponse.yml\" sourcestartlinenumber=\"1\">A system response.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.TaskStatus.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.TaskStatus.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.TaskStatus",
+      "Summary": ""
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.TokenClaim.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.TokenClaim.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.TokenClaim",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.TokenClaim.yml\" sourcestartlinenumber=\"1\">A revoke token request.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.UsersClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.UsersClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.UsersClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.UsersClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.V1.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.V1.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.V1",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.V1.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.WritersClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.WritersClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1.WritersClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V1.WritersClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V1.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V1.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V1",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.BatchStreamRequest.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.BatchStreamRequest.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.BatchStreamRequest",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.BatchStreamRequest.yml\" sourcestartlinenumber=\"1\">A request to stream multiple resources.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.DataClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.DataClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.DataClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.DataClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.ExportParameters.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.ExportParameters.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.ExportParameters",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.ExportParameters.yml\" sourcestartlinenumber=\"1\">A structure for export parameters.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.IDataClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.IDataClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.IDataClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.IDataClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with data.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.IJobsClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.IJobsClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.IJobsClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.IJobsClient.yml\" sourcestartlinenumber=\"1\">Provides methods to interact with jobs.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.IV2.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.IV2.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.IV2",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.IV2.yml\" sourcestartlinenumber=\"1\">A client for version V2.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.Job.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.Job.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.Job",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.Job.yml\" sourcestartlinenumber=\"1\">Description of a job.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.JobsClient.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.JobsClient.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.JobsClient",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.JobsClient.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.Precision.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.Precision.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.Precision",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.Precision.yml\" sourcestartlinenumber=\"1\">Specifies floating point precision for API output values.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.V2.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.V2.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.V2",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.V2.yml\" sourcestartlinenumber=\"1\">Supports all classes in the .NET class hierarchy and provides low-level services to derived classes. This is the ultimate base class of all .NET classes; it is the root of the type hierarchy.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.VisualizationRequest.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.VisualizationRequest.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.VisualizationRequest",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.VisualizationRequest.yml\" sourcestartlinenumber=\"1\">A Float32 visualization request over a common, half-open sample domain.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.VisualizationView.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.VisualizationView.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2.VisualizationView",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Api.V2.VisualizationView.yml\" sourcestartlinenumber=\"1\">Defines one caller-supplied half-open time viewport and the maximum number of decimated points to return for it.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.V2.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.V2.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api.V2",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Api.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Api.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Api",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.CatalogItem.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.CatalogItem.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.CatalogItem",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.CatalogItem.yml\" sourcestartlinenumber=\"1\">A catalog item consists of a catalog, a resource and a representation.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.CatalogRegistration.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.CatalogRegistration.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.CatalogRegistration",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.CatalogRegistration.yml\" sourcestartlinenumber=\"1\">A catalog registration.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.DataModelExtensions.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.DataModelExtensions.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.DataModelExtensions",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.DataModelExtensions.yml\" sourcestartlinenumber=\"1\">Contains extension methods to make life easier working with the data model types.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.NexusDataType.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.NexusDataType.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.NexusDataType",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.NexusDataType.yml\" sourcestartlinenumber=\"1\">Specifies the Nexus data type.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.Precision.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.Precision.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.Precision",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.Precision.yml\" sourcestartlinenumber=\"1\">Specifies floating point precision for API output values.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.PropertiesExtensions.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.PropertiesExtensions.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.PropertiesExtensions",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.PropertiesExtensions.yml\" sourcestartlinenumber=\"1\">A static class with extensions for <xref href=\"System.Text.Json.JsonElement\" data-throw-if-not-resolved=\"false\"></xref>.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.Representation.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.Representation.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.Representation",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.Representation.yml\" sourcestartlinenumber=\"1\">A representation is part of a resource.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.Resource.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.Resource.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.Resource",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.Resource.yml\" sourcestartlinenumber=\"1\">A resource is part of a resource catalog and holds a list of representations.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.ResourceBuilder.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.ResourceBuilder.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.ResourceBuilder",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.ResourceBuilder.yml\" sourcestartlinenumber=\"1\">A resource builder simplifies building a resource.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.ResourceCatalog.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.ResourceCatalog.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.ResourceCatalog",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.ResourceCatalog.yml\" sourcestartlinenumber=\"1\">A catalog is a top level element and holds a list of resources.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.ResourceCatalogBuilder.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.ResourceCatalogBuilder.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel.ResourceCatalogBuilder",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.DataModel.ResourceCatalogBuilder.yml\" sourcestartlinenumber=\"1\">A resource catalog builder simplifies building a resource catalog.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.DataModel.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.DataModel.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.DataModel",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.CatalogTimeRange.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.CatalogTimeRange.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.CatalogTimeRange",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.CatalogTimeRange.yml\" sourcestartlinenumber=\"1\">A catalog time range.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.DataSourceContext-1.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.DataSourceContext-1.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.DataSourceContext<T>",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.DataSourceContext-1.yml\" sourcestartlinenumber=\"1\">The starter package for a data source.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.DataWriterContext.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.DataWriterContext.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.DataWriterContext",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.DataWriterContext.yml\" sourcestartlinenumber=\"1\">The starter package for a data writer.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.DataWriterDescriptionAttribute.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.DataWriterDescriptionAttribute.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.DataWriterDescriptionAttribute",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.DataWriterDescriptionAttribute.yml\" sourcestartlinenumber=\"1\">An attribute to provide additional information about the data writer.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.ExtensibilityUtilities.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.ExtensibilityUtilities.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.ExtensibilityUtilities",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.ExtensibilityUtilities.yml\" sourcestartlinenumber=\"1\">A static class with useful helper methods.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.ExtensionDescriptionAttribute.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.ExtensionDescriptionAttribute.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.ExtensionDescriptionAttribute",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.ExtensionDescriptionAttribute.yml\" sourcestartlinenumber=\"1\">An attribute to identify the extension.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.IDataSource-1.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.IDataSource-1.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.IDataSource<T>",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.IDataSource-1.yml\" sourcestartlinenumber=\"1\">A data source.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.IDataSource.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.IDataSource.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.IDataSource",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.IDataSource.yml\" sourcestartlinenumber=\"1\">A base interface for IDataSource&gt;T&lt;.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.IDataWriter.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.IDataWriter.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.IDataWriter",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.IDataWriter.yml\" sourcestartlinenumber=\"1\">A data writer.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.IUpgradableDataSource.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.IUpgradableDataSource.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.IUpgradableDataSource",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.IUpgradableDataSource.yml\" sourcestartlinenumber=\"1\">Data sources which have configuration data to be upgraded should implement this interface.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.ReadDataHandler.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.ReadDataHandler.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.ReadDataHandler",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.ReadDataHandler.yml\" sourcestartlinenumber=\"1\">Reads the requested data.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.ReadRequest.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.ReadRequest.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.ReadRequest",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.ReadRequest.yml\" sourcestartlinenumber=\"1\">A read request.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.SimpleDataSource-1.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.SimpleDataSource-1.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.SimpleDataSource<T>",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.SimpleDataSource-1.yml\" sourcestartlinenumber=\"1\">A simple implementation of a data source.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.WriteRequest.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.WriteRequest.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility.WriteRequest",
+      "Summary": "<p sourcefile=\"api/dotnet/Nexus.Extensibility.WriteRequest.yml\" sourcestartlinenumber=\"1\">A write request.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/dotnet/Nexus.Extensibility.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/Nexus.Extensibility.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "Nexus.Extensibility",
+      "Summary": null
+    },
+    {
+      "type": "Toc",
+      "source_relative_path": "api/dotnet/toc.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/dotnet/toc.html"
+        },
+        ".json": {
+          "relative_path": "api/dotnet/toc.json"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "clients/dotnet.md",
+      "output": {
+        ".html": {
+          "relative_path": "clients/dotnet.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "clients/index.md",
+      "output": {
+        ".html": {
+          "relative_path": "clients/index.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "clients/matlab.md",
+      "output": {
+        ".html": {
+          "relative_path": "clients/matlab.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "clients/python.md",
+      "output": {
+        ".html": {
+          "relative_path": "clients/python.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Toc",
+      "source_relative_path": "clients/toc.yml",
+      "output": {
+        ".html": {
+          "relative_path": "clients/toc.html"
+        },
+        ".json": {
+          "relative_path": "clients/toc.json"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "clients/typescript.md",
+      "output": {
+        ".html": {
+          "relative_path": "clients/typescript.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "configuration/data-sources.md",
+      "output": {
+        ".html": {
+          "relative_path": "configuration/data-sources.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "configuration/deployment-notes.md",
+      "output": {
+        ".html": {
+          "relative_path": "configuration/deployment-notes.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "configuration/git-history.md",
+      "output": {
+        ".html": {
+          "relative_path": "configuration/git-history.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "configuration/index.md",
+      "output": {
+        ".html": {
+          "relative_path": "configuration/index.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "configuration/options.md",
+      "output": {
+        ".html": {
+          "relative_path": "configuration/options.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Toc",
+      "source_relative_path": "configuration/toc.yml",
+      "output": {
+        ".html": {
+          "relative_path": "configuration/toc.html"
+        },
+        ".json": {
+          "relative_path": "configuration/toc.json"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "extensibility/data-source-plugins.md",
+      "output": {
+        ".html": {
+          "relative_path": "extensibility/data-source-plugins.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "extensibility/data-writer-plugins.md",
+      "output": {
+        ".html": {
+          "relative_path": "extensibility/data-writer-plugins.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "extensibility/index.md",
+      "output": {
+        ".html": {
+          "relative_path": "extensibility/index.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "extensibility/lifecycle.md",
+      "output": {
+        ".html": {
+          "relative_path": "extensibility/lifecycle.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "extensibility/package-references.md",
+      "output": {
+        ".html": {
+          "relative_path": "extensibility/package-references.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Toc",
+      "source_relative_path": "extensibility/toc.yml",
+      "output": {
+        ".html": {
+          "relative_path": "extensibility/toc.html"
+        },
+        ".json": {
+          "relative_path": "extensibility/toc.json"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Resource",
+      "source_relative_path": "images/catalog-browser.png",
+      "output": {
+        "resource": {
+          "relative_path": "images/catalog-browser.png"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Resource",
+      "source_relative_path": "images/export.png",
+      "output": {
+        "resource": {
+          "relative_path": "images/export.png"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Resource",
+      "source_relative_path": "images/icon.png",
+      "output": {
+        "resource": {
+          "relative_path": "images/icon.png"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Resource",
+      "source_relative_path": "images/icon.svg",
+      "output": {
+        "resource": {
+          "relative_path": "images/icon.svg"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Resource",
+      "source_relative_path": "images/overview.png",
+      "output": {
+        "resource": {
+          "relative_path": "images/overview.png"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Resource",
+      "source_relative_path": "images/plot.png",
+      "output": {
+        "resource": {
+          "relative_path": "images/plot.png"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "index.md",
+      "output": {
+        ".html": {
+          "relative_path": "index.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Toc",
+      "source_relative_path": "toc.yml",
+      "output": {
+        ".html": {
+          "relative_path": "toc.html"
+        },
+        ".json": {
+          "relative_path": "toc.json"
+        }
+      },
+      "version": ""
+    }
+  ],
+  "groups": [
+    {
+      "xrefmap": "xrefmap.yml"
+    }
+  ]
+}
