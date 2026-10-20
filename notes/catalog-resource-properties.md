@@ -11,12 +11,12 @@ Catalogs can define optional resource UI metadata through `catalog.properties.re
   "resources": {
     "availability": [
       {
-        "pattern": "^/SAMPLE/LOCAL/P1/1_s#base=1_s$",
+        "pattern": "/P1/1_s",
         "begin": "2020-01-01T00:00:00Z",
         "end": null
       },
       {
-        "pattern": "^/SAMPLE/LOCAL/P1/100_ms#base=100_ms$",
+        "pattern": "/P1/100_ms",
         "begin": null,
         "end": "2020-01-01T00:00:00Z"
       }
@@ -30,6 +30,8 @@ Rules are evaluated per representation row. The `pattern` value is a regular exp
 ```text
 /{catalog-id}/{resource-id}/{sample-period}#base={sample-period}
 ```
+
+Availability rules usually only need to match the resource and sample-period part of that path. The `#base=...` suffix identifies the base representation used for derived calculations and is not required for availability filtering. For example, the rule pattern `/P1/1_s` matches the `1 s` representation independently of the catalog id and without depending on the base suffix.
 
 Examples:
 

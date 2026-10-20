@@ -939,6 +939,75 @@ public class VisualizationServiceTests
         fixture.AssertReleased();
     }
 
+    [Fact]
+    public async Task DerivedLowerCacheSeparatesExplicitBaseRepresentations()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var cached = new ConcurrentDictionary<(string Path, DateTime Begin), double[]>();
+
+        fixture.DerivedCache.Reset();
+
+        fixture.DerivedCache
+            .Setup(current => current.ReadAsync(
+                It.IsAny<CatalogItem>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<Memory<double>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<CatalogItem, DateTime, Memory<double>, CancellationToken>((catalogItem, begin, targetBuffer, _) =>
+            {
+                var key = (catalogItem.ToPath(), begin);
+
+                if (cached.TryGetValue(key, out var values))
+                {
+                    values.AsMemory().CopyTo(targetBuffer);
+                    return Task.FromResult(new List<Interval>());
+                }
+
+                return Task.FromResult(new List<Interval>
+                {
+                    new(begin, begin + catalogItem.Representation.SamplePeriod * targetBuffer.Length)
+                });
+            });
+
+        fixture.DerivedCache
+            .Setup(current => current.UpdateAsync(
+                It.IsAny<CatalogItem>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<Memory<double>>(),
+                It.IsAny<List<Interval>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<CatalogItem, DateTime, Memory<double>, List<Interval>, CancellationToken>((catalogItem, begin, sourceBuffer, _, _) =>
+            {
+                cached[(catalogItem.ToPath(), begin)] = sourceBuffer.ToArray();
+                return Task.CompletedTask;
+            });
+
+        var view = fixture.View("main", 0, 16, 100);
+        var firstRequest = fixture.Request([view]) with
+        {
+            ResourcePaths = ["/A/B/C/T2/4_s_mean#base=1_s"]
+        };
+
+        var secondRequest = fixture.Request([view]) with
+        {
+            ResourcePaths = ["/A/B/C/T2/4_s_mean#base=2_s"]
+        };
+
+        // Act
+        var firstRows = await fixture.RunAsync(firstRequest);
+        var secondRows = await fixture.RunAsync(secondRequest);
+
+        // Assert
+        var firstValues = Assert.Single(firstRows, row => row.Kind == 0 && row.Resource == 0 && row.View == 0).Values;
+        var secondValues = Assert.Single(secondRows, row => row.Kind == 0 && row.Resource == 0 && row.View == 0).Values;
+
+        Assert.Equal([2001.5f, 2005.5f, 2009.5f, 2013.5f], firstValues);
+        Assert.Equal([2001.0f, 2005.0f, 2009.0f, 2013.0f], secondValues);
+
+        fixture.AssertReleased();
+    }
+
     [Theory]
     [InlineData("/A/B/C/T1/2_s_mean#base=1_s")]
     [InlineData("/A/B/C/T2/1_s_resampled#base=2_s")]

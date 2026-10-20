@@ -613,8 +613,8 @@ internal class DataSourceController(
     {
         var item = readUnit.CatalogItemRequest.Item;
         var baseItem = readUnit.CatalogItemRequest.BaseItem!;
-        var cacheItem = readUnit.CatalogItemRequest.SourceItem ?? item;
         var sourceBaseItem = readUnit.CatalogItemRequest.SourceBaseItem ?? baseItem;
+        var cacheItem = WithBaseCacheParameter(readUnit.CatalogItemRequest.SourceItem ?? item, sourceBaseItem);
         var samplePeriod = item.Representation.SamplePeriod;
         var baseSamplePeriod = baseItem.Representation.SamplePeriod;
         var targetElementCount = targetByteCount / (int)readUnit.Precision;
@@ -793,6 +793,20 @@ internal class DataSourceController(
             }
 
         }
+    }
+
+    private static CatalogItem WithBaseCacheParameter(CatalogItem item, CatalogItem baseItem)
+    {
+        var parameters = item.Parameters is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : item.Parameters.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+
+        parameters["__nexus_base"] = baseItem.Representation.Id;
+
+        return item with
+        {
+            Parameters = parameters
+        };
     }
 
     private async Task ReadResampledAsync(
