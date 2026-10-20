@@ -50,12 +50,6 @@ internal class AppStateManager(
         {
             if (AppState.ReloadPackagesTask is null)
             {
-                /* create new catalog state */
-                AppState.CatalogState = new CatalogState(
-                    Root: CatalogContainer.CreateRoot(_catalogManager, _databaseService),
-                    Cache: new()
-                );
-
                 /* load packages */
                 _logger.LogInformation("Load packages");
 
@@ -72,6 +66,12 @@ internal class AppStateManager(
                         .LoadPackagesAsync(packageReferenceMap, progress, cancellationToken);
 
                     LoadDataWriters();
+
+                    /* create new catalog state */
+                    AppState.CatalogState = new CatalogState(
+                        Root: CatalogContainer.CreateRoot(_catalogManager, _databaseService),
+                        Cache: new()
+                    );
                 });
             }
 

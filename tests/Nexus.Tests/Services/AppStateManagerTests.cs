@@ -25,6 +25,10 @@ public class AppStateManagerTests
 
     public AppStateManagerTests()
     {
+        _appState.CatalogState = new CatalogState(
+            CatalogContainer.CreateRoot(Mock.Of<ICatalogManager>(), Mock.Of<IDatabaseService>()),
+            new CatalogCache());
+
         _packages.Setup(service => service.GetAllAsync()).ReturnsAsync(_packageMap);
         _writers.Setup(hive => hive.GetExtensions()).Returns([]);
 
@@ -120,6 +124,7 @@ public class AppStateManagerTests
 
         var first = _manager.RefreshDatabaseAsync(_progress, CancellationToken.None);
         var second = _manager.RefreshDatabaseAsync(_progress, CancellationToken.None);
+        var catalogState = _appState.CatalogState;
 
         if (stage == "packages")
             gate.SetException(error);
@@ -129,6 +134,7 @@ public class AppStateManagerTests
         Assert.Same(error, await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(TimeSpan.FromSeconds(10))));
         Assert.Same(error, await Assert.ThrowsAsync<InvalidOperationException>(() => second.WaitAsync(TimeSpan.FromSeconds(10))));
         Assert.Null(_appState.ReloadPackagesTask);
+        Assert.Same(catalogState, _appState.CatalogState);
         _packages.Verify(service => service.GetAllAsync(), Times.Once);
 
         _packages.Setup(service => service.GetAllAsync()).ReturnsAsync(_packageMap);
@@ -157,6 +163,8 @@ public class AppStateManagerTests
     {
         using var cancellation = new CancellationTokenSource();
         var enteredSources = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var catalogState = _appState.CatalogState;
+
         _sources.Setup(hive => hive.LoadPackagesAsync(_packageMap, _progress, cancellation.Token))
             .Callback(() => enteredSources.SetResult())
             .Returns(() => Task.Delay(Timeout.Infinite, cancellation.Token));
@@ -169,6 +177,7 @@ public class AppStateManagerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first.WaitAsync(TimeSpan.FromSeconds(10)));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second.WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Null(_appState.ReloadPackagesTask);
+        Assert.Same(catalogState, _appState.CatalogState);
         _upgrade.Verify(service => service.UpgradeAsync(), Times.Never);
 
         await _manager.RefreshDatabaseAsync(_progress, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
