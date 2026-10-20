@@ -1573,7 +1573,12 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
         cacheService
             .Verify(cacheService => cacheService.UpdateAsync(
-               catalogItem1,
+               It.Is<CatalogItem>(item =>
+                   item.Catalog == catalogItem1.Catalog &&
+                   item.Resource == catalogItem1.Resource &&
+                   item.Representation == catalogItem1.Representation &&
+                   item.Parameters != null &&
+                   item.Parameters["__nexus_base"] == baseItem1.Representation.Id),
                new DateTime(2020, 01, 01, 23, 0, 0, DateTimeKind.Utc),
                It.IsAny<Memory<double>>(),
                uncachedIntervals,
