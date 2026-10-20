@@ -14,14 +14,16 @@ internal interface ICacheService
         CatalogItem catalogItem,
         DateTime begin,
         Memory<double> targetBuffer,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string? cacheKeyDiscriminator = default);
 
     Task UpdateAsync(
         CatalogItem catalogItem,
         DateTime begin,
         Memory<double> sourceBuffer,
         List<Interval> uncachedIntervals,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string? cacheKeyDiscriminator = default);
 
     Task ClearAsync(
         string catalogId,
@@ -41,7 +43,8 @@ internal class CacheService(
         CatalogItem catalogItem,
         DateTime begin,
         Memory<double> targetBuffer,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? cacheKeyDiscriminator = default)
     {
         var samplePeriod = catalogItem.Representation.SamplePeriod;
         var end = begin + samplePeriod * targetBuffer.Length;
@@ -54,7 +57,7 @@ internal class CacheService(
             var actualBegin = fileBegin + fileOffset;
             var actualEnd = actualBegin + duration;
 
-            if (_databaseService.TryReadCacheEntry(catalogItem, fileBegin, out var cacheEntry))
+            if (_databaseService.TryReadCacheEntry(catalogItem, fileBegin, out var cacheEntry, cacheKeyDiscriminator))
             {
                 var slicedTargetBuffer = targetBuffer.Slice(
                    start: NexusUtilities.Scale(actualBegin - begin, samplePeriod),
@@ -110,7 +113,8 @@ internal class CacheService(
         DateTime begin,
         Memory<double> sourceBuffer,
         List<Interval> uncachedIntervals,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? cacheKeyDiscriminator = default)
     {
         var samplePeriod = catalogItem.Representation.SamplePeriod;
         var filePeriod = GetFilePeriod(samplePeriod);
@@ -122,7 +126,7 @@ internal class CacheService(
             {
                 var actualBegin = fileBegin + fileOffset;
 
-                if (_databaseService.TryWriteCacheEntry(catalogItem, fileBegin, out var cacheEntry))
+                if (_databaseService.TryWriteCacheEntry(catalogItem, fileBegin, out var cacheEntry, cacheKeyDiscriminator))
                 {
                     var slicedSourceBuffer = sourceBuffer.Slice(
                         start: NexusUtilities.Scale(actualBegin - begin, samplePeriod),

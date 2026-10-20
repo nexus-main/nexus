@@ -43,8 +43,8 @@ internal interface IDatabaseService
     Stream WriteArtifact(string fileName);
 
     /* /cache */
-    bool TryReadCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry);
-    bool TryWriteCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry);
+    bool TryReadCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry, string? cacheKeyDiscriminator = default);
+    bool TryWriteCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry, string? cacheKeyDiscriminator = default);
     Task ClearCacheEntriesAsync(string catalogId, DateOnly day, TimeSpan timeout, Predicate<string> predicate);
 }
 
@@ -273,17 +273,21 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
     private string GetCacheEntryDirectoryPath(string catalogId, DateOnly day)
         => Path.Combine(_pathsOptions.Cache, $"{GetPhysicalCatalogId(catalogId)}/{day:yyyy-MM}/{day:dd}");
 
-    private string GetCacheEntryId(CatalogItem catalogItem, DateTime begin)
+    private string GetCacheEntryId(CatalogItem catalogItem, DateTime begin, string? cacheKeyDiscriminator)
     {
         var parametersString = DataModelUtilities.GetRepresentationParameterString(catalogItem.Parameters);
-        return $"{GetCacheEntryDirectoryPath(catalogItem.Catalog.Id, DateOnly.FromDateTime(begin))}/{begin:yyyy-MM-ddTHH-mm-ss-fffffff}_{catalogItem.Resource.Id}_{catalogItem.Representation.Id}{parametersString}.cache";
+        var discriminatorString = cacheKeyDiscriminator is null
+            ? ""
+            : $"_{Uri.EscapeDataString(cacheKeyDiscriminator)}";
+
+        return $"{GetCacheEntryDirectoryPath(catalogItem.Catalog.Id, DateOnly.FromDateTime(begin))}/{begin:yyyy-MM-ddTHH-mm-ss-fffffff}_{catalogItem.Resource.Id}_{catalogItem.Representation.Id}{parametersString}{discriminatorString}.cache";
     }
 
-    public bool TryReadCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry)
+    public bool TryReadCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry, string? cacheKeyDiscriminator = default)
     {
         cacheEntry = default;
 
-        var cacheEntryFilePath = GetCacheEntryId(catalogItem, begin);
+        var cacheEntryFilePath = GetCacheEntryId(catalogItem, begin, cacheKeyDiscriminator);
 
         try
         {
@@ -297,11 +301,11 @@ internal class DatabaseService(IOptions<PathsOptions> pathsOptions)
         }
     }
 
-    public bool TryWriteCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry)
+    public bool TryWriteCacheEntry(CatalogItem catalogItem, DateTime begin, [NotNullWhen(true)] out Stream? cacheEntry, string? cacheKeyDiscriminator = default)
     {
         cacheEntry = default;
 
-        var cacheEntryFilePath = GetCacheEntryId(catalogItem, begin);
+        var cacheEntryFilePath = GetCacheEntryId(catalogItem, begin, cacheKeyDiscriminator);
         var cacheEntryDirectoryPath = Path.GetDirectoryName(cacheEntryFilePath);
 
         if (cacheEntryDirectoryPath is null)

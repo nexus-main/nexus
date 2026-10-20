@@ -12,7 +12,7 @@ namespace Services;
 
 public class CacheServiceTests
 {
-    delegate bool GobbleReturns(CatalogItem catalogItem, DateTime begin, out Stream cacheEntry);
+    delegate bool GobbleReturns(CatalogItem catalogItem, DateTime begin, out Stream cacheEntry, string? cacheKeyDiscriminator);
 
     [Fact]
     public async Task CanReadCache()
@@ -31,8 +31,9 @@ public class CacheServiceTests
             .Setup(databaseService => databaseService.TryReadCacheEntry(
                 It.IsAny<CatalogItem>(),
                 It.IsAny<DateTime>(),
-                out It.Ref<Stream?>.IsAny))
-            .Returns(new GobbleReturns((CatalogItem catalogItem, DateTime begin, out Stream cacheEntry) =>
+                out It.Ref<Stream?>.IsAny,
+                It.IsAny<string?>()))
+            .Returns(new GobbleReturns((CatalogItem catalogItem, DateTime begin, out Stream cacheEntry, string? _) =>
             {
                 cacheEntry = new MemoryStream();
                 var writer = new BinaryWriter(cacheEntry);
@@ -145,8 +146,9 @@ public class CacheServiceTests
             .Setup(databaseService => databaseService.TryWriteCacheEntry(
                 It.IsAny<CatalogItem>(),
                 It.IsAny<DateTime>(),
-                out It.Ref<Stream?>.IsAny))
-            .Returns(new GobbleReturns((CatalogItem catalogItem, DateTime begin, out Stream cacheEntry) =>
+                out It.Ref<Stream?>.IsAny,
+                It.IsAny<string?>()))
+            .Returns(new GobbleReturns((CatalogItem catalogItem, DateTime begin, out Stream cacheEntry, string? _) =>
             {
                 var stream = new MemoryStream();
 

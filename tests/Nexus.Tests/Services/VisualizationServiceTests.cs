@@ -944,7 +944,7 @@ public class VisualizationServiceTests
     {
         // Arrange
         using var fixture = new Fixture();
-        var cached = new ConcurrentDictionary<(string Path, DateTime Begin), double[]>();
+        var cached = new ConcurrentDictionary<(string Path, DateTime Begin, string? Discriminator), double[]>();
 
         fixture.DerivedCache.Reset();
 
@@ -953,10 +953,11 @@ public class VisualizationServiceTests
                 It.IsAny<CatalogItem>(),
                 It.IsAny<DateTime>(),
                 It.IsAny<Memory<double>>(),
-                It.IsAny<CancellationToken>()))
-            .Returns<CatalogItem, DateTime, Memory<double>, CancellationToken>((catalogItem, begin, targetBuffer, _) =>
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .Returns<CatalogItem, DateTime, Memory<double>, CancellationToken, string?>((catalogItem, begin, targetBuffer, _, discriminator) =>
             {
-                var key = (catalogItem.ToPath(), begin);
+                var key = (catalogItem.ToPath(), begin, discriminator);
 
                 if (cached.TryGetValue(key, out var values))
                 {
@@ -976,10 +977,11 @@ public class VisualizationServiceTests
                 It.IsAny<DateTime>(),
                 It.IsAny<Memory<double>>(),
                 It.IsAny<List<Interval>>(),
-                It.IsAny<CancellationToken>()))
-            .Returns<CatalogItem, DateTime, Memory<double>, List<Interval>, CancellationToken>((catalogItem, begin, sourceBuffer, _, _) =>
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .Returns<CatalogItem, DateTime, Memory<double>, List<Interval>, CancellationToken, string?>((catalogItem, begin, sourceBuffer, _, _, discriminator) =>
             {
-                cached[(catalogItem.ToPath(), begin)] = sourceBuffer.ToArray();
+                cached[(catalogItem.ToPath(), begin, discriminator)] = sourceBuffer.ToArray();
                 return Task.CompletedTask;
             });
 
@@ -1796,8 +1798,9 @@ public class VisualizationServiceTests
                     It.IsAny<CatalogItem>(),
                     It.IsAny<DateTime>(),
                     It.IsAny<Memory<double>>(),
-                    It.IsAny<CancellationToken>()))
-                .Returns<CatalogItem, DateTime, Memory<double>, CancellationToken>((catalogItem, begin, targetBuffer, _) =>
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<string?>()))
+                .Returns<CatalogItem, DateTime, Memory<double>, CancellationToken, string?>((catalogItem, begin, targetBuffer, _, _) =>
                     Task.FromResult(new List<Interval>
                     {
                         new(begin, begin + catalogItem.Representation.SamplePeriod * targetBuffer.Length)
@@ -1809,7 +1812,8 @@ public class VisualizationServiceTests
                     It.IsAny<DateTime>(),
                     It.IsAny<Memory<double>>(),
                     It.IsAny<List<Interval>>(),
-                    It.IsAny<CancellationToken>()))
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<string?>()))
                 .Returns(Task.CompletedTask);
 
             _memoryTracker

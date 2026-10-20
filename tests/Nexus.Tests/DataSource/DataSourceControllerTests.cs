@@ -1340,11 +1340,11 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
         var pipe = new Pipe();
 
         cacheService
-            .Setup(cache => cache.ReadAsync(It.IsAny<CatalogItem>(), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>()))
+            .Setup(cache => cache.ReadAsync(It.IsAny<CatalogItem>(), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(uncachedIntervals);
 
         cacheService
-            .Setup(cache => cache.UpdateAsync(It.IsAny<CatalogItem>(), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<List<Interval>>(), It.IsAny<CancellationToken>()))
+            .Setup(cache => cache.UpdateAsync(It.IsAny<CatalogItem>(), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<List<Interval>>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .Returns(Task.CompletedTask);
 
         Mock.Get(dataSource)
@@ -1375,10 +1375,10 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
         await controller.ReadAsync(begin, end, representation.SamplePeriod, Precision.Float32, [new CatalogItemRequestPipeWriter(request, pipe.Writer)], default!, new Progress<double>(), CancellationToken.None);
 
-        cacheService.Verify(cache => cache.ReadAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/SOURCE"), begin, It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>()), Times.Once);
-        cacheService.Verify(cache => cache.ReadAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/ALIAS"), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>()), Times.Never);
-        cacheService.Verify(cache => cache.UpdateAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/SOURCE"), begin, It.IsAny<Memory<double>>(), uncachedIntervals, It.IsAny<CancellationToken>()), Times.Once);
-        cacheService.Verify(cache => cache.UpdateAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/ALIAS"), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<List<Interval>>(), It.IsAny<CancellationToken>()), Times.Never);
+        cacheService.Verify(cache => cache.ReadAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/SOURCE"), begin, It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>(), sourceBaseItem.ToPath()), Times.Once);
+        cacheService.Verify(cache => cache.ReadAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/ALIAS"), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Never);
+        cacheService.Verify(cache => cache.UpdateAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/SOURCE"), begin, It.IsAny<Memory<double>>(), uncachedIntervals, It.IsAny<CancellationToken>(), sourceBaseItem.ToPath()), Times.Once);
+        cacheService.Verify(cache => cache.UpdateAsync(It.Is<CatalogItem>(item => item.Catalog.Id == "/ALIAS"), It.IsAny<DateTime>(), It.IsAny<Memory<double>>(), It.IsAny<List<Interval>>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Never);
     }
 
     [Fact]
@@ -1518,12 +1518,13 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
         cacheService
             .Setup(cacheService => cacheService.ReadAsync(
-               It.IsAny<CatalogItem>(),
-               It.IsAny<DateTime>(),
-               It.IsAny<Memory<double>>(),
-               It.IsAny<CancellationToken>())
+                It.IsAny<CatalogItem>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<Memory<double>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>())
             )
-            .Callback<CatalogItem, DateTime, Memory<double>, CancellationToken>((item, begin, targetBuffer, cancellationToken) =>
+            .Callback<CatalogItem, DateTime, Memory<double>, CancellationToken, string?>((item, begin, targetBuffer, cancellationToken, _) =>
             {
                 var offset = 1;
                 var length = 24;
@@ -1573,16 +1574,12 @@ public class DataSourceControllerTests(DataSourceControllerFixture fixture)
 
         cacheService
             .Verify(cacheService => cacheService.UpdateAsync(
-               It.Is<CatalogItem>(item =>
-                   item.Catalog == catalogItem1.Catalog &&
-                   item.Resource == catalogItem1.Resource &&
-                   item.Representation == catalogItem1.Representation &&
-                   item.Parameters != null &&
-                   item.Parameters["__nexus_base"] == baseItem1.Representation.Id),
+               catalogItem1,
                new DateTime(2020, 01, 01, 23, 0, 0, DateTimeKind.Utc),
                It.IsAny<Memory<double>>(),
                uncachedIntervals,
-               It.IsAny<CancellationToken>()), Times.Once());
+               It.IsAny<CancellationToken>(),
+               baseItem1.ToPath()), Times.Once());
     }
 
     [Fact]
